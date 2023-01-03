@@ -32,16 +32,16 @@ impl GetIdMap<TextResource> for AnnotationStore {
     fn get_idmap(&self) -> &HashMap<String,IntId> {
         &self.resource_idmap
     }
-    fn get_mut_idmap(&self) -> &mut HashMap<String,IntId> {
+    fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId> {
         &mut self.resource_idmap
     }
 }
 
-impl GetStore<TextResource> for AnnotationStore {
-    fn get_store(&self) -> &Vec<TextResource> {
+impl GetStore<Annotation> for AnnotationStore {
+    fn get_store(&self) -> &Vec<Annotation> {
         &self.annotations
     }
-    fn get_mut_store(&mut self) -> &mut Vec<TextResource> {
+    fn get_mut_store(&mut self) -> &mut Vec<Annotation> {
         &mut self.annotations
     }
 }
@@ -49,10 +49,11 @@ impl GetIdMap<Annotation> for AnnotationStore {
     fn get_idmap(&self) -> &HashMap<String,IntId> {
         &self.annotation_idmap
     }
-    fn get_mut_idmap(&self) -> &mut HashMap<String,IntId> {
+    fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId> {
         &mut self.annotation_idmap
     }
 }
+
 ///Here we adopt the default implementation for storage traits, this gives us the add() method
 impl StoreFor<TextResource> for AnnotationStore {}
 impl StoreFor<Annotation> for AnnotationStore {}
@@ -61,21 +62,21 @@ impl StoreFor<Annotation> for AnnotationStore {}
 impl AnnotationStore {
     /// Add an Annotation to the annotation store.
     pub fn add_annotation(&mut self, annotation: Annotation) -> Result<(),StamError> {
-        self.add(annotation, &mut self.annotations, Some(&mut self.annotation_index))
+        self.add(annotation)
     }
 
     /// Add a Resource to the annotation store
     pub fn get_annotation(&self, id: &str) -> Result<&Annotation, StamError> {
-        self.get_by_id(id, &self.annotations, &self.annotation_index)
+        self.get_by_id(id)
     }
 
     pub fn get_annotation_int(&self, id: IntId) -> Result<&Annotation, StamError> {
-        self.get(id, &self.annotations)
+        self.get(id)
     }
 
     /// Add a TextResource to the annotation store.
     pub fn add_resource(&mut self, resource: TextResource) -> Result<(),StamError> {
-        self.add(resource, &mut self.resources, Some(&mut self.resource_index))
+        self.add(resource)
     }
 
     /// Shortcut method that calls add_resource under the hood
@@ -85,11 +86,11 @@ impl AnnotationStore {
     }
 
     pub fn get_resource(&self, id: &str) -> Result<&TextResource, StamError> {
-        self.get_by_id(id, &self.resources, &self.resource_index)
+        self.get_by_id(id)
     }
 
     pub fn get_resource_int(&self, id: IntId) -> Result<&TextResource, StamError> {
-        self.get(id, &self.resources)
+        self.get(id)
     }
 
 }

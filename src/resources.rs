@@ -40,7 +40,7 @@ impl TextResource {
     pub fn from_file(filename: &str) -> Result<Self,StamError> {
         match File::open(filename) {
             Ok(mut f) => {
-                let text = String::new();
+                let mut text = String::new();
                 if let Err(err) = f.read_to_string(&mut text) {
                     return Err(StamError::IOError(err));
                 }

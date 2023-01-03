@@ -18,16 +18,9 @@ pub trait HasIntId {
     fn set_intid(&mut self, intid: IntId);
 }
 
-
 /// This trait is used on types that may have a global ID
 pub trait HasId {
     fn get_id(&self) -> Option<&str>;
-}
-
-pub trait OwnedBy<T> {
-    fn set_owner(&mut self, owner: &T) {
-        //no op by default, override when needed
-    }
 }
 
 pub trait GetStore<T> {
@@ -36,64 +29,67 @@ pub trait GetStore<T> {
 }
 
 pub trait GetIdMap<T> {
-    fn get_idmap(&self) -> &HashMap<T,IntId>;
-    fn get_mut_idmap(&self) -> &mut HashMap<T,IntId>;
+    fn get_idmap(&self) -> &HashMap<String,IntId>;
+    fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId>;
 }
 
-
-
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
-pub(crate) trait StoreFor<T: HasIntId + HasId>: GetStore<T> {
-    fn add(&mut self, mut item: T, store: &mut Vec<T>, index: Option<&mut HashMap<String,IntId>>) -> Result<(),StamError> {
-        item.set_intid(store.len() as IntId);
-        //item.set_owner(self);
+pub(crate) trait StoreFor<T>: GetStore<T>  + GetIdMap<T> where T: HasIntId + HasId {
+    fn add(&mut self, mut item: T) -> Result<(),StamError> {
+        item.set_intid(self.get_store().len() as IntId);
+        self.own(&mut item);
 
         //insert a mapping from the global ID to the numeric ID in the map
-        if let (Some(index), Some(id)) = (index, item.get_id()) {
+        if let Some(id) = item.get_id() {
             //check if global ID does not already exis
-            if let Err(err) = self.get_by_id(id, store, index) {
+            if self.get_by_id(id).is_ok() {
                 return Err(StamError::DuplicateIdError(id.to_string()));
             }
 
             //               v-- MAYBE TODO: optimise the copy away
-            index.insert(id.to_string(), item.get_intid().unwrap());
+            self.get_mut_idmap().insert(id.to_string(), item.get_intid().unwrap());
         }
 
         //add the resource
-        store.push(item);
+        self.get_mut_store().push(item);
 
         Ok(())
     }
 
-    fn get_by_id<'a>(&self, id: &str, store: &'a Vec<T>, index: &HashMap<String,IntId>) -> Result<&'a T,StamError> {
-        if let Some(intid) = index.get(id) {
-            self.get(*intid, store)
+    fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
+        if let Some(intid) = self.get_idmap().get(id) {
+            self.get(*intid)
         } else {
             Err(StamError::IdError(id.to_string()))
         }
     }
 
-    fn get_mut_by_id<'a>(&mut self, id: &str, store: &'a mut Vec<T>, index: &HashMap<String,IntId>) -> Result<&'a mut T,StamError> {
-        if let Some(intid) = index.get(id) {
-            self.get_mut(*intid, store)
+    fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T,StamError> {
+        if let Some(intid) = self.get_idmap().get(id) {
+            self.get_mut(*intid)
         } else {
             Err(StamError::IdError(id.to_string()))
         }
     }
 
-    fn get<'a>(&self, intid: IntId, store: &'a Vec<T>) -> Result<&'a T,StamError> {
-        if let Some(item) = store.get(intid as usize) {
+    fn get(&self, intid: IntId) -> Result<&T,StamError> {
+        if let Some(item) = self.get_store().get(intid as usize) {
             Ok(item)
         } else {
             Err(StamError::IntIdError(intid))
         }
     }
 
-    fn get_mut<'a>(&mut self, intid: IntId, store: &'a mut Vec<T>) -> Result<&'a mut T,StamError> {
-        if let Some(item) = store.get_mut(intid as usize) {
+    fn get_mut(&mut self, intid: IntId) -> Result<&mut T,StamError> {
+        if let Some(item) = self.get_mut_store().get_mut(intid as usize) {
             Ok(item)
         } else {
             Err(StamError::IntIdError(intid))
         }
     }
+
+    fn own(&self, item: &mut T) {
+        //default implementation does nothing
+    }
+
 }

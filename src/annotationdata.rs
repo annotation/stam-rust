@@ -26,12 +26,55 @@ pub struct AnnotationDataSet {
     pub data: Vec<AnnotationData>,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
-    pub(crate) intid: IntId,
+    intid: Option<IntId>,
 
-    pub(crate) key_index: HashMap<String,IntId>
+    key_idmap: HashMap<String,IntId>
 }
 
-impl StoreFor<DataKey> for AnnotationDataSet {}
+impl HasId for AnnotationDataSet {
+    fn get_id(&self) -> Option<&str> { 
+        self.id.as_ref().map(|x| &**x)
+    }
+}
+
+impl HasIntId for AnnotationDataSet {
+    fn get_intid(&self) -> Option<IntId> { 
+        self.intid
+    }
+    fn set_intid(&mut self, intid: IntId) {
+        self.intid = Some(intid);
+    }
+}
+
+impl GetStore<DataKey> for AnnotationDataSet {
+    fn get_store(&self) -> &Vec<DataKey> {
+        &self.keys
+    }
+    fn get_mut_store(&mut self) -> &mut Vec<DataKey> {
+        &mut self.keys
+    }
+}
+impl GetIdMap<DataKey> for AnnotationDataSet {
+    fn get_idmap(&self) -> &HashMap<String,IntId> {
+        &self.key_idmap
+    }
+    fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId> {
+        &mut self.key_idmap
+    }
+}
+
+impl StoreFor<DataKey> for AnnotationDataSet {
+    fn own(&self, item: &mut DataKey) {
+        item.part_of_set = self.get_intid();
+    }
+}
+
+impl AnnotationDataSet {
+    /// Add a new key to an annotation data set
+    pub fn add_key(&mut self, key: DataKey) -> Result<(),StamError> {
+        self.add(key)
+    }
+}
 
 pub enum DataValue {
     ///No value
@@ -102,33 +145,4 @@ impl OwnedBy<AnnotationDataSet> for DataKey {
 }
 */
 
-impl AnnotationDataSet {
-    /// Add a new key to an annotation data set
-    pub fn add_key(&mut self, key: DataKey) -> Result<(),StamError> {
-        self.add( key, &mut self.keys, Some(&mut self.key_index))
-/*
-        key.intid = Some(self.keys.len());
-        key.part_of_set = Some(self.intid);
 
-        //check if key does not already exist within this set
-        if let Err(err) = self.key(&key.id) {
-            return Err(StamError::DuplicateIdError(key.id));
-        }
-
-        //insert a mapping from the global ID to the numeric ID in the map
-        let key = key.id.clone(); //MAYBE TODO: optimise the clone() away
-        self.key_index.insert(key, key.intid.unwrap());
-
-        //add the key
-        self.keys.push(key);
-
-        Ok(())
-*/
-    }
-
-    pub fn add_data(&mut self, data: AnnotationData) {
-    }
-
-
-
-}

@@ -17,7 +17,7 @@ pub struct Annotation {
 
 impl HasId for Annotation {
     fn get_id(&self) -> Option<&str> { 
-        self.id.map(|x| x.as_str())
+        self.id.as_ref().map(|x| &**x)
     }
 }
 
