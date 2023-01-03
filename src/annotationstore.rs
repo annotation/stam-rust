@@ -14,36 +14,68 @@ pub struct AnnotationStore {
     pub resources: Vec<TextResource>,
 
     /// Links to annotations by ID.
-    pub(crate) annotation_index: HashMap<String,IntId>,
+    pub(crate) annotation_idmap: HashMap<String,IntId>,
     /// Links to resources by ID.
-    pub(crate) resource_index: HashMap<String,IntId>
+    pub(crate) resource_idmap: HashMap<String,IntId>
 }
+
+
+impl GetStore<TextResource> for AnnotationStore {
+    fn get_store(&self) -> &Vec<TextResource> {
+        &self.resources
+    }
+    fn get_mut_store(&mut self) -> &mut Vec<TextResource> {
+        &mut self.resources
+    }
+}
+impl GetIdMap<TextResource> for AnnotationStore {
+    fn get_idmap(&self) -> &HashMap<String,IntId> {
+        &self.resource_idmap
+    }
+    fn get_mut_idmap(&self) -> &mut HashMap<String,IntId> {
+        &mut self.resource_idmap
+    }
+}
+
+impl GetStore<TextResource> for AnnotationStore {
+    fn get_store(&self) -> &Vec<TextResource> {
+        &self.annotations
+    }
+    fn get_mut_store(&mut self) -> &mut Vec<TextResource> {
+        &mut self.annotations
+    }
+}
+impl GetIdMap<Annotation> for AnnotationStore {
+    fn get_idmap(&self) -> &HashMap<String,IntId> {
+        &self.annotation_idmap
+    }
+    fn get_mut_idmap(&self) -> &mut HashMap<String,IntId> {
+        &mut self.annotation_idmap
+    }
+}
+///Here we adopt the default implementation for storage traits, this gives us the add() method
+impl StoreFor<TextResource> for AnnotationStore {}
+impl StoreFor<Annotation> for AnnotationStore {}
 
 
 impl AnnotationStore {
     /// Add an Annotation to the annotation store.
     pub fn add_annotation(&mut self, annotation: Annotation) -> Result<(),StamError> {
-        
+        self.add(annotation, &mut self.annotations, Some(&mut self.annotation_index))
+    }
+
+    /// Add a Resource to the annotation store
+    pub fn get_annotation(&self, id: &str) -> Result<&Annotation, StamError> {
+        self.get_by_id(id, &self.annotations, &self.annotation_index)
+    }
+
+    pub fn get_annotation_int(&self, id: IntId) -> Result<&Annotation, StamError> {
+        self.get(id, &self.annotations)
     }
 
     /// Add a TextResource to the annotation store.
     pub fn add_resource(&mut self, resource: TextResource) -> Result<(),StamError> {
-        //get and assign next numeric ID to the resource
-        resource.intid = Some(self.resources.len());
-
-        //check if global ID does not already exist
-        if let Err(err) = resource.get_resource(&resource.id) {
-            return Err(StamError::DuplicateIdError(resource.id));
-        }
-
-        //insert a mapping from the global ID to the numeric ID in the map
-        let key = resource.id.clone(); //MAYBE TODO: optimise the clone() away
-        self.annotation_index.insert(key, resource.intid);
-
-        //add the resource
-        self.resources.push(resource);
-
-        Ok(())
+        self.add(resource, &mut self.resources, Some(&mut self.resource_index))
     }
 
     /// Shortcut method that calls add_resource under the hood
@@ -53,21 +85,12 @@ impl AnnotationStore {
     }
 
     pub fn get_resource(&self, id: &str) -> Result<&TextResource, StamError> {
-        if let Some(intid) = self.resource_index.get(id) {
-            self.get_resource_int(intid)
-        } else {
-            Err(StamError::IdError(id))
-        }
+        self.get_by_id(id, &self.resources, &self.resource_index)
     }
 
     pub fn get_resource_int(&self, id: IntId) -> Result<&TextResource, StamError> {
-        if let Some(resource) = self.resources.get(id) {
-            Ok(resource)
-        } else {
-            Err(StamError::IntIdError(id))
-        }
+        self.get(id, &self.resources)
     }
-
 
 }
     

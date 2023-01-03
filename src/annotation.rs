@@ -1,22 +1,36 @@
 use crate::types::*;
-use crate::annotationdata::*;
 use crate::selector::Selector;
 
 pub struct Annotation {
     /// Public identifier for this annotation
-    pub id: Option<String>,
+    id: Option<String>,
 
     /// Reference to the annotation data (may be multiple) that describe(s) this annotation, the first ID refers to an AnnotationDataSet as owned by the AnnotationStore, the second to an AnnotationData instance as owned by that set
     pub data: Vec<(IntId,IntId)>,
     pub target: Selector,
 
-    ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership 
-    pub(crate) intid: IntId,
+    ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership. 
+    intid: Option<IntId>,
     ///Referers to internal IDs of Annotations (as owned by an AnnotationStore) that reference this Annotation (via an AnnotationSelector)
-    pub(crate) referenced_by: Vec<IntId>
+    referenced_by: Vec<IntId>
+}
+
+impl HasId for Annotation {
+    fn get_id(&self) -> Option<&str> { 
+        self.id.map(|x| x.as_str())
+    }
+}
+
+impl HasIntId for Annotation {
+    fn get_intid(&self) -> Option<IntId> { 
+        self.intid
+    }
+    fn set_intid(&mut self, intid: IntId) {
+        self.intid = Some(intid);
+    }
 }
 
 impl Annotation {
-    pub fn iter_data(&self) -> &AnnotationData {
-    }
+    //pub fn iter_data(&self) -> &AnnotationData {
+    //}
 }

@@ -1,4 +1,4 @@
-use Chrono::DateTime;
+//use Chrono::DateTime;
 use std::collections::{HashSet, HashMap};
 
 use crate::types::*;
@@ -31,6 +31,8 @@ pub struct AnnotationDataSet {
     pub(crate) key_index: HashMap<String,IntId>
 }
 
+impl StoreFor<DataKey> for AnnotationDataSet {}
+
 pub enum DataValue {
     ///No value
     Null,
@@ -38,7 +40,7 @@ pub enum DataValue {
     Bool(bool),
     Int(usize),
     Float(f64),
-    Datetime(chrono::DateTime),
+    //Datetime(chrono::DateTime), //TODO
 
     /// Value is an unordered set
     Set(HashSet<DataValue>),
@@ -62,6 +64,21 @@ pub struct DataKey {
     pub(crate) part_of_set: Option<IntId>
 }
 
+impl HasId for DataKey {
+    fn get_id(&self) -> Option<&str> { 
+        Some(self.id.as_str())
+    }
+}
+
+impl HasIntId for DataKey {
+    fn get_intid(&self) -> Option<IntId> { 
+        self.intid
+    }
+    fn set_intid(&mut self, intid: IntId) {
+        self.intid = Some(intid);
+    }
+}
+
 impl DataKey {
     ///Creates a new DataKey which you can add to an AnnotationDataSet using AnnotationDataSet.add_key()
     pub fn new(id: String, indexed: bool) -> Self {
@@ -75,10 +92,21 @@ impl DataKey {
     }
 }
 
+/*
+impl OwnedBy<AnnotationDataSet> for DataKey {
+    fn set_owner(&mut self, owner: &AnnotationDataSet) {
+        if let Some(intid) = owner.intid {
+            self.part_of_set = *intid;
+        }
+    }
+}
+*/
 
 impl AnnotationDataSet {
     /// Add a new key to an annotation data set
     pub fn add_key(&mut self, key: DataKey) -> Result<(),StamError> {
+        self.add( key, &mut self.keys, Some(&mut self.key_index))
+/*
         key.intid = Some(self.keys.len());
         key.part_of_set = Some(self.intid);
 
@@ -95,6 +123,7 @@ impl AnnotationDataSet {
         self.keys.push(key);
 
         Ok(())
+*/
     }
 
     pub fn add_data(&mut self, data: AnnotationData) {
