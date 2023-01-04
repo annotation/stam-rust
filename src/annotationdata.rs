@@ -15,7 +15,7 @@ pub struct AnnotationData {
     ///Referers to internal IDs of Annotation (as owned by an AnnotationStore) that use this dataset
     referenced_by: Vec<IntId>,
     ///Referers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey
-    part_of_set: IntId
+    part_of_set: Option<IntId>
 }
 
 impl HasIntId for AnnotationData {
@@ -77,6 +77,14 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     fn set_owner_of(&self, item: &mut DataKey) {
         item.part_of_set = self.get_intid();
     }
+    fn is_owner_of(&self, item: &DataKey) -> Option<bool> {
+        if item.part_of_set.is_none() || self.get_intid().is_none() {
+            //ownership is unclear because one of both is unbound
+            None
+        } else {
+            Some(item.part_of_set == self.get_intid())
+        }
+    }
 }
 
 impl StoreFor<AnnotationData> for AnnotationDataSet {
@@ -87,8 +95,14 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         &mut self.data
     }
     fn set_owner_of(&self, item: &mut AnnotationData) {
-        if let Some(intid) = self.get_intid() {
-            item.part_of_set = intid;
+        item.part_of_set = self.get_intid();
+    }
+    fn is_owner_of(&self, item: &AnnotationData) -> Option<bool> {
+        if item.part_of_set.is_none() || self.get_intid().is_none() {
+            //ownership is unclear because one of both is unbound
+            None
+        } else {
+            Some(item.part_of_set == self.get_intid())
         }
     }
 }

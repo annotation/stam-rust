@@ -63,13 +63,9 @@ impl AnnotationStore {
         self.add(annotation)
     }
 
-    /// Add a Resource to the annotation store
+    /// Get an annotation by global ID
     pub fn get_annotation(&self, id: &str) -> Result<&Annotation, StamError> {
         self.get_by_id(id)
-    }
-
-    pub fn get_annotation_int(&self, id: IntId) -> Result<&Annotation, StamError> {
-        self.get(id)
     }
 
     /// Add a TextResource to the annotation store.
@@ -83,13 +79,11 @@ impl AnnotationStore {
         self.add_resource(resource)
     }
 
+    /// Get a resource by Id
     pub fn get_resource(&self, id: &str) -> Result<&TextResource, StamError> {
         self.get_by_id(id)
     }
 
-    pub fn get_resource_int(&self, id: IntId) -> Result<&TextResource, StamError> {
-        self.get(id)
-    }
 
 }
     

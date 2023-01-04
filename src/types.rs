@@ -68,6 +68,17 @@ pub trait StoreFor<T: HasIntId + GetId> {
         Ok(())
     }
 
+    /// Returns true if the store contains the item
+    fn contains(&self, item: &T) -> bool {
+        if let (Some(intid), Some(true)) = (item.get_intid(), self.is_owner_of(item)) {
+            self.get_store().len() > intid as usize
+        } else if let (Some(id), Some(idmap)) = (item.get_id(), self.get_idmap()) {
+            idmap.contains_key(id)
+        } else {
+            false
+        }
+    }
+
     /// Get a reference to an item from the store by its global ID
     fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
         if let Some(idmap) = self.get_idmap() {
@@ -116,5 +127,11 @@ pub trait StoreFor<T: HasIntId + GetId> {
     fn set_owner_of(&self, item: &mut T) {
         //default implementation does nothing
     }
+
+    fn is_owner_of(&self, item: &T) -> Option<bool> {
+        //indicated unknown
+        None
+    }
+
 
 }
