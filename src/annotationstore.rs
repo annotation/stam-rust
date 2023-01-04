@@ -20,7 +20,9 @@ pub struct AnnotationStore {
 }
 
 
-impl GetStore<TextResource> for AnnotationStore {
+
+//An AnnotationStore is a StoreFor TextResource
+impl StoreFor<TextResource> for AnnotationStore {
     /// Get a reference to the entire store for the associated type
     fn get_store(&self) -> &Vec<TextResource> {
         &self.resources
@@ -29,39 +31,31 @@ impl GetStore<TextResource> for AnnotationStore {
     fn get_mut_store(&mut self) -> &mut Vec<TextResource> {
         &mut self.resources
     }
-}
-impl GetIdMap<TextResource> for AnnotationStore {
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_idmap(&self) -> &HashMap<String,IntId> {
-        &self.resource_idmap
+    fn get_idmap(&self) -> Option<&HashMap<String,IntId>> {
+        Some(&self.resource_idmap)
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId> {
-        &mut self.resource_idmap
+    fn get_mut_idmap(&mut self) -> Option<&mut HashMap<String,IntId>> {
+        Some(&mut self.resource_idmap)
     }
 }
 
-impl GetStore<Annotation> for AnnotationStore {
+//An AnnotationStore is a StoreFor Annotation
+impl StoreFor<Annotation> for AnnotationStore {
     fn get_store(&self) -> &Vec<Annotation> {
         &self.annotations
     }
     fn get_mut_store(&mut self) -> &mut Vec<Annotation> {
         &mut self.annotations
     }
-}
-impl GetIdMap<Annotation> for AnnotationStore {
-    fn get_idmap(&self) -> &HashMap<String,IntId> {
-        &self.annotation_idmap
+    fn get_idmap(&self) -> Option<&HashMap<String,IntId>> {
+        Some(&self.annotation_idmap)
     }
-    fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId> {
-        &mut self.annotation_idmap
+    fn get_mut_idmap(&mut self) -> Option<&mut HashMap<String,IntId>> {
+        Some(&mut self.annotation_idmap)
     }
 }
-
-///Here we adopt the default implementation for storage traits, this gives us the add() method
-impl StoreFor<TextResource> for AnnotationStore {}
-impl StoreFor<Annotation> for AnnotationStore {}
-
 
 impl AnnotationStore {
     /// Add an Annotation to the annotation store.

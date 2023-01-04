@@ -27,10 +27,19 @@ impl HasIntId for AnnotationData {
     }
 }
 
+impl GetId for AnnotationData {
+    /// Retrieves the gloal Id for AnnotationData, is not applicable so result is always None
+    fn get_id(&self) -> Option<&str> { 
+        None
+    }
+}
 
 
 
 
+pub trait PartOfSet {
+    fn get_set(&self) -> &AnnotationDataSet;
+}
 
 pub struct AnnotationDataSet {
     pub id: Option<String>,
@@ -43,7 +52,7 @@ pub struct AnnotationDataSet {
     key_idmap: HashMap<String,IntId>
 }
 
-impl HasId for AnnotationDataSet {
+impl GetId for AnnotationDataSet {
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
@@ -58,26 +67,36 @@ impl HasIntId for AnnotationDataSet {
     }
 }
 
-impl GetStore<DataKey> for AnnotationDataSet {
+
+impl StoreFor<DataKey> for AnnotationDataSet {
     fn get_store(&self) -> &Vec<DataKey> {
         &self.keys
     }
     fn get_mut_store(&mut self) -> &mut Vec<DataKey> {
         &mut self.keys
     }
-}
-impl GetIdMap<DataKey> for AnnotationDataSet {
-    fn get_idmap(&self) -> &HashMap<String,IntId> {
-        &self.key_idmap
+    fn get_idmap(&self) -> Option<&HashMap<String,IntId>> {
+        Some(&self.key_idmap)
     }
-    fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId> {
-        &mut self.key_idmap
+    fn get_mut_idmap(&mut self) -> Option<&mut HashMap<String,IntId>> {
+        Some(&mut self.key_idmap)
+    }
+    fn set_owner_of(&self, item: &mut DataKey) {
+        item.part_of_set = self.get_intid();
     }
 }
 
-impl StoreFor<DataKey> for AnnotationDataSet {
-    fn set_owner_of(&self, item: &mut DataKey) {
-        item.part_of_set = self.get_intid();
+impl StoreFor<AnnotationData> for AnnotationDataSet {
+    fn get_store(&self) -> &Vec<AnnotationData> {
+        &self.data
+    }
+    fn get_mut_store(&mut self) -> &mut Vec<AnnotationData> {
+        &mut self.data
+    }
+    fn set_owner_of(&self, item: &mut AnnotationData) {
+        if let Some(intid) = self.get_intid() {
+            item.part_of_set = intid;
+        }
     }
 }
 
@@ -119,7 +138,7 @@ pub struct DataKey {
     pub(crate) part_of_set: Option<IntId>
 }
 
-impl HasId for DataKey {
+impl GetId for DataKey {
     fn get_id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }

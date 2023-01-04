@@ -19,7 +19,7 @@ pub struct TextResource {
 }
 
 
-impl HasId for TextResource {
+impl GetId for TextResource {
     fn get_id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
