@@ -110,6 +110,12 @@ impl AnnotationStore {
         self.get_by_id(id)
     }
 
+    pub fn get_dataset(&self, intid: IntId) -> Option<&AnnotationDataSet> {
+        self.datasets.get(intid as usize)
+    }
 
+    pub fn get_mut_dataset(&mut self, intid: IntId) -> Option<&mut AnnotationDataSet> {
+        self.datasets.get_mut(intid as usize)
+    }
 }
     

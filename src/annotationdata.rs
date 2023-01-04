@@ -2,12 +2,13 @@
 use std::collections::{HashSet, HashMap};
 
 use crate::types::*;
+use crate::annotationstore::AnnotationStore;
 use crate::error::StamError;
 
 
 pub struct AnnotationData {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
-    pub key: IntId,
+    key: IntId,
     pub value: DataValue,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership 
@@ -17,6 +18,7 @@ pub struct AnnotationData {
     ///Referers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey
     part_of_set: Option<IntId>
 }
+
 
 impl HasIntId for AnnotationData {
     fn get_intid(&self) -> Option<IntId> { 
@@ -30,14 +32,29 @@ impl HasIntId for AnnotationData {
 impl HasId for AnnotationData {}
 
 
-pub trait PartOfSet {
-    fn get_set(&self) -> &AnnotationDataSet;
+
+impl AnnotationData {
+    pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
+        if let Some(part_of_set) = self.part_of_set {
+           annotationstore.get_dataset(part_of_set) 
+        } else {
+            None
+        }
+    }
+
+    pub fn get_key<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a DataKey> {
+        if let Some(dataset) = self.get_dataset(annotationstore) {
+            dataset.get_key(self.key)
+        } else {
+            None
+        }
+    }
 }
 
 pub struct AnnotationDataSet {
-    pub id: Option<String>,
-    pub keys: Vec<DataKey>,
-    pub data: Vec<AnnotationData>,
+    id: Option<String>,
+    keys: Vec<DataKey>,
+    data: Vec<AnnotationData>,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
     intid: Option<IntId>,
@@ -132,6 +149,10 @@ impl AnnotationDataSet {
     pub fn add_key(&mut self, key: DataKey) -> Result<(),StamError> {
         self.add(key)
     }
+
+    pub fn get_key(&self, intid: IntId) -> Option<&DataKey> {
+        self.keys.get(intid as usize)
+    }
 }
 
 pub enum DataValue {
@@ -154,15 +175,15 @@ pub enum DataValue {
 /// belongs to a certain `AnnotationDataSet`. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
 pub struct DataKey {
-    pub id: String,
-    pub indexed: bool,
+    id: String,
+    indexed: bool,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
-    pub(crate) intid: Option<IntId>,
+    intid: Option<IntId>,
     ///Refers to internal IDs of AnnotationData (as owned by an AnnotationDataSet)
-    pub(crate) referenced_by: Vec<IntId>,
+    referenced_by: Vec<IntId>,
     ///Refers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey. May be unbound (None) only during creation.
-    pub(crate) part_of_set: Option<IntId>
+    part_of_set: Option<IntId>
 }
 
 impl HasId for DataKey {
@@ -189,6 +210,14 @@ impl DataKey {
             intid: None,
             referenced_by: Vec::new(),
             part_of_set: None
+        }
+    }
+
+    pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
+        if let Some(part_of_set) = self.part_of_set {
+           annotationstore.get_dataset(part_of_set) 
+        } else {
+            None
         }
     }
 }

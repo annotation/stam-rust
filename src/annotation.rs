@@ -33,4 +33,10 @@ impl HasIntId for Annotation {
 impl Annotation {
     //pub fn iter_data(&self) -> &AnnotationData {
     //}
+
+    /*
+    pub fn with_data(self, data: &AnnotationData) -> Self {
+        let dataset_intid = data.get_set().get_intid()
+    }
+    */
 }
