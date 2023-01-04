@@ -27,6 +27,7 @@ pub trait HasId {
         None
     }
 
+    /// Builder pattern to set the global Id
     fn with_id(self, id: String) -> Self where Self: Sized {
         //no-op
         self

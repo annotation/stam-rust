@@ -23,6 +23,10 @@ impl HasId for TextResource {
     fn get_id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
+    fn with_id(mut self, id: String) -> Self {
+        self.id = id;
+        self
+    }
 }
 
 impl HasIntId for TextResource {
@@ -53,6 +57,15 @@ impl TextResource {
             Err(err) => {
                 Err(StamError::IOError(err))
             }
+        }
+    }
+
+    /// Create a new TextResource from string
+    pub fn from_string(id: String, text: String) -> Self {
+        TextResource {
+            id,
+            text,
+            intid: None
         }
     }
 

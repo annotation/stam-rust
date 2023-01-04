@@ -151,24 +151,6 @@ impl AnnotationDataSet {
     pub fn new() -> Self {
         Self::default()
     }
-    /// Add a new key to an annotation data set
-    pub fn add_key(&mut self, key: DataKey) -> Result<IntId,StamError> {
-        self.add(key)
-    }
-    /*
-    pub fn get_or_add_key(&mut self, key: DataKey) -> Result<&DataKey,StamError>  {
-        if let Ok(foundkey) = self.get_by_id(key.get_id().expect("Datakey must always have an ID")) {
-            Ok(foundkey)
-        } else {
-            match self.add(key) {
-                Ok(intid) => {
-                    self.get(intid)
-                },
-                Err(err) => Err(err)
-            }
-        }
-    }
-    */
 }
 
 pub enum DataValue {
