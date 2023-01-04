@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::slice::{Iter,IterMut};
 use crate::error::StamError;
 
 /// Type for internal numeric IDs. This determines the size of the address space
@@ -6,6 +7,7 @@ pub type IntId = u32;
 
 /// Type for offsets. This determines the size of the address space, use the platform maximum.
 pub type CursorSize = usize;
+
 
 
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
@@ -133,5 +135,13 @@ pub trait StoreFor<T: HasIntId + GetId> {
         None
     }
 
+    fn iter<'a>(&'a self) -> Iter<'a, T>  {
+        self.get_store().iter()
+    }
+
+    fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T>  {
+        self.get_mut_store().iter_mut()
+    }
 
 }
+
