@@ -1,5 +1,4 @@
 use crate::types::*;
-use crate::annotationstore::AnnotationStore;
 use crate::error::StamError;
 
 use std::io::prelude::*;
@@ -41,6 +40,7 @@ impl HasIntId for TextResource {
 
 
 impl TextResource {
+    /// Create a new TextResource from file, the text will be loaded into memory entirely
     pub fn from_file(filename: &str) -> Result<Self,StamError> {
         match File::open(filename) {
             Ok(mut f) => {
@@ -60,7 +60,7 @@ impl TextResource {
         }
     }
 
-    /// Create a new TextResource from string
+    /// Create a new TextResource from string, kept in memory entirely
     pub fn from_string(id: String, text: String) -> Self {
         TextResource {
             id,
@@ -69,6 +69,7 @@ impl TextResource {
         }
     }
 
+    /// Returns a reference to the full text of this resource
     pub fn get_text(&self) -> &str {
         self.text.as_str()
     }
