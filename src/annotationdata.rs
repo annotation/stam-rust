@@ -27,14 +27,7 @@ impl HasIntId for AnnotationData {
     }
 }
 
-impl GetId for AnnotationData {
-    /// Retrieves the gloal Id for AnnotationData, is not applicable so result is always None
-    fn get_id(&self) -> Option<&str> { 
-        None
-    }
-}
-
-
+impl GetId for AnnotationData {}
 
 
 pub trait PartOfSet {
@@ -165,15 +158,3 @@ impl DataKey {
         }
     }
 }
-
-/*
-impl OwnedBy<AnnotationDataSet> for DataKey {
-    fn set_owner(&mut self, owner: &AnnotationDataSet) {
-        if let Some(intid) = owner.intid {
-            self.part_of_set = *intid;
-        }
-    }
-}
-*/
-
-

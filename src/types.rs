@@ -8,8 +8,6 @@ pub type IntId = u32;
 pub type CursorSize = usize;
 
 
-
-
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
 /// This trait is used on types that (may) have an internal numeric ID
@@ -23,7 +21,9 @@ pub trait HasIntId {
 /// This trait is used on types that can have a global ID
 pub trait GetId {
     /// Get the global ID
-    fn get_id(&self) -> Option<&str>;
+    fn get_id(&self) -> Option<&str> {
+        None
+    }
 }
 
 
@@ -68,6 +68,7 @@ pub trait StoreFor<T: HasIntId + GetId> {
         Ok(())
     }
 
+    /// Get a reference to an item from the store by its global ID
     fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
         if let Some(idmap) = self.get_idmap() {
             if let Some(intid) = idmap.get(id) {
@@ -80,6 +81,7 @@ pub trait StoreFor<T: HasIntId + GetId> {
         }
     }
 
+    /// Get a mutable reference to an item from the store by its global ID
     fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T,StamError> {
         if let Some(idmap) = self.get_idmap() {
             if let Some(intid) = idmap.get(id) {
@@ -92,6 +94,7 @@ pub trait StoreFor<T: HasIntId + GetId> {
         }
     }
 
+    /// Get a reference to an item from the store by internal ID
     fn get(&self, intid: IntId) -> Result<&T,StamError> {
         if let Some(item) = self.get_store().get(intid as usize) {
             Ok(item)
@@ -100,6 +103,7 @@ pub trait StoreFor<T: HasIntId + GetId> {
         }
     }
 
+    /// Get a mutable reference to an item from the store by internal ID
     fn get_mut(&mut self, intid: IntId) -> Result<&mut T,StamError> {
         if let Some(item) = self.get_mut_store().get_mut(intid as usize) {
             Ok(item)
@@ -108,6 +112,7 @@ pub trait StoreFor<T: HasIntId + GetId> {
         }
     }
 
+    /// Sets the store (self) as the owner of the item (may be a no-op if no ownership is recorded)
     fn set_owner_of(&self, item: &mut T) {
         //default implementation does nothing
     }
