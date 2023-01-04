@@ -21,17 +21,22 @@ pub trait HasIntId {
 }
 
 /// This trait is used on types that can have a global ID
-pub trait GetId {
+pub trait HasId {
     /// Get the global ID
     fn get_id(&self) -> Option<&str> {
         None
+    }
+
+    fn with_id(self, id: String) -> Self where Self: Sized {
+        //no-op
+        self
     }
 }
 
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
-/// It requires the types to also implemnet GetStore<T> and GetIdMap<T>
-pub trait StoreFor<T: HasIntId + GetId> {
+/// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
+pub trait StoreFor<T: HasIntId + HasId> {
     /// Get a reference to the entire store for the associated type
     fn get_store(&self) -> &Vec<T>;
     /// Get a mutable reference to the entire store for the associated type
@@ -135,10 +140,12 @@ pub trait StoreFor<T: HasIntId + GetId> {
         None
     }
 
+    /// Iterate over the store
     fn iter<'a>(&'a self) -> Iter<'a, T>  {
         self.get_store().iter()
     }
 
+    /// Iterate over the store, mutably
     fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T>  {
         self.get_mut_store().iter_mut()
     }

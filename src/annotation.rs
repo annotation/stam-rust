@@ -15,7 +15,7 @@ pub struct Annotation {
     referenced_by: Vec<IntId>
 }
 
-impl GetId for Annotation {
+impl HasId for Annotation {
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }

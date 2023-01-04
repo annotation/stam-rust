@@ -8,7 +8,7 @@ use crate::error::*;
 use std::collections::HashMap;
 
 pub struct AnnotationStore {
-    pub id: Option<String>,
+    id: Option<String>,
     pub annotations: Vec<Annotation>,
     pub datasets: Vec<AnnotationDataSet>,
     pub resources: Vec<TextResource>,
@@ -19,7 +19,15 @@ pub struct AnnotationStore {
     pub(crate) resource_idmap: HashMap<String,IntId>
 }
 
-
+impl HasId for AnnotationStore { 
+    fn get_id(&self) -> Option<&str> { 
+        self.id.as_ref().map(|x| &**x)
+    }
+    fn with_id(mut self, id: String) ->  Self {
+        self.id = Some(id);
+        self
+    }
+}
 
 //An AnnotationStore is a StoreFor TextResource
 impl StoreFor<TextResource> for AnnotationStore {
@@ -57,7 +65,25 @@ impl StoreFor<Annotation> for AnnotationStore {
     }
 }
 
+impl Default for AnnotationStore {
+    fn default() -> Self {
+        AnnotationStore {
+            id: None,
+            annotations: Vec::new(),
+            datasets: Vec::new(),
+            resources: Vec::new(),
+            annotation_idmap: HashMap::new(),
+            resource_idmap: HashMap::new(),
+        }
+    }
+}
+
 impl AnnotationStore {
+    pub fn new() -> Self {
+        AnnotationStore::default()
+    }
+
+
     /// Add an Annotation to the annotation store.
     pub fn add_annotation(&mut self, annotation: Annotation) -> Result<(),StamError> {
         self.add(annotation)

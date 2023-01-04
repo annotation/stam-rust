@@ -27,7 +27,7 @@ impl HasIntId for AnnotationData {
     }
 }
 
-impl GetId for AnnotationData {}
+impl HasId for AnnotationData {}
 
 
 pub trait PartOfSet {
@@ -45,9 +45,13 @@ pub struct AnnotationDataSet {
     key_idmap: HashMap<String,IntId>
 }
 
-impl GetId for AnnotationDataSet {
+impl HasId for AnnotationDataSet {
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
+    }
+    fn with_id(mut self, id: String) ->  Self {
+        self.id = Some(id);
+        self
     }
 }
 
@@ -107,7 +111,23 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     }
 }
 
+impl Default for AnnotationDataSet {
+    fn default() -> Self {
+        Self {
+            id: None,
+            keys: Vec::new(),
+            data: Vec::new(),
+            intid: None,
+            key_idmap: HashMap::new()
+        }
+    }
+}
+
+
 impl AnnotationDataSet {
+    pub fn new() -> Self {
+        Self::default()
+    }
     /// Add a new key to an annotation data set
     pub fn add_key(&mut self, key: DataKey) -> Result<(),StamError> {
         self.add(key)
@@ -145,7 +165,7 @@ pub struct DataKey {
     pub(crate) part_of_set: Option<IntId>
 }
 
-impl GetId for DataKey {
+impl HasId for DataKey {
     fn get_id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
