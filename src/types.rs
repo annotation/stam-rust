@@ -14,39 +14,50 @@ pub type CursorSize = usize;
 
 /// This trait is used on types that (may) have an internal numeric ID
 pub trait HasIntId {
+    /// Retrieve the internal id. This may be None only in the initial stage when it is still unbounded to a store
     fn get_intid(&self) -> Option<IntId>;
+    /// Set the internal ID 
     fn set_intid(&mut self, intid: IntId);
 }
 
-/// This trait is used on types that may have a global ID
+/// This trait is used on types that can have a global ID
 pub trait HasId {
+    /// Get the global ID
     fn get_id(&self) -> Option<&str>;
 }
 
+/// This trait is used on types that act as a store (for generic type T).
 pub trait GetStore<T> {
+    /// Get a reference to the entire store for the associated type
     fn get_store(&self) -> &Vec<T>;
+    /// Get a mutable reference to the entire store for the associated type
     fn get_mut_store(&mut self) -> &mut Vec<T>;
 }
 
+/// This trait is used on types that act act as a store (for generic type T) and hold an id map mapping
+/// global ids to internal ones
 pub trait GetIdMap<T> {
+    /// Get a reference to the id map for the associated type, mapping global ids to internal ids
     fn get_idmap(&self) -> &HashMap<String,IntId>;
+    /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
     fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId>;
 }
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
+/// It requires the types to also implemnet GetStore<T> and GetIdMap<T>
 pub(crate) trait StoreFor<T>: GetStore<T>  + GetIdMap<T> where T: HasIntId + HasId {
     fn add(&mut self, mut item: T) -> Result<(),StamError> {
         item.set_intid(self.get_store().len() as IntId);
-        self.own(&mut item);
+        self.set_owner_of(&mut item);
 
         //insert a mapping from the global ID to the numeric ID in the map
         if let Some(id) = item.get_id() {
-            //check if global ID does not already exis
+            //check if global ID does not already exist
             if self.get_by_id(id).is_ok() {
                 return Err(StamError::DuplicateIdError(id.to_string()));
             }
 
-            //               v-- MAYBE TODO: optimise the copy away
+            //                           v-- MAYBE TODO: optimise the id copy away
             self.get_mut_idmap().insert(id.to_string(), item.get_intid().unwrap());
         }
 
@@ -88,7 +99,7 @@ pub(crate) trait StoreFor<T>: GetStore<T>  + GetIdMap<T> where T: HasIntId + Has
         }
     }
 
-    fn own(&self, item: &mut T) {
+    fn set_owner_of(&self, item: &mut T) {
         //default implementation does nothing
     }
 

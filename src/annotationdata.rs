@@ -6,19 +6,31 @@ use crate::error::StamError;
 
 
 pub struct AnnotationData {
-    pub id: Option<String>,
-
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     pub key: IntId,
     pub value: DataValue,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership 
-    pub(crate) intid: IntId,
+    intid: Option<IntId>,
     ///Referers to internal IDs of Annotation (as owned by an AnnotationStore) that use this dataset
-    pub(crate) referenced_by: Vec<IntId>,
+    referenced_by: Vec<IntId>,
     ///Referers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey
-    pub(crate) part_of_set: IntId
+    part_of_set: IntId
 }
+
+impl HasIntId for AnnotationData {
+    fn get_intid(&self) -> Option<IntId> { 
+        self.intid
+    }
+    fn set_intid(&mut self, intid: IntId) {
+        self.intid = Some(intid);
+    }
+}
+
+
+
+
+
 
 pub struct AnnotationDataSet {
     pub id: Option<String>,
@@ -64,7 +76,7 @@ impl GetIdMap<DataKey> for AnnotationDataSet {
 }
 
 impl StoreFor<DataKey> for AnnotationDataSet {
-    fn own(&self, item: &mut DataKey) {
+    fn set_owner_of(&self, item: &mut DataKey) {
         item.part_of_set = self.get_intid();
     }
 }

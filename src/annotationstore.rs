@@ -21,17 +21,21 @@ pub struct AnnotationStore {
 
 
 impl GetStore<TextResource> for AnnotationStore {
+    /// Get a reference to the entire store for the associated type
     fn get_store(&self) -> &Vec<TextResource> {
         &self.resources
     }
+    /// Get a mutable reference to the entire store for the associated type
     fn get_mut_store(&mut self) -> &mut Vec<TextResource> {
         &mut self.resources
     }
 }
 impl GetIdMap<TextResource> for AnnotationStore {
+    /// Get a reference to the id map for the associated type, mapping global ids to internal ids
     fn get_idmap(&self) -> &HashMap<String,IntId> {
         &self.resource_idmap
     }
+    /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
     fn get_mut_idmap(&mut self) -> &mut HashMap<String,IntId> {
         &mut self.resource_idmap
     }
@@ -81,7 +85,7 @@ impl AnnotationStore {
 
     /// Shortcut method that calls add_resource under the hood
     pub fn add_resource_from_file(&mut self, filename: &str) -> Result<(),StamError> {
-        let mut resource = TextResource::from_file(filename)?;
+        let resource = TextResource::from_file(filename)?;
         self.add_resource(resource)
     }
 
