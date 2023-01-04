@@ -84,30 +84,42 @@ impl AnnotationStore {
     }
 
 
-    /// Add an Annotation to the annotation store.
-    pub fn add_annotation(&mut self, annotation: Annotation) -> Result<(),StamError> {
-        self.add(annotation)
+    /// Add an Annotation to the annotation store and returns a reference to it.
+    /// If you don't need the reference back, just use add() instead
+    pub fn add_annotation(&mut self, annotation: Annotation) -> Result<&Annotation,StamError> {
+        match self.add(annotation) {
+            Ok(intid) => {
+                self.get(intid)
+            },
+            Err(err) => Err(err)
+        }
     }
 
-    /// Get an annotation by global ID
-    pub fn get_annotation(&self, id: &str) -> Result<&Annotation, StamError> {
-        self.get_by_id(id)
+    /// Get an annotation by global ID, returns None if it does not exist
+    pub fn get_annotation(&self, id: &str) -> Option<&Annotation> {
+        self.get_by_id(id).ok()
     }
 
-    /// Add a TextResource to the annotation store.
-    pub fn add_resource(&mut self, resource: TextResource) -> Result<(),StamError> {
-        self.add(resource)
+    /// Add a TextResource to the annotation store and returns a reference to it
+    /// If you don't need the reference back, just use add() instead
+    pub fn add_resource(&mut self, resource: TextResource) -> Result<&TextResource,StamError> {
+        match self.add(resource) {
+            Ok(intid) => {
+                self.get(intid)
+            },
+            Err(err) => Err(err)
+        }
     }
 
-    /// Shortcut method that calls add_resource under the hood
-    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<(),StamError> {
+    /// Shortcut method that calls add_resource under the hood and returns a reference to it
+    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<&TextResource,StamError> {
         let resource = TextResource::from_file(filename)?;
         self.add_resource(resource)
     }
 
-    /// Get a resource by Id
-    pub fn get_resource(&self, id: &str) -> Result<&TextResource, StamError> {
-        self.get_by_id(id)
+    /// Get a resource by global Id, returns None if it does not exist
+    pub fn get_resource(&self, id: &str) -> Option<&TextResource> {
+        self.get_by_id(id).ok()
     }
 
     pub fn get_dataset(&self, intid: IntId) -> Option<&AnnotationDataSet> {

@@ -32,8 +32,8 @@ impl HasIntId for AnnotationData {
 impl HasId for AnnotationData {}
 
 
-
 impl AnnotationData {
+    /// Return a reference to the AnnotationDataSet that holds this data (and its key) 
     pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
         if let Some(part_of_set) = self.part_of_set {
            annotationstore.get_dataset(part_of_set) 
@@ -42,12 +42,18 @@ impl AnnotationData {
         }
     }
 
+    /// Return a reference to the DataKey used by this data
     pub fn get_key<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a DataKey> {
         if let Some(dataset) = self.get_dataset(annotationstore) {
-            dataset.get_key(self.key)
+            dataset.get(self.key).ok()
         } else {
             None
         }
+    }
+
+    /// Returns an iterator over all the Annotations that reference this data
+    pub fn referenced_by<'a>(&self, annotationstore: &'a AnnotationStore) {
+        //TODO: implement
     }
 }
 
@@ -146,13 +152,23 @@ impl AnnotationDataSet {
         Self::default()
     }
     /// Add a new key to an annotation data set
-    pub fn add_key(&mut self, key: DataKey) -> Result<(),StamError> {
+    pub fn add_key(&mut self, key: DataKey) -> Result<IntId,StamError> {
         self.add(key)
     }
-
-    pub fn get_key(&self, intid: IntId) -> Option<&DataKey> {
-        self.keys.get(intid as usize)
+    /*
+    pub fn get_or_add_key(&mut self, key: DataKey) -> Result<&DataKey,StamError>  {
+        if let Ok(foundkey) = self.get_by_id(key.get_id().expect("Datakey must always have an ID")) {
+            Ok(foundkey)
+        } else {
+            match self.add(key) {
+                Ok(intid) => {
+                    self.get(intid)
+                },
+                Err(err) => Err(err)
+            }
+        }
     }
+    */
 }
 
 pub enum DataValue {

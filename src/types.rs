@@ -51,9 +51,10 @@ pub trait StoreFor<T: HasIntId + HasId> {
     }
 
 
-    /// Add an item to the store
-    fn add(&mut self, mut item: T) -> Result<(),StamError> {
-        item.set_intid(self.get_store().len() as IntId);
+    /// Add an item to the store. Returns its internal id upon success
+    fn add(&mut self, mut item: T) -> Result<IntId,StamError> {
+        let intid = self.get_store().len() as IntId;
+        item.set_intid(intid);
         self.set_owner_of(&mut item);
 
         //insert a mapping from the global ID to the numeric ID in the map
@@ -72,14 +73,39 @@ pub trait StoreFor<T: HasIntId + HasId> {
         //add the resource
         self.get_mut_store().push(item);
 
-        Ok(())
+        Ok(intid)
     }
 
     /// Returns true if the store contains the item
     fn contains(&self, item: &T) -> bool {
         if let (Some(intid), Some(true)) = (item.get_intid(), self.is_owner_of(item)) {
-            self.get_store().len() > intid as usize
-        } else if let (Some(id), Some(idmap)) = (item.get_id(), self.get_idmap()) {
+            self.has(intid)
+        } else if let Some(id) = item.get_id() {
+            self.has_by_id(id)
+        } else {
+            false
+        }
+    }
+
+    /// Retrievs a reference to the item as it occurs in the store. The passed item and reference item may be distinct instances.
+    fn find<'a>(&'a self, item: &T) -> Option<&'a T> {
+        if let (Some(intid), Some(true)) = (item.get_intid(), self.is_owner_of(item)) {
+            self.get(intid).ok()
+        } else if let Some(id) = item.get_id() {
+            self.get_by_id(id).ok()
+        } else {
+            None
+        }
+    }
+
+    /// Returns true if the store has the item with the specified internal id
+    fn has(&self, intid: IntId) -> bool {
+        self.get_store().len() > intid as usize
+    }
+
+    /// Returns true if the store has the item with the specified global id
+    fn has_by_id(&self, id: &str) -> bool {
+        if let Some(idmap) = self.get_idmap() {
             idmap.contains_key(id)
         } else {
             false
@@ -148,6 +174,19 @@ pub trait StoreFor<T: HasIntId + HasId> {
     /// Iterate over the store, mutably
     fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T>  {
         self.get_mut_store().iter_mut()
+    }
+
+    /// Get the item from the store if it already exists, if not, add it
+    fn get_or_add(&mut self, item: T) -> Result<&T,StamError>  {
+        if self.contains(&item) { //TODO: this check should be superfluous (find already does it) but I'm fighting the borrow checker if I remove it..
+            let itemref = self.find(&item).unwrap();
+            Ok(itemref)
+        } else {
+            match self.add(item) {
+                Ok(intid) => self.get(intid),
+                Err(err) => Err(err)
+            }
+        }
     }
 
 }
