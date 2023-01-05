@@ -1,9 +1,12 @@
 //use Chrono::DateTime;
 use std::collections::{HashSet, HashMap};
+use serde::{Deserialize, Serialize};
+//use serde_json::Result;
 
 use crate::types::*;
 use crate::annotationstore::AnnotationStore;
 use crate::error::StamError;
+
 
 
 pub struct AnnotationData {
@@ -153,6 +156,7 @@ impl AnnotationDataSet {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum DataValue {
     ///No value
     Null,
@@ -163,7 +167,7 @@ pub enum DataValue {
     //Datetime(chrono::DateTime), //TODO
 
     /// Value is an unordered set
-    Set(HashSet<DataValue>),
+    //Set(HashSet<DataValue>),
 
     //Value is an ordered list
     List(Vec<DataValue>)
@@ -172,17 +176,24 @@ pub enum DataValue {
 /// The DataKey class defines a vocabulary field in STAM, it 
 /// belongs to a certain `AnnotationDataSet`. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DataKey {
+    #[serde(rename="@id")]
     id: String,
     indexed: bool,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
+    #[serde(skip)]
     intid: Option<IntId>,
     ///Refers to internal IDs of AnnotationData (as owned by an AnnotationDataSet)
+    #[serde(skip)]
     referenced_by: Vec<IntId>,
     ///Refers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey. May be unbound (None) only during creation.
+    #[serde(skip)]
     part_of_set: Option<IntId>
 }
+
+
 
 impl HasId for DataKey {
     fn get_id(&self) -> Option<&str> { 

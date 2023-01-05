@@ -1,4 +1,5 @@
 extern crate chrono;
+extern crate serde;
 
 pub mod types;
 pub mod annotationstore;
