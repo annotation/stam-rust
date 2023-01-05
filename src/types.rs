@@ -9,19 +9,57 @@ pub type IntId = u32;
 pub type CursorSize = usize;
 
 
+/// A map mapping global IDs to internal ids, implemented as  a HashMap
+pub struct IdMap {
+    //The map
+    data: HashMap<String,IntId>,
+
+    //A prefix that automatically generated IDs will get when added to this map
+    autoprefix: String,
+
+    ///Sequence number used for ID generation
+    seqnr: usize,
+}
+
+impl Default for IdMap {
+    fn default() -> Self {
+        Self {
+            data: HashMap::new(),
+            autoprefix: "_".to_string(),
+            seqnr: 0,
+        }
+    }
+}
+
+impl IdMap {
+    pub fn new(autoprefix: String) -> Self {
+        Self {
+            autoprefix,
+            ..Self::default()
+        }
+    }
+
+    pub fn set_autoprefix(&mut self, autoprefix: String) {
+        self.autoprefix = autoprefix;
+    }
+}
 
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
 /// This trait is used on types that (may) have an internal numeric ID
 pub trait HasIntId {
     /// Retrieve the internal id. This may be None only in the initial stage when it is still unbounded to a store
-    fn get_intid(&self) -> Option<IntId>;
+    fn get_intid(&self) -> Option<IntId> {
+        None
+    }
     /// Set the internal ID 
-    fn set_intid(&mut self, intid: IntId);
+    fn set_intid(&mut self, intid: IntId) {
+        //no-op in default implementation
+    }
 }
 
 /// This trait is used on types that can have a global ID
-pub trait HasId {
+pub trait HasId: HasIntId {
     /// Get the global ID
     fn get_id(&self) -> Option<&str> {
         None
@@ -30,6 +68,22 @@ pub trait HasId {
     /// Builder pattern to set the global Id
     fn with_id(self, id: String) -> Self where Self: Sized {
         //no-op
+        self
+    }
+
+    /// Generate a random ID in a given idmap (adds it to the map), Item must be bound
+    fn generate_id(self, idmap: Option<&mut IdMap>) -> Self where Self: Sized {
+        if let Some(intid) = self.get_intid() {
+            if let Some(idmap) = idmap {
+                loop {
+                    let id = format!("{}{}", idmap.autoprefix, idmap.seqnr);
+                    if idmap.data.insert(id, intid).is_none() { //returns none if the key did not exist yet
+                        break
+                    }
+                    idmap.seqnr += 1
+                }
+            }
+        }
         self
     }
 }
@@ -43,11 +97,11 @@ pub trait StoreFor<T: HasIntId + HasId> {
     /// Get a mutable reference to the entire store for the associated type
     fn get_mut_store(&mut self) -> &mut Vec<T>;
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_idmap(&self) -> Option<&HashMap<String,IntId>> {
+    fn get_idmap(&self) -> Option<&IdMap> {
         None
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_mut_idmap(&mut self) -> Option<&mut HashMap<String,IntId>> {
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
         None
     }
 
@@ -67,8 +121,10 @@ pub trait StoreFor<T: HasIntId + HasId> {
 
             self.get_mut_idmap().map(|idmap| {
             //                 v-- MAYBE TODO: optimise the id copy away
-                idmap.insert(id.to_string(), item.get_intid().unwrap())
+                idmap.data.insert(id.to_string(), item.get_intid().unwrap())
             });
+        } else {
+            item = item.generate_id(self.get_mut_idmap());
         }
 
         //add the resource
@@ -107,7 +163,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
     /// Returns true if the store has the item with the specified global id
     fn has_by_id(&self, id: &str) -> bool {
         if let Some(idmap) = self.get_idmap() {
-            idmap.contains_key(id)
+            idmap.data.contains_key(id)
         } else {
             false
         }
@@ -116,7 +172,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
     /// Get a reference to an item from the store by its global ID
     fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
         if let Some(idmap) = self.get_idmap() {
-            if let Some(intid) = idmap.get(id) {
+            if let Some(intid) = idmap.data.get(id) {
                 self.get(*intid)
             } else {
                 Err(StamError::IdError(id.to_string()))
@@ -129,7 +185,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
     /// Get a mutable reference to an item from the store by its global ID
     fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T,StamError> {
         if let Some(idmap) = self.get_idmap() {
-            if let Some(intid) = idmap.get(id) {
+            if let Some(intid) = idmap.data.get(id) {
                 self.get_mut(*intid)
             } else {
                 Err(StamError::IdError(id.to_string()))

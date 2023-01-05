@@ -1,7 +1,7 @@
 //use Chrono::DateTime;
 use std::collections::{HashSet, HashMap};
-use serde::Deserialize;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
+use serde::{Serialize,Deserialize};
+use serde::ser::{Serializer, SerializeStruct};
 //use serde_json::Result;
 
 use crate::types::*;
@@ -12,6 +12,7 @@ use crate::error::StamError;
 
 pub struct AnnotationData {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
+    id: String,
     key: IntId,
     pub value: DataValue,
 
@@ -33,7 +34,27 @@ impl HasIntId for AnnotationData {
     }
 }
 
-impl HasId for AnnotationData {}
+impl HasId for AnnotationData {
+    fn get_id(&self) -> Option<&str> { 
+        Some(self.id.as_str())
+    }
+    fn with_id(mut self, id: String) ->  Self {
+        self.id = id;
+        self
+    }
+}
+
+impl Serialize for AnnotationData {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationData",1)?;
+        state.serialize_field("@type", "AnnotationData")?;
+        if let Some(id) = self.get_id() {
+            state.serialize_field("@id", id)?;
+        }
+        state.end()
+    }
+}
 
 
 impl AnnotationData {
@@ -69,7 +90,8 @@ pub struct AnnotationDataSet {
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
     intid: Option<IntId>,
 
-    key_idmap: HashMap<String,IntId>
+    key_idmap: IdMap,
+    data_idmap: IdMap
 }
 
 impl HasId for AnnotationDataSet {
@@ -99,10 +121,10 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     fn get_mut_store(&mut self) -> &mut Vec<DataKey> {
         &mut self.keys
     }
-    fn get_idmap(&self) -> Option<&HashMap<String,IntId>> {
+    fn get_idmap(&self) -> Option<&IdMap> {
         Some(&self.key_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut HashMap<String,IntId>> {
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
         Some(&mut self.key_idmap)
     }
     fn set_owner_of(&self, item: &mut DataKey) {
@@ -125,6 +147,12 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     fn get_mut_store(&mut self) -> &mut Vec<AnnotationData> {
         &mut self.data
     }
+    fn get_idmap(&self) -> Option<&IdMap> {
+        Some(&self.data_idmap)
+    }
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
+        Some(&mut self.data_idmap)
+    }
     fn set_owner_of(&self, item: &mut AnnotationData) {
         item.part_of_set = self.get_intid();
     }
@@ -145,7 +173,8 @@ impl Default for AnnotationDataSet {
             keys: Vec::new(),
             data: Vec::new(),
             intid: None,
-            key_idmap: HashMap::new()
+            key_idmap: IdMap::new("K".to_string()),
+            data_idmap: IdMap::new("D".to_string())
         }
     }
 }
@@ -157,6 +186,8 @@ impl AnnotationDataSet {
     }
 }
 
+#[derive(Serialize,Deserialize)]
+#[serde(tag = "@type", content="value")]
 pub enum DataValue {
     ///No value
     Null,

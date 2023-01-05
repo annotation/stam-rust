@@ -5,8 +5,6 @@ use crate::annotationdata::AnnotationDataSet;
 use crate::types::*;
 use crate::error::*;
 
-use std::collections::HashMap;
-
 pub struct AnnotationStore {
     id: Option<String>,
     pub annotations: Vec<Annotation>,
@@ -14,11 +12,13 @@ pub struct AnnotationStore {
     pub resources: Vec<TextResource>,
 
     /// Links to annotations by ID.
-    pub(crate) annotation_idmap: HashMap<String,IntId>,
+    pub(crate) annotation_idmap: IdMap,
     /// Links to resources by ID.
-    pub(crate) resource_idmap: HashMap<String,IntId>
+    pub(crate) resource_idmap: IdMap,
 }
 
+
+impl HasIntId for AnnotationStore {}
 impl HasId for AnnotationStore { 
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
@@ -40,11 +40,11 @@ impl StoreFor<TextResource> for AnnotationStore {
         &mut self.resources
     }
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_idmap(&self) -> Option<&HashMap<String,IntId>> {
+    fn get_idmap(&self) -> Option<&IdMap> {
         Some(&self.resource_idmap)
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_mut_idmap(&mut self) -> Option<&mut HashMap<String,IntId>> {
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
         Some(&mut self.resource_idmap)
     }
 }
@@ -57,10 +57,10 @@ impl StoreFor<Annotation> for AnnotationStore {
     fn get_mut_store(&mut self) -> &mut Vec<Annotation> {
         &mut self.annotations
     }
-    fn get_idmap(&self) -> Option<&HashMap<String,IntId>> {
+    fn get_idmap(&self) -> Option<&IdMap> {
         Some(&self.annotation_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut HashMap<String,IntId>> {
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
         Some(&mut self.annotation_idmap)
     }
 }
@@ -72,8 +72,8 @@ impl Default for AnnotationStore {
             annotations: Vec::new(),
             datasets: Vec::new(),
             resources: Vec::new(),
-            annotation_idmap: HashMap::new(),
-            resource_idmap: HashMap::new(),
+            annotation_idmap: IdMap::new("A".to_string()),
+            resource_idmap: IdMap::new("R".to_string())
         }
     }
 }
