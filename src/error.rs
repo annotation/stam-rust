@@ -13,18 +13,31 @@ pub enum StamError {
     NoIdError,
     Unbound,
     DuplicateIdError(String),
+    BuildError(Box<StamError>),
+    StoreError(Box<StamError>),
     IOError(std::io::Error)
 }
 
-impl From<StamError> for String {
-    fn from(error: StamError) -> String {
+impl From<&StamError> for String {
+    /// Returns the error message as a String
+    fn from(error: &StamError) -> String {
         match error {
-            StamError::IntIdError(id) => format!("No such internal ID: {}",id),
-            StamError::IdError(id) => format!("No such ID: {}",id),
-            StamError::Unbound => format!("Item is not bound yet, add it to a store first"),
-            StamError::NoIdError => "Store does not map IDs".to_string(),
-            StamError::DuplicateIdError(id) => format!("ID already exists: {}",id),
-            StamError::IOError(err) => format!("IO Error: {}",err)
+            StamError::IntIdError(id) => format!("IntIdError: No such internal ID: {}",id),
+            StamError::IdError(id) => format!("IdError: No such ID: {}",id),
+            StamError::Unbound => format!("Unbound: Item is not bound yet, add it to a store first"),
+            StamError::NoIdError => "NoIdError: Store does not map IDs".to_string(),
+            StamError::DuplicateIdError(id) => format!("DuplicatIdError: ID already exists: {}",id),
+            StamError::IOError(err) => format!("IOError: {}",err),
+            StamError::BuildError(err) => format!("BuildError: Error during build: {}",err),
+            StamError::StoreError(err) => format!("StoreError: Error during store: {}",err)
         }
+    }
+}
+
+impl fmt::Display for StamError {
+    /// Formats the error message for printing
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let errmsg: String = String::from(self);
+        write!(f, "[StamError] {}", errmsg)
     }
 }

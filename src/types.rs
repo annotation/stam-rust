@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::slice::{Iter,IterMut};
+use std::borrow::Cow;
 use crate::error::StamError;
 
 /// Type for internal numeric IDs. This determines the size of the address space
@@ -88,7 +89,7 @@ pub trait HasId: HasIntId {
         self.get_id().ok_or(StamError::NoIdError)
     }
 
-    /// Builder pattern to set the global Id
+    /// Builder pattern to set the public Id
     fn with_id(self, id: String) -> Self where Self: Sized {
         //no-op
         self
@@ -157,11 +158,11 @@ pub trait StoreFor<T: HasIntId + HasId> {
     }
 
     /// Builder pattern, similar to add()
-    fn store(mut self, mut item: T) -> Self where Self: Sized {
+    fn store(mut self, item: T) -> Result<Self,StamError> where Self: Sized {
         if let Err(err) = self.add(item) {
             panic!("Unable to add: {:?}",err);
         }
-        self
+        Ok(self)
     }
 
     /// Returns true if the store contains the item
@@ -290,10 +291,11 @@ pub trait Build<FromType,ToType> {
 pub trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreFor<ToType>  where ToType: HasIntId + HasId {
     /// Builds an item and adds it to the store.
     /// May panic on error!
-    fn build_and_store(mut self, item: FromType) -> Self where Self: Sized {
-        let newitem: ToType = self.build(item).expect("Build and store failed during build");
-        self.add(newitem).expect("Build and store failed during add");
-        self
+    fn build_and_store(mut self, item: FromType) -> Result<Self,StamError> where Self: Sized {
+        //                                     V---- when there's an error, we wrap it error to give more information
+        let newitem: ToType = self.build(item).map_err(|err| StamError::BuildError(Box::new(err)))?;
+        self.add(newitem).map_err(|err| StamError::StoreError(Box::new(err)))?;
+        Ok(self)
     }
 }
 

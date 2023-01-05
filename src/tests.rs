@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use crate::types::*;
+use crate::error::*;
 use crate::resources::*;
 use crate::annotation::*;
 use crate::selector::*;
@@ -31,23 +32,25 @@ fn instantiation() {
 }
 
 #[test]
-fn instantiation_store() {
+fn instantiation_store() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".to_string());
     store
-        .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))
+        .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
         .store(AnnotationDataSet::new().with_id("testdataset".to_string())
-            .store(DataKey::new("pos".to_string(), false)));
+            .store(DataKey::new("pos".to_string(), false))?
+        )?;
+    Ok(())
 }
 
 #[test]
-fn instantiation_store2() {
+fn instantiation_store2() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".to_string());
-
     store
-        .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))
+        .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
         .store(AnnotationDataSet::new().with_id("testdataset".to_string())
-            .store(DataKey::new("pos".to_string(), false))
-            .build_and_store( BuildAnnotationData::new("D1", "pos", DataValue::from("noun"))))
-        .build_and_store( BuildAnnotation::new("A1", BuildSelector::TextSelector { resource: "testres", begin: 6, end: 11}).with_data("testdataset","D1"));
-
+            .store(DataKey::new("pos".to_string(), false))?
+            .build_and_store( BuildAnnotationData::new("D1", "pos", DataValue::from("noun")))?
+        )?
+        .build_and_store( BuildAnnotation::new("A1", BuildSelector::TextSelector { resource: "testres", begin: 6, end: 11}).with_data("testdataset","D1"))?;
+    Ok(())
 }
