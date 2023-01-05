@@ -122,19 +122,18 @@ impl<'a> BuildAnnotationData<'a> {
 }
 
 impl<'a> Build<BuildAnnotationData<'a>,AnnotationData> for AnnotationDataSet {
-    fn build(mut self, item: BuildAnnotationData<'a>) -> Self {
+    fn build(&mut self, item: BuildAnnotationData<'a>) -> Result<AnnotationData,StamError> {
         let key_intid = if let Ok::<&DataKey,_>(key) = self.get_by_id(&item.key)  {
-            key.get_intid().expect("Item is unbound (should never happen)")
+            key.get_intid_or_err()?
         } else {
             let datakey = DataKey::new(item.key.to_string(),false);
-            self.add(datakey).expect("Unable to get internal id after adding datakey")
+            self.add(datakey)?
         };
-        if let Err(err) = self.add(AnnotationData::new(Some(item.id.to_string()), key_intid, item.value)) {
-            panic!("Error building AnnotationData: {:?}",err);
-        }
-        self
+        Ok(AnnotationData::new(Some(item.id.to_string()), key_intid, item.value))
     }
 }
+
+impl<'a> BuildAndStore<BuildAnnotationData<'a>,AnnotationData> for AnnotationDataSet {}
 
 
 

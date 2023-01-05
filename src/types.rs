@@ -68,6 +68,10 @@ pub trait HasIntId {
     fn get_intid(&self) -> Option<IntId> {
         None
     }
+
+    fn get_intid_or_err(&self) -> Result<IntId,StamError> {
+        self.get_intid().ok_or(StamError::Unbound)
+    }
     /// Set the internal ID 
     fn set_intid(&mut self, intid: IntId) {
         //no-op in default implementation
@@ -79,6 +83,9 @@ pub trait HasId: HasIntId {
     /// Get the global ID
     fn get_id(&self) -> Option<&str> {
         None
+    }
+    fn get_id_or_err(&self) -> Result<&str,StamError> {
+        self.get_id().ok_or(StamError::NoIdError)
     }
 
     /// Builder pattern to set the global Id
@@ -275,7 +282,19 @@ pub trait StoreFor<T: HasIntId + HasId> {
 }
 
 pub trait Build<FromType,ToType> {
-    fn build(self, item: FromType) -> Self;
+    /// Builds an item of ToType (A Builder* type) from FromType
+    /// resolving all references
+    fn build(&mut self, item: FromType) -> Result<ToType,StamError>;
+}
+
+pub trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreFor<ToType>  where ToType: HasIntId + HasId {
+    /// Builds an item and adds it to the store.
+    /// May panic on error!
+    fn build_and_store(mut self, item: FromType) -> Self where Self: Sized {
+        let newitem: ToType = self.build(item).expect("Build and store failed during build");
+        self.add(newitem).expect("Build and store failed during add");
+        self
+    }
 }
 
 
