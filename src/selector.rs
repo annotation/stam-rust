@@ -19,10 +19,3 @@ pub enum Selector {
     /// Combines selectors and expresseds a direction between two or more selectors in the exact order specified (from -> to)
     DirectionalSelector(Vec<Selector>)
 }
-
-/// Used to select offsets. Units are unicode codepoints (not bytes!)
-/// and are 0-indexed.
-pub enum Cursor {
-    BeginAlignedCursor(CursorSize),
-    EndAlignedCursor(CursorSize)
-}

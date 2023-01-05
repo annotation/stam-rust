@@ -15,6 +15,8 @@ pub struct AnnotationStore {
     pub(crate) annotation_idmap: IdMap,
     /// Links to resources by ID.
     pub(crate) resource_idmap: IdMap,
+    /// Links to datasets by ID.
+    pub(crate) dataset_idmap: IdMap,
 }
 
 
@@ -65,6 +67,24 @@ impl StoreFor<Annotation> for AnnotationStore {
     }
 }
 
+//An AnnotationStore is a StoreFor AnnotationDataSet
+impl StoreFor<AnnotationDataSet> for AnnotationStore {
+    fn get_store(&self) -> &Vec<AnnotationDataSet> {
+        &self.datasets
+    }
+    fn get_mut_store(&mut self) -> &mut Vec<AnnotationDataSet> {
+        &mut self.datasets
+    }
+    fn get_idmap(&self) -> Option<&IdMap> {
+        Some(&self.dataset_idmap)
+    }
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
+        Some(&mut self.dataset_idmap)
+    }
+}
+
+
+
 impl Default for AnnotationStore {
     fn default() -> Self {
         AnnotationStore {
@@ -73,7 +93,8 @@ impl Default for AnnotationStore {
             datasets: Vec::new(),
             resources: Vec::new(),
             annotation_idmap: IdMap::new("A".to_string()),
-            resource_idmap: IdMap::new("R".to_string())
+            resource_idmap: IdMap::new("R".to_string()),
+            dataset_idmap: IdMap::new("S".to_string())
         }
     }
 }
@@ -84,12 +105,12 @@ impl AnnotationStore {
     }
 
 
-    /// Add an Annotation to the annotation store and returns a reference to it.
+    /// Add an Annotation to the annotation store and returns a mutable reference to it.
     /// If you don't need the reference back, just use add() instead
-    pub fn add_annotation(&mut self, annotation: Annotation) -> Result<&Annotation,StamError> {
+    pub fn add_annotation(&mut self, annotation: Annotation) -> Result<&mut Annotation,StamError> {
         match self.add(annotation) {
             Ok(intid) => {
-                self.get(intid)
+                self.get_mut(intid)
             },
             Err(err) => Err(err)
         }
@@ -100,19 +121,19 @@ impl AnnotationStore {
         self.get_by_id(id).ok()
     }
 
-    /// Add a TextResource to the annotation store and returns a reference to it
+    /// Add a TextResource to the annotation store and returns a mutable reference to it
     /// If you don't need the reference back, just use add() instead
-    pub fn add_resource(&mut self, resource: TextResource) -> Result<&TextResource,StamError> {
+    pub fn add_resource(&mut self, resource: TextResource) -> Result<&mut TextResource,StamError> {
         match self.add(resource) {
             Ok(intid) => {
-                self.get(intid)
+                self.get_mut(intid)
             },
             Err(err) => Err(err)
         }
     }
 
     /// Shortcut method that calls add_resource under the hood and returns a reference to it
-    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<&TextResource,StamError> {
+    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<&mut TextResource,StamError> {
         let resource = TextResource::from_file(filename)?;
         self.add_resource(resource)
     }
@@ -122,8 +143,19 @@ impl AnnotationStore {
         self.get_by_id(id).ok()
     }
 
-    pub fn get_dataset(&self, intid: IntId) -> Option<&AnnotationDataSet> {
-        self.datasets.get(intid as usize)
+    /// Add a AnnotationDataSet to the annotation store and returns a mutable reference to it
+    /// If you don't need the reference back, just use add() instead
+    pub fn add_dataset(&mut self, dataset: AnnotationDataSet) -> Result<&mut AnnotationDataSet,StamError> {
+        match self.add(dataset) {
+            Ok(intid) => {
+                self.get_mut(intid)
+            },
+            Err(err) => Err(err)
+        }
+    }
+
+    pub fn get_dataset(&self, id: &str) -> Option<&AnnotationDataSet> {
+        self.get_by_id(id).ok()
     }
 
     pub fn get_mut_dataset(&mut self, intid: IntId) -> Option<&mut AnnotationDataSet> {

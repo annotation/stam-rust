@@ -61,7 +61,7 @@ impl AnnotationData {
     /// Return a reference to the AnnotationDataSet that holds this data (and its key) 
     pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
         if let Some(part_of_set) = self.part_of_set {
-           annotationstore.get_dataset(part_of_set) 
+           annotationstore.get(part_of_set).ok()
         } else {
             None
         }
@@ -209,6 +209,7 @@ pub enum DataValue {
 /// in turn makes reference to a DataKey and assigns it a value.
 #[derive(Deserialize)]
 pub struct DataKey {
+    /// The Id is the name that identifies this key, it must be unique in the dataset to which it pertains
     #[serde(rename="@id")]
     id: String,
 
@@ -267,7 +268,7 @@ impl DataKey {
 
     pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
         if let Some(part_of_set) = self.part_of_set {
-           annotationstore.get_dataset(part_of_set) 
+           annotationstore.get(part_of_set).ok()
         } else {
             None
         }
