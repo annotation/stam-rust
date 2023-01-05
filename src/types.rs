@@ -8,6 +8,22 @@ pub type IntId = u32;
 /// Type for offsets. This determines the size of the address space, use the platform maximum.
 pub type CursorSize = usize;
 
+/// Used to select offsets. Units are unicode codepoints (not bytes!)
+/// and are 0-indexed.
+pub enum Cursor {
+    BeginAlignedCursor(CursorSize),
+    EndAlignedCursor(CursorSize)
+}
+
+impl From<isize> for Cursor {
+    fn from(cursor: isize) -> Self {
+        if cursor >= 0 {
+            Self::BeginAlignedCursor(cursor as usize)
+        } else {
+            Self::EndAlignedCursor((cursor.abs() - 1) as usize)
+        }
+    }
+}
 
 /// A map mapping global IDs to internal ids, implemented as  a HashMap
 pub struct IdMap {
@@ -245,6 +261,4 @@ pub trait StoreFor<T: HasIntId + HasId> {
             }
         }
     }
-
 }
-

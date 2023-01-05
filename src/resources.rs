@@ -1,4 +1,5 @@
 use crate::types::*;
+use crate::selector::{Selector,Offset};
 use crate::error::StamError;
 
 use std::io::prelude::*;
@@ -72,5 +73,24 @@ impl TextResource {
     /// Returns a reference to the full text of this resource
     pub fn get_text(&self) -> &str {
         self.text.as_str()
+    }
+
+    pub fn select_resource(&self) -> Result<Selector,StamError> {
+        if let Some(intid) = self.get_intid() {
+            Ok(Selector::ResourceSelector(intid))
+        } else {
+            Err(StamError::Unbound)
+        }
+    }
+
+    pub fn select_text(&self, begin: Cursor, end: Cursor) -> Result<Selector,StamError> {
+        if let Some(intid) = self.get_intid() {
+            Ok(Selector::TextSelector {
+                resource: intid, 
+                offset: Offset { begin, end }
+            })
+        } else {
+            Err(StamError::Unbound)
+        }
     }
 }
