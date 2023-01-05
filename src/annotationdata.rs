@@ -39,7 +39,7 @@ impl HasId for AnnotationData {
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
-    fn with_id(mut self, id: String) ->  Self {
+    fn with_id(mut self, id:String) ->  Self {
         self.id = Some(id);
         self
     }
@@ -193,6 +193,9 @@ impl StoreFor<DataKey> for AnnotationDataSet {
             Some(item.part_of_set == self.get_intid())
         }
     }
+    fn introspect_type(&self) -> &'static str {
+        "DataKey in AnnotationDataSet"
+    }
 }
 
 impl StoreFor<AnnotationData> for AnnotationDataSet {
@@ -218,6 +221,9 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         } else {
             Some(item.part_of_set == self.get_intid())
         }
+    }
+    fn introspect_type(&self) -> &'static str {
+        "AnnotationData in AnnotationDataSet"
     }
 }
 

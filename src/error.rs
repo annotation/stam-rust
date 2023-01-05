@@ -8,28 +8,28 @@ use std::io;
 
 #[derive(Debug)]
 pub enum StamError {
-    IntIdError(IntId),
-    IdError(String),
-    NoIdError,
-    Unbound,
-    DuplicateIdError(String),
-    BuildError(Box<StamError>),
-    StoreError(Box<StamError>),
-    IOError(std::io::Error)
+    IntIdError(IntId,Option<String>),
+    IdError(String,Option<String>),
+    NoIdError(Option<String>),
+    Unbound(Option<String>),
+    DuplicateIdError(String,Option<String>),
+    BuildError(Box<StamError>,Option<String>),
+    StoreError(Box<StamError>,Option<String>),
+    IOError(std::io::Error,Option<String>)
 }
 
 impl From<&StamError> for String {
     /// Returns the error message as a String
     fn from(error: &StamError) -> String {
         match error {
-            StamError::IntIdError(id) => format!("IntIdError: No such internal ID: {}",id),
-            StamError::IdError(id) => format!("IdError: No such ID: {}",id),
-            StamError::Unbound => format!("Unbound: Item is not bound yet, add it to a store first"),
-            StamError::NoIdError => "NoIdError: Store does not map IDs".to_string(),
-            StamError::DuplicateIdError(id) => format!("DuplicatIdError: ID already exists: {}",id),
-            StamError::IOError(err) => format!("IOError: {}",err),
-            StamError::BuildError(err) => format!("BuildError: Error during build: {}",err),
-            StamError::StoreError(err) => format!("StoreError: Error during store: {}",err)
+            StamError::IntIdError(id, msg) => format!("IntIdError: No such internal ID: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::IdError(id, msg) => format!("IdError: No such ID: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::Unbound(msg) => format!("Unbound: Item is not bound yet, add it to a store first. ({})", msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::NoIdError(msg) => format!("NoIdError: Store does not map IDs. ({})", msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::DuplicateIdError(id, msg) => format!("DuplicatIdError: ID already exists: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::IOError(err, msg) => format!("IOError: {} ({})",err,msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::BuildError(err, msg) => format!("BuildError: Error during build: {} ({})",err, msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::StoreError(err, msg) => format!("StoreError: Error during store: {} ({}) ",err, msg.as_ref().unwrap_or(&"".to_string()))
         }
     }
 }

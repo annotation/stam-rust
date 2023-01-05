@@ -50,6 +50,9 @@ impl StoreFor<TextResource> for AnnotationStore {
     fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
         Some(&mut self.resource_idmap)
     }
+    fn introspect_type(&self) -> &'static str {
+        "TextResource in AnnotationStore"
+    }
 }
 
 //An AnnotationStore is a StoreFor Annotation
@@ -66,6 +69,9 @@ impl StoreFor<Annotation> for AnnotationStore {
     fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
         Some(&mut self.annotation_idmap)
     }
+    fn introspect_type(&self) -> &'static str {
+        "Annotation in AnnotationStore"
+    }
 }
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
@@ -81,6 +87,9 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     }
     fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
         Some(&mut self.dataset_idmap)
+    }
+    fn introspect_type(&self) -> &'static str {
+        "AnnotationDataSet in AnnotationStore"
     }
 }
 

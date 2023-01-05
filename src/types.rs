@@ -71,7 +71,7 @@ pub trait HasIntId {
     }
 
     fn get_intid_or_err(&self) -> Result<IntId,StamError> {
-        self.get_intid().ok_or(StamError::Unbound)
+        self.get_intid().ok_or(StamError::Unbound(None))
     }
     /// Set the internal ID 
     fn set_intid(&mut self, intid: IntId) {
@@ -86,7 +86,7 @@ pub trait HasId: HasIntId {
         None
     }
     fn get_id_or_err(&self) -> Result<&str,StamError> {
-        self.get_id().ok_or(StamError::NoIdError)
+        self.get_id().ok_or(StamError::NoIdError(None))
     }
 
     /// Builder pattern to set the public Id
@@ -129,6 +129,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
         None
     }
 
+    fn introspect_type(&self) -> &str;
 
     /// Add an item to the store. Returns its internal id upon success
     fn add(&mut self, mut item: T) -> Result<IntId,StamError> {
@@ -140,7 +141,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
         if let Some(id) = item.get_id() {
             //check if global ID does not already exist
             if self.get_by_id(id).is_ok() {
-                return Err(StamError::DuplicateIdError(id.to_string()));
+                return Err(StamError::DuplicateIdError(id.to_string(), Some(self.introspect_type().to_string())));
             }
 
             self.get_mut_idmap().map(|idmap| {
@@ -211,10 +212,10 @@ pub trait StoreFor<T: HasIntId + HasId> {
             if let Some(intid) = idmap.data.get(id) {
                 self.get(*intid)
             } else {
-                Err(StamError::IdError(id.to_string()))
+                Err(StamError::IdError(id.to_string(), Some(self.introspect_type().to_string())))
             }
         } else {
-            Err(StamError::NoIdError)
+            Err(StamError::NoIdError(Some(self.introspect_type().to_string())))
         }
     }
 
@@ -224,10 +225,10 @@ pub trait StoreFor<T: HasIntId + HasId> {
             if let Some(intid) = idmap.data.get(id) {
                 self.get_mut(*intid)
             } else {
-                Err(StamError::IdError(id.to_string()))
+                Err(StamError::IdError(id.to_string(), Some(self.introspect_type().to_string())))
             }
         } else {
-            Err(StamError::NoIdError)
+            Err(StamError::NoIdError(Some(self.introspect_type().to_string())))
         }
     }
 
@@ -236,7 +237,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
         if let Some(item) = self.get_store().get(intid as usize) {
             Ok(item)
         } else {
-            Err(StamError::IntIdError(intid))
+            Err(StamError::IntIdError(intid,Some(self.introspect_type().to_string())))
         }
     }
 
@@ -245,7 +246,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
         if let Some(item) = self.get_mut_store().get_mut(intid as usize) {
             Ok(item)
         } else {
-            Err(StamError::IntIdError(intid))
+            Err(StamError::IntIdError(intid,Some("get_mut".to_string()))) //MAYBE TODO: self.introspect_type didn't work here
         }
     }
 
@@ -293,8 +294,8 @@ pub trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreFor<ToTy
     /// May panic on error!
     fn build_and_store(mut self, item: FromType) -> Result<Self,StamError> where Self: Sized {
         //                                     V---- when there's an error, we wrap it error to give more information
-        let newitem: ToType = self.build(item).map_err(|err| StamError::BuildError(Box::new(err)))?;
-        self.add(newitem).map_err(|err| StamError::StoreError(Box::new(err)))?;
+        let newitem: ToType = self.build(item).map_err(|err| StamError::BuildError(Box::new(err),Some(self.introspect_type().to_string())))?;
+        self.add(newitem).map_err(|err| StamError::StoreError(Box::new(err),Some(self.introspect_type().to_string())))?;
         Ok(self)
     }
 }

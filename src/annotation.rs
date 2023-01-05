@@ -81,7 +81,7 @@ impl<'a> Build<BuildAnnotation<'a>,Annotation> for AnnotationStore {
         //gather references to existing AnnotationData
         for (dataset_id, annotationdata_id) in item.existingdata {
             let dataset: &AnnotationDataSet = self.get_by_id(&dataset_id)?;
-            let adata: &AnnotationData = dataset.get_by_id(&dataset_id)?;
+            let adata: &AnnotationData = dataset.get_by_id(&annotationdata_id)?;
             data.push((dataset.get_intid_or_err()?, adata.get_intid_or_err()?));
         }
 
