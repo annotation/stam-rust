@@ -37,7 +37,7 @@ fn instantiation_store() -> Result<(),StamError> {
     store
         .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
         .store(AnnotationDataSet::new().with_id("testdataset".to_string())
-            .store(DataKey::new("pos".to_string(), false))?
+               .store(DataKey::new("pos".to_string(), false))?
         )?;
     Ok(())
 }
@@ -48,9 +48,11 @@ fn instantiation_store2() -> Result<(),StamError> {
     store
         .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
         .store(AnnotationDataSet::new().with_id("testdataset".to_string())
-            .store(DataKey::new("pos".to_string(), false))?
-            .build_and_store( BuildAnnotationData::new("D1", "pos", DataValue::from("noun")))?
+               .store(DataKey::new("pos".to_string(), false))?
+               .build_and_store( BuildAnnotationData::new("D1", "pos", DataValue::from("noun")))?
         )?
-        .build_and_store( BuildAnnotation::new("A1", BuildSelector::TextSelector { resource: "testres", begin: 6, end: 11}).with_data("testdataset","D1"))?;
+        .build_and_store( BuildAnnotation::new("A1", 
+                             BuildSelector::TextSelector { resource: "testres", begin: 6, end: 11}
+                          ).with_data("testdataset","D1"))?;
     Ok(())
 }
