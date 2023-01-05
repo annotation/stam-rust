@@ -104,62 +104,11 @@ impl AnnotationStore {
         AnnotationStore::default()
     }
 
-
-    /// Add an Annotation to the annotation store and returns a mutable reference to it.
-    /// If you don't need the reference back, just use add() instead
-    pub fn add_annotation(&mut self, annotation: Annotation) -> Result<&mut Annotation,StamError> {
-        match self.add(annotation) {
-            Ok(intid) => {
-                self.get_mut(intid)
-            },
-            Err(err) => Err(err)
-        }
-    }
-
-    /// Get an annotation by global ID, returns None if it does not exist
-    pub fn get_annotation(&self, id: &str) -> Option<&Annotation> {
-        self.get_by_id(id).ok()
-    }
-
-    /// Add a TextResource to the annotation store and returns a mutable reference to it
-    /// If you don't need the reference back, just use add() instead
-    pub fn add_resource(&mut self, resource: TextResource) -> Result<&mut TextResource,StamError> {
-        match self.add(resource) {
-            Ok(intid) => {
-                self.get_mut(intid)
-            },
-            Err(err) => Err(err)
-        }
-    }
-
     /// Shortcut method that calls add_resource under the hood and returns a reference to it
-    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<&mut TextResource,StamError> {
+    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<IntId,StamError> {
         let resource = TextResource::from_file(filename)?;
-        self.add_resource(resource)
+        self.add(resource)
     }
 
-    /// Get a resource by global Id, returns None if it does not exist
-    pub fn get_resource(&self, id: &str) -> Option<&TextResource> {
-        self.get_by_id(id).ok()
-    }
-
-    /// Add a AnnotationDataSet to the annotation store and returns a mutable reference to it
-    /// If you don't need the reference back, just use add() instead
-    pub fn add_dataset(&mut self, dataset: AnnotationDataSet) -> Result<&mut AnnotationDataSet,StamError> {
-        match self.add(dataset) {
-            Ok(intid) => {
-                self.get_mut(intid)
-            },
-            Err(err) => Err(err)
-        }
-    }
-
-    pub fn get_dataset(&self, id: &str) -> Option<&AnnotationDataSet> {
-        self.get_by_id(id).ok()
-    }
-
-    pub fn get_mut_dataset(&mut self, intid: IntId) -> Option<&mut AnnotationDataSet> {
-        self.datasets.get_mut(intid as usize)
-    }
 }
     

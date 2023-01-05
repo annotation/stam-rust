@@ -160,12 +160,16 @@ pub trait StoreFor<T: HasIntId + HasId> {
         }
     }
 
-    /// Retrievs a reference to the item as it occurs in the store. The passed item and reference item may be distinct instances.
-    fn find<'a>(&'a self, item: &T) -> Option<&'a T> {
+    /// Retrieves the internal id for the item as it occurs in the store. The passed item and reference item may be distinct instances.
+    fn find(&self, item: &T) -> Option<IntId> {
         if let (Some(intid), Some(true)) = (item.get_intid(), self.is_owner_of(item)) {
-            self.get(intid).ok()
+            Some(intid)
         } else if let Some(id) = item.get_id() {
-            self.get_by_id(id).ok()
+            if let Some(idmap) = self.get_idmap() {
+                idmap.data.get(id).map(|x| *x)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -251,9 +255,8 @@ pub trait StoreFor<T: HasIntId + HasId> {
 
     /// Get the item from the store if it already exists, if not, add it
     fn get_or_add(&mut self, item: T) -> Result<&T,StamError>  {
-        if self.contains(&item) { //TODO: this check should be superfluous (find already does it) but I'm fighting the borrow checker if I remove it..
-            let itemref = self.find(&item).unwrap();
-            Ok(itemref)
+        if let Some(intid) = self.find(&item) {
+            self.get(intid)
         } else {
             match self.add(item) {
                 Ok(intid) => self.get(intid),
