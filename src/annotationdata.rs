@@ -1,6 +1,7 @@
 //use Chrono::DateTime;
 use std::collections::{HashSet, HashMap};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::ser::{Serialize, Serializer, SerializeStruct};
 //use serde_json::Result;
 
 use crate::types::*;
@@ -156,7 +157,6 @@ impl AnnotationDataSet {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 pub enum DataValue {
     ///No value
     Null,
@@ -176,10 +176,12 @@ pub enum DataValue {
 /// The DataKey class defines a vocabulary field in STAM, it 
 /// belongs to a certain `AnnotationDataSet`. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct DataKey {
     #[serde(rename="@id")]
     id: String,
+
+    #[serde(skip)]
     indexed: bool,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
@@ -191,6 +193,16 @@ pub struct DataKey {
     ///Refers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey. May be unbound (None) only during creation.
     #[serde(skip)]
     part_of_set: Option<IntId>
+}
+
+impl Serialize for DataKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("DataKey",1)?;
+        state.serialize_field("@type", "DataKey")?;
+        state.serialize_field("@id", &self.id)?;
+        state.end()
+    }
 }
 
 
