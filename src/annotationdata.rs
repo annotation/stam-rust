@@ -1,5 +1,6 @@
 //use Chrono::DateTime;
 use std::collections::{HashSet, HashMap};
+use std::borrow::Cow;
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer, SerializeStruct};
 //use serde_json::Result;
@@ -12,7 +13,7 @@ use crate::error::StamError;
 
 pub struct AnnotationData {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
-    id: String,
+    id: Option<String>,
     key: IntId,
     pub value: DataValue,
 
@@ -36,13 +37,14 @@ impl HasIntId for AnnotationData {
 
 impl HasId for AnnotationData {
     fn get_id(&self) -> Option<&str> { 
-        Some(self.id.as_str())
+        self.id.as_ref().map(|x| &**x)
     }
     fn with_id(mut self, id: String) ->  Self {
-        self.id = id;
+        self.id = Some(id);
         self
     }
 }
+
 
 impl Serialize for AnnotationData {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
@@ -58,6 +60,18 @@ impl Serialize for AnnotationData {
 
 
 impl AnnotationData {
+    /// Create a new unbounded AnnotationData instance, you will likely want to use BuildAnnotationData::new() instead and pass it to AnnotationDataSet.build()
+    pub fn new(id: Option<String>, key: IntId, value: DataValue) -> Self {
+        AnnotationData {
+            id,
+            key,
+            value,
+            intid: None,
+            referenced_by: Vec::new(),
+            part_of_set: None
+        }
+    }
+
     /// Return a reference to the AnnotationDataSet that holds this data (and its key) 
     pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
         if let Some(part_of_set) = self.part_of_set {
@@ -81,6 +95,48 @@ impl AnnotationData {
         //TODO: implement
     }
 }
+
+pub struct BuildAnnotationData<'a> {
+    ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
+    id: Cow<'a,str>,
+    key: Cow<'a,str>,
+    pub value: DataValue,
+}
+
+impl<'a> BuildAnnotationData<'a> {
+    pub fn new(id: &'a str, key: &'a str, value: DataValue) -> Self {
+        Self {
+            id: Cow::Borrowed(id),
+            key: Cow::Borrowed(key),
+            value
+        }
+    }
+
+    pub fn new_owned(id: String, key: String, value: DataValue) -> Self {
+        Self {
+            id: Cow::Owned(id),
+            key: Cow::Owned(key),
+            value
+        }
+    }
+}
+
+impl<'a> Build<BuildAnnotationData<'a>,AnnotationData> for AnnotationDataSet {
+    fn build(mut self, item: BuildAnnotationData<'a>) -> Self {
+        let key_intid = if let Ok::<&DataKey,_>(key) = self.get_by_id(&item.key)  {
+            key.get_intid().expect("Item is unbound (should never happen)")
+        } else {
+            let datakey = DataKey::new(item.key.to_string(),false);
+            self.add(datakey).expect("Unable to get internal id after adding datakey")
+        };
+        if let Err(err) = self.add(AnnotationData::new(Some(item.id.to_string()), key_intid, item.value)) {
+            panic!("Error building AnnotationData: {:?}",err);
+        }
+        self
+    }
+}
+
+
 
 pub struct AnnotationDataSet {
     id: Option<String>,
@@ -184,6 +240,7 @@ impl AnnotationDataSet {
     pub fn new() -> Self {
         Self::default()
     }
+
 }
 
 #[derive(Serialize,Deserialize)]
@@ -202,6 +259,72 @@ pub enum DataValue {
 
     //Value is an ordered list
     List(Vec<DataValue>)
+}
+
+impl From<&str> for DataValue {
+    fn from(item: &str) -> Self {
+        Self::String(item.to_string())
+    }
+}
+
+impl From<String> for DataValue {
+    fn from(item: String) -> Self {
+        Self::String(item)
+    }
+}
+
+impl From<f64> for DataValue {
+    fn from(item: f64) -> Self {
+        Self::Float(item)
+    }
+}
+
+impl From<f32> for DataValue {
+    fn from(item: f32) -> Self {
+        Self::Float(item as f64)
+    }
+}
+
+impl From<usize> for DataValue {
+    fn from(item: usize) -> Self {
+        Self::Int(item)
+    }
+}
+
+impl From<u64> for DataValue {
+    fn from(item: u64) -> Self {
+        Self::Int(item as usize)
+    }
+}
+
+impl From<u32> for DataValue {
+    fn from(item: u32) -> Self {
+        Self::Int(item as usize)
+    }
+}
+
+impl From<u16> for DataValue {
+    fn from(item: u16) -> Self {
+        Self::Int(item as usize)
+    }
+}
+
+impl From<u8> for DataValue {
+    fn from(item: u8) -> Self {
+        Self::Int(item as usize)
+    }
+}
+
+impl From<bool> for DataValue {
+    fn from(item: bool) -> Self {
+        Self::Bool(item)
+    }
+}
+
+impl From<Vec<DataValue>> for DataValue {
+    fn from(item: Vec<DataValue>) -> Self {
+        Self::List(item)
+    }
 }
 
 /// The DataKey class defines a vocabulary field in STAM, it 

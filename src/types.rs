@@ -149,6 +149,14 @@ pub trait StoreFor<T: HasIntId + HasId> {
         Ok(intid)
     }
 
+    /// Builder pattern, similar to add()
+    fn store(mut self, mut item: T) -> Self where Self: Sized {
+        if let Err(err) = self.add(item) {
+            panic!("Unable to add: {:?}",err);
+        }
+        self
+    }
+
     /// Returns true if the store contains the item
     fn contains(&self, item: &T) -> bool {
         if let (Some(intid), Some(true)) = (item.get_intid(), self.is_owner_of(item)) {
@@ -265,3 +273,9 @@ pub trait StoreFor<T: HasIntId + HasId> {
         }
     }
 }
+
+pub trait Build<FromType,ToType> {
+    fn build(self, item: FromType) -> Self;
+}
+
+
