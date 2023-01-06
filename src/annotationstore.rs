@@ -21,8 +21,8 @@ pub struct AnnotationStore {
 }
 
 
-impl HasIntId for AnnotationStore {}
-impl HasId for AnnotationStore { 
+impl MayHaveIntId for AnnotationStore {}
+impl MayHaveId for AnnotationStore { 
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }

@@ -6,9 +6,6 @@ use crate::error::StamError;
 /// Type for internal numeric IDs. There are nothing more than indices to a vector and this determines the size of the address space
 pub type IntId = u32;
 
-/// Type for offsets. This determines the size of the address space, use the platform maximum.
-pub type CursorSize = usize;
-
 /// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
 pub type Store<T> = Vec<Option<Box<T>>>;
 //                             ^----- actual T is allocated on heap (i.e. the Vec itself will contain pointers)
@@ -18,31 +15,41 @@ pub type Store<T> = Vec<Option<Box<T>>>;
 /// Used to select offsets. Units are unicode codepoints (not bytes!)
 /// and are 0-indexed.
 ///
-///
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
 pub enum Cursor {
-    BeginAlignedCursor(CursorSize),
-    EndAlignedCursor(CursorSize)
+    /// Cursor relative to the start of a text. Has a value of 0 or higher
+    BeginAlignedCursor(usize),
+    /// Cursor relative to the end of a text. Has a value of 0 or lower. The last character of a text begins at EndAlignedCursor(-1) and ends at EndAlignedCursor(0)
+    EndAlignedCursor(isize)
 }
 
 
-impl From<isize> for Cursor {
-    fn from(cursor: isize) -> Self {
-        if cursor >= 0 {
-            Self::BeginAlignedCursor(cursor as usize)
+impl From<usize> for Cursor {
+    fn from(cursor: usize) -> Self {
+        Self::BeginAlignedCursor(cursor)
+    }
+}
+
+impl TryFrom<isize> for Cursor {
+    type Error = &'static str;
+    fn try_from(cursor: isize) -> Result<Self,Self::Error> {
+        if cursor > 0 {
+            Err("Cursor is a signed integer and converts to EndAlignedCursor, expected a value <= 0. Conver from an unsigned integer for a normal BeginAlignedCursor")
         } else {
-            Self::EndAlignedCursor((cursor.abs() - 1) as usize)
+            Ok(Self::EndAlignedCursor(cursor))
         }
     }
 }
 
-/// A map mapping public IDs to internal ids, implemented as  a HashMap
+
+/// A map mapping public IDs to internal ids, implemented as a HashMap.
+/// Used to resolve public IDs to internal ones.
 pub struct IdMap {
-    //The map
+    /// The actual map
     data: HashMap<String,IntId>,
 
-    //A prefix that automatically generated IDs will get when added to this map
+    /// A prefix that automatically generated IDs will get when added to this map
     autoprefix: String,
 
     ///Sequence number used for ID generation
@@ -67,6 +74,7 @@ impl IdMap {
         }
     }
 
+    /// Sets a prefix that automatically generated IDs will get when added to this map
     pub fn set_autoprefix(&mut self, autoprefix: String) {
         self.autoprefix = autoprefix;
     }
@@ -74,24 +82,34 @@ impl IdMap {
 
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
-/// This trait is used on types that (may) have an internal numeric ID
-pub trait HasIntId {
-    /// Retrieve the internal id. This may be None only in the initial stage when it is still unbounded to a store
+/// This trait is used on types that may have an internal numeric ID. Though these IDs are internal
+/// the trait is public as outside implementations may used the internal ids during their lifetime, they should, however, never be serialised!
+pub trait MayHaveIntId {
+    /// Retrieve the internal (numeric) id. For any type T uses in StoreFor<T>, this may be None only in the initial
+    /// stage when it is still unbounded to a store.
     fn get_intid(&self) -> Option<IntId> {
         None
     }
 
+    /// Like [`Self::get_intid()`] but returns a [`StamError:Unbound`] error if there is no internal id.
     fn get_intid_or_err(&self) -> Result<IntId,StamError> {
         self.get_intid().ok_or(StamError::Unbound(None))
     }
-    /// Set the internal ID 
+}
+
+/// This trait is used on types that may have an internal id that can be set.
+pub(crate) trait SetIntId {
+    /// Set the internal ID. May only be called once (though currently not enforced).
     fn set_intid(&mut self, intid: IntId) {
         //no-op in default implementation
     }
 }
 
-/// This trait is used on types that can have a global ID
-pub trait HasId: HasIntId {
+//^ -- the SetIntId trait is separate from MayHaveIntId because we don't want to expose it publicly.
+//     internal ID setting is an internal business.
+
+/// This trait is used on types that can have a public ID
+pub trait MayHaveId: MayHaveIntId {
     /// Get the global ID
     fn get_id(&self) -> Option<&str> {
         None
@@ -126,7 +144,7 @@ pub trait HasId: HasIntId {
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
-pub trait StoreFor<T: HasIntId + HasId> {
+pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
     /// Get a reference to the entire store for the associated type
     fn get_store(&self) -> &Store<T>;
     /// Get a mutable reference to the entire store for the associated type
@@ -294,13 +312,12 @@ pub trait StoreFor<T: HasIntId + HasId> {
     }
 }
 
-pub trait Build<FromType,ToType> {
+pub(crate) trait Build<FromType,ToType> {
     /// Builds an item of ToType (A Builder* type) from FromType
-    /// resolving all references
     fn build(&mut self, item: FromType) -> Result<ToType,StamError>;
 }
 
-pub trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreFor<ToType>  where ToType: HasIntId + HasId {
+pub(crate) trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreFor<ToType>  where ToType: MayHaveIntId + SetIntId + MayHaveId {
     /// Builds an item and adds it to the store.
     /// May panic on error!
     fn build_and_store(mut self, item: FromType) -> Result<Self,StamError> where Self: Sized {

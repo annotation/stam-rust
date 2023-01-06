@@ -11,11 +11,26 @@ use crate::error::StamError;
 
 
 
+
+/// AnnotationData holds the actual content of an annotation; a key/value pair. (the
+/// term *feature* is regularly seen for this in certain annotation paradigms).
+/// Annotation Data is deliberately decoupled from the actual ``Annotation``
+/// instances so multiple annotation instances can point to the same content
+/// without causing any overhead in storage. Moreover, it facilitates indexing and
+/// searching. The annotation data is part of an `AnnotationDataSet`, which
+/// effectively defines a certain user-defined vocabulary.
+///
+/// Once instantiated, instances of this type are, by design, largely immutable.
+/// The key and value can not be changed. Create a new AnnotationData and new Annotation for edits.
 pub struct AnnotationData {
-    ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
+    /// Public identifier
     id: Option<String>,
+
+    ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     key: IntId,
-    pub value: DataValue,
+
+    //Actual annotation value
+    value: DataValue,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership 
     intid: Option<IntId>,
@@ -26,16 +41,18 @@ pub struct AnnotationData {
 }
 
 
-impl HasIntId for AnnotationData {
+impl MayHaveIntId for AnnotationData {
     fn get_intid(&self) -> Option<IntId> { 
         self.intid
     }
+}
+impl SetIntId for AnnotationData {
     fn set_intid(&mut self, intid: IntId) {
         self.intid = Some(intid);
     }
 }
 
-impl HasId for AnnotationData {
+impl MayHaveId for AnnotationData {
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
@@ -57,7 +74,6 @@ impl Serialize for AnnotationData {
         state.end()
     }
 }
-
 
 impl AnnotationData {
     /// Create a new unbounded AnnotationData instance, you will likely want to use BuildAnnotationData::new() instead and pass it to AnnotationDataSet.build()
@@ -82,12 +98,19 @@ impl AnnotationData {
     }
 
     /// Return a reference to the DataKey used by this data
-    pub fn get_key<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a DataKey> {
+    pub fn get_key<'a>(&self, annotationstore: &'a AnnotationStore) -> Result<&'a DataKey,StamError> {
         if let Some(dataset) = self.get_dataset(annotationstore) {
-            dataset.get(self.key).ok()
+            dataset.get(self.key)
         } else {
-            None
+            Err(StamError::Unbound(None))
         }
+    }
+
+    /// Get the value of this annotationdata. The value will be a DataValue instance. This will return an immutable reference.
+    /// Note that there is no mutable variant nor a set_value(), values can deliberately only be set once at instantiation. 
+    /// Make a new AnnotationData if you want to change data.
+    pub fn get_value(&self) -> &DataValue {
+        &self.value
     }
 
     /// Returns an iterator over all the Annotations that reference this data
@@ -96,14 +119,19 @@ impl AnnotationData {
     }
 }
 
+/// This is the build recipe for AnnotationData. It contains references to public IDs that will be resolved
+/// when the actual AnnotationData is build. The building is done by the build() method on the store that 
+/// owns AnnotationData, i.e. an AnnotationDataSet.
 pub struct BuildAnnotationData<'a> {
-    ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
+    ///The public ID for the AnnotationData. (This is a copy-on-work type)
     id: Cow<'a,str>,
+    ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     key: Cow<'a,str>,
     pub value: DataValue,
 }
 
 impl<'a> BuildAnnotationData<'a> {
+    /// Build Annotation Data, parameters are str references, used new_owned() instead if you have Strings (saves a copy)
     pub fn new(id: &'a str, key: &'a str, value: DataValue) -> Self {
         Self {
             id: Cow::Borrowed(id),
@@ -112,6 +140,7 @@ impl<'a> BuildAnnotationData<'a> {
         }
     }
 
+    /// Build Annotation Data, parameters are from owned strings
     pub fn new_owned(id: String, key: String, value: DataValue) -> Self {
         Self {
             id: Cow::Owned(id),
@@ -120,6 +149,11 @@ impl<'a> BuildAnnotationData<'a> {
         }
     }
 }
+
+
+// The following two implementations allows for building AnnotationData from BuildAnnotationData.
+// This is done on the AnnotationDataSet that is the store for the AnnotationData.
+
 
 impl<'a> Build<BuildAnnotationData<'a>,AnnotationData> for AnnotationDataSet {
     fn build(&mut self, item: BuildAnnotationData<'a>) -> Result<AnnotationData,StamError> {
@@ -149,7 +183,7 @@ pub struct AnnotationDataSet {
     data_idmap: IdMap
 }
 
-impl HasId for AnnotationDataSet {
+impl MayHaveId for AnnotationDataSet {
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
@@ -159,10 +193,13 @@ impl HasId for AnnotationDataSet {
     }
 }
 
-impl HasIntId for AnnotationDataSet {
+impl MayHaveIntId for AnnotationDataSet {
     fn get_intid(&self) -> Option<IntId> { 
         self.intid
     }
+}
+
+impl SetIntId for AnnotationDataSet {
     fn set_intid(&mut self, intid: IntId) {
         self.intid = Some(intid);
     }
@@ -367,16 +404,18 @@ impl Serialize for DataKey {
 
 
 
-impl HasId for DataKey {
+impl MayHaveId for DataKey {
     fn get_id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
 }
 
-impl HasIntId for DataKey {
+impl MayHaveIntId for DataKey {
     fn get_intid(&self) -> Option<IntId> { 
         self.intid
     }
+}
+impl SetIntId for DataKey {
     fn set_intid(&mut self, intid: IntId) {
         self.intid = Some(intid);
     }

@@ -6,6 +6,14 @@ use crate::annotationdata::{BuildAnnotationData,AnnotationDataSet,AnnotationData
 use crate::annotationstore::AnnotationStore;
 use crate::selector::{Selector,BuildSelector};
 
+/// `Annotation` represents a particular *instance of annotation* and is the central
+/// concept of the model. They can be considered the primary nodes of the graph model. The
+/// instance of annotation is strictly decoupled from the *data* or key/value of the
+/// annotation ([`AnnotationData`]). After all, multiple instances can be annotated
+/// with the same label (multiple annotations may share the same annotation data).
+/// Moreover, an `Annotation` can have multiple annotation data associated. 
+/// The result is that multiple annotations with the exact same content require less storage
+/// space, and searching and indexing is facilitated.  
 pub struct Annotation {
     /// Public identifier for this annotation
     id: Option<String>,
@@ -22,21 +30,26 @@ pub struct Annotation {
     referenced_by: Vec<IntId>
 }
 
-impl HasId for Annotation {
+impl MayHaveId for Annotation {
     fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
 }
 
-impl HasIntId for Annotation {
+impl MayHaveIntId for Annotation {
     fn get_intid(&self) -> Option<IntId> { 
         self.intid
     }
+}
+
+impl SetIntId for Annotation {
     fn set_intid(&mut self, intid: IntId) {
         self.intid = Some(intid);
     }
 }
 
+/// This is the build recipe for `Annotation`. It contains references to public IDs that will be resolved
+/// when the actual AnnotationData is build. The building is done by passing the `BuildAnnotation` to [`AnnotationDataSet::build()`].
 pub struct BuildAnnotation<'a> {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     id: Cow<'a,str>,

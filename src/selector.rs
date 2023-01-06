@@ -24,8 +24,8 @@ pub enum Selector {
 }
 
 //We don't carry IDs so we implement the defaults only that all return None
-impl HasIntId for Selector {}
-impl HasId for Selector {}
+impl MayHaveIntId for Selector {}
+impl MayHaveId for Selector {}
 
 pub enum BuildSelector<'a> {
     ResourceSelector(&'a str),
