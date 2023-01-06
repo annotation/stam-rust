@@ -104,6 +104,7 @@ impl<'a> Build<BuildSelector<'a>,Selector> for AnnotationStore {
     }
 }
 
+/// This trait is implemented by types that can return a Selector to themselves
 pub trait NewSelector {
     /// Returns a selector that points to this resouce
     fn new_selector(&self) -> Result<Selector,StamError>;
@@ -142,8 +143,11 @@ impl NewSelector for Annotation {
     }
 }
 
+/// This trait is implemented by types to which a selector can be applied, returning as a result a reference to type T 
 pub trait ApplySelector<T: ?Sized> {
-    fn select(&self, selector: &Selector) -> Result<&T,StamError>;
+    /// Apply a selector
+    /// Raises a [`StamError::WrongSelectorType`] if the selector of the passed type does not apply to this resource
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a T,StamError>;
 }
 
 impl ApplySelector<TextResource> for AnnotationStore {
@@ -165,7 +169,7 @@ impl ApplySelector<TextResource> for AnnotationStore {
 impl ApplySelector<str> for TextResource {
     fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str,StamError> {
         match selector {
-            Selector::TextSelector { resource: int_id, offset: offset } => {
+            Selector::TextSelector { resource: int_id, offset } => {
                 if self.get_intid() != Some(*int_id) {
                     Err(StamError::WrongSelectorTarget(Some(format!("Can not apply selector {:?} on a target it does not reference", selector))))
                 } else {

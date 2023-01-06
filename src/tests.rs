@@ -25,7 +25,8 @@ fn instantiation() {
     let dataset: &AnnotationDataSet = store.get(dataset_intid).expect("get failed");
     //get by id
     let resource: &TextResource = store.get_by_id("testres").unwrap();
-    let selector = resource.select_resource(); 
+
+    let selector = resource.new_selector(); 
 
     //store.annotate(TextSelector::new(&resource), &dataset, &key, )
 
@@ -33,17 +34,6 @@ fn instantiation() {
 
 #[test]
 fn instantiation_store() -> Result<(),StamError> {
-    let mut store = AnnotationStore::new().with_id("test".to_string());
-    store
-        .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
-        .store(AnnotationDataSet::new().with_id("testdataset".to_string())
-               .store(DataKey::new("pos".to_string(), false))?
-        )?;
-    Ok(())
-}
-
-#[test]
-fn instantiation_store2() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".to_string());
     store
         .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
