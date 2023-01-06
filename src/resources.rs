@@ -5,6 +5,13 @@ use crate::error::StamError;
 use std::io::prelude::*;
 use std::fs::File;
 
+
+
+/// This holds the textual resource to be annotated. It holds the full text in memory.
+///
+/// The text *SHOULD* be in
+/// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
+/// *MAY* be in another unicode normalization forms.
 pub struct TextResource {
     /// Public identifier for the text resource (often the filename/URL)
     id: String,

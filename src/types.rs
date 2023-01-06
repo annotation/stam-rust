@@ -312,11 +312,19 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
     }
 }
 
+/// This trait is implemented by stores that convert a builder type to a normal type.
+/// A Builder type (Builder*) converts a 'recipe' to an actual instance with properly resolved
+/// references.
 pub(crate) trait Build<FromType,ToType> {
-    /// Builds an item of ToType (A Builder* type) from FromType
+    /// Builds an item of ToType (A Builder* type) from FromType and returns it
+    /// Does not add it to the store yet, see [`Self::build_and_store()`] instead,
+    /// However, it may already add necessary dependencies to the store.
     fn build(&mut self, item: FromType) -> Result<ToType,StamError>;
 }
 
+/// This trait is implemented by stores that convert a builder type to a normal type.
+/// A Builder type (Builder*) converts a 'recipe' to an actual instance with properly resolved
+/// references. This is a combined trait that does the build and adds it to the store.
 pub(crate) trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreFor<ToType>  where ToType: MayHaveIntId + SetIntId + MayHaveId {
     /// Builds an item and adds it to the store.
     /// May panic on error!

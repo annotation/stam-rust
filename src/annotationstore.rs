@@ -6,6 +6,9 @@ use crate::selector::Selector;
 use crate::types::*;
 use crate::error::*;
 
+/// An Annotation Store is an unordered collection of annotations, resources and
+/// annotation data sets. It can be seen as the *root* of the *graph model* and the glue
+/// that holds everything together. It is the entry point for any stam model.
 pub struct AnnotationStore {
     id: Option<String>,
     pub annotations: Store<Annotation>,

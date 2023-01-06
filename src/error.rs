@@ -6,15 +6,36 @@ use std::io;
 
 // ------------------------------ ERROR DEFINITIONS & IMPLEMENTATIONS -------------------------------------------------------------
 
+/// This enum groups the different kind of errors that this STAM library can produce
 #[derive(Debug)]
 pub enum StamError {
+    /// This error is raised when the specified internal ID does not exist.
+    /// The first parameter is the requested internal ID
     IntIdError(IntId,Option<String>),
+
+    /// This error is raised when the specified public ID does not exist
+    /// The first parameter is the requested public ID
     IdError(String,Option<String>),
+
+    /// This error is raised when an item has no public ID but one is expected 
     NoIdError(Option<String>),
+
+    /// This error is raised when an item has no internal ID but one is expected.
+    /// This happens when an item is instantiated but not yet added to a store.
+    /// We such an item unbound.
     Unbound(Option<String>),
+
+    /// This error is raised when you attempt to set a public ID that is already in use (within a particular scope)
+    /// The first parameter is the requested public ID
     DuplicateIdError(String,Option<String>),
+
+    /// This error indicates there was an error during the building of an item from its recipe. It wraps the deeper error that occured.
     BuildError(Box<StamError>,Option<String>),
+
+    /// This error indicates there was an error during the storage of an item  It wraps the deeper error that occured.
     StoreError(Box<StamError>,Option<String>),
+
+    /// This error indicates there was an Input/Output error. It wraps the deeper error that occured.
     IOError(std::io::Error,Option<String>)
 }
 

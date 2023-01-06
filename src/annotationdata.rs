@@ -171,15 +171,27 @@ impl<'a> BuildAndStore<BuildAnnotationData<'a>,AnnotationData> for AnnotationDat
 
 
 
+/// An `AnnotationDataSet` stores the keys [`DataKey`] and values
+/// [`AnnotationData`] (which in turn encapsulates [`DataValue`]) that are used by annotations.
+/// It effectively defines a certain vocabulary, i.e. key/value pairs. 
+/// The `AnnotationDataSet` does not store the [`Annotation`] instances themselves, those are in
+/// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
 pub struct AnnotationDataSet {
+    /// Public Id
     id: Option<String>,
+
+    /// A store for [`DataKey`]
     keys: Store<DataKey>,
+    /// A store for [`AnnotationData`], each makes *reference* to a [`DataKey`] (in this same `AnnotationDataSet`) and gives it a value  ([`DataValue`])
     data: Store<AnnotationData>,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
     intid: Option<IntId>,
 
+    /// Maps public IDs to internal IDs for 
     key_idmap: IdMap,
+
+    /// Maps public IDs to internal IDs for AnnotationData
     data_idmap: IdMap
 }
 
@@ -369,8 +381,8 @@ impl From<Vec<DataValue>> for DataValue {
     }
 }
 
-/// The DataKey class defines a vocabulary field in STAM, it 
-/// belongs to a certain `AnnotationDataSet`. An `AnnotationData`
+/// The DataKey class defines a vocabulary field, it 
+/// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
 #[derive(Deserialize)]
 pub struct DataKey {
