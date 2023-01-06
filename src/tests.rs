@@ -103,7 +103,10 @@ fn sanity_check_iter_data() -> Result<(),StamError> {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(datakey.get_id(), Some("pos"));
-        assert_eq!(datakey.key(), "pos"); //shortcut for the same as above
+        assert_eq!(datakey.as_str(), "pos"); //shortcut for the same as above
+        assert_eq!(datakey, "pos"); //shortcut for the same as above
+        assert_eq!(annotationdata.get_value(), &DataValue::String("noun".to_string())); 
+        assert_eq!(annotationdata.get_value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
         assert_eq!(annotationdata.get_id(), Some("D1"));
         assert_eq!(dataset.get_id(), Some("testdataset"));
     }
