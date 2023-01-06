@@ -8,9 +8,9 @@ use crate::error::*;
 
 pub struct AnnotationStore {
     id: Option<String>,
-    pub annotations: Vec<Annotation>,
-    pub datasets: Vec<AnnotationDataSet>,
-    pub resources: Vec<TextResource>,
+    pub annotations: Store<Annotation>,
+    pub datasets: Store<AnnotationDataSet>,
+    pub resources: Store<TextResource>,
 
     /// Links to annotations by ID.
     pub(crate) annotation_idmap: IdMap,
@@ -35,11 +35,11 @@ impl HasId for AnnotationStore {
 //An AnnotationStore is a StoreFor TextResource
 impl StoreFor<TextResource> for AnnotationStore {
     /// Get a reference to the entire store for the associated type
-    fn get_store(&self) -> &Vec<TextResource> {
+    fn get_store(&self) -> &Store<TextResource> {
         &self.resources
     }
     /// Get a mutable reference to the entire store for the associated type
-    fn get_mut_store(&mut self) -> &mut Vec<TextResource> {
+    fn get_mut_store(&mut self) -> &mut Store<TextResource> {
         &mut self.resources
     }
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
@@ -57,10 +57,10 @@ impl StoreFor<TextResource> for AnnotationStore {
 
 //An AnnotationStore is a StoreFor Annotation
 impl StoreFor<Annotation> for AnnotationStore {
-    fn get_store(&self) -> &Vec<Annotation> {
+    fn get_store(&self) -> &Store<Annotation> {
         &self.annotations
     }
-    fn get_mut_store(&mut self) -> &mut Vec<Annotation> {
+    fn get_mut_store(&mut self) -> &mut Store<Annotation> {
         &mut self.annotations
     }
     fn get_idmap(&self) -> Option<&IdMap> {
@@ -76,10 +76,10 @@ impl StoreFor<Annotation> for AnnotationStore {
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
 impl StoreFor<AnnotationDataSet> for AnnotationStore {
-    fn get_store(&self) -> &Vec<AnnotationDataSet> {
+    fn get_store(&self) -> &Store<AnnotationDataSet> {
         &self.datasets
     }
-    fn get_mut_store(&mut self) -> &mut Vec<AnnotationDataSet> {
+    fn get_mut_store(&mut self) -> &mut Store<AnnotationDataSet> {
         &mut self.datasets
     }
     fn get_idmap(&self) -> Option<&IdMap> {

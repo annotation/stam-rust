@@ -12,6 +12,8 @@ pub struct Annotation {
 
     /// Reference to the annotation data (may be multiple) that describe(s) this annotation, the first ID refers to an AnnotationDataSet as owned by the AnnotationStore, the second to an AnnotationData instance as owned by that set
     pub data: Vec<(IntId,IntId)>,
+
+    /// Determines selection target
     pub target: Selector,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership. 

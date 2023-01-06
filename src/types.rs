@@ -3,18 +3,29 @@ use std::slice::{Iter,IterMut};
 use std::borrow::Cow;
 use crate::error::StamError;
 
-/// Type for internal numeric IDs. This determines the size of the address space
+/// Type for internal numeric IDs. There are nothing more than indices to a vector and this determines the size of the address space
 pub type IntId = u32;
 
 /// Type for offsets. This determines the size of the address space, use the platform maximum.
 pub type CursorSize = usize;
 
+/// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
+pub type Store<T> = Vec<Option<Box<T>>>;
+//                             ^----- actual T is allocated on heap (i.e. the Vec itself will contain pointers)
+//                       ^------- may be None when an element gets deleted
+
+/// A cursor points to a specific point in a text. I
 /// Used to select offsets. Units are unicode codepoints (not bytes!)
 /// and are 0-indexed.
+///
+///
+/// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
+/// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
 pub enum Cursor {
     BeginAlignedCursor(CursorSize),
     EndAlignedCursor(CursorSize)
 }
+
 
 impl From<isize> for Cursor {
     fn from(cursor: isize) -> Self {
@@ -26,7 +37,7 @@ impl From<isize> for Cursor {
     }
 }
 
-/// A map mapping global IDs to internal ids, implemented as  a HashMap
+/// A map mapping public IDs to internal ids, implemented as  a HashMap
 pub struct IdMap {
     //The map
     data: HashMap<String,IntId>,
@@ -117,9 +128,9 @@ pub trait HasId: HasIntId {
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
 pub trait StoreFor<T: HasIntId + HasId> {
     /// Get a reference to the entire store for the associated type
-    fn get_store(&self) -> &Vec<T>;
+    fn get_store(&self) -> &Store<T>;
     /// Get a mutable reference to the entire store for the associated type
-    fn get_mut_store(&mut self) -> &mut Vec<T>;
+    fn get_mut_store(&mut self) -> &mut Store<T>;
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
     fn get_idmap(&self) -> Option<&IdMap> {
         None
@@ -153,7 +164,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
         }
 
         //add the resource
-        self.get_mut_store().push(item);
+        self.get_mut_store().push(Some(Box::new(item)));
 
         Ok(intid)
     }
@@ -234,7 +245,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
 
     /// Get a reference to an item from the store by internal ID
     fn get(&self, intid: IntId) -> Result<&T,StamError> {
-        if let Some(item) = self.get_store().get(intid as usize) {
+        if let Some(Some(item)) = self.get_store().get(intid as usize) {
             Ok(item)
         } else {
             Err(StamError::IntIdError(intid,Some(self.introspect_type().to_string())))
@@ -243,7 +254,7 @@ pub trait StoreFor<T: HasIntId + HasId> {
 
     /// Get a mutable reference to an item from the store by internal ID
     fn get_mut(&mut self, intid: IntId) -> Result<&mut T,StamError> {
-        if let Some(item) = self.get_mut_store().get_mut(intid as usize) {
+        if let Some(Some(item)) = self.get_mut_store().get_mut(intid as usize) {
             Ok(item)
         } else {
             Err(StamError::IntIdError(intid,Some("get_mut".to_string()))) //MAYBE TODO: self.introspect_type didn't work here
@@ -261,12 +272,12 @@ pub trait StoreFor<T: HasIntId + HasId> {
     }
 
     /// Iterate over the store
-    fn iter<'a>(&'a self) -> Iter<'a, T>  {
+    fn iter<'a>(&'a self) -> Iter<'a, Option<Box<T>>>  {
         self.get_store().iter()
     }
 
     /// Iterate over the store, mutably
-    fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T>  {
+    fn iter_mut<'a>(&'a mut self) -> IterMut<'a, Option<Box<T>>>  {
         self.get_mut_store().iter_mut()
     }
 

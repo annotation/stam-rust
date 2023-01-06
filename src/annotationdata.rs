@@ -139,8 +139,8 @@ impl<'a> BuildAndStore<BuildAnnotationData<'a>,AnnotationData> for AnnotationDat
 
 pub struct AnnotationDataSet {
     id: Option<String>,
-    keys: Vec<DataKey>,
-    data: Vec<AnnotationData>,
+    keys: Store<DataKey>,
+    data: Store<AnnotationData>,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
     intid: Option<IntId>,
@@ -170,10 +170,10 @@ impl HasIntId for AnnotationDataSet {
 
 
 impl StoreFor<DataKey> for AnnotationDataSet {
-    fn get_store(&self) -> &Vec<DataKey> {
+    fn get_store(&self) -> &Store<DataKey> {
         &self.keys
     }
-    fn get_mut_store(&mut self) -> &mut Vec<DataKey> {
+    fn get_mut_store(&mut self) -> &mut Store<DataKey> {
         &mut self.keys
     }
     fn get_idmap(&self) -> Option<&IdMap> {
@@ -199,10 +199,10 @@ impl StoreFor<DataKey> for AnnotationDataSet {
 }
 
 impl StoreFor<AnnotationData> for AnnotationDataSet {
-    fn get_store(&self) -> &Vec<AnnotationData> {
+    fn get_store(&self) -> &Store<AnnotationData> {
         &self.data
     }
-    fn get_mut_store(&mut self) -> &mut Vec<AnnotationData> {
+    fn get_mut_store(&mut self) -> &mut Store<AnnotationData> {
         &mut self.data
     }
     fn get_idmap(&self) -> Option<&IdMap> {
@@ -231,8 +231,8 @@ impl Default for AnnotationDataSet {
     fn default() -> Self {
         Self {
             id: None,
-            keys: Vec::new(),
-            data: Vec::new(),
+            keys: Store::new(),
+            data: Store::new(),
             intid: None,
             key_idmap: IdMap::new("K".to_string()),
             data_idmap: IdMap::new("D".to_string())
