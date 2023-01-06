@@ -17,17 +17,18 @@ pub type Store<T> = Vec<Option<Box<T>>>;
 ///
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
+#[derive(Debug)]
 pub enum Cursor {
     /// Cursor relative to the start of a text. Has a value of 0 or higher
-    BeginAlignedCursor(usize),
+    BeginAligned(usize),
     /// Cursor relative to the end of a text. Has a value of 0 or lower. The last character of a text begins at EndAlignedCursor(-1) and ends at EndAlignedCursor(0)
-    EndAlignedCursor(isize)
+    EndAligned(isize)
 }
 
 
 impl From<usize> for Cursor {
     fn from(cursor: usize) -> Self {
-        Self::BeginAlignedCursor(cursor)
+        Self::BeginAligned(cursor)
     }
 }
 
@@ -37,7 +38,7 @@ impl TryFrom<isize> for Cursor {
         if cursor > 0 {
             Err("Cursor is a signed integer and converts to EndAlignedCursor, expected a value <= 0. Conver from an unsigned integer for a normal BeginAlignedCursor")
         } else {
-            Ok(Self::EndAlignedCursor(cursor))
+            Ok(Self::EndAligned(cursor))
         }
     }
 }
@@ -45,6 +46,7 @@ impl TryFrom<isize> for Cursor {
 
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
 /// Used to resolve public IDs to internal ones.
+#[derive(Debug)]
 pub struct IdMap {
     /// The actual map
     data: HashMap<String,IntId>,

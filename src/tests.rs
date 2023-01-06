@@ -52,7 +52,7 @@ fn instantiation_store2() -> Result<(),StamError> {
                .build_and_store( BuildAnnotationData::new("D1", "pos", DataValue::from("noun")))?
         )?
         .build_and_store( BuildAnnotation::new("A1", 
-                             BuildSelector::TextSelector { resource: "testres", begin: 6, end: 11}
+                             BuildSelector::TextSelector { resource: "testres", offset: Offset::simple(6,11) }
                           ).with_data("testdataset","D1"))?;
     Ok(())
 }

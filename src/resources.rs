@@ -84,6 +84,7 @@ impl TextResource {
         self.text.as_str()
     }
 
+    /// Returns a selector to this resource
     pub fn select_resource(&self) -> Result<Selector,StamError> {
         if let Some(intid) = self.get_intid() {
             Ok(Selector::ResourceSelector(intid))

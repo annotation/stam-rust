@@ -36,7 +36,10 @@ pub enum StamError {
     StoreError(Box<StamError>,Option<String>),
 
     /// This error indicates there was an Input/Output error. It wraps the deeper error that occured.
-    IOError(std::io::Error,Option<String>)
+    IOError(std::io::Error,Option<String>),
+
+    /// This error is raised when you ask a selector to do something it is not capable of because it is the wrong type of selector
+    WrongSelectorType(Option<String>)
 }
 
 impl From<&StamError> for String {
@@ -50,7 +53,8 @@ impl From<&StamError> for String {
             StamError::DuplicateIdError(id, msg) => format!("DuplicatIdError: ID already exists: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
             StamError::IOError(err, msg) => format!("IOError: {} ({})",err,msg.as_ref().unwrap_or(&"".to_string())),
             StamError::BuildError(err, msg) => format!("BuildError: Error during build: {} ({})",err, msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::StoreError(err, msg) => format!("StoreError: Error during store: {} ({}) ",err, msg.as_ref().unwrap_or(&"".to_string()))
+            StamError::StoreError(err, msg) => format!("StoreError: Error during store: {} ({}) ",err, msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::WrongSelectorType(msg) => format!("WrongSelectorType: Selector is not of the right type here ({})", msg.as_ref().unwrap_or(&"".to_string())),
         }
     }
 }
