@@ -84,7 +84,7 @@ fn sanity_check_get_by_intid() -> Result<(),StamError> {
 fn sanity_check_get_by_id() -> Result<(),StamError> {
     let store = setup_example_1()?;
 
-    //test by internal ID
+    //test by public ID
     let _resource: &TextResource = store.get_by_id("testres")?;
     let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
     let _datakey: &DataKey = dataset.get_by_id("pos")?;

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::slice::{Iter,IterMut};
 use std::borrow::Cow;
+use std::iter::FilterMap;
 use crate::error::StamError;
 
 /// Type for internal numeric IDs. There are nothing more than indices to a vector and this determines the size of the address space
@@ -292,13 +293,13 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
     }
 
     /// Iterate over the store
-    fn iter<'a>(&'a self) -> Iter<'a, Option<Box<T>>>  {
-        self.get_store().iter()
+    fn iter<'a>(&'a self) -> StoreIter<'a, T> {
+        StoreIter(self.get_store().iter())
     }
 
     /// Iterate over the store, mutably
-    fn iter_mut<'a>(&'a mut self) -> IterMut<'a, Option<Box<T>>>  {
-        self.get_mut_store().iter_mut()
+    fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a,T>  {
+        StoreIterMut(self.get_mut_store().iter_mut())
     }
 
     /// Get the item from the store if it already exists, if not, add it
@@ -339,3 +340,33 @@ pub(crate) trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreF
 }
 
 
+//  iterator implementations
+
+/// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
+pub struct StoreIter<'a, T>(Iter<'a, Option<Box<T>>>);
+
+impl<'a, T> Iterator for StoreIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0.next() {
+            Some(Some(item)) => Some(item),
+            Some(None) => self.next(),
+            None => None
+        }
+    }
+}
+
+pub struct StoreIterMut<'a, T>(IterMut<'a, Option<Box<T>>>);
+
+impl<'a, T> Iterator for StoreIterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0.next() {
+            Some(Some(item)) => Some(item),
+            Some(None) => self.next(),
+            None => None
+        }
+    }
+}

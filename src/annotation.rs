@@ -19,7 +19,7 @@ pub struct Annotation {
     id: Option<String>,
 
     /// Reference to the annotation data (may be multiple) that describe(s) this annotation, the first ID refers to an AnnotationDataSet as owned by the AnnotationStore, the second to an AnnotationData instance as owned by that set
-    pub data: Vec<(IntId,IntId)>,
+    data: Vec<(IntId,IntId)>,
 
     /// Determines selection target
     pub target: Selector,
@@ -126,6 +126,7 @@ impl Annotation {
             referenced_by: Vec::new(),
         }
     }
+
 
 }
 
