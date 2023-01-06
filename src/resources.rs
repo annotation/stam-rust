@@ -48,7 +48,6 @@ impl SetIntId for TextResource {
 }
 
 
-
 impl TextResource {
     /// Create a new TextResource from file, the text will be loaded into memory entirely
     pub fn from_file(filename: &str) -> Result<Self,StamError> {
@@ -84,14 +83,11 @@ impl TextResource {
         self.text.as_str()
     }
 
-    /// Returns a selector to this resource
-    pub fn select_resource(&self) -> Result<Selector,StamError> {
-        if let Some(intid) = self.get_intid() {
-            Ok(Selector::ResourceSelector(intid))
-        } else {
-            Err(StamError::Unbound(Some(format!("select_resource failed"))))
-        }
+    /// Returns a reference to a slice of the text as specified by the offset
+    pub fn get_text_slice(&self, offset: &Offset) -> Result<&str,StamError> {
+        panic!("get_text_slice not implemented yet"); //TODO: implement
     }
+
 
     pub fn select_text(&self, begin: Cursor, end: Cursor) -> Result<Selector,StamError> {
         if let Some(intid) = self.get_intid() {

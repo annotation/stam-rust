@@ -39,7 +39,10 @@ pub enum StamError {
     IOError(std::io::Error,Option<String>),
 
     /// This error is raised when you ask a selector to do something it is not capable of because it is the wrong type of selector
-    WrongSelectorType(Option<String>)
+    WrongSelectorType(Option<String>),
+
+    /// This error is raised when you apply a selector on a target it is not intended for
+    WrongSelectorTarget(Option<String>)
 }
 
 impl From<&StamError> for String {
@@ -55,6 +58,7 @@ impl From<&StamError> for String {
             StamError::BuildError(err, msg) => format!("BuildError: Error during build: {} ({})",err, msg.as_ref().unwrap_or(&"".to_string())),
             StamError::StoreError(err, msg) => format!("StoreError: Error during store: {} ({}) ",err, msg.as_ref().unwrap_or(&"".to_string())),
             StamError::WrongSelectorType(msg) => format!("WrongSelectorType: Selector is not of the right type here ({})", msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::WrongSelectorTarget(msg) => format!("WrongSelectorTarget: Selector is not applied on the right target ({})", msg.as_ref().unwrap_or(&"".to_string())),
         }
     }
 }

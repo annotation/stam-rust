@@ -104,7 +104,45 @@ impl<'a> Build<BuildSelector<'a>,Selector> for AnnotationStore {
     }
 }
 
-pub trait ApplySelector<T> {
+pub trait NewSelector {
+    /// Returns a selector that points to this resouce
+    fn new_selector(&self) -> Result<Selector,StamError>;
+}
+
+impl NewSelector for TextResource {
+    /// Returns a selector to this resource
+    fn new_selector(&self) -> Result<Selector,StamError> {
+        if let Some(intid) = self.get_intid() {
+            Ok(Selector::ResourceSelector(intid))
+        } else {
+            Err(StamError::Unbound(Some(format!("new_selector failed"))))
+        }
+    }
+}
+
+impl NewSelector for AnnotationDataSet {
+    /// Returns a selector to this resource
+    fn new_selector(&self) -> Result<Selector,StamError> {
+        if let Some(intid) = self.get_intid() {
+            Ok(Selector::DataSetSelector(intid))
+        } else {
+            Err(StamError::Unbound(Some(format!("new_selector failed"))))
+        }
+    }
+}
+
+impl NewSelector for Annotation {
+    /// Returns a selector to this resource
+    fn new_selector(&self) -> Result<Selector,StamError> {
+        if let Some(intid) = self.get_intid() {
+            Ok(Selector::AnnotationSelector { annotation: intid, offset: Some(Offset::default()) })
+        } else {
+            Err(StamError::Unbound(Some(format!("new_selector failed"))))
+        }
+    }
+}
+
+pub trait ApplySelector<T: ?Sized> {
     fn select(&self, selector: &Selector) -> Result<&T,StamError>;
 }
 
@@ -116,6 +154,23 @@ impl ApplySelector<TextResource> for AnnotationStore {
             Selector::ResourceSelector(int_id) | Selector::TextSelector { resource: int_id, .. } => {
                 let resource: &TextResource = self.get(*int_id)?;
                 Ok(resource)
+            },
+            _ => {
+                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
+            }
+        }
+    }
+}
+
+impl ApplySelector<str> for TextResource {
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str,StamError> {
+        match selector {
+            Selector::TextSelector { resource: int_id, offset: offset } => {
+                if self.get_intid() != Some(*int_id) {
+                    Err(StamError::WrongSelectorTarget(Some(format!("Can not apply selector {:?} on a target it does not reference", selector))))
+                } else {
+                    Ok(self.get_text_slice(offset)?)
+                }
             },
             _ => {
                 Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
