@@ -1,6 +1,6 @@
 use crate::resources::TextResource;
 use crate::annotation::Annotation;
-use crate::annotationdata::AnnotationDataSet;
+use crate::annotationdata::{AnnotationDataSet,AnnotationData,DataKey};
 use crate::selector::Selector;
 
 use crate::types::*;
@@ -93,6 +93,12 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     }
     fn introspect_type(&self) -> &'static str {
         "AnnotationDataSet in AnnotationStore"
+    }
+
+    fn set_owner_of(&self, item: &mut AnnotationDataSet) {
+        //at this point we need to set our ownership of all items we store
+        //as earlier we had no internal id yet.
+        item.set_ownership();
     }
 }
 

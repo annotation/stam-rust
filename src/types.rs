@@ -282,12 +282,12 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         }
     }
 
-    /// Sets the store (self) as the owner of the item (may be a no-op if no ownership is recorded)
+    /// Sets the store (self) as the owner of the item (may be a no-op if no ownership is recorded).
+    /// It is automatically called after an item was added.
     fn set_owner_of(&self, item: &mut T) {
         //default implementation does nothing
     }
 
-    /// Checks if the current store is the registered owner of the item
     fn is_owner_of(&self, item: &T) -> Option<bool> {
         //indicates unknown
         None

@@ -35,7 +35,7 @@ pub struct AnnotationData {
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership 
     intid: Option<IntId>,
     ///Referers to internal IDs of Annotation (as owned by an AnnotationStore) that use this dataset
-    referenced_by: Vec<IntId>,
+    referenced_by: Vec<IntId>, //TODO: move this out of this struct
     ///Referers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey
     part_of_set: Option<IntId>
 }
@@ -113,6 +113,10 @@ impl AnnotationData {
     /// Returns an iterator over all the Annotations that reference this data
     pub fn referenced_by<'a>(&self, annotationstore: &'a AnnotationStore) {
         //TODO: implement
+    }
+
+    pub(crate) fn assign_to_set(&mut self, part_of_set: IntId) {
+        self.part_of_set = Some(part_of_set);
     }
 }
 
@@ -292,6 +296,25 @@ impl AnnotationDataSet {
         Self::default()
     }
 
+    /// Sets the ownership of all items in the store
+    /// This ensure the part_of_set relation (backreference)
+    /// is set right.
+    pub(crate) fn set_ownership(&mut self) {
+        let intid = self.get_intid().expect("getting internal id");
+        let datastore: &mut Store<AnnotationData> = self.get_mut_store();
+        for data in datastore.iter_mut() {
+            if let Some(data) = data {
+                data.assign_to_set(intid)
+            }
+        }
+        let keystore: &mut Store<DataKey> = self.get_mut_store();
+        for key in keystore.iter_mut() {
+            if let Some(key) = key {
+                key.assign_to_set(intid)
+            }
+        }
+    }
+
 }
 
 #[derive(Serialize,Deserialize)]
@@ -453,5 +476,9 @@ impl DataKey {
         } else {
             None
         }
+    }
+
+    pub(crate) fn assign_to_set(&mut self, part_of_set: IntId) {
+        self.part_of_set = Some(part_of_set);
     }
 }
