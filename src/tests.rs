@@ -92,3 +92,22 @@ fn sanity_check_get_by_id() -> Result<(),StamError> {
     let _annotation: &Annotation = store.get_by_id("A1")?;
     Ok(())
 }
+
+#[test]
+fn sanity_check_iter_data() -> Result<(),StamError> {
+    let store = setup_example_1()?;
+    let annotation: &Annotation = store.get_by_id("A1")?;
+
+    let mut count = 0;
+    for (datakey, annotationdata, dataset) in store.iter_data(annotation) {
+        //there should be only one so we can safely test in the loop body
+        count += 1;
+        assert_eq!(datakey.get_id(), Some("pos"));
+        assert_eq!(datakey.key(), "pos"); //shortcut for the same as above
+        assert_eq!(annotationdata.get_id(), Some("D1"));
+        assert_eq!(dataset.get_id(), Some("testdataset"));
+    }
+    assert_eq!(count,1);
+    
+    Ok(())
+}

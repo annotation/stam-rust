@@ -287,8 +287,9 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         //default implementation does nothing
     }
 
+    /// Checks if the current store is the registered owner of the item
     fn is_owner_of(&self, item: &T) -> Option<bool> {
-        //indicated unknown
+        //indicates unknown
         None
     }
 
@@ -340,10 +341,11 @@ pub(crate) trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreF
 }
 
 
-//  iterator implementations
+//  generic iterator implementations, these take care of skipping over deleted items (None) and providing a cleaner output reference (no Boxes)
 
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
 pub struct StoreIter<'a, T>(Iter<'a, Option<Box<T>>>);
+
 
 impl<'a, T> Iterator for StoreIter<'a, T> {
     type Item = &'a T;

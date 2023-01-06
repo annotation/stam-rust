@@ -89,21 +89,18 @@ impl AnnotationData {
     }
 
     /// Return a reference to the AnnotationDataSet that holds this data (and its key) 
-    pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
+    pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Result<&'a AnnotationDataSet,StamError> {
         if let Some(part_of_set) = self.part_of_set {
-           annotationstore.get(part_of_set).ok()
+           annotationstore.get(part_of_set)
         } else {
-            None
+            Err(StamError::Unbound(Some(format!("AnnotationData.get_dataset failed due to unbound part_of_set"))))
         }
     }
 
     /// Return a reference to the DataKey used by this data
     pub fn get_key<'a>(&self, annotationstore: &'a AnnotationStore) -> Result<&'a DataKey,StamError> {
-        if let Some(dataset) = self.get_dataset(annotationstore) {
-            dataset.get(self.key)
-        } else {
-            Err(StamError::Unbound(None))
-        }
+        let dataset = self.get_dataset(annotationstore)?;
+        dataset.get(self.key)
     }
 
     /// Get the value of this annotationdata. The value will be a DataValue instance. This will return an immutable reference.
@@ -443,6 +440,11 @@ impl DataKey {
             referenced_by: Vec::new(),
             part_of_set: None
         }
+    }
+
+    /// Returns the global id that identifier the key. This is a bit shorted than using get_id()
+    pub fn key(&self) -> &str {
+        self.id.as_str()
     }
 
     pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {

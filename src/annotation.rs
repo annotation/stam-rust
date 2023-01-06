@@ -1,8 +1,9 @@
 use std::borrow::Cow;
+use std::slice::{Iter,IterMut};
 
 use crate::types::*;
 use crate::error::*;
-use crate::annotationdata::{BuildAnnotationData,AnnotationDataSet,AnnotationData};
+use crate::annotationdata::{BuildAnnotationData,AnnotationDataSet,AnnotationData,DataKey};
 use crate::annotationstore::AnnotationStore;
 use crate::selector::{Selector,BuildSelector};
 
@@ -127,6 +128,36 @@ impl Annotation {
         }
     }
 
-
 }
 
+impl AnnotationStore {
+    /// Iterate over the data for the specified annotation
+    pub fn iter_data<'a>(&'a self, annotation: &'a Annotation) -> AnnotationDataIter<'a>  {
+        AnnotationDataIter {
+            store: self,
+            iter: annotation.data.iter()
+        }
+    }
+}
+
+pub struct AnnotationDataIter<'a> {
+    store: &'a AnnotationStore,
+    iter: Iter<'a, (IntId,IntId)>
+}
+
+
+impl<'a> Iterator for AnnotationDataIter<'a> {
+    type Item = (&'a DataKey, &'a AnnotationData, &'a AnnotationDataSet);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.iter.next() {
+            Some((dataset_intid, annotationdata_intid)) => {
+                let dataset: &AnnotationDataSet = self.store.get(*dataset_intid).expect("Getting dataset for annotation");
+                let annotationdata: &AnnotationData = dataset.get(*annotationdata_intid).expect("Getting annotationdata for annotation");
+                let datakey = annotationdata.get_key(&self.store).expect("Getting datakey for annotation");
+                Some((datakey, annotationdata, dataset))
+            },
+            None => None
+        }
+    }
+}
