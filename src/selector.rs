@@ -104,48 +104,54 @@ impl<'a> Build<BuildSelector<'a>,Selector> for AnnotationStore {
     }
 }
 
-impl Selector {
+pub trait ApplySelector<T> {
+    fn select(&self, selector: &Selector) -> Result<&T,StamError>;
+}
+
+impl ApplySelector<TextResource> for AnnotationStore {
     /// Retrieve a reference to the resource ([`TextResource`]) the selector points to.
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    pub fn get_resource<'a>(&self, store: &'a AnnotationStore) -> Result<&'a TextResource,StamError> {
-        match self {
-            Self::ResourceSelector(int_id) | Self::TextSelector { resource: int_id, .. } => {
-                let resource: &TextResource = store.get(*int_id)?;
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a TextResource,StamError> {
+        match selector {
+            Selector::ResourceSelector(int_id) | Selector::TextSelector { resource: int_id, .. } => {
+                let resource: &TextResource = self.get(*int_id)?;
                 Ok(resource)
             },
             _ => {
-                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", self))))
+                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
             }
         }
     }
+}
 
+impl ApplySelector<AnnotationDataSet> for AnnotationStore {
     /// Retrieve a reference to the annotation data set ([`AnnotationDataSet`]) the selector points to.
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    pub fn get_dataset<'a>(&self, store: &'a AnnotationStore) -> Result<&'a AnnotationDataSet,StamError> {
-        match self {
-            Self::DataSetSelector(int_id) => {
-                let dataset: &AnnotationDataSet = store.get(*int_id)?;
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a AnnotationDataSet,StamError> {
+        match selector {
+            Selector::DataSetSelector(int_id) => {
+                let dataset: &AnnotationDataSet = self.get(*int_id)?;
                 Ok(dataset)
             },
             _ => {
-                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_dataset()", self))))
+                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
             }
         }
     }
+}
 
+impl ApplySelector<Annotation> for AnnotationStore {
     /// Retrieve a reference to the annotation ([`Annotation`]) the selector points to.
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    pub fn get_annotation<'a>(&self, store: &'a AnnotationStore) -> Result<&'a Annotation,StamError> {
-        match self {
-            Self::AnnotationSelector { annotation: int_id, .. } => {
-                let annotation: &Annotation = store.get(*int_id)?;
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a Annotation,StamError> {
+        match selector {
+            Selector::AnnotationSelector { annotation: int_id, .. } => {
+                let annotation: &Annotation = self.get(*int_id)?;
                 Ok(annotation)
             },
             _ => {
-                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_annotation()", self))))
+                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
             }
         }
     }
-
 }
-
