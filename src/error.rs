@@ -47,8 +47,11 @@ pub enum StamError {
     /// This error is raised when you apply a selector on a target it is not intended for
     WrongSelectorTarget(&'static str),
 
-    /// This error indicates there was an error during the storage of an item  It wraps the deeper error that occured.
+    /// This error indicates the cursor is out of bounds when applied to the text.
     CursorOutOfBounds(Cursor, &'static str),
+
+    /// This error indicates the offset is invalid, the end precedes the beginning. It wraps the begin and end cursors, respectively
+    InvalidOffset(Cursor, Cursor, &'static str)
 }
 
 impl From<&StamError> for String {
@@ -67,6 +70,7 @@ impl From<&StamError> for String {
             StamError::WrongSelectorType(contextmsg) => format!("WrongSelectorType: Selector is not of the right type here ({})", contextmsg),
             StamError::WrongSelectorTarget(contextmsg) => format!("WrongSelectorTarget: Selector is not applied on the right target ({})", contextmsg),
             StamError::CursorOutOfBounds(cursor, contextmsg) => format!("CursorOutOfBounds: {:?} ({}) ",cursor, contextmsg),
+            StamError::InvalidOffset(begincursor, endcursor, contextmsg) => format!("InvalidOffset: begin cursor {:?} must be before end cursor {:?} ({}) ",begincursor, endcursor, contextmsg),
         }
     }
 }

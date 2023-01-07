@@ -87,7 +87,11 @@ impl TextResource {
     pub fn get_text_slice(&self, offset: &Offset) -> Result<&str,StamError> {
         let begin = self.resolve_cursor(&offset.begin)?;
         let end = self.resolve_cursor(&offset.end)?;
-        Ok(&self.get_text()[begin..end])
+        if end > begin {
+            Ok(&self.get_text()[begin..end])
+        } else {
+            Err(StamError::InvalidOffset(offset.begin, offset.end,""))
+        }
     }
 
     /// Resolves a cursor to a utf8 byte position on the text
