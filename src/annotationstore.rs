@@ -1,5 +1,4 @@
-use crate::resources::TextResource;
-use crate::annotation::Annotation;
+use crate::resources::TextResource; use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationDataSet,AnnotationData,DataKey};
 use crate::selector::Selector;
 
@@ -102,6 +101,23 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     }
 }
 
+impl Add<AnnotationDataSet,AnnotationDataSet> for AnnotationStore {
+    fn intake(&mut self, item: AnnotationDataSet) -> Result<AnnotationDataSet,StamError> {
+        self.bind(item)
+    }
+}
+impl Add<Annotation,Annotation> for AnnotationStore {
+    fn intake(&mut self, item: Annotation) -> Result<Annotation,StamError> {
+        self.bind(item)
+    }
+}
+impl Add<TextResource,TextResource> for AnnotationStore {
+    fn intake(&mut self, item: TextResource) -> Result<TextResource,StamError> {
+        self.bind(item)
+    }
+}
+
+//impl<'a> Add<NewAnnotation<'a>,Annotation> for AnnotationStore 
 
 
 impl Default for AnnotationStore {
@@ -126,7 +142,7 @@ impl AnnotationStore {
     /// Shortcut method that calls add_resource under the hood and returns a reference to it
     pub fn add_resource_from_file(&mut self, filename: &str) -> Result<IntId,StamError> {
         let resource = TextResource::from_file(filename)?;
-        self.add(resource)
+        self.insert(resource)
     }
 
 

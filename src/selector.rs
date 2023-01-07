@@ -71,29 +71,29 @@ pub enum Selector {
 impl MayHaveIntId for Selector {}
 impl MayHaveId for Selector {}
 
-pub enum BuildSelector<'a> {
+pub enum NewSelector<'a> {
     ResourceSelector(&'a str),
     AnnotationSelector { annotation: &'a str, offset: Option<Offset> },
     TextSelector { resource: &'a str, offset: Offset },
     DataSetSelector(&'a str),
-    MultiSelector(Vec<BuildSelector<'a>>),
-    DirectionalSelector(Vec<BuildSelector<'a>>)
+    MultiSelector(Vec<NewSelector<'a>>),
+    DirectionalSelector(Vec<NewSelector<'a>>)
 }
 
 
-impl<'a> Build<BuildSelector<'a>,Selector> for AnnotationStore {
-    /// Builds a [`Selector`] based on its [`BuildSelector`] recipe
-    fn build(&mut self, item: BuildSelector<'a>) -> Result<Selector,StamError> {
+impl<'a> AnnotationStore {
+    /// Builds a [`Selector`] based on its [`NewSelector`] recipe
+    pub fn selector(&mut self, item: NewSelector<'a>) -> Result<Selector,StamError> {
         match item {
-            BuildSelector::ResourceSelector(res_id) => {
+            NewSelector::ResourceSelector(res_id) => {
                 let resource: &TextResource = self.get_by_id(res_id)?;
                 Ok(Selector::ResourceSelector(resource.get_intid_or_err()?))
             },
-            BuildSelector::TextSelector { resource: res_id, offset } => {
+            NewSelector::TextSelector { resource: res_id, offset } => {
                 let resource: &TextResource = self.get_by_id(res_id)?;
                 Ok(Selector::TextSelector { resource: resource.get_intid_or_err()?, offset } )
             },
-            BuildSelector::AnnotationSelector { annotation: a_id, offset } => {
+            NewSelector::AnnotationSelector { annotation: a_id, offset } => {
                 let annotation: &Annotation = self.get_by_id(a_id)?;
                 Ok(Selector::AnnotationSelector { annotation: annotation.get_intid_or_err()?, offset } )
             },
@@ -105,14 +105,14 @@ impl<'a> Build<BuildSelector<'a>,Selector> for AnnotationStore {
 }
 
 /// This trait is implemented by types that can return a Selector to themselves
-pub trait NewSelector {
+pub trait SelfSelector {
     /// Returns a selector that points to this resouce
-    fn new_selector(&self) -> Result<Selector,StamError>;
+    fn self_selector(&self) -> Result<Selector,StamError>;
 }
 
-impl NewSelector for TextResource {
+impl SelfSelector for TextResource {
     /// Returns a selector to this resource
-    fn new_selector(&self) -> Result<Selector,StamError> {
+    fn self_selector(&self) -> Result<Selector,StamError> {
         if let Some(intid) = self.get_intid() {
             Ok(Selector::ResourceSelector(intid))
         } else {
@@ -121,9 +121,9 @@ impl NewSelector for TextResource {
     }
 }
 
-impl NewSelector for AnnotationDataSet {
+impl SelfSelector for AnnotationDataSet {
     /// Returns a selector to this resource
-    fn new_selector(&self) -> Result<Selector,StamError> {
+    fn self_selector(&self) -> Result<Selector,StamError> {
         if let Some(intid) = self.get_intid() {
             Ok(Selector::DataSetSelector(intid))
         } else {
@@ -132,9 +132,9 @@ impl NewSelector for AnnotationDataSet {
     }
 }
 
-impl NewSelector for Annotation {
+impl SelfSelector for Annotation {
     /// Returns a selector to this resource
-    fn new_selector(&self) -> Result<Selector,StamError> {
+    fn self_selector(&self) -> Result<Selector,StamError> {
         if let Some(intid) = self.get_intid() {
             Ok(Selector::AnnotationSelector { annotation: intid, offset: Some(Offset::default()) })
         } else {

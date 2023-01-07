@@ -14,13 +14,13 @@ use crate::annotationdata::*;
 fn instantiation_naive() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".to_string());
 
-    let res_intid = store.add(
+    let res_intid = store.insert(
         TextResource::from_string("testres".to_string(),"Hello world".to_string())
     );
 
     let mut dataset = AnnotationDataSet::new().with_id("testdataset".to_string());
-    dataset.add(DataKey::new("pos".to_string(), false))?;
-    store.add(dataset)?;
+    dataset.insert(DataKey::new("pos".to_string(), false))?;
+    store.insert(dataset)?;
 
     Ok(())
 }
@@ -29,14 +29,14 @@ fn instantiation_naive() -> Result<(),StamError> {
 fn sanity_check() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".to_string());
 
-    let res_intid = store.add(
+    let res_intid = store.insert(
         TextResource::from_string("testres".to_string(),"Hello world".to_string())
     );
 
     let mut dataset = AnnotationDataSet::new().with_id("testdataset".to_string());
-    dataset.add(DataKey::new("pos".to_string(), false))?;
+    dataset.insert(DataKey::new("pos".to_string(), false))?;
 
-    let dataset_intid = store.add(dataset)?;
+    let dataset_intid = store.insert(dataset)?;
 
     //get by intid
     let dataset: &AnnotationDataSet = store.get(dataset_intid)?;
@@ -49,14 +49,14 @@ fn sanity_check() -> Result<(),StamError> {
 
 pub fn setup_example_1() -> Result<AnnotationStore,StamError> {
     //instantiate with builder pattern
-    let mut store = AnnotationStore::new().with_id("test".to_string())
-        .store(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
-        .store(AnnotationDataSet::new().with_id("testdataset".to_string())
-               .store(DataKey::new("pos".to_string(), false))?
-               .build_and_store( BuildAnnotationData::new("D1", "pos", DataValue::from("noun")))?
+    let store = AnnotationStore::new().with_id("test".to_string())
+        .add(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
+        .add(AnnotationDataSet::new().with_id("testdataset".to_string())
+               .add(DataKey::new("pos".to_string(), false))?
+               .add( NewAnnotationData::new("D1", "pos", DataValue::from("noun")))?
         )?
-        .build_and_store( BuildAnnotation::new("A1", 
-                             BuildSelector::TextSelector { resource: "testres", offset: Offset::simple(6,11) }
+        .add( NewAnnotation::new("A1", 
+                             NewSelector::TextSelector { resource: "testres", offset: Offset::simple(6,11) }
                           ).with_data("testdataset","D1"))?;
     Ok(store)
 }

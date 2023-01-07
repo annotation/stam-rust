@@ -163,9 +163,9 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
 
     fn introspect_type(&self) -> &str;
 
-    /// Add an item to the store. Returns its internal id upon success
-    fn add(&mut self, mut item: T) -> Result<IntId,StamError> {
-        let intid = self.get_store().len() as IntId;
+    /// Adds an item to the store. Returns its internal id upon success
+    fn insert(&mut self, mut item: T) -> Result<IntId,StamError> {
+        let intid = self.next_intid();
         item.set_intid(intid);
         self.set_owner_of(&mut item);
 
@@ -188,14 +188,6 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         self.get_mut_store().push(Some(Box::new(item)));
 
         Ok(intid)
-    }
-
-    /// Builder pattern, similar to add()
-    fn store(mut self, item: T) -> Result<Self,StamError> where Self: Sized {
-        if let Err(err) = self.add(item) {
-            panic!("Unable to add: {:?}",err);
-        }
-        Ok(self)
     }
 
     /// Returns true if the store contains the item
@@ -308,37 +300,50 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         if let Some(intid) = self.find(&item) {
             self.get(intid)
         } else {
-            match self.add(item) {
+            match self.insert(item) {
                 Ok(intid) => self.get(intid),
                 Err(err) => Err(err)
             }
         }
     }
+
+    fn next_intid(&self) -> IntId {
+        self.get_store().len() as IntId
+    }
+
+    /// This binds an item to the store *PRIOR* to it being actually added
+    /// You should never need to call this directly (it can only be called once per item anyway).
+    fn bind(&mut self, mut item: T) -> Result<T,StamError> {
+        //we already pass the internal id this item will get upon the next insert()
+        //so it knows its internal id immediate after construction
+        if item.get_intid().is_some() {
+            Err(StamError::AlreadyBound(None) )
+        } else {
+            item.set_intid(self.next_intid());
+            Ok(item)
+        }
+    }
 }
 
-/// This trait is implemented by stores that convert a builder type to a normal type.
-/// A Builder type (Builder*) converts a 'recipe' to an actual instance with properly resolved
-/// references.
-pub(crate) trait Build<FromType,ToType> {
-    /// Builds an item of ToType (A Builder* type) from FromType and returns it
-    /// Does not add it to the store yet, see [`Self::build_and_store()`] instead,
-    /// However, it may already add necessary dependencies to the store.
-    fn build(&mut self, item: FromType) -> Result<ToType,StamError>;
-}
 
 /// This trait is implemented by stores that convert a builder type to a normal type.
 /// A Builder type (Builder*) converts a 'recipe' to an actual instance with properly resolved
 /// references. This is a combined trait that does the build and adds it to the store.
-pub(crate) trait BuildAndStore<FromType,ToType>: Build<FromType,ToType> + StoreFor<ToType>  where ToType: MayHaveIntId + SetIntId + MayHaveId {
+pub(crate) trait Add<FromType,ToType>: StoreFor<ToType>  where ToType: MayHaveIntId + SetIntId + MayHaveId {
     /// Builds an item and adds it to the store.
-    /// May panic on error!
-    fn build_and_store(mut self, item: FromType) -> Result<Self,StamError> where Self: Sized {
+    fn add(mut self, item: FromType) -> Result<Self,StamError> where Self: Sized {
         //                                     V---- when there's an error, we wrap it error to give more information
-        let newitem: ToType = self.build(item).map_err(|err| StamError::BuildError(Box::new(err),Some(self.introspect_type().to_string())))?;
-        self.add(newitem).map_err(|err| StamError::StoreError(Box::new(err),Some(self.introspect_type().to_string())))?;
+        let newitem: ToType = self.intake(item).map_err(|err| StamError::BuildError(Box::new(err),Some(self.introspect_type().to_string())))?;
+        self.insert(newitem).map_err(|err| StamError::StoreError(Box::new(err),Some(self.introspect_type().to_string())))?;
         Ok(self)
     }
+
+    /// Converts an item of ToType (A New* type) from FromType and returns it
+    /// Does not add it to the store yet, see [`Self::build_and_store()`] instead,
+    /// However, it may already add necessary dependencies to the store.
+    fn intake(&mut self, item: FromType) -> Result<ToType,StamError>;
 }
+
 
 
 //  generic iterator implementations, these take care of skipping over deleted items (None) and providing a cleaner output reference (no Boxes)

@@ -3,9 +3,9 @@ use std::slice::{Iter,IterMut};
 
 use crate::types::*;
 use crate::error::*;
-use crate::annotationdata::{BuildAnnotationData,AnnotationDataSet,AnnotationData,DataKey};
+use crate::annotationdata::{NewAnnotationData,AnnotationDataSet,AnnotationData,DataKey};
 use crate::annotationstore::AnnotationStore;
-use crate::selector::{Selector,BuildSelector};
+use crate::selector::{Selector,NewSelector};
 
 /// `Annotation` represents a particular *instance of annotation* and is the central
 /// concept of the model. They can be considered the primary nodes of the graph model. The
@@ -51,16 +51,16 @@ impl SetIntId for Annotation {
 
 /// This is the build recipe for `Annotation`. It contains references to public IDs that will be resolved
 /// when the actual AnnotationData is build. The building is done by passing the `BuildAnnotation` to [`AnnotationDataSet::build()`].
-pub struct BuildAnnotation<'a> {
+pub struct NewAnnotation<'a> {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     id: Cow<'a,str>,
     existingdata: Vec<(Cow<'a,str>,Cow<'a,str>)>,
-    newdata: Vec<(Cow<'a,str>, BuildAnnotationData<'a>)>,
-    target: BuildSelector<'a>
+    newdata: Vec<(Cow<'a,str>, NewAnnotationData<'a>)>,
+    target: NewSelector<'a>
 }
 
-impl<'a> BuildAnnotation<'a> {
-    pub fn new(id: &'a str, target: BuildSelector<'a>) -> Self {
+impl<'a> NewAnnotation<'a> {
+    pub fn new(id: &'a str, target: NewSelector<'a>) -> Self {
         Self {
             id: Cow::Borrowed(id),
             target,
@@ -69,7 +69,7 @@ impl<'a> BuildAnnotation<'a> {
         }
     }
 
-    pub fn new_owned(id: String, target: BuildSelector<'a>) -> Self {
+    pub fn new_owned(id: String, target: NewSelector<'a>) -> Self {
         Self {
             id: Cow::Owned(id),
             target,
@@ -83,15 +83,15 @@ impl<'a> BuildAnnotation<'a> {
         self
     }
 
-    pub fn with_new_data(mut self, dataset: &'a str, data: BuildAnnotationData<'a> ) -> Self {
+    pub fn with_new_data(mut self, dataset: &'a str, data: NewAnnotationData<'a> ) -> Self {
         self.newdata.push((Cow::Borrowed(dataset), data));
         self
     }
 
 }
 
-impl<'a> Build<BuildAnnotation<'a>,Annotation> for AnnotationStore {
-    fn build(&mut self, item: BuildAnnotation<'a>) -> Result<Annotation,StamError> {
+impl<'a> Add<NewAnnotation<'a>,Annotation> for AnnotationStore {
+    fn intake(&mut self, item: NewAnnotation<'a>) -> Result<Annotation,StamError> {
         let mut data = Vec::with_capacity(item.newdata.len() + item.existingdata.len());
 
         //gather references to existing AnnotationData
@@ -104,17 +104,16 @@ impl<'a> Build<BuildAnnotation<'a>,Annotation> for AnnotationStore {
         //build new AnnotationData on the fly
         for (dataset_id, buildannotationdata) in item.newdata {
             let dataset: &mut AnnotationDataSet = self.get_mut_by_id(&dataset_id)?;
-            let adata: AnnotationData = dataset.build(buildannotationdata)?;
+            let adata: AnnotationData = dataset.intake(buildannotationdata)?;
             data.push((dataset.get_intid_or_err()?, adata.get_intid_or_err()?));
         }
 
-        let target: Selector = self.build(item.target)?;
-
-        Ok(Annotation::new(Some(item.id.to_string()), target, data))
+        let target: Selector = self.selector(item.target)?;
+        self.bind(
+            Annotation::new(Some(item.id.to_string()), target, data)
+        )
     }
 }
-
-impl<'a> BuildAndStore<BuildAnnotation<'a>,Annotation> for AnnotationStore {}
 
 impl Annotation {
     /// Create a new unbounded Annotation instance, you will likely want to use BuildAnnotation::new() instead and pass it to AnnotationStore.build()

@@ -124,7 +124,7 @@ impl AnnotationData {
 /// This is the build recipe for AnnotationData. It contains references to public IDs that will be resolved
 /// when the actual AnnotationData is build. The building is done by the build() method on the store that 
 /// owns AnnotationData, i.e. an AnnotationDataSet.
-pub struct BuildAnnotationData<'a> {
+pub struct NewAnnotationData<'a> {
     ///The public ID for the AnnotationData. (This is a copy-on-work type)
     id: Cow<'a,str>,
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
@@ -132,7 +132,7 @@ pub struct BuildAnnotationData<'a> {
     pub value: DataValue,
 }
 
-impl<'a> BuildAnnotationData<'a> {
+impl<'a> NewAnnotationData<'a> {
     /// Build Annotation Data, parameters are str references, used new_owned() instead if you have Strings (saves a copy)
     pub fn new(id: &'a str, key: &'a str, value: DataValue) -> Self {
         Self {
@@ -157,19 +157,31 @@ impl<'a> BuildAnnotationData<'a> {
 // This is done on the AnnotationDataSet that is the store for the AnnotationData.
 
 
-impl<'a> Build<BuildAnnotationData<'a>,AnnotationData> for AnnotationDataSet {
-    fn build(&mut self, item: BuildAnnotationData<'a>) -> Result<AnnotationData,StamError> {
+impl<'a> Add<NewAnnotationData<'a>,AnnotationData> for AnnotationDataSet {
+    fn intake(&mut self, item: NewAnnotationData<'a>) -> Result<AnnotationData,StamError> {
         let key_intid = if let Ok::<&DataKey,_>(key) = self.get_by_id(&item.key)  {
             key.get_intid_or_err()?
         } else {
             let datakey = DataKey::new(item.key.to_string(),false);
-            self.add(datakey)?
+            self.insert(datakey)?
         };
-        Ok(AnnotationData::new(Some(item.id.to_string()), key_intid, item.value))
+        self.bind(
+            AnnotationData::new(Some(item.id.to_string()), key_intid, item.value)
+        )
     }
 }
 
-impl<'a> BuildAndStore<BuildAnnotationData<'a>,AnnotationData> for AnnotationDataSet {}
+// (I can't seem to have this implemented automatically for using the default trait implementation)
+impl Add<AnnotationData,AnnotationData> for AnnotationDataSet {
+    fn intake(&mut self, item: AnnotationData) -> Result<AnnotationData,StamError> {
+        self.bind(item)
+    }
+}
+impl Add<DataKey,DataKey> for AnnotationDataSet {
+    fn intake(&mut self, item: DataKey) -> Result<DataKey,StamError> {
+        self.bind(item)
+    }
+}
 
 
 

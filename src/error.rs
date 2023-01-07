@@ -25,6 +25,9 @@ pub enum StamError {
     /// We such an item unbound.
     Unbound(Option<String>),
 
+    /// This error is raised when an item is already bound and you are trying it again 
+    AlreadyBound(Option<String>),
+
     /// This error is raised when you attempt to set a public ID that is already in use (within a particular scope)
     /// The first parameter is the requested public ID
     DuplicateIdError(String,Option<String>),
@@ -52,6 +55,7 @@ impl From<&StamError> for String {
             StamError::IntIdError(id, msg) => format!("IntIdError: No such internal ID: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
             StamError::IdError(id, msg) => format!("IdError: No such ID: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
             StamError::Unbound(msg) => format!("Unbound: Item is not bound yet, add it to a store first. ({})", msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::AlreadyBound(msg) => format!("AlreadyBound: Item is already bound. ({})", msg.as_ref().unwrap_or(&"".to_string())),
             StamError::NoIdError(msg) => format!("NoIdError: Store does not map IDs. ({})", msg.as_ref().unwrap_or(&"".to_string())),
             StamError::DuplicateIdError(id, msg) => format!("DuplicatIdError: ID already exists: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
             StamError::IOError(err, msg) => format!("IOError: {} ({})",err,msg.as_ref().unwrap_or(&"".to_string())),
