@@ -183,6 +183,21 @@ impl ApplySelector<str> for TextResource {
     }
 }
 
+impl ApplySelector<str> for AnnotationStore {
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str,StamError> {
+        match selector {
+            Selector::TextSelector { .. } => {
+                let resource: &TextResource = self.select(selector)?;
+                let text = resource.select(selector)?;
+                Ok(text)
+            },
+            _ => {
+                Err(StamError::WrongSelectorType("AnnotationStore::select() expected a TextSelector, got another"))
+            }
+        }
+    }
+}
+
 impl ApplySelector<AnnotationDataSet> for AnnotationStore {
     /// Retrieve a reference to the annotation data set ([`AnnotationDataSet`]) the selector points to.
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.

@@ -1,6 +1,6 @@
 use crate::resources::TextResource; use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationDataSet,AnnotationData,DataKey};
-use crate::selector::Selector;
+use crate::selector::{Selector,ApplySelector};
 
 use crate::types::*;
 use crate::error::*;
@@ -144,6 +144,7 @@ impl AnnotationStore {
         let resource = TextResource::from_file(filename)?;
         self.insert(resource)
     }
+
 
 
 }

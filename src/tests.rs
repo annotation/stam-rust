@@ -43,7 +43,6 @@ fn sanity_check() -> Result<(),StamError> {
 
     //get by id
     let _resource: &TextResource = store.get_by_id("testres")?;
-    //store.annotate(TextSelector::new(&resource), &dataset, &key, )
     Ok(())
 }
 
@@ -143,5 +142,17 @@ fn store_get_text_slice() -> Result<(),StamError> {
     //these should produce an InvalidOffset error (begin >= end)
     assert!( resource.get_text_slice( &Offset::simple(11,7)).is_err() );
     assert!( resource.get_text_slice( &Offset::new(Cursor::EndAligned(-9),Cursor::EndAligned(-11))).is_err() );
+    Ok(())
+}
+
+#[test]
+fn text_selector() -> Result<(),StamError> {
+    let store = setup_example_1()?;
+    let annotation: &Annotation = store.get_by_id("A1")?;
+    let resource: &TextResource = store.select(&annotation.target)?;
+    let text: &str = resource.select(&annotation.target)?;
+    assert_eq!(text,"world");
+    let text: &str = store.select(&annotation.target)?; //shortcut form of the two previous steps combined in one
+    assert_eq!(text,"world");
     Ok(())
 }
