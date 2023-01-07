@@ -2,12 +2,12 @@ use crate::types::*;
 use crate::error::*;
 use crate::resources::TextResource;
 use crate::annotation::Annotation;
-use crate::annotationdata::AnnotationDataSet;
+use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Offset {
     pub begin: Cursor,
     pub end: Cursor
@@ -48,7 +48,7 @@ impl Default for Offset {
 /// There are multiple types of selectors, all captured in this enum.
 ///
 /// You usually do not instantiate these directly but via [`BuildSelector`].
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Selector {
     /// Refers to a [`TextResource`] as a whole (as opposed to a text fragment inside it), as owned by an AnnotationStore.
     /// Annotations using this selector can be considered metadata of a text
@@ -66,39 +66,35 @@ pub enum Selector {
     DirectionalSelector(Vec<Selector>)
 }
 
-// Selectors don't carry IDs so we implement the defaults that all return None  
-// (MAYBE TODO: see if we can get rid of this alltogether)
-impl MayHaveIntId for Selector {}
-impl MayHaveId for Selector {}
 
-pub enum NewSelector<'a> {
-    ResourceSelector(&'a str),
-    AnnotationSelector { annotation: &'a str, offset: Option<Offset> },
-    TextSelector { resource: &'a str, offset: Offset },
-    DataSetSelector(&'a str),
-    MultiSelector(Vec<NewSelector<'a>>),
-    DirectionalSelector(Vec<NewSelector<'a>>)
+pub enum SelectorBuilder<'a> {
+    ResourceSelector(AnyId<'a>),
+    AnnotationSelector { annotation: AnyId<'a>, offset: Option<Offset> },
+    TextSelector { resource: AnyId<'a>, offset: Offset },
+    DataSetSelector(AnyId<'a>),
+    MultiSelector(Vec<SelectorBuilder<'a>>),
+    DirectionalSelector(Vec<SelectorBuilder<'a>>)
 }
 
 
 impl<'a> AnnotationStore {
-    /// Builds a [`Selector`] based on its [`NewSelector`] recipe
-    pub fn selector(&mut self, item: NewSelector<'a>) -> Result<Selector,StamError> {
+    /// Builds a [`Selector`] based on its [`SelectorRecipe`]
+    pub fn selector(&mut self, item: SelectorBuilder<'a>) -> Result<Selector,StamError> {
         match item {
-            NewSelector::ResourceSelector(res_id) => {
-                let resource: &TextResource = self.get_by_id(res_id)?;
+            SelectorBuilder::ResourceSelector(id) => {
+                let resource: &TextResource = self.get_by_anyid_or_err(&id)?;
                 Ok(Selector::ResourceSelector(resource.get_intid_or_err()?))
             },
-            NewSelector::TextSelector { resource: res_id, offset } => {
-                let resource: &TextResource = self.get_by_id(res_id)?;
+            SelectorBuilder::TextSelector { resource: res_id, offset } => {
+                let resource: &TextResource = self.get_by_anyid_or_err(&res_id)?;
                 Ok(Selector::TextSelector { resource: resource.get_intid_or_err()?, offset } )
             },
-            NewSelector::AnnotationSelector { annotation: a_id, offset } => {
-                let annotation: &Annotation = self.get_by_id(a_id)?;
+            SelectorBuilder::AnnotationSelector { annotation: a_id, offset } => {
+                let annotation: &Annotation = self.get_by_anyid_or_err(&a_id)?;
                 Ok(Selector::AnnotationSelector { annotation: annotation.get_intid_or_err()?, offset } )
             },
             _ => {
-                panic!("not implemented yet");
+                panic!("not implemented yet")
             }
         }
     }

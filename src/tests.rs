@@ -7,19 +7,22 @@ use crate::annotation::*;
 use crate::selector::*;
 use crate::annotationstore::*;
 use crate::annotationdata::*;
+use crate::annotationdataset::*;
+use crate::datakey::*;
+use crate::datavalue::*;
 
 #[cfg(test)]
 
 #[test]
 fn instantiation_naive() -> Result<(),StamError> {
-    let mut store = AnnotationStore::new().with_id("test".to_string());
+    let mut store = AnnotationStore::new().with_id("test".into());
 
     let _res_intid = store.insert(
-        TextResource::from_string("testres".to_string(),"Hello world".to_string())
+        TextResource::from_string("testres".into(),"Hello world".into())
     );
 
-    let mut dataset = AnnotationDataSet::new().with_id("testdataset".to_string());
-    dataset.insert(DataKey::new("pos".to_string(), false))?;
+    let mut dataset = AnnotationDataSet::new().with_id("testdataset".into());
+    dataset.insert(DataKey::new("pos".into()))?;
     store.insert(dataset)?;
 
     Ok(())
@@ -27,14 +30,14 @@ fn instantiation_naive() -> Result<(),StamError> {
 
 #[test]
 fn sanity_check() -> Result<(),StamError> {
-    let mut store = AnnotationStore::new().with_id("test".to_string());
+    let mut store = AnnotationStore::new().with_id("test".into());
 
     let _res_intid = store.insert(
-        TextResource::from_string("testres".to_string(),"Hello world".to_string())
+        TextResource::from_string("testres".into(),"Hello world".into())
     );
 
-    let mut dataset = AnnotationDataSet::new().with_id("testdataset".to_string());
-    dataset.insert(DataKey::new("pos".to_string(), false))?;
+    let mut dataset = AnnotationDataSet::new().with_id("testdataset".into());
+    dataset.insert(DataKey::new("pos".into()))?;
 
     let dataset_intid = store.insert(dataset)?;
 
@@ -48,15 +51,29 @@ fn sanity_check() -> Result<(),StamError> {
 
 pub fn setup_example_1() -> Result<AnnotationStore,StamError> {
     //instantiate with builder pattern
-    let store = AnnotationStore::new().with_id("test".to_string())
-        .add(TextResource::from_string("testres".to_string(),"Hello world".to_string()))?
-        .add(AnnotationDataSet::new().with_id("testdataset".to_string())
-               .add(DataKey::new("pos".to_string(), false))?
-               .add( NewAnnotationData::new("D1", "pos", DataValue::from("noun")))?
+    let store = AnnotationStore::new().with_id("test".into())
+        .add( TextResource::from_string("testres".into(), "Hello world".into()))?
+        .add( AnnotationDataSet::new().with_id("testdataset".into())
+               .add( DataKey::new("pos".into()))?
+               .with_data("D1".into(), "pos".into() , "noun".into())?
         )?
-        .add( NewAnnotation::new("A1", 
-                             NewSelector::TextSelector { resource: "testres", offset: Offset::simple(6,11) }
-                          ).with_data("testdataset","D1"))?;
+        .with_annotation( Annotation::builder() 
+                .with_id("A1".into())
+                .target_text( "testres".into(), Offset::simple(6,11)) 
+                .with_data_by_id("testdataset".into(), "D1".into()) )?;
+    Ok(store)
+}
+
+pub fn setup_example_2() -> Result<AnnotationStore,StamError> {
+    //instantiate with builder pattern
+    let store = AnnotationStore::new().with_id("test".into())
+        .add( TextResource::from_string("testres".to_string(),"Hello world".into()))?
+        .add( AnnotationDataSet::new().with_id("testdataset".into()))?
+        .with_annotation( Annotation::builder()
+                .with_id("A1".into())
+                .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) })
+                .with_data_with_id("testdataset".into(),"pos".into(),"noun".into(),"D1".into())
+        )?;
     Ok(store)
 }
 
@@ -154,5 +171,19 @@ fn text_selector() -> Result<(),StamError> {
     assert_eq!(text,"world");
     let text: &str = store.select(&annotation.target)?; //shortcut form of the two previous steps combined in one
     assert_eq!(text,"world");
+    Ok(())
+}
+
+#[test]
+fn annotate() -> Result<(),StamError> {
+    let mut store = setup_example_1()?;
+    store.annotate( AnnotationBuilder::new()
+               .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(0,5) } )
+               .with_data("tokenset".into(),"word".into(), DataValue::Null)
+             )?;
+    store.annotate( AnnotationBuilder::new()
+               .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+               .with_data("tokenset".into(),"word".into(), DataValue::Null)
+             )?;
     Ok(())
 }

@@ -28,6 +28,9 @@ pub enum StamError {
     /// This error is raised when an item is already bound and you are trying it again 
     AlreadyBound(&'static str),
 
+    /// This error is raised when an item is already exists and you adding it again
+    AlreadyExists(IntId, &'static str),
+
     /// This error is raised when you attempt to set a public ID that is already in use (within a particular scope)
     /// The first parameter is the requested public ID
     DuplicateIdError(String,&'static str),
@@ -51,7 +54,13 @@ pub enum StamError {
     CursorOutOfBounds(Cursor, &'static str),
 
     /// This error indicates the offset is invalid, the end precedes the beginning. It wraps the begin and end cursors, respectively
-    InvalidOffset(Cursor, Cursor, &'static str)
+    InvalidOffset(Cursor, Cursor, &'static str),
+
+    /// Annotation has no target 
+    NoTarget(&'static str),
+
+    /// This error is raised when the information supplied during build is incomplete 
+    IncompleteError(&'static str)
 }
 
 impl From<&StamError> for String {
@@ -62,6 +71,7 @@ impl From<&StamError> for String {
             StamError::IdError(id, contextmsg) => format!("IdError: No such ID: {} ({})",id, contextmsg),
             StamError::Unbound(contextmsg) => format!("Unbound: Item is not bound yet, add it to a store first. ({})", contextmsg),
             StamError::AlreadyBound(contextmsg) => format!("AlreadyBound: Item is already bound. ({})", contextmsg),
+            StamError::AlreadyExists(intid, contextmsg) => format!("AlreadyExists: Item already exists: {} ({})", intid, contextmsg),
             StamError::NoIdError(contextmsg) => format!("NoIdError: Store does not map IDs. ({})", contextmsg),
             StamError::DuplicateIdError(id, contextmsg) => format!("DuplicatIdError: ID already exists: {} ({})",id, contextmsg),
             StamError::IOError(err, contextmsg) => format!("IOError: {} ({})",err,contextmsg),
@@ -71,6 +81,8 @@ impl From<&StamError> for String {
             StamError::WrongSelectorTarget(contextmsg) => format!("WrongSelectorTarget: Selector is not applied on the right target ({})", contextmsg),
             StamError::CursorOutOfBounds(cursor, contextmsg) => format!("CursorOutOfBounds: {:?} ({}) ",cursor, contextmsg),
             StamError::InvalidOffset(begincursor, endcursor, contextmsg) => format!("InvalidOffset: begin cursor {:?} must be before end cursor {:?} ({}) ",begincursor, endcursor, contextmsg),
+            StamError::NoTarget(contextmsg) => format!("NoTarget: Annotation has no target ({})", contextmsg),
+            StamError::IncompleteError(contextmsg) => format!("IncompleteError: Not enough data to build ({})", contextmsg)
         }
     }
 }

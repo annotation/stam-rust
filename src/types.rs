@@ -11,7 +11,6 @@ pub type IntId = u32;
 pub type Store<T> = Vec<Option<Box<T>>>;
 //                             ^----- actual T is allocated on heap (i.e. the Vec itself will contain pointers)
 //                       ^------- may be None when an element gets deleted
-
 /// A cursor points to a specific point in a text. I
 /// Used to select offsets. Units are unicode codepoints (not bytes!)
 /// and are 0-indexed.
@@ -83,11 +82,45 @@ impl IdMap {
     }
 }
 
+
+pub struct RelationMap {
+    /// The actual map
+    pub(crate) data: HashMap<IntId,Vec<IntId>>
+}
+
+impl Default for RelationMap {
+    fn default() -> Self {
+        Self {
+            data: HashMap::new()
+        }
+    }
+}
+
+impl RelationMap {
+    pub fn new() -> Self { Self::default() }
+}
+
+
+pub struct TripleRelationMap {
+    /// The actual map
+    pub(crate) data: HashMap<IntId,RelationMap>
+}
+
+impl Default for TripleRelationMap {
+    fn default() -> Self {
+        Self {
+            data: HashMap::new()
+        }
+    }
+}
+
+impl TripleRelationMap {
+    pub fn new() -> Self { Self::default() }
+}
+
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
-/// This trait is used on types that may have an internal numeric ID. Though these IDs are internal
-/// the trait is public as outside implementations may used the internal ids during their lifetime, they should, however, never be serialised!
-pub trait MayHaveIntId {
+pub trait Storable {
     /// Retrieve the internal (numeric) id. For any type T uses in StoreFor<T>, this may be None only in the initial
     /// stage when it is still unbounded to a store.
     fn get_intid(&self) -> Option<IntId> {
@@ -98,21 +131,7 @@ pub trait MayHaveIntId {
     fn get_intid_or_err(&self) -> Result<IntId,StamError> {
         self.get_intid().ok_or(StamError::Unbound(""))
     }
-}
 
-/// This trait is used on types that may have an internal id that can be set.
-pub(crate) trait SetIntId {
-    /// Set the internal ID. May only be called once (though currently not enforced).
-    fn set_intid(&mut self, intid: IntId) {
-        //no-op in default implementation
-    }
-}
-
-//^ -- the SetIntId trait is separate from MayHaveIntId because we don't want to expose it publicly.
-//     internal ID setting is an internal business.
-
-/// This trait is used on types that can have a public ID
-pub trait MayHaveId: MayHaveIntId {
     /// Get the global ID
     fn get_id(&self) -> Option<&str> {
         None
@@ -127,6 +146,21 @@ pub trait MayHaveId: MayHaveIntId {
         self
     }
 
+}
+
+//v -- this trait separate from the above because we don't want to expose it publicly.
+//     internal ID setting is an internal business.
+
+pub(crate) trait MutableStorable: Storable {
+    /// Set the internal ID. May only be called once (though currently not enforced).
+    fn set_intid(&mut self, intid: IntId) {
+        //no-op in default implementation
+    }
+
+    /// Callback function that is called after an item is bound to a store
+    fn bound(&mut self) {
+        //no-op by default
+    }
     /// Generate a random ID in a given idmap (adds it to the map), Item must be bound
     fn generate_id(self, idmap: Option<&mut IdMap>) -> Self where Self: Sized {
         if let Some(intid) = self.get_intid() {
@@ -145,9 +179,10 @@ pub trait MayHaveId: MayHaveIntId {
 }
 
 
+
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
-pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
+pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     /// Get a reference to the entire store for the associated type
     fn get_store(&self) -> &Store<T>;
     /// Get a mutable reference to the entire store for the associated type
@@ -164,20 +199,27 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
     fn introspect_type(&self) -> &'static str;
 
     /// Adds an item to the store. Returns its internal id upon success
+    /// This is a fairly low level method. You will likely want to use [`add`] instead.
     fn insert(&mut self, mut item: T) -> Result<IntId,StamError> {
-        let intid = self.next_intid();
-        item.set_intid(intid);
-        self.set_owner_of(&mut item);
+        let intid = if let Some(intid) = item.get_intid() {
+            intid
+        } else {
+            // item has no internal id yet, i.e. it is unbound
+            // we generate an id and bind it now
+            let intid = self.next_intid();
+            item = self.bind(item)?;
+            intid
+        };
 
-        //insert a mapping from the global ID to the numeric ID in the map
+        //insert a mapping from the public ID to the numeric ID in the idmap
         if let Some(id) = item.get_id() {
-            //check if global ID does not already exist
+            //check if public ID does not already exist
             if self.get_by_id(id).is_ok() {
                 return Err(StamError::DuplicateIdError(id.to_string(), self.introspect_type()));
             }
 
             self.get_mut_idmap().map(|idmap| {
-            //                 v-- MAYBE TODO: optimise the id copy away
+                //                 v-- MAYBE TODO: optimise the id copy away
                 idmap.data.insert(id.to_string(), item.get_intid().unwrap())
             });
         } else {
@@ -187,12 +229,29 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         //add the resource
         self.get_mut_store().push(Some(Box::new(item)));
 
+        self.inserted(intid);
+
+        //sanity check to ensure no item can determine its own internal id that does not correspond with what's allocated
+        assert_eq!(intid, self.get_store().len() as IntId - 1);
+
         Ok(intid)
+    }
+
+    /// Called after an item was inserted to the store
+    /// Allows the store to do further bookkeeping
+    /// like updating relation maps
+    fn inserted(&mut self, intid: IntId) {
+        //default implementation does nothing
+    }
+
+    fn add(mut self, item: T) -> Result<Self, StamError> where Self: Sized {
+        self.insert(item)?;
+        Ok(self)
     }
 
     /// Returns true if the store contains the item
     fn contains(&self, item: &T) -> bool {
-        if let (Some(intid), Some(true)) = (item.get_intid(), self.is_owner_of(item)) {
+        if let (Some(intid), Some(true)) = (item.get_intid(), self.owns(item)) {
             self.has(intid)
         } else if let Some(id) = item.get_id() {
             self.has_by_id(id)
@@ -203,7 +262,7 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
 
     /// Retrieves the internal id for the item as it occurs in the store. The passed item and reference item may be distinct instances.
     fn find(&self, item: &T) -> Option<IntId> {
-        if let (Some(intid), Some(true)) = (item.get_intid(), self.is_owner_of(item)) {
+        if let (Some(intid), Some(true)) = (item.get_intid(), self.owns(item)) {
             Some(intid)
         } else if let Some(id) = item.get_id() {
             if let Some(idmap) = self.get_idmap() {
@@ -274,14 +333,9 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         }
     }
 
-    /// Sets the store (self) as the owner of the item (may be a no-op if no ownership is recorded).
-    /// It is automatically called after an item was added.
-    fn set_owner_of(&self, item: &mut T) {
-        //default implementation does nothing
-    }
 
-    fn is_owner_of(&self, item: &T) -> Option<bool> {
-        //indicates unknown
+    /// Tests if the item is owner by the store, returns None if ownership is unknown
+    fn owns(&self, item: &T) -> Option<bool> {
         None
     }
 
@@ -307,8 +361,14 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         }
     }
 
+    /// Return the internal id that will be assigned for the next item to the store
     fn next_intid(&self) -> IntId {
         self.get_store().len() as IntId
+    }
+
+    /// Return the internal id that was assigned to last inserted item
+    fn last_intid(&self) -> IntId {
+        (self.get_store().len() as IntId) - 1
     }
 
     /// This binds an item to the store *PRIOR* to it being actually added
@@ -320,20 +380,51 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
             Err(StamError::AlreadyBound("bind()") )
         } else {
             item.set_intid(self.next_intid());
+            item.bound();
             Ok(item)
+        }
+    }
+
+    /// Get a reference to an item from the store by any ID
+    /// If the item does not exist, None will be returned
+    fn get_by_anyid<'a>(&self, anyid: &AnyId<'a>) -> Option<&T> {
+        match anyid {
+            AnyId::None => None,
+            AnyId::IntId(intid) => self.get(*intid).ok(),
+            AnyId::Id(Cow::Borrowed(id)) => self.get_by_id(id).ok(),
+            AnyId::Id(Cow::Owned(id)) => self.get_by_id(id.as_str()).ok()
+        }
+    }
+
+    fn get_by_anyid_or_err<'a>(&self, anyid: &AnyId<'a>) -> Result<&T, StamError> {
+        match anyid {
+            AnyId::None => Err(anyid.get_error("")),
+            AnyId::IntId(intid) => self.get(*intid),
+            AnyId::Id(Cow::Borrowed(id)) => self.get_by_id(id),
+            AnyId::Id(Cow::Owned(id)) => self.get_by_id(id.as_str())
+        }
+    }
+
+    /// Get a reference to an item from the store by any ID
+    /// If the item does not exist, None will be returned
+    fn get_mut_by_anyid<'a>(&mut self, anyid: &AnyId<'a>) -> Option<&mut T> {
+        match anyid {
+            AnyId::None => None,
+            AnyId::IntId(intid) => self.get_mut(*intid).ok(),
+            AnyId::Id(Cow::Borrowed(id)) => self.get_mut_by_id(id).ok(),
+            AnyId::Id(Cow::Owned(id)) => self.get_mut_by_id(id.as_str()).ok()
         }
     }
 }
 
-
 /// This trait is implemented by stores that convert a builder type to a normal type.
 /// A Builder type (Builder*) converts a 'recipe' to an actual instance with properly resolved
 /// references. This is a combined trait that does the build and adds it to the store.
-pub(crate) trait Add<FromType,ToType>: StoreFor<ToType>  where ToType: MayHaveIntId + SetIntId + MayHaveId {
+pub(crate) trait Add<'a,T>: StoreFor<T>  where T: MutableStorable + Buildable<'a>  {
     /// Builds an item and adds it to the store.
-    fn add(mut self, item: FromType) -> Result<Self,StamError> where Self: Sized {
+    fn add(mut self, item: T::Builder) -> Result<Self,StamError> where Self: Sized {
         //                                     V---- when there's an error, we wrap it error to give more information
-        let newitem: ToType = self.intake(item).map_err(|err| StamError::BuildError(Box::new(err),self.introspect_type()))?;
+        let newitem: T = self.build(item).map_err(|err| StamError::BuildError(Box::new(err),self.introspect_type()))?;
         self.insert(newitem).map_err(|err| StamError::StoreError(Box::new(err),self.introspect_type()))?;
         Ok(self)
     }
@@ -341,10 +432,17 @@ pub(crate) trait Add<FromType,ToType>: StoreFor<ToType>  where ToType: MayHaveIn
     /// Converts an item of ToType (A New* type) from FromType and returns it
     /// Does not add it to the store yet, see [`Self::build_and_store()`] instead,
     /// However, it may already add necessary dependencies to the store.
-    fn intake(&mut self, item: FromType) -> Result<ToType,StamError>;
+    fn build(&mut self, item: T::Builder) -> Result<T,StamError>;
+
 }
 
+pub trait Buildable<'a> {
+    type Builder: Default;
 
+    fn builder() -> Self::Builder {
+        Self::Builder::default()
+    }
+}
 
 //  generic iterator implementations, these take care of skipping over deleted items (None) and providing a cleaner output reference (no Boxes)
 
@@ -374,6 +472,139 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
             Some(Some(item)) => Some(item),
             Some(None) => self.next(),
             None => None
+        }
+    }
+}
+
+#[derive(Debug,Clone)]
+pub enum AnyId<'a> {
+    None,
+    IntId(IntId),
+    Id(Cow<'a, str>)
+}
+
+impl<'a> AnyId<'a> {
+    pub fn private(&self) -> bool { 
+        if let Self::IntId(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        if let Self::None = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_intid(&self) -> bool {
+        match self {
+            Self::IntId(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_id(&self) -> bool {
+        match self {
+            Self::Id(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_some(&self) -> bool {
+        !self.is_none()
+    }
+
+
+    // raises an ID error or Unbound error
+    pub fn get_error(&self, contextmsg: &'static str) -> StamError {
+        match self {
+            Self::IntId(intid) => StamError::IntIdError(*intid, contextmsg),
+            Self::Id(id) => StamError::IdError(id.to_string(), contextmsg),
+            Self::None => StamError::Unbound(contextmsg)
+        }
+    }
+
+    pub fn to_string(mut self) -> Option<String> {
+        if let Self::Id(Cow::Owned(s)) = self {
+            Some(s)
+        } else if let Self::Id(Cow::Borrowed(s)) = self {
+            Some(s.to_string())
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> Default for AnyId<'a> {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl<'a> From<&'a str> for AnyId<'a> {
+    fn from(id: &'a str) -> Self {
+        if !id.is_empty() {
+            AnyId::Id(Cow::Borrowed(id))
+        } else {
+            AnyId::None
+        }
+    }
+}
+impl<'a> From<String> for AnyId<'a> {
+    fn from(id: String) -> Self {
+        if !id.is_empty() {
+            AnyId::Id(Cow::Owned(id))
+        } else {
+            AnyId::None
+        }
+    }
+}
+impl<'a> From<IntId> for AnyId<'a> {
+    fn from(intid: IntId) -> Self {
+        AnyId::IntId(intid)
+    }
+}
+impl<'a> From<usize> for AnyId<'a> {
+    fn from(intid: usize) -> Self {
+        AnyId::IntId(intid as IntId)
+    }
+}
+impl<'a> From<Option<IntId>> for AnyId<'a> {
+    fn from(intid: Option<IntId>) -> Self {
+        if let Some(intid) = intid {
+            AnyId::IntId(intid)
+        } else {
+            AnyId::None
+        }
+    }
+}
+impl<'a> From<Option<String>> for AnyId<'a> {
+    fn from(id: Option<String>) -> Self {
+        if let Some(id) = id {
+            if !id.is_empty() {
+                AnyId::Id(Cow::Owned(id))
+            } else {
+                AnyId::None
+            }
+        } else {
+            AnyId::None
+        }
+    }
+}
+
+// this allows us to pass a reference to any stored item and get back the best AnyId for it
+impl<'a> From<&'a dyn Storable> for AnyId<'a> {
+    fn from(item: &'a dyn Storable) -> Self {
+        if let Some(intid) = item.get_intid() {
+            AnyId::IntId(intid as IntId)
+        } else if let Some(id) = item.get_id() {
+            AnyId::Id(id.into())
+        } else {
+            Self::None
         }
     }
 }

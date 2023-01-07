@@ -26,9 +26,12 @@ pub struct TextResource {
 }
 
 
-impl MayHaveId for TextResource {
+impl Storable for TextResource {
     fn get_id(&self) -> Option<&str> { 
         Some(self.id.as_str())
+    }
+    fn get_intid(&self) -> Option<IntId> { 
+        self.intid
     }
     fn with_id(mut self, id: String) -> Self {
         self.id = id;
@@ -36,12 +39,7 @@ impl MayHaveId for TextResource {
     }
 }
 
-impl MayHaveIntId for TextResource {
-    fn get_intid(&self) -> Option<IntId> { 
-        self.intid
-    }
-}
-impl SetIntId for TextResource {
+impl MutableStorable for TextResource {
     fn set_intid(&mut self, intid: IntId) {
         self.intid = Some(intid);
     }

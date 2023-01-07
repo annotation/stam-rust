@@ -1,6 +1,7 @@
-use crate::resources::TextResource; use crate::annotation::Annotation;
-use crate::annotationdata::{AnnotationDataSet,AnnotationData,DataKey};
-use crate::selector::{Selector,ApplySelector};
+use crate::resources::TextResource; 
+use crate::annotation::{Annotation,AnnotationBuilder};
+use crate::annotationdata::AnnotationData;
+use crate::annotationdataset::AnnotationDataSet;
 
 use crate::types::*;
 use crate::error::*;
@@ -20,19 +21,26 @@ pub struct AnnotationStore {
     pub(crate) resource_idmap: IdMap,
     /// Links to datasets by ID.
     pub(crate) dataset_idmap: IdMap,
+
+    //reverse indices:
+
+    /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores IntIds.
+    dataset_data_annotation_map: TripleRelationMap,
+
+    // Note there is no AnnotationDataSet => DataKey => Annotation map, that relationship
+    // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
+
+    //TODO
+    //resource_text_annotation_map: RelationMap<TextResource,TextSelection,Annotation>,
+
+    /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
+    resource_annotation_map: RelationMap,
+
+    /// Reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
+    dataset_annotation_map: RelationMap
 }
 
 
-impl MayHaveIntId for AnnotationStore {}
-impl MayHaveId for AnnotationStore { 
-    fn get_id(&self) -> Option<&str> { 
-        self.id.as_ref().map(|x| &**x)
-    }
-    fn with_id(mut self, id: String) ->  Self {
-        self.id = Some(id);
-        self
-    }
-}
 
 //An AnnotationStore is a StoreFor TextResource
 impl StoreFor<TextResource> for AnnotationStore {
@@ -93,28 +101,6 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     fn introspect_type(&self) -> &'static str {
         "AnnotationDataSet in AnnotationStore"
     }
-
-    fn set_owner_of(&self, item: &mut AnnotationDataSet) {
-        //at this point we need to set our ownership of all items we store
-        //as earlier we had no internal id yet.
-        item.set_ownership();
-    }
-}
-
-impl Add<AnnotationDataSet,AnnotationDataSet> for AnnotationStore {
-    fn intake(&mut self, item: AnnotationDataSet) -> Result<AnnotationDataSet,StamError> {
-        self.bind(item)
-    }
-}
-impl Add<Annotation,Annotation> for AnnotationStore {
-    fn intake(&mut self, item: Annotation) -> Result<Annotation,StamError> {
-        self.bind(item)
-    }
-}
-impl Add<TextResource,TextResource> for AnnotationStore {
-    fn intake(&mut self, item: TextResource) -> Result<TextResource,StamError> {
-        self.bind(item)
-    }
 }
 
 //impl<'a> Add<NewAnnotation<'a>,Annotation> for AnnotationStore 
@@ -129,7 +115,10 @@ impl Default for AnnotationStore {
             resources: Vec::new(),
             annotation_idmap: IdMap::new("A".to_string()),
             resource_idmap: IdMap::new("R".to_string()),
-            dataset_idmap: IdMap::new("S".to_string())
+            dataset_idmap: IdMap::new("S".to_string()),
+            dataset_data_annotation_map: TripleRelationMap::new(),
+            dataset_annotation_map: RelationMap::new(),
+            resource_annotation_map: RelationMap::new()
         }
     }
 }
@@ -139,13 +128,19 @@ impl AnnotationStore {
         AnnotationStore::default()
     }
 
+    pub fn get_id(&self) -> Option<&str> { 
+        self.id.as_ref().map(|x| &**x)
+    }
+    pub fn with_id(mut self, id: String) ->  Self {
+        self.id = Some(id);
+        self
+    }
+
     /// Shortcut method that calls add_resource under the hood and returns a reference to it
     pub fn add_resource_from_file(&mut self, filename: &str) -> Result<IntId,StamError> {
         let resource = TextResource::from_file(filename)?;
         self.insert(resource)
     }
-
-
 
 }
     
