@@ -11,58 +11,58 @@ use std::io;
 pub enum StamError {
     /// This error is raised when the specified internal ID does not exist.
     /// The first parameter is the requested internal ID
-    IntIdError(IntId,Option<String>),
+    IntIdError(IntId,&'static str),
 
     /// This error is raised when the specified public ID does not exist
     /// The first parameter is the requested public ID
-    IdError(String,Option<String>),
+    IdError(String,&'static str),
 
     /// This error is raised when an item has no public ID but one is expected 
-    NoIdError(Option<String>),
+    NoIdError(&'static str),
 
     /// This error is raised when an item has no internal ID but one is expected.
     /// This happens when an item is instantiated but not yet added to a store.
     /// We such an item unbound.
-    Unbound(Option<String>),
+    Unbound(&'static str),
 
     /// This error is raised when an item is already bound and you are trying it again 
-    AlreadyBound(Option<String>),
+    AlreadyBound(&'static str),
 
     /// This error is raised when you attempt to set a public ID that is already in use (within a particular scope)
     /// The first parameter is the requested public ID
-    DuplicateIdError(String,Option<String>),
+    DuplicateIdError(String,&'static str),
 
     /// This error indicates there was an error during the building of an item from its recipe. It wraps the deeper error that occured.
-    BuildError(Box<StamError>,Option<String>),
+    BuildError(Box<StamError>,&'static str),
 
     /// This error indicates there was an error during the storage of an item  It wraps the deeper error that occured.
-    StoreError(Box<StamError>,Option<String>),
+    StoreError(Box<StamError>,&'static str),
 
     /// This error indicates there was an Input/Output error. It wraps the deeper error that occured.
-    IOError(std::io::Error,Option<String>),
+    IOError(std::io::Error,&'static str),
 
     /// This error is raised when you ask a selector to do something it is not capable of because it is the wrong type of selector
-    WrongSelectorType(Option<String>),
+    WrongSelectorType(&'static str),
 
     /// This error is raised when you apply a selector on a target it is not intended for
-    WrongSelectorTarget(Option<String>)
+    WrongSelectorTarget(&'static str)
 }
 
 impl From<&StamError> for String {
     /// Returns the error message as a String
     fn from(error: &StamError) -> String {
         match error {
-            StamError::IntIdError(id, msg) => format!("IntIdError: No such internal ID: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::IdError(id, msg) => format!("IdError: No such ID: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::Unbound(msg) => format!("Unbound: Item is not bound yet, add it to a store first. ({})", msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::AlreadyBound(msg) => format!("AlreadyBound: Item is already bound. ({})", msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::NoIdError(msg) => format!("NoIdError: Store does not map IDs. ({})", msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::DuplicateIdError(id, msg) => format!("DuplicatIdError: ID already exists: {} ({})",id, msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::IOError(err, msg) => format!("IOError: {} ({})",err,msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::BuildError(err, msg) => format!("BuildError: Error during build: {} ({})",err, msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::StoreError(err, msg) => format!("StoreError: Error during store: {} ({}) ",err, msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::WrongSelectorType(msg) => format!("WrongSelectorType: Selector is not of the right type here ({})", msg.as_ref().unwrap_or(&"".to_string())),
-            StamError::WrongSelectorTarget(msg) => format!("WrongSelectorTarget: Selector is not applied on the right target ({})", msg.as_ref().unwrap_or(&"".to_string())),
+            StamError::IntIdError(id, contextmsg) => format!("IntIdError: No such internal ID: {} ({})",id, contextmsg),
+            StamError::IdError(id, contextmsg) => format!("IdError: No such ID: {} ({})",id, contextmsg),
+            StamError::Unbound(contextmsg) => format!("Unbound: Item is not bound yet, add it to a store first. ({})", contextmsg),
+            StamError::AlreadyBound(contextmsg) => format!("AlreadyBound: Item is already bound. ({})", contextmsg),
+            StamError::NoIdError(contextmsg) => format!("NoIdError: Store does not map IDs. ({})", contextmsg),
+            StamError::DuplicateIdError(id, contextmsg) => format!("DuplicatIdError: ID already exists: {} ({})",id, contextmsg),
+            StamError::IOError(err, contextmsg) => format!("IOError: {} ({})",err,contextmsg),
+            StamError::BuildError(err, contextmsg) => format!("BuildError: Error during build: {} ({})",err, contextmsg),
+            StamError::StoreError(err, contextmsg) => format!("StoreError: Error during store: {} ({}) ",err, contextmsg),
+            StamError::WrongSelectorType(contextmsg) => format!("WrongSelectorType: Selector is not of the right type here ({})", contextmsg),
+            StamError::WrongSelectorTarget(contextmsg) => format!("WrongSelectorTarget: Selector is not applied on the right target ({})", contextmsg),
         }
     }
 }

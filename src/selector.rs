@@ -116,7 +116,7 @@ impl SelfSelector for TextResource {
         if let Some(intid) = self.get_intid() {
             Ok(Selector::ResourceSelector(intid))
         } else {
-            Err(StamError::Unbound(Some(format!("new_selector failed"))))
+            Err(StamError::Unbound("TextResource::self_selector()"))
         }
     }
 }
@@ -127,7 +127,7 @@ impl SelfSelector for AnnotationDataSet {
         if let Some(intid) = self.get_intid() {
             Ok(Selector::DataSetSelector(intid))
         } else {
-            Err(StamError::Unbound(Some(format!("new_selector failed"))))
+            Err(StamError::Unbound("AnnotationDataSet::self_selector()"))
         }
     }
 }
@@ -138,7 +138,7 @@ impl SelfSelector for Annotation {
         if let Some(intid) = self.get_intid() {
             Ok(Selector::AnnotationSelector { annotation: intid, offset: Some(Offset::default()) })
         } else {
-            Err(StamError::Unbound(Some(format!("new_selector failed"))))
+            Err(StamError::Unbound("Annotation::self_selector()"))
         }
     }
 }
@@ -160,7 +160,7 @@ impl ApplySelector<TextResource> for AnnotationStore {
                 Ok(resource)
             },
             _ => {
-                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
+                Err(StamError::WrongSelectorType("Annotationstore::select() expected a ResourceSelector or TextSelector, got another"))
             }
         }
     }
@@ -171,13 +171,13 @@ impl ApplySelector<str> for TextResource {
         match selector {
             Selector::TextSelector { resource: int_id, offset } => {
                 if self.get_intid() != Some(*int_id) {
-                    Err(StamError::WrongSelectorTarget(Some(format!("Can not apply selector {:?} on a target it does not reference", selector))))
+                    Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
                 } else {
                     Ok(self.get_text_slice(offset)?)
                 }
             },
             _ => {
-                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
+                Err(StamError::WrongSelectorType("TextResource::select() expected a TextSelector, got another"))
             }
         }
     }
@@ -193,7 +193,7 @@ impl ApplySelector<AnnotationDataSet> for AnnotationStore {
                 Ok(dataset)
             },
             _ => {
-                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
+                Err(StamError::WrongSelectorType("AnnotationStore::select() expected a DataSetSelector, got another"))
             }
         }
     }
@@ -209,7 +209,7 @@ impl ApplySelector<Annotation> for AnnotationStore {
                 Ok(annotation)
             },
             _ => {
-                Err(StamError::WrongSelectorType(Some(format!("Selector of type {:?} has no get_resource()", selector))))
+                Err(StamError::WrongSelectorType("AnnotationStore::select() expected an AnnotationSelector, got another"))
             }
         }
     }

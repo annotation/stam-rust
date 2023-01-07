@@ -55,7 +55,7 @@ impl TextResource {
             Ok(mut f) => {
                 let mut text = String::new();
                 if let Err(err) = f.read_to_string(&mut text) {
-                    return Err(StamError::IOError(err,None));
+                    return Err(StamError::IOError(err,"TextResource::from_file"));
                 }
                 Ok(Self {
                     id: filename.to_string(),
@@ -64,7 +64,7 @@ impl TextResource {
                 })
             },
             Err(err) => {
-                Err(StamError::IOError(err,None))
+                Err(StamError::IOError(err,"TextResource::from_file"))
             }
         }
     }
@@ -96,7 +96,7 @@ impl TextResource {
                 offset: Offset { begin, end }
             })
         } else {
-            Err(StamError::Unbound(Some(format!("select_text failed"))))
+            Err(StamError::Unbound("TextResource::select_text()"))
         }
     }
 }

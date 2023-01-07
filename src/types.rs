@@ -96,7 +96,7 @@ pub trait MayHaveIntId {
 
     /// Like [`Self::get_intid()`] but returns a [`StamError:Unbound`] error if there is no internal id.
     fn get_intid_or_err(&self) -> Result<IntId,StamError> {
-        self.get_intid().ok_or(StamError::Unbound(None))
+        self.get_intid().ok_or(StamError::Unbound(""))
     }
 }
 
@@ -118,7 +118,7 @@ pub trait MayHaveId: MayHaveIntId {
         None
     }
     fn get_id_or_err(&self) -> Result<&str,StamError> {
-        self.get_id().ok_or(StamError::NoIdError(None))
+        self.get_id().ok_or(StamError::NoIdError(""))
     }
 
     /// Builder pattern to set the public Id
@@ -161,7 +161,7 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         None
     }
 
-    fn introspect_type(&self) -> &str;
+    fn introspect_type(&self) -> &'static str;
 
     /// Adds an item to the store. Returns its internal id upon success
     fn insert(&mut self, mut item: T) -> Result<IntId,StamError> {
@@ -173,7 +173,7 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         if let Some(id) = item.get_id() {
             //check if global ID does not already exist
             if self.get_by_id(id).is_ok() {
-                return Err(StamError::DuplicateIdError(id.to_string(), Some(self.introspect_type().to_string())));
+                return Err(StamError::DuplicateIdError(id.to_string(), self.introspect_type()));
             }
 
             self.get_mut_idmap().map(|idmap| {
@@ -236,10 +236,10 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
             if let Some(intid) = idmap.data.get(id) {
                 self.get(*intid)
             } else {
-                Err(StamError::IdError(id.to_string(), Some(self.introspect_type().to_string())))
+                Err(StamError::IdError(id.to_string(), self.introspect_type()))
             }
         } else {
-            Err(StamError::NoIdError(Some(self.introspect_type().to_string())))
+            Err(StamError::NoIdError(self.introspect_type()))
         }
     }
 
@@ -249,10 +249,10 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
             if let Some(intid) = idmap.data.get(id) {
                 self.get_mut(*intid)
             } else {
-                Err(StamError::IdError(id.to_string(), Some(self.introspect_type().to_string())))
+                Err(StamError::IdError(id.to_string(), self.introspect_type()))
             }
         } else {
-            Err(StamError::NoIdError(Some(self.introspect_type().to_string())))
+            Err(StamError::NoIdError(self.introspect_type()))
         }
     }
 
@@ -261,7 +261,7 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         if let Some(Some(item)) = self.get_store().get(intid as usize) {
             Ok(item)
         } else {
-            Err(StamError::IntIdError(intid,Some(self.introspect_type().to_string())))
+            Err(StamError::IntIdError(intid,self.introspect_type()))
         }
     }
 
@@ -270,7 +270,7 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         if let Some(Some(item)) = self.get_mut_store().get_mut(intid as usize) {
             Ok(item)
         } else {
-            Err(StamError::IntIdError(intid,Some("get_mut".to_string()))) //MAYBE TODO: self.introspect_type didn't work here
+            Err(StamError::IntIdError(intid,"Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here
         }
     }
 
@@ -317,7 +317,7 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         //we already pass the internal id this item will get upon the next insert()
         //so it knows its internal id immediate after construction
         if item.get_intid().is_some() {
-            Err(StamError::AlreadyBound(None) )
+            Err(StamError::AlreadyBound("bind()") )
         } else {
             item.set_intid(self.next_intid());
             Ok(item)
@@ -333,8 +333,8 @@ pub(crate) trait Add<FromType,ToType>: StoreFor<ToType>  where ToType: MayHaveIn
     /// Builds an item and adds it to the store.
     fn add(mut self, item: FromType) -> Result<Self,StamError> where Self: Sized {
         //                                     V---- when there's an error, we wrap it error to give more information
-        let newitem: ToType = self.intake(item).map_err(|err| StamError::BuildError(Box::new(err),Some(self.introspect_type().to_string())))?;
-        self.insert(newitem).map_err(|err| StamError::StoreError(Box::new(err),Some(self.introspect_type().to_string())))?;
+        let newitem: ToType = self.intake(item).map_err(|err| StamError::BuildError(Box::new(err),self.introspect_type()))?;
+        self.insert(newitem).map_err(|err| StamError::StoreError(Box::new(err),self.introspect_type()))?;
         Ok(self)
     }
 

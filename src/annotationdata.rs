@@ -94,7 +94,7 @@ impl AnnotationData {
         if let Some(part_of_set) = self.part_of_set {
            annotationstore.get(part_of_set)
         } else {
-            Err(StamError::Unbound(Some(format!("AnnotationData.get_dataset failed due to unbound part_of_set"))))
+            Err(StamError::Unbound("AnnotationData.get_dataset failed due to unbound part_of_set"))
         }
     }
 
