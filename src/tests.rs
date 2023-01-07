@@ -68,7 +68,7 @@ fn instantiation_with_builder_pattern() -> Result<(),StamError> {
 }
 
 #[test]
-fn sanity_check_get_by_intid() -> Result<(),StamError> {
+fn store_get_by_intid() -> Result<(),StamError> {
     let store = setup_example_1()?;
 
     //test by internal ID
@@ -81,7 +81,7 @@ fn sanity_check_get_by_intid() -> Result<(),StamError> {
 }
 
 #[test]
-fn sanity_check_get_by_id() -> Result<(),StamError> {
+fn store_get_by_id() -> Result<(),StamError> {
     let store = setup_example_1()?;
 
     //test by public ID
@@ -94,7 +94,7 @@ fn sanity_check_get_by_id() -> Result<(),StamError> {
 }
 
 #[test]
-fn sanity_check_iter_data() -> Result<(),StamError> {
+fn store_iter_data() -> Result<(),StamError> {
     let store = setup_example_1()?;
     let annotation: &Annotation = store.get_by_id("A1")?;
 
@@ -112,5 +112,25 @@ fn sanity_check_iter_data() -> Result<(),StamError> {
     }
     assert_eq!(count,1);
     
+    Ok(())
+}
+
+#[test]
+fn store_get_text() -> Result<(),StamError> {
+    let store = setup_example_1()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let text = resource.get_text();
+    assert_eq!(text,"Hello world");
+    Ok(())
+}
+
+#[test]
+fn store_get_text_slice() -> Result<(),StamError> {
+    let store = setup_example_1()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let text = resource.get_text_slice( &Offset::simple(0,5))?;
+    assert_eq!(text,"Hello");
+    let text = resource.get_text_slice( &Offset::simple(6,11))?;
+    assert_eq!(text,"world");
     Ok(())
 }

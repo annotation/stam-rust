@@ -85,7 +85,47 @@ impl TextResource {
 
     /// Returns a reference to a slice of the text as specified by the offset
     pub fn get_text_slice(&self, offset: &Offset) -> Result<&str,StamError> {
-        panic!("get_text_slice not implemented yet"); //TODO: implement
+        let begin = self.resolve_cursor(&offset.begin)?;
+        let end = self.resolve_cursor(&offset.end)?;
+        Ok(&self.get_text()[begin..end])
+    }
+
+    /// Resolves a cursor to a utf8 byte position on the text
+    pub fn resolve_cursor(&self, cursor: &Cursor) -> Result<usize,StamError> {
+        //TODO: implementation is not efficient enough (O(n) with n in the order of text size), implement a pre-computed 'milestone' mechanism
+        match *cursor {
+            Cursor::BeginAligned(cursor) => {
+                let mut prevcharindex = 0;
+                for (charindex, (byteindex, _)) in self.get_text().char_indices().enumerate() {
+                    if cursor == charindex {
+                        return Ok(byteindex);
+                    } else if cursor < charindex {
+                        break;
+                    }
+                    prevcharindex = charindex;
+                }
+                //is the cursor at the very end? (non-inclusive)
+                if cursor == prevcharindex + 1 {
+                    return Ok(self.get_text().len());
+                }
+            },
+            Cursor::EndAligned(0) => {
+                return Ok(self.get_text().len())
+            },
+            Cursor::EndAligned(cursor) => {
+                let mut iter = self.get_text().char_indices();
+                let mut endcharindex: isize = 0;
+                while let Some((byteindex, _)) = iter.next_back() {
+                    endcharindex -= 1;
+                    if cursor == endcharindex {
+                        return Ok(byteindex)
+                    } else if cursor > endcharindex {
+                        break;
+                    }
+                }
+            }
+        };
+        Err(StamError::CursorOutOfBounds(*cursor,"TextResource::resolve_cursor()"))
     }
 
 

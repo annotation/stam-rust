@@ -45,7 +45,10 @@ pub enum StamError {
     WrongSelectorType(&'static str),
 
     /// This error is raised when you apply a selector on a target it is not intended for
-    WrongSelectorTarget(&'static str)
+    WrongSelectorTarget(&'static str),
+
+    /// This error indicates there was an error during the storage of an item  It wraps the deeper error that occured.
+    CursorOutOfBounds(Cursor, &'static str),
 }
 
 impl From<&StamError> for String {
@@ -63,6 +66,7 @@ impl From<&StamError> for String {
             StamError::StoreError(err, contextmsg) => format!("StoreError: Error during store: {} ({}) ",err, contextmsg),
             StamError::WrongSelectorType(contextmsg) => format!("WrongSelectorType: Selector is not of the right type here ({})", contextmsg),
             StamError::WrongSelectorTarget(contextmsg) => format!("WrongSelectorTarget: Selector is not applied on the right target ({})", contextmsg),
+            StamError::CursorOutOfBounds(cursor, contextmsg) => format!("CursorOutOfBounds: {:?} ({}) ",cursor, contextmsg),
         }
     }
 }

@@ -18,7 +18,7 @@ pub type Store<T> = Vec<Option<Box<T>>>;
 ///
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
-#[derive(Debug)]
+#[derive(Debug,Clone,Copy)]
 pub enum Cursor {
     /// Cursor relative to the start of a text. Has a value of 0 or higher
     BeginAligned(usize),
@@ -270,7 +270,7 @@ pub(crate) trait StoreFor<T: MayHaveIntId + SetIntId + MayHaveId> {
         if let Some(Some(item)) = self.get_mut_store().get_mut(intid as usize) {
             Ok(item)
         } else {
-            Err(StamError::IntIdError(intid,"Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here
+            Err(StamError::IntIdError(intid,"Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
         }
     }
 
