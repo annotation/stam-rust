@@ -14,7 +14,7 @@ use crate::annotationdata::*;
 fn instantiation_naive() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".to_string());
 
-    let res_intid = store.insert(
+    let _res_intid = store.insert(
         TextResource::from_string("testres".to_string(),"Hello world".to_string())
     );
 
@@ -29,7 +29,7 @@ fn instantiation_naive() -> Result<(),StamError> {
 fn sanity_check() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".to_string());
 
-    let res_intid = store.insert(
+    let _res_intid = store.insert(
         TextResource::from_string("testres".to_string(),"Hello world".to_string())
     );
 
@@ -39,10 +39,10 @@ fn sanity_check() -> Result<(),StamError> {
     let dataset_intid = store.insert(dataset)?;
 
     //get by intid
-    let dataset: &AnnotationDataSet = store.get(dataset_intid)?;
+    let _dataset: &AnnotationDataSet = store.get(dataset_intid)?;
 
     //get by id
-    let resource: &TextResource = store.get_by_id("testres")?;
+    let _resource: &TextResource = store.get_by_id("testres")?;
     //store.annotate(TextSelector::new(&resource), &dataset, &key, )
     Ok(())
 }
@@ -63,7 +63,7 @@ pub fn setup_example_1() -> Result<AnnotationStore,StamError> {
 
 #[test]
 fn instantiation_with_builder_pattern() -> Result<(),StamError> {
-    let mut store = setup_example_1()?;
+    setup_example_1()?;
     Ok(())
 }
 
