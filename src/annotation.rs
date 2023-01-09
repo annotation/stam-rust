@@ -18,6 +18,7 @@ use crate::selector::{Selector,Offset,SelectorBuilder};
 /// Moreover, an `Annotation` can have multiple annotation data associated. 
 /// The result is that multiple annotations with the exact same content require less storage
 /// space, and searching and indexing is facilitated.  
+#[derive(Clone)]
 pub struct Annotation {
     /// Public identifier for this annotation
     id: Option<String>,

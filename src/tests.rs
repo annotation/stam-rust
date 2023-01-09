@@ -231,11 +231,11 @@ fn add_after_borrow() -> Result<(),StamError> {
 }
 
 #[test]
-fn add_during_borrowproblem1() -> Result<(),StamError> {
+fn add_during_borrowproblem() -> Result<(),StamError> {
     let mut store = setup_example_2()?;
     let annotation: &Annotation = store.get_by_id("A1".into())?;
-    let mut count = 0;
-    for (dataset, data) in annotation.iter_data() {
+    //                                 V---- here we clone the annotation to prevent a borrow problem (cannot borrow `store` as mutable because it is also borrowed as immutable (annotation)), this is relatively low-cost
+    for (dataset, data) in annotation.clone().iter_data() {
         store.annotate( AnnotationBuilder::new()
                    .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
                    .with_data_by_id(dataset.into(), data.into())
@@ -244,16 +244,3 @@ fn add_during_borrowproblem1() -> Result<(),StamError> {
     Ok(())
 }
 
-#[test]
-fn add_during_borrowproblem2() -> Result<(),StamError> {
-    let mut store = setup_example_2()?;
-    let annotation: &Annotation = store.get_by_id("A1".into())?;
-    let mut count = 0;
-    for (_datakey, annotationdata, dataset) in store.iter_data(annotation) {
-        store.annotate( AnnotationBuilder::new()
-                   .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
-                   .with_data_by_id(dataset.get_intid().unwrap().into(), annotationdata.get_intid().unwrap().into())
-                 )?;
-    }
-    Ok(())
-}
