@@ -95,8 +95,34 @@ fn store_get_by_intid() -> Result<(),StamError> {
 }
 
 #[test]
+fn store_get_by_intid_2() -> Result<(),StamError> {
+    let store = setup_example_2()?;
+
+    //test by internal ID
+    let _resource: &TextResource = store.get(0)?;
+    let dataset: &AnnotationDataSet = store.get(0)?;
+    let _datakey: &DataKey = dataset.get(0)?;
+    let _annotationdata: &AnnotationData = dataset.get(0)?;
+    let _annotation: &Annotation = store.get(0)?;
+    Ok(())
+}
+
+#[test]
 fn store_get_by_id() -> Result<(),StamError> {
     let store = setup_example_1()?;
+
+    //test by public ID
+    let _resource: &TextResource = store.get_by_id("testres")?;
+    let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+    let _datakey: &DataKey = dataset.get_by_id("pos")?;
+    let _annotationdata: &AnnotationData = dataset.get_by_id("D1")?;
+    let _annotation: &Annotation = store.get_by_id("A1")?;
+    Ok(())
+}
+
+#[test]
+fn store_get_by_id_2() -> Result<(),StamError> {
+    let store = setup_example_2()?;
 
     //test by public ID
     let _resource: &TextResource = store.get_by_id("testres")?;
