@@ -93,6 +93,7 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         // note: a normal self.get() doesn't cut it here because then all of self will be borrowed for 'a and we have problems with the mutable reference later
         //       now at least the borrow checker knows self.annotations is distinct
+        //let annotation: &Annotation = self.annotations.get(intid as usize).unwrap().as_ref().unwrap();
         let annotation: &Annotation = self.annotations.get(intid as usize).unwrap().as_ref().unwrap();
 
         for (dataset, data) in annotation.iter_data() {
@@ -174,5 +175,11 @@ impl AnnotationStore {
         self.insert(resource)
     }
 
+    /// Shortcut method to get annotations
+    pub fn get_annotation(&self, intid: IntId) -> Result<&Annotation,StamError> {
+        self.annotations.get(intid as usize)
+              .ok_or_else(|| StamError::IntIdError(intid, "get_annotation()"))
+              .map(|x| x.as_ref().expect("item was deleted").as_ref())
+    }
 }
     

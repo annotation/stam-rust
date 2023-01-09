@@ -211,3 +211,35 @@ fn annotate() -> Result<(),StamError> {
              )?;
     Ok(())
 }
+
+
+
+#[test]
+fn add_after_borrow() -> Result<(),StamError> {
+    let mut store = setup_example_2()?;
+    let annotation: &Annotation = store.get_by_id("A1".into())?;
+    let mut count = 0;
+    for (_datakey, _annotationdata, _dataset) in store.iter_data(annotation) {
+        count += 1;
+    }
+    assert_eq!(count,1);
+    store.annotate( AnnotationBuilder::new()
+               .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+               .with_data("tokenset".into(),"word".into(), DataValue::Null)
+             )?;
+    Ok(())
+}
+
+#[test]
+fn add_during_borrow() -> Result<(),StamError> {
+    let mut store = setup_example_2()?;
+    let annotation: &Annotation = store.get_by_id("A1".into())?;
+    let mut count = 0;
+    for (_datakey, annotationdata, dataset) in store.iter_data(annotation) {
+        store.annotate( AnnotationBuilder::new()
+                   .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+                   .with_data_by_id(dataset.get_intid().unwrap().into(), annotationdata.get_intid().unwrap().into())
+                 )?;
+    }
+    Ok(())
+}
