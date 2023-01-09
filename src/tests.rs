@@ -211,3 +211,36 @@ fn annotate() -> Result<(),StamError> {
              )?;
     Ok(())
 }
+
+
+
+#[test]
+fn add_after_borrow() -> Result<(),StamError> {
+    let mut store = setup_example_2()?;
+    let annotation: &Annotation = store.get_by_id("A1".into())?;
+    let mut count = 0;
+    for (_datakey, _annotationdata, _dataset) in store.iter_data(annotation) {
+        count += 1;
+    }
+    assert_eq!(count,1);
+    store.annotate( AnnotationBuilder::new()
+               .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+               .with_data("tokenset".into(),"word".into(), DataValue::Null)
+             )?;
+    Ok(())
+}
+
+#[test]
+fn add_during_borrowproblem() -> Result<(),StamError> {
+    let mut store = setup_example_2()?;
+    let annotation: &Annotation = store.get_by_id("A1".into())?;
+    //                                 V---- here we clone the annotation to prevent a borrow problem (cannot borrow `store` as mutable because it is also borrowed as immutable (annotation)), this is relatively low-cost
+    for (dataset, data) in annotation.clone().iter_data() {
+        store.annotate( AnnotationBuilder::new()
+                   .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+                   .with_data_by_id(dataset.into(), data.into())
+                 )?;
+    }
+    Ok(())
+}
+

@@ -567,6 +567,11 @@ impl<'a> From<IntId> for AnyId<'a> {
         AnyId::IntId(intid)
     }
 }
+impl<'a> From<&IntId> for AnyId<'a> {
+    fn from(intid: &IntId) -> Self {
+        AnyId::IntId(*intid)
+    }
+}
 impl<'a> From<usize> for AnyId<'a> {
     fn from(intid: usize) -> Self {
         AnyId::IntId(intid as IntId)
