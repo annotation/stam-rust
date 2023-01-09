@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt;
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer, SerializeStruct};
@@ -7,7 +6,6 @@ use serde::ser::{Serializer, SerializeStruct};
 use crate::types::*;
 use crate::annotationstore::AnnotationStore;
 use crate::annotationdataset::AnnotationDataSet;
-use crate::error::StamError;
 
 /// The DataKey class defines a vocabulary field, it 
 /// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`

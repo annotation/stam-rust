@@ -110,11 +110,11 @@ impl<'a> AnnotationBuilder<'a> {
         self
     }
 
-    pub fn target_resource(mut self, resource: AnyId<'a>) -> Self {
+    pub fn target_resource(self, resource: AnyId<'a>) -> Self {
         self.with_target(SelectorBuilder::ResourceSelector(resource))
     }
 
-    pub fn target_text(mut self, resource: AnyId<'a>, offset: Offset) -> Self {
+    pub fn target_text(self, resource: AnyId<'a>, offset: Offset) -> Self {
         self.with_target(SelectorBuilder::TextSelector{ resource, offset })
     }
 
@@ -131,7 +131,7 @@ impl<'a> AnnotationBuilder<'a> {
     /// You may use this (and similar methods) multiple times. 
     /// Do note that multiple data associated with the same annotation is considered *inter-dependent*,
     /// use multiple annotations instead if each it interpretable independent of the others.
-    pub fn with_data(mut self, dataset: AnyId<'a>, key: AnyId<'a>, value: DataValue) -> Self {
+    pub fn with_data(self, dataset: AnyId<'a>, key: AnyId<'a>, value: DataValue) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
                 dataset,
@@ -143,7 +143,7 @@ impl<'a> AnnotationBuilder<'a> {
     }
 
     /// Use this method instead of [`with_data()`]  if you want to assign a public identifier (last argument)
-    pub fn with_data_with_id(mut self, dataset: AnyId<'a>, key: AnyId<'a>, value: DataValue, id: AnyId<'a>) -> Self {
+    pub fn with_data_with_id(self, dataset: AnyId<'a>, key: AnyId<'a>, value: DataValue, id: AnyId<'a>) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
                 id,
@@ -157,7 +157,7 @@ impl<'a> AnnotationBuilder<'a> {
 
     /// This references existing [`AnnotationData`], in a particular [`AnnotationDataSet'], by Id.
     /// Useful if you have an Id or reference instance already.
-    pub fn with_data_by_id(mut self, dataset: AnyId<'a>, id: AnyId<'a>) -> Self {
+    pub fn with_data_by_id(self, dataset: AnyId<'a>, id: AnyId<'a>) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
                 id,

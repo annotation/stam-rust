@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::slice::{Iter,IterMut};
 use std::borrow::Cow;
-use std::iter::FilterMap;
 use crate::error::StamError;
 
 /// Type for internal numeric IDs. There are nothing more than indices to a vector and this determines the size of the address space
@@ -141,6 +140,7 @@ pub trait Storable {
     }
 
     /// Builder pattern to set the public Id
+    #[allow(unused_variables)]
     fn with_id(self, id: String) -> Self where Self: Sized {
         //no-op
         self
@@ -153,6 +153,7 @@ pub trait Storable {
 
 pub(crate) trait MutableStorable: Storable {
     /// Set the internal ID. May only be called once (though currently not enforced).
+    #[allow(unused_variables)]
     fn set_intid(&mut self, intid: IntId) {
         //no-op in default implementation
     }
@@ -240,6 +241,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     /// Called after an item was inserted to the store
     /// Allows the store to do further bookkeeping
     /// like updating relation maps
+    #[allow(unused_variables)]
     fn inserted(&mut self, intid: IntId) {
         //default implementation does nothing
     }
@@ -335,6 +337,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
 
     /// Tests if the item is owner by the store, returns None if ownership is unknown
+    #[allow(unused_variables)]
     fn owns(&self, item: &T) -> Option<bool> {
         None
     }
@@ -414,33 +417,6 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
             AnyId::Id(Cow::Borrowed(id)) => self.get_mut_by_id(id).ok(),
             AnyId::Id(Cow::Owned(id)) => self.get_mut_by_id(id.as_str()).ok()
         }
-    }
-}
-
-/// This trait is implemented by stores that convert a builder type to a normal type.
-/// A Builder type (Builder*) converts a 'recipe' to an actual instance with properly resolved
-/// references. This is a combined trait that does the build and adds it to the store.
-pub(crate) trait Add<'a,T>: StoreFor<T>  where T: MutableStorable + Buildable<'a>  {
-    /// Builds an item and adds it to the store.
-    fn add(mut self, item: T::Builder) -> Result<Self,StamError> where Self: Sized {
-        //                                     V---- when there's an error, we wrap it error to give more information
-        let newitem: T = self.build(item).map_err(|err| StamError::BuildError(Box::new(err),self.introspect_type()))?;
-        self.insert(newitem).map_err(|err| StamError::StoreError(Box::new(err),self.introspect_type()))?;
-        Ok(self)
-    }
-
-    /// Converts an item of ToType (A New* type) from FromType and returns it
-    /// Does not add it to the store yet, see [`Self::build_and_store()`] instead,
-    /// However, it may already add necessary dependencies to the store.
-    fn build(&mut self, item: T::Builder) -> Result<T,StamError>;
-
-}
-
-pub trait Buildable<'a> {
-    type Builder: Default;
-
-    fn builder() -> Self::Builder {
-        Self::Builder::default()
     }
 }
 
@@ -528,7 +504,7 @@ impl<'a> AnyId<'a> {
         }
     }
 
-    pub fn to_string(mut self) -> Option<String> {
+    pub fn to_string(self) -> Option<String> {
         if let Self::Id(Cow::Owned(s)) = self {
             Some(s)
         } else if let Self::Id(Cow::Borrowed(s)) = self {

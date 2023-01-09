@@ -1,8 +1,5 @@
 use crate::types::*;
-
-use std::error::Error;
 use std::fmt;
-use std::io;
 
 // ------------------------------ ERROR DEFINITIONS & IMPLEMENTATIONS -------------------------------------------------------------
 

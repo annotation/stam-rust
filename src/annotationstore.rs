@@ -1,6 +1,5 @@
 use crate::resources::TextResource; 
-use crate::annotation::{Annotation,AnnotationBuilder};
-use crate::annotationdata::AnnotationData;
+use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
 
 use crate::types::*;
