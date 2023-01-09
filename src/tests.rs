@@ -9,6 +9,9 @@ use crate::annotationdataset::*;
 use crate::datakey::*;
 use crate::datavalue::*;
 
+use serde::Deserialize;
+use serde_json::Value;
+
 #[cfg(test)]
 
 #[test]
@@ -244,3 +247,25 @@ fn add_during_borrowproblem() -> Result<(),StamError> {
     Ok(())
 }
 
+
+#[test]
+fn parse_json_datakey() {
+    let data = r#"{ 
+        "@type": "DataKey",
+        "@id": "pos"
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(data).unwrap();
+    let key: DataKey = serde_json::from_value(v).unwrap();
+    assert_eq!(key.get_id().unwrap(), "pos");
+}
+
+
+#[test]
+fn parse_json_anyid() {
+    let data = r#""test-id""#;
+
+    let v: serde_json::Value = serde_json::from_str(data).unwrap();
+    let id: AnyId = serde_json::from_value(v).unwrap();
+    assert_eq!(id.to_string().unwrap(), "test-id");
+}

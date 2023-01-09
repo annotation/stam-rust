@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::slice::{Iter,IterMut};
 use std::borrow::Cow;
 use crate::error::StamError;
+use serde::Deserialize;
 
 /// Type for internal numeric IDs. There are nothing more than indices to a vector and this determines the size of the address space
 pub type IntId = u32;
@@ -475,9 +476,12 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
+#[serde(untagged)]
 pub enum AnyId<'a> {
+    #[serde(skip)]
     None,
+    #[serde(skip)]
     IntId(IntId),
     Id(Cow<'a, str>)
 }

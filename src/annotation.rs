@@ -1,5 +1,10 @@
 use std::slice::Iter;
 use std::borrow::Cow;
+use std::fmt;
+
+use serde::{Serialize,Deserialize};
+use serde::ser::{Serializer, SerializeStruct};
+use serde::de::Deserializer;
 
 use crate::types::*;
 use crate::error::*;
@@ -55,12 +60,16 @@ impl MutableStorable for Annotation {
 pub struct AnnotationBuilder<'a> {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     id: AnyId<'a>,
+    #[serde(deserialize_with = "deserialize_json_annotation_data")]
     data: Vec<AnnotationDataBuilder<'a>>,
     target: WithAnnotationTarget<'a>,
 }
 
+#[derive(Deserialize,Debug)]
+#[serde(tag="Annotation")]
 pub struct AnnotationDataBuilder<'a> {
     id: AnyId<'a>,
+    #[serde(rename="_part_of_set")]
     dataset: AnyId<'a>,
     key: AnyId<'a>,
     value: DataValue,
@@ -298,4 +307,28 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
             None => None
         }
     }
+}
+
+fn deserialize_json_annotation_data<'de, D>(deserializer: D) -> Result<AnnotationDataBuilder<'de>, D::Error>
+where
+	D: serde::de::Deserializer<'de>,
+{
+    struct JsonStringVisitor;
+    
+    impl<'de> serde::de::Visitor<'de> for JsonStringVisitor {
+        type Value = AnnotationDataBuilder<'de>;
+    
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string containing json data")
+        }
+    
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            serde_json::from_str(v).map_err(E::custom)
+        }
+    }
+    
+    deserializer.deserialize_any(JsonStringVisitor)
 }
