@@ -260,30 +260,21 @@ impl<'a> Annotation {
     pub fn builder() -> AnnotationBuilder<'a> {
         AnnotationBuilder::default()
     }
+
+    /// Iterate over the annotation data, returns tuples of internal IDs for (dataset,annotationdata)
+    pub fn iter_data(&'a self) -> Iter<'a,(IntId,IntId)>  {
+        self.data.iter()
+    }
 }
 
 impl AnnotationStore {
-    /// Iterate over the data for the specified annotation
+    /// Iterate over the data for the specified annotation, returning `(&DataKey, &AnnotationData, &AnnotationDataSet)` tuples
     pub fn iter_data<'a>(&'a self, annotation: &'a Annotation) -> AnnotationDataIter<'a>  {
         AnnotationDataIter {
             store: self,
             iter: annotation.data.iter()
         }
     }
-
-    pub fn iter_data_intid<'a>(&'a self, annotation: IntId) -> AnnotationDataIntIdIter<'a>  {
-        let annotation: &Annotation = self.get(annotation).expect("IntID must be valid");
-        AnnotationDataIntIdIter {
-            store: self,
-            iter: annotation.data.iter()
-        }
-    }
-
-    pub fn iter_data_by_anyid<'a,'b>(&'a self, annotation: &AnyId<'b>) -> Result<AnnotationDataIter<'a>,StamError>  {
-        let annotation: &'a Annotation = self.get_by_anyid_or_err(annotation)?;
-        Ok(self.iter_data(annotation))
-    }
-
 }
 
 pub struct AnnotationDataIter<'a> {
@@ -307,26 +298,3 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
         }
     }
 }
-
-pub struct AnnotationDataIntIdIter<'a> {
-    store: &'a AnnotationStore,
-    iter: Iter<'a, (IntId,IntId)>
-}
-
-
-impl<'a> Iterator for AnnotationDataIntIdIter<'a> {
-    type Item = (IntId,IntId,IntId);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.iter.next() {
-            Some((dataset_intid, annotationdata_intid)) => {
-                let dataset: &AnnotationDataSet = self.store.get(*dataset_intid).expect("Getting dataset for annotation");
-                let annotationdata: &AnnotationData = dataset.get(*annotationdata_intid).expect("Getting annotationdata for annotation");
-                let datakey: IntId = annotationdata.get_key(dataset).expect("Getting datakey for annotation").get_intid().expect("Key must have intid");
-                Some((datakey, *annotationdata_intid, *dataset_intid ))
-            },
-            None => None
-        }
-    }
-}
-

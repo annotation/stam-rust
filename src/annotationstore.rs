@@ -91,13 +91,14 @@ impl StoreFor<Annotation> for AnnotationStore {
         // called after the item is inserted in the store
         // update the relation map
 
-        // TODO: I don't like needing this extra vector, but I'm fighting the borrow checker if I don't do it this way
-        let ids: Vec<(IntId,IntId,IntId)> = self.iter_data_intid(intid).map(|(_,data,dataset)| {
-                ( intid, data, dataset )
-        }).collect();
-        self.dataset_data_annotation_map.extend(ids.into_iter());
+        // note: a normal self.get() doesn't cut it here because then all of self will be borrowed for 'a and we have problems with the mutable reference later
+        //       now at least the borrow checker knows self.annotations is distinct
+        let annotation: &Annotation = self.annotations.get(intid as usize).unwrap().as_ref().unwrap();
 
-        let annotation: &Annotation = self.get(intid).expect("item must exist after insertion");
+        for (dataset, data) in annotation.iter_data() {
+            self.dataset_data_annotation_map.insert(*dataset,*data,intid);
+        }
+
         match annotation.target {
             Selector::DataSetSelector(dataset_intid) => {
                 self.dataset_annotation_map.insert(dataset_intid, intid);
