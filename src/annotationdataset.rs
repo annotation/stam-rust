@@ -131,7 +131,7 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         // update the relation map
         let annotationdata: &AnnotationData = self.get(intid).expect("item must exist after insertion");
 
-        self.key_data_map.data.entry(annotationdata.key).or_default().push(intid);
+        self.key_data_map.insert(annotationdata.key, intid);
     }
 
 }

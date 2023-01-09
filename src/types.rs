@@ -97,8 +97,19 @@ impl Default for RelationMap {
 
 impl RelationMap {
     pub fn new() -> Self { Self::default() }
+
+    pub fn insert(&mut self, x: IntId, y: IntId) {
+        self.data.entry(x).or_default().push(y);
+    }
 }
 
+impl Extend<(IntId,IntId)> for RelationMap {
+    fn extend<T>(&mut self, iter: T)  where T: IntoIterator<Item=(IntId,IntId)> {
+        for (x,y) in iter {
+            self.insert(x,y);
+        }
+    }
+}
 
 pub struct TripleRelationMap {
     /// The actual map
@@ -115,6 +126,18 @@ impl Default for TripleRelationMap {
 
 impl TripleRelationMap {
     pub fn new() -> Self { Self::default() }
+
+    pub fn insert(&mut self, x: IntId, y: IntId, z: IntId) {
+        self.data.entry(x).or_default().insert(y,z);
+    }
+}
+
+impl Extend<(IntId,IntId,IntId)> for TripleRelationMap {
+    fn extend<T>(&mut self, iter: T)  where T: IntoIterator<Item=(IntId,IntId,IntId)> {
+        for (x,y,z) in iter {
+            self.insert(x,y,z);
+        }
+    }
 }
 
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************

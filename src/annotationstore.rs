@@ -1,6 +1,7 @@
 use crate::resources::TextResource; 
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
+use crate::selector::Selector;
 
 use crate::types::*;
 use crate::error::*;
@@ -26,6 +27,7 @@ pub struct AnnotationStore {
     /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores IntIds.
     dataset_data_annotation_map: TripleRelationMap,
 
+
     // Note there is no AnnotationDataSet => DataKey => Annotation map, that relationship
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
 
@@ -36,7 +38,10 @@ pub struct AnnotationStore {
     resource_annotation_map: RelationMap,
 
     /// Reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
-    dataset_annotation_map: RelationMap
+    dataset_annotation_map: RelationMap,
+
+    /// Reverse index for annotations that reference other annotations
+    annotation_annotation_map: RelationMap
 }
 
 
@@ -81,6 +86,32 @@ impl StoreFor<Annotation> for AnnotationStore {
     fn introspect_type(&self) -> &'static str {
         "Annotation in AnnotationStore"
     }
+
+    fn inserted(&mut self, intid: IntId) {
+        // called after the item is inserted in the store
+        // update the relation map
+
+        // TODO: I don't like needing this extra vector, but I'm fighting the borrow checker if I don't do it this way
+        let ids: Vec<(IntId,IntId,IntId)> = self.iter_data_intid(intid).map(|(_,data,dataset)| {
+                ( intid, data, dataset )
+        }).collect();
+        self.dataset_data_annotation_map.extend(ids.into_iter());
+
+        let annotation: &Annotation = self.get(intid).expect("item must exist after insertion");
+        match annotation.target {
+            Selector::DataSetSelector(dataset_intid) => {
+                self.dataset_annotation_map.insert(dataset_intid, intid);
+            },
+            Selector::ResourceSelector(res_intid) => {
+                self.resource_annotation_map.insert(res_intid, intid);
+            },
+            Selector::AnnotationSelector { annotation: a_intid, .. } => {
+                self.annotation_annotation_map.insert(a_intid, a_intid);
+            },
+            _ => {
+            }
+        }
+    }
 }
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
@@ -117,7 +148,8 @@ impl Default for AnnotationStore {
             dataset_idmap: IdMap::new("S".to_string()),
             dataset_data_annotation_map: TripleRelationMap::new(),
             dataset_annotation_map: RelationMap::new(),
-            resource_annotation_map: RelationMap::new()
+            resource_annotation_map: RelationMap::new(),
+            annotation_annotation_map: RelationMap::new()
         }
     }
 }
