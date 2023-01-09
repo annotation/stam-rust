@@ -93,7 +93,7 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         // note: a normal self.get() doesn't cut it here because then all of self will be borrowed for 'a and we have problems with the mutable reference later
         //       now at least the borrow checker knows self.annotations is distinct
-        //let annotation: &Annotation = self.annotations.get(intid as usize).unwrap().as_ref().unwrap();
+        //       the other option would be to dp annotation.clone(), at a slightly higher cost which we don't want here
         let annotation: &Annotation = self.annotations.get(intid as usize).unwrap().as_ref().unwrap();
 
         for (dataset, data) in annotation.iter_data() {
