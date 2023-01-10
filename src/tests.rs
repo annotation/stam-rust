@@ -261,7 +261,7 @@ fn parse_json_datakey() {
 }
 
 #[test]
-fn parse_json_data() -> Result<(), std::io::Error> {
+fn parse_json_annotationdata() -> Result<(), std::io::Error> {
     let data = r#"{ 
         "@type": "AnnotationData",
         "@id": "A2",
@@ -273,7 +273,20 @@ fn parse_json_data() -> Result<(), std::io::Error> {
     }"#;
 
     let v: serde_json::Value = serde_json::from_str(data)?;
-    let data: AnnotationDataBuilder = serde_json::from_value(v)?;
+    let _data: AnnotationDataBuilder = serde_json::from_value(v)?;
+    Ok(())
+}
+
+#[test]
+fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
+    let data = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "A2",
+        "set": "testset"
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(data)?;
+    let _data: AnnotationDataBuilder = serde_json::from_value(v)?;
     Ok(())
 }
 

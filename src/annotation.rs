@@ -319,18 +319,18 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
 #[derive(Deserialize)]
 pub struct AnnotationDataJson {
     id: Option<String>,
-    dataset: Option<String>,
+    set: Option<String>,
     key: Option<String>,
-    value: DataValue,
+    value: Option<DataValue>,
 }
 
 impl From<AnnotationDataJson> for AnnotationDataBuilder { 
     fn from(helper: AnnotationDataJson) -> Self {
         Self {
             id: helper.id.into(),
-            dataset: helper.dataset.into(),
+            dataset: helper.set.into(),
             key: helper.key.into(),
-            value: helper.value
+            value: helper.value.unwrap_or(DataValue::Null),
         }
     }
 }
