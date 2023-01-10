@@ -219,4 +219,15 @@ impl AnnotationDataSet {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }
 
+    /// Get an annotation pointer from an ID.
+    /// Shortcut wraps arround get_pointer()
+    pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataPointer,StamError> {
+        <Self as StoreFor<AnnotationData>>::resolve_id(&self, id)
+    }
+
+    /// Get an annotation pointer from an ID.
+    /// Shortcut wraps arround get_pointer()
+    pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyPointer,StamError> {
+        <Self as StoreFor<DataKey>>::resolve_id(&self, id)
+    }
 }

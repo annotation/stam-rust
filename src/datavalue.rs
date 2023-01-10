@@ -131,10 +131,28 @@ impl PartialEq<str> for DataValue {
     }
 }
 
+impl PartialEq<&str> for DataValue {
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            Self::String(v) => v == other,
+            _ => false
+        }
+    }
+}
+
 impl PartialEq<DataValue> for str {
     fn eq(&self, other: &DataValue) -> bool {
         match other {
             DataValue::String(v) => v.as_str() == self,
+            _ => false
+        }
+    }
+}
+
+impl PartialEq<DataValue> for &str {
+    fn eq(&self, other: &DataValue) -> bool {
+        match other {
+            DataValue::String(v) => v.as_str() == *self,
             _ => false
         }
     }

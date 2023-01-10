@@ -275,9 +275,23 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
     let v: serde_json::Value = serde_json::from_str(json)?;
     let data: AnnotationDataBuilder = serde_json::from_value(v)?;
 
+    assert_eq!(data.id, AnyId::Id("D2".into()));
+    assert_eq!(data.id, "D2"); //can also be compared with &str etc
+    assert_eq!(data.key, AnyId::Id("pos".into()));
+    assert_eq!(data.key, "pos");
+    assert_eq!(data.value, DataValue::String("verb".into()));
+    assert_eq!(data.value, "verb");  //shorter version
+
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
-    dataset.build_insert_data(data,true).unwrap();
+    let datapointer = dataset.build_insert_data(data,true).unwrap();
+
+    let data: &AnnotationData = dataset.get(datapointer).unwrap();
+
+    assert_eq!(data.get_id(), Some("D2")); //can also be compared with &str etc
+    assert_eq!(data.get_key(&dataset).unwrap().get_id() , Some("pos"));
+    assert_eq!(data.get_value(), &DataValue::String("verb".into()));
+    assert_eq!(data.get_value(), "verb");  //shorter version
 
     Ok(())
 }
@@ -291,7 +305,28 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
     }"#;
 
     let v: serde_json::Value = serde_json::from_str(data)?;
-    let _data: AnnotationDataBuilder = serde_json::from_value(v)?;
+    let data: AnnotationDataBuilder = serde_json::from_value(v)?;
+
+    assert_eq!(data.id, AnyId::Id("D1".into()));
+    assert_eq!(data.id, "D1"); //can also be compared with &str etc
+    assert_eq!(data.dataset, AnyId::Id("testdataset".into()));
+    assert_eq!(data.dataset, "testdataset");
+
+    let mut store = setup_example_2().unwrap();
+    let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
+    //we alreayd had this annotation, check prior to insert
+    let datapointer1: AnnotationDataPointer = dataset.resolve_data_id("D1").unwrap();
+    //insert (which doesn't really insert in this case) but returns the same existing pointer
+    let datapointer2 = dataset.build_insert_data(data,true).unwrap();
+    assert_eq!(datapointer1, datapointer2);
+
+    let data: &AnnotationData = dataset.get(datapointer2).unwrap();
+
+    assert_eq!(data.get_id(), Some("D1")); //can also be compared with &str etc
+    assert_eq!(data.get_key(&dataset).unwrap().get_id() , Some("pos"));
+    assert_eq!(data.get_value(), &DataValue::String("noun".into()));
+    assert_eq!(data.get_value(), "noun");  //shorter version
+
     Ok(())
 }
 

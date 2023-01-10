@@ -488,7 +488,7 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 
 
 
-#[derive(Debug,Clone,Deserialize)]
+#[derive(Debug,Clone,Deserialize,PartialEq)]
 #[serde(untagged)]
 /// This is either an public ID or a Pointer
 pub enum AnyId<PointerType> where PointerType: Pointer {
@@ -633,6 +633,33 @@ impl<PointerType> From<&dyn Storable<PointerType=PointerType>> for AnyId<Pointer
             Self::Id(id.into())
         } else {
             panic!("Passed a reference to an unbound item without a public ID! Unable to convert to IdOrPointer");
+        }
+    }
+}
+
+impl<PointerType> PartialEq<&str> for AnyId<PointerType> where PointerType: Pointer {
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            Self::Id(v) => v.as_str() == *other,
+            _ => false
+        }
+    }
+}
+
+impl<PointerType> PartialEq<str> for AnyId<PointerType> where PointerType: Pointer {
+    fn eq(&self, other: &str) -> bool {
+        match self {
+            Self::Id(v) => v.as_str() == other,
+            _ => false
+        }
+    }
+}
+
+impl<PointerType> PartialEq<String> for AnyId<PointerType> where PointerType: Pointer {
+    fn eq(&self, other: &String) -> bool {
+        match self {
+            Self::Id(v) => v == other,
+            _ => false
         }
     }
 }

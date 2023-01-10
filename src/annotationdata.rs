@@ -143,6 +143,7 @@ impl Default for AnnotationDataBuilder {
 /// Helper structure for deserialisation
 #[derive(Deserialize)]
 pub(crate) struct AnnotationDataJson {
+    #[serde(rename="@id")]
     id: Option<String>,
     set: Option<String>,
     key: Option<String>,
