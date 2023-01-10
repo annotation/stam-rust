@@ -250,26 +250,44 @@ fn add_during_borrowproblem() -> Result<(),StamError> {
 
 #[test]
 fn parse_json_datakey() {
-    let data = r#"{ 
+    let json = r#"{ 
         "@type": "DataKey",
         "@id": "pos"
     }"#;
 
-    let v: serde_json::Value = serde_json::from_str(data).unwrap();
+    let v: serde_json::Value = serde_json::from_str(json).unwrap();
     let key: DataKey = serde_json::from_value(v).unwrap();
     assert_eq!(key.get_id().unwrap(), "pos");
 }
 
 #[test]
 fn parse_json_annotationdata() -> Result<(), std::io::Error> {
-    let data = r#"{ 
+    let json = r#"{ 
         "@type": "AnnotationData",
-        "@id": "A2",
+        "@id": "D2",
         "key": "pos",
         "value": {
             "@type": "String",
             "value": "verb"
         }
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(json)?;
+    let data: AnnotationDataBuilder = serde_json::from_value(v)?;
+
+    let mut store = setup_example_2().unwrap();
+    let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
+    dataset.build_insert_data(data,true).unwrap();
+
+    Ok(())
+}
+
+#[test]
+fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
+    let data = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "D1",
+        "set": "testdataset"
     }"#;
 
     let v: serde_json::Value = serde_json::from_str(data)?;
@@ -278,11 +296,33 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
 }
 
 #[test]
-fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
+fn parse_json_annotation() -> Result<(), std::io::Error> {
     let data = r#"{ 
-        "@type": "AnnotationData",
+        "@type": "Annotation",
         "@id": "A2",
-        "set": "testset"
+        "target": {
+            "@type": "TextSelector",
+            "resource": "testres",
+            "offset": {
+                "begin": {
+                    "@type": "BeginAlignedCursor",
+                    "value": 0
+                },
+                "end": {
+                    "@type": "EndAlignedCursor",
+                    "value": 5
+                }
+            }
+        },
+        "data": {
+            "@type": "AnnotationData",
+            "key": "pos",
+            "set": "testdataset",
+            "value": {
+                "@type": "String",
+                "value": "interjection"
+            }
+        }
     }"#;
 
     let v: serde_json::Value = serde_json::from_str(data)?;

@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 use crate::types::*;
 use crate::error::*;
 use crate::resources::{TextResource,TextResourcePointer};
@@ -7,7 +9,7 @@ use crate::annotationstore::AnnotationStore;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
 pub struct Offset {
     pub begin: Cursor,
     pub end: Cursor
@@ -75,7 +77,7 @@ pub enum Selector {
 /// A `SelectorBuilder` can refer to anything and is not validated yet, a `Selector` is and should not fail. 
 ///
 /// There are multiple types of selectors, all captured in this enum.
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
 pub enum SelectorBuilder {
     ResourceSelector(AnyId<TextResourcePointer>),
     AnnotationSelector( AnyId<AnnotationPointer>, Option<Offset> ),

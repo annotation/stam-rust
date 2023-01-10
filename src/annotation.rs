@@ -7,7 +7,7 @@ use serde::de::Deserializer;
 
 use crate::types::*;
 use crate::error::*;
-use crate::annotationdata::{AnnotationData,AnnotationDataPointer};
+use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataPointer};
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
 use crate::datakey::{DataKey,DataKeyPointer};
 use crate::datavalue::DataValue;
@@ -63,8 +63,11 @@ impl MutableStorable for Annotation {
     }
 }
 
-/// This is the build recipe for `Annotation`. It contains references to public IDs that will be resolved
-/// when the actual AnnotationData is build. The building is done by passing the `BuildAnnotation` to [`AnnotationDataSet::build()`].
+/// This is the build recipe for `Annotation`. It contains public IDs or pointers that will be resolved
+/// when the actual Annotation is built. The building is done by passing this to [`AnnotationStore::annotate()`].
+#[derive(Deserialize,Debug)]
+#[serde(tag="Annotation")]
+#[serde(from="AnnotationJson")]
 pub struct AnnotationBuilder {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     id: AnyId<AnnotationPointer>,
@@ -73,18 +76,8 @@ pub struct AnnotationBuilder {
     target: WithAnnotationTarget,
 }
 
-#[derive(Deserialize,Debug)]
-#[serde(tag="Annotation")]
-#[serde(from="AnnotationDataJson")]
-pub struct AnnotationDataBuilder {
-    id: AnyId<AnnotationDataPointer>,
-    #[serde(rename="set")]
-    dataset: AnyId<AnnotationDataSetPointer>,
-    key: AnyId<DataKeyPointer>,
-    value: DataValue,
-}
 
-
+#[derive(Debug)]
 enum WithAnnotationTarget {
     Unset,
     FromSelector(Selector),
@@ -97,17 +90,6 @@ impl Default for AnnotationBuilder {
             id: AnyId::None,
             target: WithAnnotationTarget::Unset,
             data: Vec::new(),
-        }
-    }
-}
-
-impl Default for AnnotationDataBuilder {
-    fn default() -> Self {
-        Self {
-            id: AnyId::None,
-            dataset: AnyId::None,
-            key: AnyId::None,
-            value: DataValue::Null,
         }
     }
 }
@@ -201,6 +183,30 @@ impl<'a> AnnotationStore {
         Ok(self)
     }
 
+    /// Builds an inserts an AnnotationData item
+    pub fn insert_data(&mut self, dataitem: AnnotationDataBuilder) -> Result<(AnnotationDataSetPointer, AnnotationDataPointer),StamError> {
+        // Obtain the dataset for this data item
+        let dataset: &mut AnnotationDataSet = if let Some(dataset) = self.get_mut_by_anyid(&dataitem.dataset) {
+            dataset
+        } else {
+            // this data referenced a dataset that does not exist yet, create it
+            let dataset_id: String = if let AnyId::Id(dataset_id) = dataitem.dataset {
+                dataset_id.into()
+            } else {
+                // if no dataset was specified at all, we create one named 'default'
+                // the name is not prescribed by the STAM spec, the fact that we 
+                // handle a missing set, however, is.
+                "default".into()
+            };
+            let inserted_intid = self.insert(AnnotationDataSet::new().with_id(dataset_id))?;
+            self.get_mut(inserted_intid).expect("must exist after insertion")
+        };
+
+        // Insert the data into the dataset 
+        let data_pointer = dataset.insert_data(dataitem.id, dataitem.key, dataitem.value, true)?;
+        Ok((dataset.get_pointer_or_err()?, data_pointer))
+    } 
+
     /// Builds and inserts an annotation
     /// In a builder pattenr, use [`with_annotation()`] instead
     pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationPointer,StamError> {
@@ -225,26 +231,8 @@ impl<'a> AnnotationStore {
         // Convert AnnotationDataBuilder into AnnotationData that is ready to be stored
         let mut data = Vec::with_capacity(builder.data.len());
         for dataitem in builder.data {
-            // Obtain the dataset for this data item
-            let dataset: &mut AnnotationDataSet = if let Some(dataset) = self.get_mut_by_anyid(&dataitem.dataset) {
-                dataset
-            } else {
-                // this data referenced a dataset that does not exist yet, create it
-                let dataset_id: String = if let AnyId::Id(dataset_id) = dataitem.dataset {
-                    dataset_id.into()
-                } else {
-                    // if no dataset was specified at all, we create one named 'default'
-                    // the name is not prescribed by the STAM spec, the fact that we 
-                    // handle a missing set, however, is.
-                    "default".into()
-                };
-                let inserted_intid = self.insert(AnnotationDataSet::new().with_id(dataset_id))?;
-                self.get_mut(inserted_intid).expect("must exist after insertion")
-            };
-
-            // Insert the data into the dataset 
-            let data_pointer = dataset.insert_data(dataitem.id, dataitem.key, dataitem.value, true)?;
-            data.push((dataset.get_pointer_or_err()?, data_pointer));
+            let (datasetpointer,datapointer) = self.insert_data(dataitem)?;
+            data.push((datasetpointer,datapointer));
         }
 
         // Has the caller set a public ID for this annotation?
@@ -314,23 +302,20 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
     }
 }
 
-
 /// Helper structure for deserialisation
 #[derive(Deserialize)]
-pub struct AnnotationDataJson {
+pub(crate) struct AnnotationJson {
     id: Option<String>,
-    set: Option<String>,
-    key: Option<String>,
-    value: Option<DataValue>,
+    data: Vec<AnnotationDataBuilder>,
+    target: SelectorBuilder
 }
 
-impl From<AnnotationDataJson> for AnnotationDataBuilder { 
-    fn from(helper: AnnotationDataJson) -> Self {
+impl From<AnnotationJson> for AnnotationBuilder { 
+    fn from(helper: AnnotationJson) -> Self {
         Self {
             id: helper.id.into(),
-            dataset: helper.set.into(),
-            key: helper.key.into(),
-            value: helper.value.unwrap_or(DataValue::Null),
+            data: helper.data,
+            target: WithAnnotationTarget::FromSelectorBuilder(helper.target)
         }
     }
 }

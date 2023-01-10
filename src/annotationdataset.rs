@@ -3,7 +3,7 @@ use serde::ser::{Serializer, SerializeStruct};
 //use serde_json::Result;
 
 use crate::types::*;
-use crate::annotationdata::{AnnotationData,AnnotationDataPointer};
+use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataPointer};
 use crate::datakey::{DataKey,DataKeyPointer};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
@@ -214,5 +214,9 @@ impl AnnotationDataSet {
         self.insert(AnnotationData::new(public_id, datakey_pointer, value))
     }
 
+    /// Build and insert data into the dataset, similar to [`insert_data()`] and [`with_data()`], but takes a prepared `AnnotationDataBuilder` instead.
+    pub fn build_insert_data(&mut self, dataitem: AnnotationDataBuilder, safety: bool) -> Result<AnnotationDataPointer, StamError> {
+        self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
+    }
 
 }

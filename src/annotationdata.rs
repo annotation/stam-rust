@@ -82,7 +82,7 @@ impl Serialize for AnnotationData {
 }
 
 impl AnnotationData {
-    /// Creates a new unbounded AnnotationData instance, you will likely not want to instantiate this directly, but via 
+    /// Creates a new unbounded AnnotationData instance, you will likely never want to instantiate this directly, but via 
     //// [`AnnotationDataSet::with_data()`] or indirectly [`AnnotationBuilder::with_data()`].
     pub fn new(id: Option<String>, key: DataKeyPointer, value: DataValue) -> Self {
         AnnotationData {
@@ -113,5 +113,49 @@ impl AnnotationData {
     /// Make a new AnnotationData if you want to change data.
     pub fn get_value(&self) -> &DataValue {
         &self.value
+    }
+}
+
+/// This is the build recipe for `AnnotationData`. It contains public IDs or pointers that will be resolved.
+/// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] methods.
+#[derive(Deserialize,Debug)]
+#[serde(tag="AnnotationData")]
+#[serde(from="AnnotationDataJson")]
+pub struct AnnotationDataBuilder {
+    pub(crate) id: AnyId<AnnotationDataPointer>,
+    #[serde(rename="set")]
+    pub(crate) dataset: AnyId<AnnotationDataSetPointer>,
+    pub(crate) key: AnyId<DataKeyPointer>,
+    pub(crate) value: DataValue,
+}
+
+impl Default for AnnotationDataBuilder {
+    fn default() -> Self {
+        Self {
+            id: AnyId::None,
+            dataset: AnyId::None,
+            key: AnyId::None,
+            value: DataValue::Null,
+        }
+    }
+}
+
+/// Helper structure for deserialisation
+#[derive(Deserialize)]
+pub(crate) struct AnnotationDataJson {
+    id: Option<String>,
+    set: Option<String>,
+    key: Option<String>,
+    value: Option<DataValue>,
+}
+
+impl From<AnnotationDataJson> for AnnotationDataBuilder { 
+    fn from(helper: AnnotationDataJson) -> Self {
+        Self {
+            id: helper.id.into(),
+            dataset: helper.set.into(),
+            key: helper.key.into(),
+            value: helper.value.unwrap_or(DataValue::Null),
+        }
     }
 }
