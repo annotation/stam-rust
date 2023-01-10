@@ -5,8 +5,8 @@ use serde::ser::{Serializer, SerializeStruct};
 
 use crate::types::*;
 use crate::annotationstore::AnnotationStore;
-use crate::annotationdataset::AnnotationDataSet;
-use crate::datakey::DataKey;
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
+use crate::datakey::{DataKey,DataKeyPointer};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
 
@@ -28,20 +28,28 @@ pub struct AnnotationData {
     id: Option<String>,
 
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
-    pub(crate) key: IntId,
+    pub(crate) key: DataKeyPointer,
 
     //Actual annotation value
     value: DataValue,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership 
-    intid: Option<IntId>,
+    intid: Option<AnnotationDataPointer>,
     ///Referers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey
-    pub(crate) part_of_set: Option<IntId>
+    pub(crate) part_of_set: Option<AnnotationDataSetPointer>
 }
 
+#[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
+pub struct AnnotationDataPointer(u32);
+impl Pointer for AnnotationDataPointer {
+    fn new(intid: usize) -> Self { Self(intid as u32) }
+    fn unwrap(&self) -> usize { self.0 as usize }
+}
 
 impl Storable for AnnotationData {
-    fn get_intid(&self) -> Option<IntId> { 
+    type PointerType = AnnotationDataPointer;
+
+    fn get_pointer(&self) -> Option<AnnotationDataPointer> { 
         self.intid
     }
 
@@ -55,7 +63,7 @@ impl Storable for AnnotationData {
     }
 }
 impl MutableStorable for AnnotationData {
-    fn set_intid(&mut self, intid: IntId) {
+    fn set_pointer(&mut self, intid: AnnotationDataPointer) {
         self.intid = Some(intid);
     }
 }
@@ -76,7 +84,7 @@ impl Serialize for AnnotationData {
 impl AnnotationData {
     /// Creates a new unbounded AnnotationData instance, you will likely not want to instantiate this directly, but via 
     //// [`AnnotationDataSet::with_data()`] or indirectly [`AnnotationBuilder::with_data()`].
-    pub fn new(id: Option<String>, key: IntId, value: DataValue) -> Self {
+    pub fn new(id: Option<String>, key: DataKeyPointer, value: DataValue) -> Self {
         AnnotationData {
             id,
             key,

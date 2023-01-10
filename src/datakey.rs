@@ -5,7 +5,7 @@ use serde::ser::{Serializer, SerializeStruct};
 
 use crate::types::*;
 use crate::annotationstore::AnnotationStore;
-use crate::annotationdataset::AnnotationDataSet;
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
 
 /// The DataKey class defines a vocabulary field, it 
 /// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
@@ -20,11 +20,11 @@ pub struct DataKey {
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
     #[serde(skip)]
-    intid: Option<IntId>,
+    intid: Option<DataKeyPointer>,
 
     ///Refers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey. May be unbound (None) only during creation.
     #[serde(skip)]
-    pub(crate) part_of_set: Option<IntId>
+    pub(crate) part_of_set: Option<AnnotationDataSetPointer>
 }
 
 impl Serialize for DataKey {
@@ -38,17 +38,25 @@ impl Serialize for DataKey {
 }
 
 
+#[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
+pub struct DataKeyPointer(u16);
+impl Pointer for DataKeyPointer {
+    fn new(intid: usize) -> Self { Self(intid as u16) }
+    fn unwrap(&self) -> usize { self.0 as usize }
+}
 
 impl Storable for DataKey {
+    type PointerType = DataKeyPointer;
+
     fn get_id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
-    fn get_intid(&self) -> Option<IntId> { 
+    fn get_pointer(&self) -> Option<DataKeyPointer> { 
         self.intid
     }
 }
 impl MutableStorable for DataKey {
-    fn set_intid(&mut self, intid: IntId) {
+    fn set_pointer(&mut self, intid: DataKeyPointer) {
         self.intid = Some(intid);
     }
 }

@@ -1,8 +1,8 @@
 use crate::types::*;
 use crate::error::*;
-use crate::resources::TextResource;
-use crate::annotation::Annotation;
-use crate::annotationdataset::AnnotationDataSet;
+use crate::resources::{TextResource,TextResourcePointer};
+use crate::annotation::{Annotation,AnnotationPointer};
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
 use crate::annotationstore::AnnotationStore;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
@@ -23,7 +23,7 @@ impl Offset {
     }
 
 
-    /// Shortcut constructor to create a simple begin-aligned offset
+    /// Shortcut constructor to create a simple begin-aligned offset (less boilerplate)
     pub fn simple(begin: usize, end: usize) -> Self {
         Offset {
             begin: Cursor::BeginAligned(begin),
@@ -47,19 +47,21 @@ impl Default for Offset {
 /// target that the annotation applies to. Selectors can be considered the labelled edges of the graph model, tying all nodes together.
 /// There are multiple types of selectors, all captured in this enum.
 ///
-/// You usually do not instantiate these directly but via [`BuildSelector`].
+/// The selector can be applied to an annotationstore via [`AnnotationStore.select()`] and which will return actual references.
+///
+/// You usually do not instantiate these directly but via [`SelectorBuilder`].
 #[derive(Debug,Clone)]
 pub enum Selector {
     /// Refers to a [`TextResource`] as a whole (as opposed to a text fragment inside it), as owned by an AnnotationStore.
     /// Annotations using this selector can be considered metadata of a text
-    ResourceSelector(IntId),
+    ResourceSelector(TextResourcePointer),
     /// Refers to an Annotation (as owned by the AnnotationStore) and optionally a *relative* text selection offset in it
-    AnnotationSelector { annotation: IntId, offset: Option<Offset> },
+    AnnotationSelector(AnnotationPointer,  Option<Offset>),
     /// Refers to the TextResource (as owned by the AnnotationStore) an an offset in it
-    TextSelector { resource: IntId, offset: Offset },
+    TextSelector(TextResourcePointer, Offset),
     /// Refers to an [`AnnotationDataSet`] as owned by an AnnotationStore
     /// Annotations using this selector can be considered metadata.
-    DataSetSelector(IntId),
+    DataSetSelector(AnnotationDataSetPointer),
     /// Combines selectors
     MultiSelector(Vec<Selector>),
     /// Combines selectors and expresseds a direction between two or more selectors in the exact order specified (from -> to)
@@ -67,31 +69,38 @@ pub enum Selector {
 }
 
 
-pub enum SelectorBuilder<'a> {
-    ResourceSelector(AnyId<'a>),
-    AnnotationSelector { annotation: AnyId<'a>, offset: Option<Offset> },
-    TextSelector { resource: AnyId<'a>, offset: Offset },
-    DataSetSelector(AnyId<'a>),
-    MultiSelector(Vec<SelectorBuilder<'a>>),
-    DirectionalSelector(Vec<SelectorBuilder<'a>>)
+/// A `SelectorBuilder` is a recipe that, when applied, identifies the target of an annotation and the part of the
+/// target that the annotation applies to. They produce a `Selector` and you can do so via [`Annotationstore.selector`].
+///
+/// A `SelectorBuilder` can refer to anything and is not validated yet, a `Selector` is and should not fail. 
+///
+/// There are multiple types of selectors, all captured in this enum.
+#[derive(Debug,Clone)]
+pub enum SelectorBuilder {
+    ResourceSelector(AnyId<TextResourcePointer>),
+    AnnotationSelector( AnyId<AnnotationPointer>, Option<Offset> ),
+    TextSelector( AnyId<TextResourcePointer>, Offset ),
+    DataSetSelector(AnyId<AnnotationDataSetPointer>),
+    MultiSelector(Vec<SelectorBuilder>),
+    DirectionalSelector(Vec<SelectorBuilder>)
 }
 
 
 impl<'a> AnnotationStore {
-    /// Builds a [`Selector`] based on its [`SelectorRecipe`]
-    pub fn selector(&mut self, item: SelectorBuilder<'a>) -> Result<Selector,StamError> {
+    /// Builds a [`Selector`] based on its [`SelectorBuilder`], this will produce an error if the selected resource does not exist.
+    pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector,StamError> {
         match item {
             SelectorBuilder::ResourceSelector(id) => {
                 let resource: &TextResource = self.get_by_anyid_or_err(&id)?;
-                Ok(Selector::ResourceSelector(resource.get_intid_or_err()?))
+                Ok(Selector::ResourceSelector(resource.get_pointer_or_err()?))
             },
-            SelectorBuilder::TextSelector { resource: res_id, offset } => {
+            SelectorBuilder::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get_by_anyid_or_err(&res_id)?;
-                Ok(Selector::TextSelector { resource: resource.get_intid_or_err()?, offset } )
+                Ok(Selector::TextSelector(resource.get_pointer_or_err()?, offset ) )
             },
-            SelectorBuilder::AnnotationSelector { annotation: a_id, offset } => {
+            SelectorBuilder::AnnotationSelector(a_id, offset) => {
                 let annotation: &Annotation = self.get_by_anyid_or_err(&a_id)?;
-                Ok(Selector::AnnotationSelector { annotation: annotation.get_intid_or_err()?, offset } )
+                Ok(Selector::AnnotationSelector( annotation.get_pointer_or_err()?, offset ) )
             },
             _ => {
                 panic!("not implemented yet")
@@ -109,7 +118,7 @@ pub trait SelfSelector {
 impl SelfSelector for TextResource {
     /// Returns a selector to this resource
     fn self_selector(&self) -> Result<Selector,StamError> {
-        if let Some(intid) = self.get_intid() {
+        if let Some(intid) = self.get_pointer() {
             Ok(Selector::ResourceSelector(intid))
         } else {
             Err(StamError::Unbound("TextResource::self_selector()"))
@@ -120,7 +129,7 @@ impl SelfSelector for TextResource {
 impl SelfSelector for AnnotationDataSet {
     /// Returns a selector to this resource
     fn self_selector(&self) -> Result<Selector,StamError> {
-        if let Some(intid) = self.get_intid() {
+        if let Some(intid) = self.get_pointer() {
             Ok(Selector::DataSetSelector(intid))
         } else {
             Err(StamError::Unbound("AnnotationDataSet::self_selector()"))
@@ -131,8 +140,8 @@ impl SelfSelector for AnnotationDataSet {
 impl SelfSelector for Annotation {
     /// Returns a selector to this resource
     fn self_selector(&self) -> Result<Selector,StamError> {
-        if let Some(intid) = self.get_intid() {
-            Ok(Selector::AnnotationSelector { annotation: intid, offset: Some(Offset::default()) })
+        if let Some(pointer) = self.get_pointer() {
+            Ok(Selector::AnnotationSelector(pointer,Some(Offset::default()) ))
         } else {
             Err(StamError::Unbound("Annotation::self_selector()"))
         }
@@ -151,8 +160,8 @@ impl ApplySelector<TextResource> for AnnotationStore {
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
     fn select<'a>(&'a self, selector: &Selector) -> Result<&'a TextResource,StamError> {
         match selector {
-            Selector::ResourceSelector(int_id) | Selector::TextSelector { resource: int_id, .. } => {
-                let resource: &TextResource = self.get(*int_id)?;
+            Selector::ResourceSelector(resource_pointer) | Selector::TextSelector(resource_pointer, .. ) => {
+                let resource: &TextResource = self.get(*resource_pointer)?;
                 Ok(resource)
             },
             _ => {
@@ -165,8 +174,8 @@ impl ApplySelector<TextResource> for AnnotationStore {
 impl ApplySelector<str> for TextResource {
     fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str,StamError> {
         match selector {
-            Selector::TextSelector { resource: int_id, offset } => {
-                if self.get_intid() != Some(*int_id) {
+            Selector::TextSelector(resource_pointer, offset) => {
+                if self.get_pointer() != Some(*resource_pointer) {
                     Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
                 } else {
                     Ok(self.get_text_slice(offset)?)
@@ -215,8 +224,8 @@ impl ApplySelector<Annotation> for AnnotationStore {
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
     fn select<'a>(&'a self, selector: &Selector) -> Result<&'a Annotation,StamError> {
         match selector {
-            Selector::AnnotationSelector { annotation: int_id, .. } => {
-                let annotation: &Annotation = self.get(*int_id)?;
+            Selector::AnnotationSelector(annotation_pointer, .. ) => {
+                let annotation: &Annotation = self.get(*annotation_pointer)?;
                 Ok(annotation)
             },
             _ => {

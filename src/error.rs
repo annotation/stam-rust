@@ -8,7 +8,7 @@ use std::fmt;
 pub enum StamError {
     /// This error is raised when the specified internal ID does not exist.
     /// The first parameter is the requested internal ID
-    IntIdError(IntId,&'static str),
+    IntIdError(&'static str),
 
     /// This error is raised when the specified public ID does not exist
     /// The first parameter is the requested public ID
@@ -25,8 +25,8 @@ pub enum StamError {
     /// This error is raised when an item is already bound and you are trying it again 
     AlreadyBound(&'static str),
 
-    /// This error is raised when an item is already exists and you adding it again
-    AlreadyExists(IntId, &'static str),
+    /// This error is raised when an item is already exists and you are adding it again
+    AlreadyExists( usize, &'static str),
 
     /// This error is raised when you attempt to set a public ID that is already in use (within a particular scope)
     /// The first parameter is the requested public ID
@@ -64,7 +64,7 @@ impl From<&StamError> for String {
     /// Returns the error message as a String
     fn from(error: &StamError) -> String {
         match error {
-            StamError::IntIdError(id, contextmsg) => format!("IntIdError: No such internal ID: {} ({})",id, contextmsg),
+            StamError::IntIdError(contextmsg) => format!("IntIdError: No such internal ID: ({})", contextmsg),
             StamError::IdError(id, contextmsg) => format!("IdError: No such ID: {} ({})",id, contextmsg),
             StamError::Unbound(contextmsg) => format!("Unbound: Item is not bound yet, add it to a store first. ({})", contextmsg),
             StamError::AlreadyBound(contextmsg) => format!("AlreadyBound: Item is already bound. ({})", contextmsg),

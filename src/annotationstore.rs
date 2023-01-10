@@ -1,6 +1,7 @@
-use crate::resources::TextResource; 
-use crate::annotation::Annotation;
-use crate::annotationdataset::AnnotationDataSet;
+use crate::resources::{TextResource,TextResourcePointer}; 
+use crate::annotation::{Annotation,AnnotationPointer};
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
+use crate::annotationdata::AnnotationDataPointer;
 use crate::selector::Selector;
 
 use crate::types::*;
@@ -16,16 +17,16 @@ pub struct AnnotationStore {
     pub resources: Store<TextResource>,
 
     /// Links to annotations by ID.
-    pub(crate) annotation_idmap: IdMap,
+    pub(crate) annotation_idmap: IdMap<AnnotationPointer>,
     /// Links to resources by ID.
-    pub(crate) resource_idmap: IdMap,
+    pub(crate) resource_idmap: IdMap<TextResourcePointer>,
     /// Links to datasets by ID.
-    pub(crate) dataset_idmap: IdMap,
+    pub(crate) dataset_idmap: IdMap<AnnotationDataSetPointer>,
 
     //reverse indices:
 
     /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores IntIds.
-    dataset_data_annotation_map: TripleRelationMap,
+    dataset_data_annotation_map: TripleRelationMap<AnnotationDataSetPointer, AnnotationDataPointer, AnnotationPointer>,
 
 
     // Note there is no AnnotationDataSet => DataKey => Annotation map, that relationship
@@ -35,13 +36,13 @@ pub struct AnnotationStore {
     //resource_text_annotation_map: RelationMap<TextResource,TextSelection,Annotation>,
 
     /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
-    resource_annotation_map: RelationMap,
+    resource_annotation_map: RelationMap<TextResourcePointer,AnnotationPointer>,
 
     /// Reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
-    dataset_annotation_map: RelationMap,
+    dataset_annotation_map: RelationMap<AnnotationDataSetPointer,AnnotationPointer>,
 
     /// Reverse index for annotations that reference other annotations
-    annotation_annotation_map: RelationMap
+    annotation_annotation_map: RelationMap<AnnotationPointer,AnnotationPointer>
 }
 
 
@@ -57,11 +58,11 @@ impl StoreFor<TextResource> for AnnotationStore {
         &mut self.resources
     }
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_idmap(&self) -> Option<&IdMap> {
+    fn get_idmap(&self) -> Option<&IdMap<TextResourcePointer>> {
         Some(&self.resource_idmap)
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<TextResourcePointer>> {
         Some(&mut self.resource_idmap)
     }
     fn introspect_type(&self) -> &'static str {
@@ -77,38 +78,38 @@ impl StoreFor<Annotation> for AnnotationStore {
     fn get_mut_store(&mut self) -> &mut Store<Annotation> {
         &mut self.annotations
     }
-    fn get_idmap(&self) -> Option<&IdMap> {
+    fn get_idmap(&self) -> Option<&IdMap<AnnotationPointer>> {
         Some(&self.annotation_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<AnnotationPointer>> {
         Some(&mut self.annotation_idmap)
     }
     fn introspect_type(&self) -> &'static str {
         "Annotation in AnnotationStore"
     }
 
-    fn inserted(&mut self, intid: IntId) {
+    fn inserted(&mut self, pointer: AnnotationPointer) {
         // called after the item is inserted in the store
         // update the relation map
 
         // note: a normal self.get() doesn't cut it here because then all of self will be borrowed for 'a and we have problems with the mutable reference later
         //       now at least the borrow checker knows self.annotations is distinct
         //       the other option would be to dp annotation.clone(), at a slightly higher cost which we don't want here
-        let annotation: &Annotation = self.annotations.get(intid as usize).unwrap().as_ref().unwrap();
+        let annotation = self.annotations.get(pointer.unwrap()).unwrap().as_ref().unwrap();
 
         for (dataset, data) in annotation.iter_data() {
-            self.dataset_data_annotation_map.insert(*dataset,*data,intid);
+            self.dataset_data_annotation_map.insert(*dataset,*data,pointer);
         }
 
         match annotation.target {
             Selector::DataSetSelector(dataset_intid) => {
-                self.dataset_annotation_map.insert(dataset_intid, intid);
+                self.dataset_annotation_map.insert(dataset_intid, pointer);
             },
             Selector::ResourceSelector(res_intid) => {
-                self.resource_annotation_map.insert(res_intid, intid);
+                self.resource_annotation_map.insert(res_intid, pointer);
             },
-            Selector::AnnotationSelector { annotation: a_intid, .. } => {
-                self.annotation_annotation_map.insert(a_intid, a_intid);
+            Selector::AnnotationSelector( a_pointer, .. ) => {
+                self.annotation_annotation_map.insert(a_pointer, pointer);
             },
             _ => {
                 //TODO: implement
@@ -125,10 +126,10 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     fn get_mut_store(&mut self) -> &mut Store<AnnotationDataSet> {
         &mut self.datasets
     }
-    fn get_idmap(&self) -> Option<&IdMap> {
+    fn get_idmap(&self) -> Option<&IdMap<AnnotationDataSetPointer>> {
         Some(&self.dataset_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap> {
+    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<AnnotationDataSetPointer>> {
         Some(&mut self.dataset_idmap)
     }
     fn introspect_type(&self) -> &'static str {
@@ -171,16 +172,18 @@ impl AnnotationStore {
     }
 
     /// Shortcut method that calls add_resource under the hood and returns a reference to it
-    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<IntId,StamError> {
+    pub fn add_resource_from_file(&mut self, filename: &str) -> Result<TextResourcePointer,StamError> {
         let resource = TextResource::from_file(filename)?;
         self.insert(resource)
     }
 
+    /*
     /// Shortcut method to get annotations
-    pub fn get_annotation(&self, intid: IntId) -> Result<&Annotation,StamError> {
+    pub fn get_annotation(&self, intid: AnnotationPointer) -> Result<&Annotation,StamError> {
         self.annotations.get(intid as usize)
               .ok_or_else(|| StamError::IntIdError(intid, "get_annotation()"))
               .map(|x| x.as_ref().expect("item was deleted").as_ref())
     }
+    */
 }
     

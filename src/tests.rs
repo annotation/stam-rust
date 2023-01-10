@@ -9,6 +9,9 @@ use crate::annotationdataset::*;
 use crate::datakey::*;
 use crate::datavalue::*;
 
+use serde::Deserialize;
+use serde_json::Value;
+
 #[cfg(test)]
 
 #[test]
@@ -69,7 +72,7 @@ pub fn setup_example_2() -> Result<AnnotationStore,StamError> {
         .add( AnnotationDataSet::new().with_id("testdataset".into()))?
         .with_annotation( Annotation::builder()
                 .with_id("A1".into())
-                .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) })
+                .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(6,11) ))
                 .with_data_with_id("testdataset".into(),"pos".into(),"noun".into(),"D1".into())
         )?;
     Ok(store)
@@ -78,32 +81,6 @@ pub fn setup_example_2() -> Result<AnnotationStore,StamError> {
 #[test]
 fn instantiation_with_builder_pattern() -> Result<(),StamError> {
     setup_example_1()?;
-    Ok(())
-}
-
-#[test]
-fn store_get_by_intid() -> Result<(),StamError> {
-    let store = setup_example_1()?;
-
-    //test by internal ID
-    let _resource: &TextResource = store.get(0)?;
-    let dataset: &AnnotationDataSet = store.get(0)?;
-    let _datakey: &DataKey = dataset.get(0)?;
-    let _annotationdata: &AnnotationData = dataset.get(0)?;
-    let _annotation: &Annotation = store.get(0)?;
-    Ok(())
-}
-
-#[test]
-fn store_get_by_intid_2() -> Result<(),StamError> {
-    let store = setup_example_2()?;
-
-    //test by internal ID
-    let _resource: &TextResource = store.get(0)?;
-    let dataset: &AnnotationDataSet = store.get(0)?;
-    let _datakey: &DataKey = dataset.get(0)?;
-    let _annotationdata: &AnnotationData = dataset.get(0)?;
-    let _annotation: &Annotation = store.get(0)?;
     Ok(())
 }
 
@@ -202,11 +179,11 @@ fn text_selector() -> Result<(),StamError> {
 fn annotate() -> Result<(),StamError> {
     let mut store = setup_example_1()?;
     store.annotate( AnnotationBuilder::new()
-               .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(0,5) } )
+               .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(0,5) ) )
                .with_data("tokenset".into(),"word".into(), DataValue::Null)
              )?;
     store.annotate( AnnotationBuilder::new()
-               .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+               .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(6,11) ) )
                .with_data("tokenset".into(),"word".into(), DataValue::Null)
              )?;
     Ok(())
@@ -224,7 +201,7 @@ fn add_after_borrow() -> Result<(),StamError> {
     }
     assert_eq!(count,1);
     store.annotate( AnnotationBuilder::new()
-               .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+               .with_target( SelectorBuilder::TextSelector("testres".into(), Offset::simple(6,11) ) )
                .with_data("tokenset".into(),"word".into(), DataValue::Null)
              )?;
     Ok(())
@@ -237,10 +214,34 @@ fn add_during_borrowproblem() -> Result<(),StamError> {
     //                                 V---- here we clone the annotation to prevent a borrow problem (cannot borrow `store` as mutable because it is also borrowed as immutable (annotation)), this is relatively low-cost
     for (dataset, data) in annotation.clone().iter_data() {
         store.annotate( AnnotationBuilder::new()
-                   .with_target( SelectorBuilder::TextSelector { resource: "testres".into(), offset: Offset::simple(6,11) } )
+                   .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(6,11) ) )
                    .with_data_by_id(dataset.into(), data.into())
                  )?;
     }
     Ok(())
 }
 
+
+#[test]
+fn parse_json_datakey() {
+    let data = r#"{ 
+        "@type": "DataKey",
+        "@id": "pos"
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(data).unwrap();
+    let key: DataKey = serde_json::from_value(v).unwrap();
+    assert_eq!(key.get_id().unwrap(), "pos");
+}
+
+
+/*
+#[test]
+fn parse_json_anyid() {
+    let data = r#""test-id""#;
+
+    let v: serde_json::Value = serde_json::from_str(data).unwrap();
+    let id: AnyId = serde_json::from_value(v).unwrap();
+    assert_eq!(id.to_string().unwrap(), "test-id");
+}
+*/
