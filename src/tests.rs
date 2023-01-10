@@ -85,6 +85,16 @@ fn instantiation_with_builder_pattern() -> Result<(),StamError> {
 }
 
 #[test]
+fn store_get() -> Result<(),StamError> {
+    let store = setup_example_1()?;
+
+    //this is a bit too contrived
+    let pointer: AnnotationPointer = <AnnotationStore as StoreFor<Annotation>>::get_pointer(&store, "A1")?;
+    let annotation: &Annotation = store.get(pointer)?;
+    Ok(())
+}
+
+#[test]
 fn store_get_by_id() -> Result<(),StamError> {
     let store = setup_example_1()?;
 

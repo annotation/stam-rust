@@ -326,28 +326,14 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Get a reference to an item from the store by its global ID
     fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
-        if let Some(idmap) = self.get_idmap() {
-            if let Some(intid) = idmap.data.get(id) {
-                self.get(*intid)
-            } else {
-                Err(StamError::IdError(id.to_string(), self.introspect_type()))
-            }
-        } else {
-            Err(StamError::NoIdError(self.introspect_type()))
-        }
+        let pointer = self.get_pointer(id)?;
+        self.get(pointer)
     }
 
     /// Get a mutable reference to an item from the store by its global ID
     fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T,StamError> {
-        if let Some(idmap) = self.get_idmap() {
-            if let Some(intid) = idmap.data.get(id) {
-                self.get_mut(*intid)
-            } else {
-                Err(StamError::IdError(id.to_string(), self.introspect_type()))
-            }
-        } else {
-            Err(StamError::NoIdError(self.introspect_type()))
-        }
+        let pointer = self.get_pointer(id)?;
+        self.get_mut(pointer)
     }
 
     /// Get a reference to an item from the store by internal ID
@@ -365,6 +351,20 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
             Ok(item)
         } else {
             Err(StamError::IntIdError("Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
+        }
+    }
+
+    /// Resolves an ID to a pointer
+    /// You usually don't want to call this directly
+    fn get_pointer(&self, id: &str) -> Result<T::PointerType, StamError> {
+        if let Some(idmap) = self.get_idmap() {
+            if let Some(pointer) = idmap.data.get(id) {
+                Ok(*pointer)
+            } else {
+                Err(StamError::IdError(id.to_string(), self.introspect_type()))
+            }
+        } else {
+            Err(StamError::NoIdError(self.introspect_type()))
         }
     }
 
