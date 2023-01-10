@@ -75,6 +75,7 @@ pub struct AnnotationBuilder {
 
 #[derive(Deserialize,Debug)]
 #[serde(tag="Annotation")]
+#[serde(from="AnnotationDataJson")]
 pub struct AnnotationDataBuilder {
     id: AnyId<AnnotationDataPointer>,
     #[serde(rename="set")]
@@ -82,6 +83,7 @@ pub struct AnnotationDataBuilder {
     key: AnyId<DataKeyPointer>,
     value: DataValue,
 }
+
 
 enum WithAnnotationTarget {
     Unset,
@@ -308,6 +310,27 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
                 Some((datakey, annotationdata, dataset))
             },
             None => None
+        }
+    }
+}
+
+
+/// Helper structure for deserialisation
+#[derive(Deserialize)]
+pub struct AnnotationDataJson {
+    id: Option<String>,
+    dataset: Option<String>,
+    key: Option<String>,
+    value: DataValue,
+}
+
+impl From<AnnotationDataJson> for AnnotationDataBuilder { 
+    fn from(helper: AnnotationDataJson) -> Self {
+        Self {
+            id: helper.id.into(),
+            dataset: helper.dataset.into(),
+            key: helper.key.into(),
+            value: helper.value
         }
     }
 }

@@ -260,6 +260,23 @@ fn parse_json_datakey() {
     assert_eq!(key.get_id().unwrap(), "pos");
 }
 
+#[test]
+fn parse_json_data() -> Result<(), std::io::Error> {
+    let data = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "A2",
+        "key": "pos",
+        "value": {
+            "@type": "String",
+            "value": "verb"
+        }
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(data)?;
+    let data: AnnotationDataBuilder = serde_json::from_value(v)?;
+    Ok(())
+}
+
 
 /*
 #[test]
