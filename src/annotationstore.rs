@@ -177,6 +177,25 @@ impl AnnotationStore {
         self.insert(resource)
     }
 
+
+    /// Get an annotation pointer from an ID.
+    /// Shortcut wraps arround get_pointer()
+    pub fn resolve_annotation_id(&self, id: &str) -> Result<AnnotationPointer,StamError> {
+        <AnnotationStore as StoreFor<Annotation>>::resolve_id(&self, id)
+    }
+
+    /// Get an annotation dataset pointer from an ID.
+    /// Shortcut wraps arround get_pointer()
+    pub fn resolve_dataset_id(&self, id: &str) -> Result<AnnotationDataSetPointer,StamError> {
+        <AnnotationStore as StoreFor<AnnotationDataSet>>::resolve_id(&self, id)
+    }
+
+    /// Get an annotation dataset pointer from an ID.
+    /// Shortcut wraps arround get_pointer()
+    pub fn resolve_resource_id(&self, id: &str) -> Result<TextResourcePointer,StamError> {
+        <AnnotationStore as StoreFor<TextResource>>::resolve_id(&self, id)
+    }
+
     /*
     /// Shortcut method to get annotations
     pub fn get_annotation(&self, intid: AnnotationPointer) -> Result<&Annotation,StamError> {

@@ -326,13 +326,13 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Get a reference to an item from the store by its global ID
     fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
-        let pointer = self.get_pointer(id)?;
+        let pointer = self.resolve_id(id)?;
         self.get(pointer)
     }
 
     /// Get a mutable reference to an item from the store by its global ID
     fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T,StamError> {
-        let pointer = self.get_pointer(id)?;
+        let pointer = self.resolve_id(id)?;
         self.get_mut(pointer)
     }
 
@@ -356,7 +356,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Resolves an ID to a pointer
     /// You usually don't want to call this directly
-    fn get_pointer(&self, id: &str) -> Result<T::PointerType, StamError> {
+    fn resolve_id(&self, id: &str) -> Result<T::PointerType, StamError> {
         if let Some(idmap) = self.get_idmap() {
             if let Some(pointer) = idmap.data.get(id) {
                 Ok(*pointer)

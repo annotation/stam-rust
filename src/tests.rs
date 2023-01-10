@@ -85,12 +85,19 @@ fn instantiation_with_builder_pattern() -> Result<(),StamError> {
 }
 
 #[test]
-fn store_get() -> Result<(),StamError> {
+fn store_resolve_id() -> Result<(),StamError> {
     let store = setup_example_1()?;
 
     //this is a bit too contrived
-    let pointer: AnnotationPointer = <AnnotationStore as StoreFor<Annotation>>::get_pointer(&store, "A1")?;
-    let annotation: &Annotation = store.get(pointer)?;
+    let pointer: AnnotationPointer = <AnnotationStore as StoreFor<Annotation>>::resolve_id(&store, "A1")?;
+    let _annotation: &Annotation = store.get(pointer)?;
+
+    //This is the shortcut if you want an intermediate pointer
+    let pointer = store.resolve_annotation_id("A1")?;
+    let _annotation: &Annotation = store.get(pointer)?;
+
+    //this is the direct method without intermediate pointer (still used internally but no longer exposed)
+    let _annotation: &Annotation = store.get_by_id("A1")?;
     Ok(())
 }
 
@@ -117,6 +124,15 @@ fn store_get_by_id_2() -> Result<(),StamError> {
     let _datakey: &DataKey = dataset.get_by_id("pos")?;
     let _annotationdata: &AnnotationData = dataset.get_by_id("D1")?;
     let _annotation: &Annotation = store.get_by_id("A1")?;
+    Ok(())
+}
+
+#[test]
+fn store_get_by_anyid() -> Result<(),StamError> {
+    let store = setup_example_1()?;
+
+    let anyid: AnyId<AnnotationPointer> = "A1".into();
+    let _annotation: &Annotation = store.get_by_anyid_or_err(&anyid)?;
     Ok(())
 }
 
