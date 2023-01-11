@@ -445,3 +445,71 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
 
     Ok(())
 }
+
+#[test]
+fn parse_json_dataset() -> Result<(), std::io::Error> {
+    let json = r#"{ 
+        "@type": "AnnotationDataSet",
+        "@id": "https://purl.org/dc",
+        "keys": [
+            {
+              "@type": "DataKey",
+              "@id": "http://purl.org/dc/terms/creator"
+            },
+            {
+              "@type": "DataKey",
+              "@id": "http://purl.org/dc/terms/created"
+            },
+            {
+              "@type": "DataKey",
+              "@id": "http://purl.org/dc/terms/generator"
+            }
+        ],
+        "data": [
+            {
+                "@type": "AnnotationData",
+                "@id": "D1",
+                "key": "http://purl.org/dc/terms/creator",
+                "value": {
+                    "@type": "String",
+                    "value": "proycon"
+                }
+            }
+        ]
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(json)?;
+    let builder: AnnotationDataSetBuilder = serde_json::from_value(v)?;
+    let dataset: AnnotationDataSet = builder.try_into().expect("conversion to dataset");
+
+
+    let mut store = setup_example_2().unwrap();
+    let setpointer = store.insert(dataset).unwrap();
+
+    let dataset: &AnnotationDataSet = store.get(setpointer).unwrap();
+    assert_eq!(dataset.get_id(), Some("https://purl.org/dc"));
+
+    let mut count = 0;
+    let mut firstkeypointer: Option<DataKeyPointer> = None;
+    for key in dataset.iter_keys() {
+        count += 1;
+        if count == 1 {
+            assert_eq!(key.get_id(), Some("http://purl.org/dc/terms/creator"));
+            firstkeypointer = key.get_pointer();
+        }
+    }
+    assert_eq!(count,3);
+
+    count = 0;
+    for data in dataset.iter_data() {
+        //there should be only one so we can safely test in the loop body
+        count += 1;
+        assert_eq!(data.get_id(), Some("D1"));
+        assert_eq!(data.get_key_pointer(), firstkeypointer.unwrap()); //shortcut for the same as above
+        assert_eq!(data.get_value(), "proycon");
+    }
+    assert_eq!(count,1);
+
+    
+    Ok(())
+}

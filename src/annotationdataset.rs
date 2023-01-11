@@ -1,5 +1,6 @@
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer, SerializeStruct};
+use serde_with::serde_as;
 //use serde_json::Result;
 
 use crate::types::*;
@@ -13,12 +14,16 @@ use crate::error::StamError;
 /// It effectively defines a certain vocabulary, i.e. key/value pairs. 
 /// The `AnnotationDataSet` does not store the [`Annotation`] instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
+#[serde_as]
+#[derive(Deserialize)]
+#[serde(try_from="AnnotationDataSetBuilder")]
 pub struct AnnotationDataSet {
     /// Public Id
     id: Option<String>,
 
     /// A store for [`DataKey`]
     keys: Store<DataKey>,
+
     /// A store for [`AnnotationData`], each makes *reference* to a [`DataKey`] (in this same `AnnotationDataSet`) and gives it a value  ([`DataValue`])
     data: Store<AnnotationData>,
 
@@ -33,6 +38,37 @@ pub struct AnnotationDataSet {
 
     key_data_map: RelationMap<DataKeyPointer,AnnotationDataPointer>
 }
+
+
+#[serde_as]
+#[derive(Deserialize)]
+pub struct AnnotationDataSetBuilder {
+    #[serde(rename="@id")]
+    pub id: Option<String>,
+    pub keys: Vec<Option<Box<DataKey>>>,
+    pub data: Option<Vec<AnnotationDataBuilder>>,
+}
+
+impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
+    type Error = StamError;
+
+    fn try_from(other: AnnotationDataSetBuilder) -> Result<Self, StamError> {
+        let mut set = Self {
+            id: other.id,
+            keys: other.keys,
+            data: Vec::new(),
+            ..Default::default()
+        };
+        if other.data.is_some() {
+            for dataitem in other.data.unwrap() {
+                set.build_insert_data(dataitem, true)?;
+            }
+        }
+        Ok(set)
+    }
+}
+
+
 
 #[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct AnnotationDataSetPointer(u16);
@@ -229,5 +265,15 @@ impl AnnotationDataSet {
     /// Shortcut wraps arround get_pointer()
     pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyPointer,StamError> {
         <Self as StoreFor<DataKey>>::resolve_id(&self, id)
+    }
+
+    ///Iteratest over all the data ([`AnnotationData`]) in this set, returns references
+    pub fn iter_data(&self) -> StoreIter<AnnotationData> {
+        <Self as StoreFor<AnnotationData>>::iter(&self)
+    }
+
+    ///Iteratest over all the keys in this set, returns references
+    pub fn iter_keys(&self) -> StoreIter<DataKey> {
+        <Self as StoreFor<DataKey>>::iter(&self)
     }
 }

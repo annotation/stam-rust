@@ -105,7 +105,11 @@ impl AnnotationData {
 
     /// Return a reference to the DataKey used by this data
     pub fn get_key<'a>(&self, dataset: &'a AnnotationDataSet) -> Result<&'a DataKey,StamError> {
-        dataset.get(self.key)
+        dataset.get(self.get_key_pointer())
+    }
+
+    pub fn get_key_pointer(&self) -> DataKeyPointer {
+        self.key
     }
 
     /// Get the value of this annotationdata. The value will be a DataValue instance. This will return an immutable reference.
@@ -123,11 +127,11 @@ impl AnnotationData {
 #[serde(from="AnnotationDataJson")]
 pub struct AnnotationDataBuilder {
     #[serde(rename="@id")]
-    pub(crate) id: AnyId<AnnotationDataPointer>,
+    pub id: AnyId<AnnotationDataPointer>,
     #[serde(rename="set")]
-    pub(crate) dataset: AnyId<AnnotationDataSetPointer>,
-    pub(crate) key: AnyId<DataKeyPointer>,
-    pub(crate) value: DataValue,
+    pub dataset: AnyId<AnnotationDataSetPointer>,
+    pub key: AnyId<DataKeyPointer>,
+    pub value: DataValue,
 }
 
 impl Default for AnnotationDataBuilder {
