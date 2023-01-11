@@ -4,6 +4,7 @@ use std::fmt;
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer, SerializeStruct};
 use serde::de::Deserializer;
+use serde_with::serde_as;
 
 use crate::types::*;
 use crate::error::*;
@@ -65,13 +66,13 @@ impl MutableStorable for Annotation {
 
 /// This is the build recipe for `Annotation`. It contains public IDs or pointers that will be resolved
 /// when the actual Annotation is built. The building is done by passing this to [`AnnotationStore::annotate()`].
+#[serde_as]
 #[derive(Deserialize,Debug)]
 #[serde(tag="Annotation")]
 #[serde(from="AnnotationJson")]
 pub struct AnnotationBuilder {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     id: AnyId<AnnotationPointer>,
-    //#[serde(deserialize_with = "deserialize_json_annotation_data")]
     data: Vec<AnnotationDataBuilder>,
     target: WithAnnotationTarget,
 }
@@ -82,6 +83,18 @@ enum WithAnnotationTarget {
     Unset,
     FromSelector(Selector),
     FromSelectorBuilder(SelectorBuilder),
+}
+
+impl From<Selector> for WithAnnotationTarget {
+    fn from(other: Selector) -> Self {
+        Self::FromSelector(other)
+    }
+}
+
+impl From<SelectorBuilder> for WithAnnotationTarget {
+    fn from(other: SelectorBuilder) -> Self {
+        Self::FromSelectorBuilder(other.into())
+    }
 }
 
 impl Default for AnnotationBuilder {
@@ -303,10 +316,12 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
 }
 
 /// Helper structure for deserialisation
+#[serde_as]
 #[derive(Deserialize)]
 struct AnnotationJson {
     #[serde(rename="@id")]
     id: Option<String>,
+    #[serde_as(as = "serde_with::OneOrMany<_>")]
     data: Vec<AnnotationDataBuilder>,
     target: SelectorBuilder
 }
@@ -320,30 +335,3 @@ impl From<AnnotationJson> for AnnotationBuilder {
         }
     }
 }
-
-//TODO: implement
-/*
-fn deserialize_json_annotation_data<'de, D>(deserializer: D) -> Result<AnnotationDataBuilder, D::Error>
-where
-	D: serde::de::Deserializer<'de>,
-{
-    struct JsonStringVisitor;
-    
-    impl<'de> serde::de::Visitor<'de> for JsonStringVisitor {
-        type Value = AnnotationDataBuilder;
-    
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string containing json data")
-        }
-    
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            serde_json::from_str(v).map_err(E::custom)
-        }
-    }
-    
-    deserializer.deserialize_any(JsonStringVisitor)
-}
-*/

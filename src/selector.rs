@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use serde_with::serde_as;
 
 use crate::types::*;
 use crate::error::*;
@@ -9,6 +10,7 @@ use crate::annotationstore::AnnotationStore;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
+#[serde_as]
 #[derive(Debug,Clone,Deserialize,PartialEq)]
 pub struct Offset {
     pub begin: Cursor,
@@ -89,6 +91,7 @@ pub enum SelectorBuilder {
 }
 
 /// Helper structure for Json deserialisation, we need named fields for the serde tag macro to work
+#[serde_as]
 #[derive(Debug,Clone,Deserialize)]
 #[serde(tag="@type")]
 enum SelectorJson {
@@ -99,6 +102,21 @@ enum SelectorJson {
     MultiSelector(Vec<SelectorBuilder>),
     DirectionalSelector(Vec<SelectorBuilder>)
 }
+
+
+/*
+impl<'de, T> DeserializeAs<'de, Box<T>> for SelectorJson
+{
+    fn deserialize_as<D>(deserializer: D) -> Result<SelectorJson, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(SelectorJson Box::new(
+            DeserializeAsWrap::<T, U>::deserialize(deserializer)?.into_inner(),
+        ))
+    }
+}
+*/
 
 impl From<SelectorJson> for SelectorBuilder { 
     fn from(helper: SelectorJson) -> Self {
