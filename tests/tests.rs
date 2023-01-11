@@ -1,18 +1,7 @@
-#[cfg(test)]
-
 use std::io::prelude::*;
 use std::fs::File;
 
-use crate::types::*;
-use crate::error::*;
-use crate::resources::*;
-use crate::annotation::*;
-use crate::selector::*;
-use crate::annotationstore::*;
-use crate::annotationdata::*;
-use crate::annotationdataset::*;
-use crate::datakey::*;
-use crate::datavalue::*;
+use stam::*;
 
 use serde::Deserialize;
 use serde_json::Value;

@@ -188,7 +188,7 @@ pub trait Storable {
 //v -- this trait separate from the above because we don't want to expose it publicly.
 //     internal ID setting is an internal business.
 
-pub(crate) trait MutableStorable: Storable {
+pub trait MutableStorable: Storable {
     /// Set the internal ID. May only be called once (though currently not enforced).
     #[allow(unused_variables)]
     fn set_pointer(&mut self, pointer: <Self as Storable>::PointerType) {
@@ -220,7 +220,7 @@ pub(crate) trait MutableStorable: Storable {
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
-pub(crate) trait StoreFor<T: MutableStorable + Storable> {
+pub trait StoreFor<T: MutableStorable + Storable> {
     /// Get a reference to the entire store for the associated type
     fn store(&self) -> &Store<T>;
     /// Get a mutable reference to the entire store for the associated type

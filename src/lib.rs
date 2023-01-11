@@ -12,7 +12,7 @@ pub mod resources;
 pub mod selector;
 pub mod error;
 pub mod parser;
-pub mod tests;
+//pub mod tests;
 
 pub use types::*;
 pub use annotationstore::*;
