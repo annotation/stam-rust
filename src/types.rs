@@ -16,6 +16,7 @@ pub type Store<T> = Vec<Option<Box<T>>>;
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
 #[derive(Debug,Clone,Copy,Deserialize,PartialEq)]
+#[serde(tag="@type",content = "value")]
 pub enum Cursor {
     /// Cursor relative to the start of a text. Has a value of 0 or higher
     #[serde(rename="BeginAlignedCursor")]

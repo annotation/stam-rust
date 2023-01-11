@@ -78,6 +78,7 @@ pub enum Selector {
 ///
 /// There are multiple types of selectors, all captured in this enum.
 #[derive(Debug,Clone,Deserialize)]
+#[serde(from="SelectorJson")]
 pub enum SelectorBuilder {
     ResourceSelector(AnyId<TextResourcePointer>),
     AnnotationSelector( AnyId<AnnotationPointer>, Option<Offset> ),
@@ -85,6 +86,31 @@ pub enum SelectorBuilder {
     DataSetSelector(AnyId<AnnotationDataSetPointer>),
     MultiSelector(Vec<SelectorBuilder>),
     DirectionalSelector(Vec<SelectorBuilder>)
+}
+
+/// Helper structure for Json deserialisation, we need named fields for the serde tag macro to work
+#[derive(Debug,Clone,Deserialize)]
+#[serde(tag="@type")]
+enum SelectorJson {
+    ResourceSelector { resource: AnyId<TextResourcePointer> },
+    AnnotationSelector { annotation: AnyId<AnnotationPointer>, offset: Option<Offset> },
+    TextSelector { resource: AnyId<TextResourcePointer>, offset: Offset },
+    DataSetSelector { dataset: AnyId<AnnotationDataSetPointer> },
+    MultiSelector(Vec<SelectorBuilder>),
+    DirectionalSelector(Vec<SelectorBuilder>)
+}
+
+impl From<SelectorJson> for SelectorBuilder { 
+    fn from(helper: SelectorJson) -> Self {
+        match helper {
+            SelectorJson::ResourceSelector { resource: res } => Self::ResourceSelector(res),
+            SelectorJson::TextSelector { resource: res, offset: o } => Self::TextSelector(res, o),
+            SelectorJson::AnnotationSelector { annotation: a, offset: o } => Self::AnnotationSelector(a, o),
+            SelectorJson::DataSetSelector { dataset: s } => Self::DataSetSelector(s),
+            SelectorJson::MultiSelector(v) => Self::MultiSelector(v),
+            SelectorJson::DirectionalSelector(v) => Self::DirectionalSelector(v)
+        }
+    }
 }
 
 

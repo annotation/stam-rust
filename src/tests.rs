@@ -330,6 +330,39 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
     Ok(())
 }
 
+#[test]
+fn parse_json_cursor() -> Result<(), std::io::Error> {
+    let data = r#"{
+                "@type": "BeginAlignedCursor",
+                "value": 0
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(data)?;
+    let cursor: Cursor = serde_json::from_value(v)?;
+    assert_eq!( cursor, Cursor::BeginAligned(0) );
+    Ok(())
+}
+
+#[test]
+fn parse_json_offset() -> Result<(), std::io::Error> {
+    let data = r#"{
+        "begin": {
+            "@type": "BeginAlignedCursor",
+            "value": 0
+        },
+        "end": {
+            "@type": "BeginAlignedCursor",
+            "value": 5
+        }
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(data)?;
+    let offset: Offset = serde_json::from_value(v)?;
+    assert_eq!( offset, Offset::simple(0,5) );
+    Ok(())
+}
+
+#[test]
 fn parse_json_textselector() -> Result<(), std::io::Error> {
     let data = r#"{ 
         "@type": "TextSelector",
@@ -369,7 +402,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
                     "value": 0
                 },
                 "end": {
-                    "@type": "BeginEndAlignedCursor",
+                    "@type": "BeginAlignedCursor",
                     "value": 5
                 }
             }
@@ -389,15 +422,3 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
     let _data: AnnotationBuilder = serde_json::from_value(v)?;
     Ok(())
 }
-
-
-/*
-#[test]
-fn parse_json_anyid() {
-    let data = r#""test-id""#;
-
-    let v: serde_json::Value = serde_json::from_str(data).unwrap();
-    let id: AnyId = serde_json::from_value(v).unwrap();
-    assert_eq!(id.to_string().unwrap(), "test-id");
-}
-*/
