@@ -330,6 +330,31 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
     Ok(())
 }
 
+fn parse_json_textselector() -> Result<(), std::io::Error> {
+    let data = r#"{ 
+        "@type": "TextSelector",
+        "resource": "testres",
+        "offset": {
+            "begin": {
+                "@type": "BeginAlignedCursor",
+                "value": 0
+            },
+            "end": {
+                "@type": "BeginAlignedCursor",
+                "value": 5
+            }
+        }
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(data)?;
+    let builder: SelectorBuilder = serde_json::from_value(v)?;
+
+    let mut store = setup_example_2().unwrap();
+    let selector = store.selector(builder).unwrap(); 
+    assert_eq!( selector, Selector::TextSelector(store.resolve_resource_id("testres").unwrap(), Offset::simple(0,5)) );
+    Ok(())
+}
+
 #[test]
 fn parse_json_annotation() -> Result<(), std::io::Error> {
     let data = r#"{ 
@@ -344,12 +369,12 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
                     "value": 0
                 },
                 "end": {
-                    "@type": "EndAlignedCursor",
+                    "@type": "BeginEndAlignedCursor",
                     "value": 5
                 }
             }
         },
-        "data": {
+        "data": [{
             "@type": "AnnotationData",
             "key": "pos",
             "set": "testdataset",
@@ -357,11 +382,11 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
                 "@type": "String",
                 "value": "interjection"
             }
-        }
+        }]
     }"#;
 
     let v: serde_json::Value = serde_json::from_str(data)?;
-    let _data: AnnotationDataBuilder = serde_json::from_value(v)?;
+    let _data: AnnotationBuilder = serde_json::from_value(v)?;
     Ok(())
 }
 

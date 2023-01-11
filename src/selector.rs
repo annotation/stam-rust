@@ -9,7 +9,7 @@ use crate::annotationstore::AnnotationStore;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
-#[derive(Debug,Clone,Deserialize)]
+#[derive(Debug,Clone,Deserialize,PartialEq)]
 pub struct Offset {
     pub begin: Cursor,
     pub end: Cursor
@@ -52,7 +52,7 @@ impl Default for Offset {
 /// The selector can be applied to an annotationstore via [`AnnotationStore.select()`] and which will return actual references.
 ///
 /// You usually do not instantiate these directly but via [`SelectorBuilder`].
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,PartialEq)]
 pub enum Selector {
     /// Refers to a [`TextResource`] as a whole (as opposed to a text fragment inside it), as owned by an AnnotationStore.
     /// Annotations using this selector can be considered metadata of a text
