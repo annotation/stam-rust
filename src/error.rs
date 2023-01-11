@@ -1,5 +1,6 @@
 use crate::types::*;
 use std::fmt;
+use serde_json::error::Error;
 
 // ------------------------------ ERROR DEFINITIONS & IMPLEMENTATIONS -------------------------------------------------------------
 
@@ -41,6 +42,9 @@ pub enum StamError {
     /// This error indicates there was an Input/Output error. It wraps the deeper error that occured.
     IOError(std::io::Error,&'static str),
 
+    /// This error indicates there was an error during JSON parsing. It wraps the deeper error that occurred.
+    JsonError(serde_json::error::Error,&'static str),
+
     /// This error is raised when you ask a selector to do something it is not capable of because it is the wrong type of selector
     WrongSelectorType(&'static str),
 
@@ -72,6 +76,7 @@ impl From<&StamError> for String {
             StamError::NoIdError(contextmsg) => format!("NoIdError: Store does not map IDs. ({})", contextmsg),
             StamError::DuplicateIdError(id, contextmsg) => format!("DuplicatIdError: ID already exists: {} ({})",id, contextmsg),
             StamError::IOError(err, contextmsg) => format!("IOError: {} ({})",err,contextmsg),
+            StamError::JsonError(err, contextmsg) => format!("JsonError: Parsing failed: {} ({})",err,contextmsg),
             StamError::BuildError(err, contextmsg) => format!("BuildError: Error during build: {} ({})",err, contextmsg),
             StamError::StoreError(err, contextmsg) => format!("StoreError: Error during store: {} ({}) ",err, contextmsg),
             StamError::WrongSelectorType(contextmsg) => format!("WrongSelectorType: Selector is not of the right type here ({})", contextmsg),

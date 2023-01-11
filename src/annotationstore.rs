@@ -1,3 +1,6 @@
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::fs::File;
 use serde::{Serialize,Deserialize};
 use serde::ser::Serializer;
 use serde_with::serde_as;
@@ -206,19 +209,33 @@ impl Default for AnnotationStore {
 }
 
 impl AnnotationStore {
+    ///Creates a new empty annotation store
     pub fn new() -> Self {
         AnnotationStore::default()
     }
 
+    ///Builds a new annotation store from [`AnnotationStoreBuilder'].
     pub fn build_new(builder: AnnotationStoreBuilder) -> Result<Self,StamError> {
         let store: Self = builder.try_into()?;
         Ok(store)
     }
 
+    /// Loads an AnnotationStore from a STAM JSON file
+    pub fn from_file(filename: &str) -> Result<Self,StamError> {
+        let f = File::open(filename).map_err(|e| StamError::IOError(e, "Reading annotationstore from file, open failed"))?;
+        let reader = BufReader::new(f);
+        let builder: AnnotationStoreBuilder = serde_json::from_reader(reader).map_err(|e| StamError::JsonError(e, "Reading annotationstore from file"))?;
+        Self::build_new(builder)
+    }
+
+
+
+    /// Returns the ID of the annotation store (if any)
     pub fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
 
+    /// Sets the ID of the annotation store in a builder pattern
     pub fn with_id(mut self, id: String) ->  Self {
         self.id = Some(id);
         self

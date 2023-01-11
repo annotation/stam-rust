@@ -1,3 +1,6 @@
+use std::io::prelude::*;
+use std::fs::File;
+
 use crate::types::*;
 use crate::error::*;
 use crate::resources::*;
@@ -530,10 +533,7 @@ fn parse_json_dataset() -> Result<(), std::io::Error> {
     Ok(())
 }
 
-
-#[test]
-fn parse_json_annotationstore() -> Result<(), StamError> {
-    let json = r#"{ 
+const EXAMPLE_3: &'static str = r#"{ 
         "@type": "AnnotationStore",
         "datasets": {
             "@type": "AnnotationDataSet",
@@ -585,12 +585,8 @@ fn parse_json_annotationstore() -> Result<(), StamError> {
         }]
     }"#;
 
-    let v: serde_json::Value = serde_json::from_str(json).expect("Parsing json");
-    let builder: AnnotationStoreBuilder = serde_json::from_value(v).expect("Parsing json into struct");
-
-    let store = AnnotationStore::build_new(builder).expect("Building store");
-
-    //test by public ID
+fn example_3_common_tests(store: &AnnotationStore) -> Result<(),StamError> {
+    //repeat some common tests
     let _resource: &TextResource = store.get_by_id("testres")?;
     let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
 
@@ -609,4 +605,32 @@ fn parse_json_annotationstore() -> Result<(), StamError> {
         assert_eq!(data.get_id(), Some("D1"));
     }
     Ok(())
+}
+
+#[test]
+fn parse_json_annotationstore() -> Result<(), StamError> {
+    let v: serde_json::Value = serde_json::from_str(EXAMPLE_3).expect("Parsing json");
+    let builder: AnnotationStoreBuilder = serde_json::from_value(v).expect("Parsing json into struct");
+
+    let store = AnnotationStore::build_new(builder).expect("Building store");
+    example_3_common_tests(&store)?;
+
+    Ok(())
+}
+
+#[test]
+fn parse_json_annotationstore_from_file() -> Result<(), StamError> {
+    //write the test file
+    let mut f = File::create("/tmp/test.stam.json").expect("opening test file for writing");
+    write!(f, "{}", EXAMPLE_3).expect("writing test file");
+
+
+    //read the test file
+    let store = AnnotationStore::from_file("/tmp/test.stam.json")?;
+    example_3_common_tests(&store)?;
+
+    Ok(())
+
+
+
 }
