@@ -304,7 +304,8 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
 
 /// Helper structure for deserialisation
 #[derive(Deserialize)]
-pub(crate) struct AnnotationJson {
+struct AnnotationJson {
+    #[serde(rename="@id")]
     id: Option<String>,
     data: Vec<AnnotationDataBuilder>,
     target: SelectorBuilder

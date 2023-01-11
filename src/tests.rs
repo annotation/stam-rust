@@ -419,6 +419,25 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
     }"#;
 
     let v: serde_json::Value = serde_json::from_str(data)?;
-    let _data: AnnotationBuilder = serde_json::from_value(v)?;
+    let builder: AnnotationBuilder = serde_json::from_value(v)?;
+    let mut store = setup_example_2().unwrap();
+    let annotationpointer = store.annotate(builder).unwrap();
+    let annotation: &Annotation = store.get(annotationpointer).unwrap();
+    
+    assert_eq!(annotation.get_id(), Some("A2"));
+    let mut count = 0;
+    for (datakey, annotationdata, dataset) in store.iter_data(annotation) {
+        //there should be only one so we can safely test in the loop body
+        count += 1;
+        assert_eq!(datakey.get_id(), Some("pos"));
+        assert_eq!(datakey.as_str(), "pos"); //shortcut for the same as above
+        assert_eq!(datakey, "pos"); //shortcut for the same as above
+        assert_eq!(annotationdata.get_value(), &DataValue::String("interjection".to_string())); 
+        assert_eq!(annotationdata.get_value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
+        assert_eq!(annotationdata.get_id(), None); //No public ID was assigned
+        assert_eq!(dataset.get_id(), Some("testdataset"));
+    }
+    assert_eq!(count,1);
+
     Ok(())
 }

@@ -122,6 +122,7 @@ impl AnnotationData {
 #[serde(tag="AnnotationData")]
 #[serde(from="AnnotationDataJson")]
 pub struct AnnotationDataBuilder {
+    #[serde(rename="@id")]
     pub(crate) id: AnyId<AnnotationDataPointer>,
     #[serde(rename="set")]
     pub(crate) dataset: AnyId<AnnotationDataSetPointer>,
