@@ -57,9 +57,12 @@ pub struct AnnotationStore {
 pub struct AnnotationStoreBuilder {
     #[serde(rename="@id")]
     pub id: Option<String>,
+    #[serde_as(as = "serde_with::OneOrMany<_>")]
     pub datasets: Vec<AnnotationDataSetBuilder>,
-    pub annotations: Option<Vec<AnnotationBuilder>>,
-    pub resources: Option<Vec<TextResourceBuilder>>
+    #[serde_as(as = "serde_with::OneOrMany<_>")]
+    pub annotations: Vec<AnnotationBuilder>,
+    #[serde_as(as = "serde_with::OneOrMany<_>")]
+    pub resources: Vec<TextResourceBuilder>
 }
 
 impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
@@ -69,32 +72,20 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
         let mut store = Self {
             id: builder.id,
             datasets: Vec::with_capacity(builder.datasets.len()),
-            annotations: if builder.annotations.is_some() {
-                Vec::with_capacity(builder.annotations.as_ref().unwrap().len())
-            } else {
-                Vec::new()
-            },
-            resources: if builder.resources.is_some() {
-                Vec::with_capacity(builder.resources.as_ref().unwrap().len())
-            } else {
-                Vec::new()
-            },
+            annotations: Vec::with_capacity(builder.annotations.len()),
+            resources: Vec::with_capacity(builder.resources.len()),
             ..Default::default()
         };
         for dataset in builder.datasets {
             let dataset: AnnotationDataSet = dataset.try_into()?;
             store.insert(dataset)?;
         }
-        if builder.resources.is_some() {
-            for resource in builder.resources.unwrap() {
-                let resource: TextResource = resource.try_into()?;
-                store.insert(resource)?;
-            }
+        for resource in builder.resources {
+            let resource: TextResource = resource.try_into()?;
+            store.insert(resource)?;
         }
-        if builder.annotations.is_some() {
-            for annotation in builder.annotations.unwrap() {
-                store.annotate(annotation)?;
-            }
+        for annotation in builder.annotations {
+            store.annotate(annotation)?;
         }
         Ok(store)
     }
@@ -219,9 +210,15 @@ impl AnnotationStore {
         AnnotationStore::default()
     }
 
+    pub fn build_new(builder: AnnotationStoreBuilder) -> Result<Self,StamError> {
+        let store: Self = builder.try_into()?;
+        Ok(store)
+    }
+
     pub fn get_id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
+
     pub fn with_id(mut self, id: String) ->  Self {
         self.id = Some(id);
         self

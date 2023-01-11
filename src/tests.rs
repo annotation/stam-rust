@@ -529,3 +529,84 @@ fn parse_json_dataset() -> Result<(), std::io::Error> {
     
     Ok(())
 }
+
+
+#[test]
+fn parse_json_annotationstore() -> Result<(), StamError> {
+    let json = r#"{ 
+        "@type": "AnnotationStore",
+        "datasets": {
+            "@type": "AnnotationDataSet",
+            "@id": "testdataset",
+            "keys": [
+                {
+                  "@type": "DataKey",
+                  "@id": "pos"
+                }
+            ],
+            "data": [
+                {
+                    "@type": "AnnotationData",
+                    "@id": "D1",
+                    "key": "pos",
+                    "value": {
+                        "@type": "String",
+                        "value": "noun"
+                    }
+                }
+            ]
+        },
+        "resources": [{
+            "@id": "testres",
+            "text": "Hello world"
+        }],
+        "annotations": [{
+            "@type": "Annotation",
+            "@id": "A1",
+            "target": {
+                "@type": "TextSelector",
+                "resource": "testres",
+                "offset": {
+                    "begin": {
+                        "@type": "BeginAlignedCursor",
+                        "value": 6
+                    },
+                    "end": {
+                        "@type": "BeginAlignedCursor",
+                        "value": 11
+                    }
+                }
+            },
+            "data": [{
+                "@type": "AnnotationData",
+                "@id": "D1",
+                "set": "testdataset"
+            }]
+        }]
+    }"#;
+
+    let v: serde_json::Value = serde_json::from_str(json).expect("Parsing json");
+    let builder: AnnotationStoreBuilder = serde_json::from_value(v).expect("Parsing json into struct");
+
+    let store = AnnotationStore::build_new(builder).expect("Building store");
+
+    //test by public ID
+    let _resource: &TextResource = store.get_by_id("testres")?;
+    let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+
+
+    let _datakey: &DataKey = dataset.get_by_id("pos")?;
+    let _annotationdata: &AnnotationData = dataset.get_by_id("D1")?;
+    let _annotation: &Annotation = store.get_by_id("A1")?;
+
+    for key in dataset.iter_keys() {
+        //there is only one so we can test in loop body
+        assert_eq!(key.get_id(), Some("pos"));
+    }
+
+    for data in dataset.iter_data() {
+        //there is only one so we can test in loop body
+        assert_eq!(data.get_id(), Some("D1"));
+    }
+    Ok(())
+}
