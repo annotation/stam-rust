@@ -31,22 +31,26 @@ fn instantiation_naive() -> Result<(),StamError> {
 
 #[test]
 fn sanity_check() -> Result<(),StamError> {
+    // Instantiate the store
     let mut store = AnnotationStore::new().with_id("test".into());
 
-    let _res_intid = store.insert(
+    // Insert a text resource into the store
+    let _res_pointer = store.insert(
         TextResource::from_string("testres".into(),"Hello world".into())
     );
 
+    // Create a dataset with one key and insert it into the store
     let mut dataset = AnnotationDataSet::new().with_id("testdataset".into());
-    dataset.insert(DataKey::new("pos".into()))?;
+    dataset.insert(DataKey::new("pos".into()))?;  //returns a DataKeyPointer, not further used in this test
+    let dataset_pointer = store.insert(dataset)?;
 
-    let dataset_intid = store.insert(dataset)?;
+    //get by pointer (internal id)
+    let dataset: &AnnotationDataSet = store.get(dataset_pointer)?;
+    assert_eq!(dataset.get_id(), Some("testdataset"));
 
-    //get by intid
-    let _dataset: &AnnotationDataSet = store.get(dataset_intid)?;
-
-    //get by id
-    let _resource: &TextResource = store.get_by_id("testres")?;
+    //get by directly by id
+    let resource: &TextResource = store.get_by_id("testres")?;
+    assert_eq!(resource.get_id(), Some("testres"));
     Ok(())
 }
 
