@@ -94,13 +94,13 @@ impl DataKey {
         self.id.as_str()
     }
 
-    /// Returns a pointer to the dataset
-    pub fn dataset(&self) -> Option<AnnotationDataSetPointer> {
+    /// Returns a pointer to the [`AnnotationDataSet`]
+    pub fn annotationset(&self) -> Option<AnnotationDataSetPointer> {
         self.part_of_set
     }
 
     /// Shortcut to return a reference to the dataset
-    pub fn dataset_as_ref<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
+    pub fn annotationset_as_ref<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
         if let Some(part_of_set) = self.part_of_set {
            annotationstore.get(part_of_set).ok()
         } else {

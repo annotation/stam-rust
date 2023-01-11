@@ -130,7 +130,7 @@ pub struct AnnotationDataBuilder {
     #[serde(rename="@id")]
     pub id: AnyId<AnnotationDataPointer>,
     #[serde(rename="set")]
-    pub dataset: AnyId<AnnotationDataSetPointer>,
+    pub annotationset: AnyId<AnnotationDataSetPointer>,
     pub key: AnyId<DataKeyPointer>,
     pub value: DataValue,
 }
@@ -139,7 +139,7 @@ impl Default for AnnotationDataBuilder {
     fn default() -> Self {
         Self {
             id: AnyId::None,
-            dataset: AnyId::None,
+            annotationset: AnyId::None,
             key: AnyId::None,
             value: DataValue::Null,
         }
@@ -160,7 +160,7 @@ impl From<AnnotationDataJson> for AnnotationDataBuilder {
     fn from(helper: AnnotationDataJson) -> Self {
         Self {
             id: helper.id.into(),
-            dataset: helper.set.into(),
+            annotationset: helper.set.into(),
             key: helper.key.into(),
             value: helper.value.unwrap_or(DataValue::Null),
         }

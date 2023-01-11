@@ -12,9 +12,9 @@ fn instantiation_naive() -> Result<(),StamError> {
         TextResource::from_string("testres".into(),"Hello world".into())
     );
 
-    let mut dataset = AnnotationDataSet::new().with_id("testdataset".into());
-    dataset.insert(DataKey::new("pos".into()))?;
-    store.insert(dataset)?;
+    let mut annotationset = AnnotationDataSet::new().with_id("testdataset".into());
+    annotationset.insert(DataKey::new("pos".into()))?;
+    store.insert(annotationset)?;
 
     Ok(())
 }
@@ -30,13 +30,13 @@ fn sanity_check() -> Result<(),StamError> {
     );
 
     // Create a dataset with one key and insert it into the store
-    let mut dataset = AnnotationDataSet::new().with_id("testdataset".into());
-    dataset.insert(DataKey::new("pos".into()))?;  //returns a DataKeyPointer, not further used in this test
-    let dataset_pointer = store.insert(dataset)?;
+    let mut annotationset = AnnotationDataSet::new().with_id("testdataset".into());
+    annotationset.insert(DataKey::new("pos".into()))?;  //returns a DataKeyPointer, not further used in this test
+    let set_pointer = store.insert(annotationset)?;
 
     //get by pointer (internal id)
-    let dataset: &AnnotationDataSet = store.get(dataset_pointer)?;
-    assert_eq!(dataset.id(), Some("testdataset"));
+    let annotationset: &AnnotationDataSet = store.get(set_pointer)?;
+    assert_eq!(annotationset.id(), Some("testdataset"));
 
     //get by directly by id
     let resource: &TextResource = store.get_by_id("testres")?;
@@ -101,9 +101,9 @@ fn store_get_by_id() -> Result<(),StamError> {
 
     //test by public ID
     let _resource: &TextResource = store.get_by_id("testres")?;
-    let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
-    let _datakey: &DataKey = dataset.get_by_id("pos")?;
-    let _annotationdata: &AnnotationData = dataset.get_by_id("D1")?;
+    let annotationset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+    let _datakey: &DataKey = annotationset.get_by_id("pos")?;
+    let _annotationdata: &AnnotationData = annotationset.get_by_id("D1")?;
     let _annotation: &Annotation = store.get_by_id("A1")?;
     Ok(())
 }
@@ -114,9 +114,9 @@ fn store_get_by_id_2() -> Result<(),StamError> {
 
     //test by public ID
     let _resource: &TextResource = store.get_by_id("testres")?;
-    let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
-    let _datakey: &DataKey = dataset.get_by_id("pos")?;
-    let _annotationdata: &AnnotationData = dataset.get_by_id("D1")?;
+    let annotationset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+    let _datakey: &DataKey = annotationset.get_by_id("pos")?;
+    let _annotationdata: &AnnotationData = annotationset.get_by_id("D1")?;
     let _annotation: &Annotation = store.get_by_id("A1")?;
     Ok(())
 }
@@ -136,7 +136,7 @@ fn store_iter_data() -> Result<(),StamError> {
     let annotation: &Annotation = store.get_by_id("A1")?;
 
     let mut count = 0;
-    for (datakey, annotationdata, dataset) in store.iter_data(annotation) {
+    for (datakey, annotationdata, annotationset) in store.iter_data(annotation) {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(datakey.id(), Some("pos"));
@@ -145,7 +145,7 @@ fn store_iter_data() -> Result<(),StamError> {
         assert_eq!(annotationdata.value(), &DataValue::String("noun".to_string())); 
         assert_eq!(annotationdata.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
         assert_eq!(annotationdata.id(), Some("D1"));
-        assert_eq!(dataset.id(), Some("testdataset"));
+        assert_eq!(annotationset.id(), Some("testdataset"));
     }
     assert_eq!(count,1);
     
@@ -319,8 +319,8 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 
     assert_eq!(data.id, AnyId::Id("D1".into()));
     assert_eq!(data.id, "D1"); //can also be compared with &str etc
-    assert_eq!(data.dataset, AnyId::Id("testdataset".into()));
-    assert_eq!(data.dataset, "testdataset");
+    assert_eq!(data.annotationset, AnyId::Id("testdataset".into()));
+    assert_eq!(data.annotationset, "testdataset");
 
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
@@ -453,7 +453,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
 }
 
 #[test]
-fn parse_json_dataset() -> Result<(), std::io::Error> {
+fn parse_json_annotationset() -> Result<(), std::io::Error> {
     let json = r#"{ 
         "@type": "AnnotationDataSet",
         "@id": "https://purl.org/dc",
@@ -486,18 +486,18 @@ fn parse_json_dataset() -> Result<(), std::io::Error> {
 
     let v: serde_json::Value = serde_json::from_str(json)?;
     let builder: AnnotationDataSetBuilder = serde_json::from_value(v)?;
-    let dataset: AnnotationDataSet = builder.try_into().expect("conversion to dataset");
+    let annotationset: AnnotationDataSet = builder.try_into().expect("conversion to dataset");
 
 
     let mut store = setup_example_2().unwrap();
-    let setpointer = store.insert(dataset).unwrap();
+    let setpointer = store.insert(annotationset).unwrap();
 
-    let dataset: &AnnotationDataSet = store.get(setpointer).unwrap();
-    assert_eq!(dataset.id(), Some("https://purl.org/dc"));
+    let annotationset: &AnnotationDataSet = store.get(setpointer).unwrap();
+    assert_eq!(annotationset.id(), Some("https://purl.org/dc"));
 
     let mut count = 0;
     let mut firstkeypointer: Option<DataKeyPointer> = None;
-    for key in dataset.iter_keys() {
+    for key in annotationset.iter_keys() {
         count += 1;
         if count == 1 {
             assert_eq!(key.id(), Some("http://purl.org/dc/terms/creator"));
@@ -507,7 +507,7 @@ fn parse_json_dataset() -> Result<(), std::io::Error> {
     assert_eq!(count,3);
 
     count = 0;
-    for data in dataset.iter_data() {
+    for data in annotationset.iter_data() {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(data.id(), Some("D1"));
@@ -522,7 +522,7 @@ fn parse_json_dataset() -> Result<(), std::io::Error> {
 
 const EXAMPLE_3: &'static str = r#"{ 
         "@type": "AnnotationStore",
-        "datasets": {
+        "annotationsets": {
             "@type": "AnnotationDataSet",
             "@id": "testdataset",
             "keys": [
@@ -575,19 +575,19 @@ const EXAMPLE_3: &'static str = r#"{
 fn example_3_common_tests(store: &AnnotationStore) -> Result<(),StamError> {
     //repeat some common tests
     let _resource: &TextResource = store.get_by_id("testres")?;
-    let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+    let annotationset: &AnnotationDataSet = store.get_by_id("testdataset")?;
 
 
-    let _datakey: &DataKey = dataset.get_by_id("pos")?;
-    let _annotationdata: &AnnotationData = dataset.get_by_id("D1")?;
+    let _datakey: &DataKey = annotationset.get_by_id("pos")?;
+    let _annotationdata: &AnnotationData = annotationset.get_by_id("D1")?;
     let _annotation: &Annotation = store.get_by_id("A1")?;
 
-    for key in dataset.iter_keys() {
+    for key in annotationset.iter_keys() {
         //there is only one so we can test in loop body
         assert_eq!(key.id(), Some("pos"));
     }
 
-    for data in dataset.iter_data() {
+    for data in annotationset.iter_data() {
         //there is only one so we can test in loop body
         assert_eq!(data.id(), Some("D1"));
     }

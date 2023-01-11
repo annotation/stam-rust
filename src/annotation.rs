@@ -148,10 +148,10 @@ impl AnnotationBuilder {
     /// You may use this (and similar methods) multiple times. 
     /// Do note that multiple data associated with the same annotation is considered *inter-dependent*,
     /// use multiple annotations instead if each it interpretable independent of the others.
-    pub fn with_data(self, dataset: AnyId<AnnotationDataSetPointer>, key: AnyId<DataKeyPointer>, value: DataValue) -> Self {
+    pub fn with_data(self, annotationset: AnyId<AnnotationDataSetPointer>, key: AnyId<DataKeyPointer>, value: DataValue) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
-                dataset,
+                annotationset,
                 key,
                 value,
                 ..Default::default()
@@ -164,7 +164,7 @@ impl AnnotationBuilder {
         self.with_data_builder(
             AnnotationDataBuilder {
                 id,
-                dataset,
+                annotationset: dataset,
                 key,
                 value,
                 ..Default::default()
@@ -178,7 +178,7 @@ impl AnnotationBuilder {
         self.with_data_builder(
             AnnotationDataBuilder {
                 id,
-                dataset,
+                annotationset: dataset,
                 ..Default::default()
             }
         )
@@ -216,11 +216,11 @@ impl<'a> AnnotationStore {
     /// Builds an inserts an AnnotationData item
     pub fn insert_data(&mut self, dataitem: AnnotationDataBuilder) -> Result<(AnnotationDataSetPointer, AnnotationDataPointer),StamError> {
         // Obtain the dataset for this data item
-        let dataset: &mut AnnotationDataSet = if let Some(dataset) = self.get_mut_by_anyid(&dataitem.dataset) {
+        let dataset: &mut AnnotationDataSet = if let Some(dataset) = self.get_mut_by_anyid(&dataitem.annotationset) {
             dataset
         } else {
             // this data referenced a dataset that does not exist yet, create it
-            let dataset_id: String = if let AnyId::Id(dataset_id) = dataitem.dataset {
+            let dataset_id: String = if let AnyId::Id(dataset_id) = dataitem.annotationset {
                 dataset_id.into()
             } else {
                 // if no dataset was specified at all, we create one named 'default'
@@ -294,7 +294,7 @@ impl<'a> Annotation {
         AnnotationBuilder::default()
     }
 
-    /// Iterate over the annotation data, returns tuples of internal IDs for (dataset,annotationdata)
+    /// Iterate over the annotation data, returns tuples of internal IDs for (annotationset,annotationdata)
     pub fn iter_data(&'a self) -> Iter<'a,(AnnotationDataSetPointer,AnnotationDataPointer)>  {
         self.data.iter()
     }
@@ -326,11 +326,11 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.iter.next() {
-            Some((dataset_intid, annotationdata_intid)) => {
-                let dataset: &AnnotationDataSet = self.store.get(*dataset_intid).expect("Getting dataset for annotation");
-                let annotationdata: &AnnotationData = dataset.get(*annotationdata_intid).expect("Getting annotationdata for annotation");
-                let datakey = annotationdata.key_as_ref(dataset).expect("Getting datakey for annotation");
-                Some((datakey, annotationdata, dataset))
+            Some((annotationset_pointer, annotationdata_intid)) => {
+                let annotationset: &AnnotationDataSet = self.store.get(*annotationset_pointer).expect("Getting dataset for annotation");
+                let annotationdata: &AnnotationData = annotationset.get(*annotationdata_intid).expect("Getting annotationdata for annotation");
+                let datakey = annotationdata.key_as_ref(annotationset).expect("Getting datakey for annotation");
+                Some((datakey, annotationdata, annotationset))
             },
             None => None
         }

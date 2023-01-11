@@ -23,7 +23,7 @@ use crate::error::*;
 pub struct AnnotationStore {
     id: Option<String>,
     pub(crate) annotations: Store<Annotation>,
-    pub(crate) datasets: Store<AnnotationDataSet>,
+    pub(crate) annotationsets: Store<AnnotationDataSet>,
     pub(crate) resources: Store<TextResource>,
 
     /// Links to annotations by ID.
@@ -61,7 +61,7 @@ pub struct AnnotationStoreBuilder {
     #[serde(rename="@id")]
     pub id: Option<String>,
     #[serde_as(as = "serde_with::OneOrMany<_>")]
-    pub datasets: Vec<AnnotationDataSetBuilder>,
+    pub annotationsets: Vec<AnnotationDataSetBuilder>,
     #[serde_as(as = "serde_with::OneOrMany<_>")]
     pub annotations: Vec<AnnotationBuilder>,
     #[serde_as(as = "serde_with::OneOrMany<_>")]
@@ -74,12 +74,12 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
     fn try_from(builder: AnnotationStoreBuilder) -> Result<Self, StamError> {
         let mut store = Self {
             id: builder.id,
-            datasets: Vec::with_capacity(builder.datasets.len()),
+            annotationsets: Vec::with_capacity(builder.annotationsets.len()),
             annotations: Vec::with_capacity(builder.annotations.len()),
             resources: Vec::with_capacity(builder.resources.len()),
             ..Default::default()
         };
-        for dataset in builder.datasets {
+        for dataset in builder.annotationsets {
             let dataset: AnnotationDataSet = dataset.try_into()?;
             store.insert(dataset)?;
         }
@@ -171,10 +171,10 @@ impl StoreFor<Annotation> for AnnotationStore {
 //An AnnotationStore is a StoreFor AnnotationDataSet
 impl StoreFor<AnnotationDataSet> for AnnotationStore {
     fn store(&self) -> &Store<AnnotationDataSet> {
-        &self.datasets
+        &self.annotationsets
     }
     fn store_mut(&mut self) -> &mut Store<AnnotationDataSet> {
-        &mut self.datasets
+        &mut self.annotationsets
     }
     fn idmap(&self) -> Option<&IdMap<AnnotationDataSetPointer>> {
         Some(&self.dataset_idmap)
@@ -195,7 +195,7 @@ impl Default for AnnotationStore {
         AnnotationStore {
             id: None,
             annotations: Vec::new(),
-            datasets: Vec::new(),
+            annotationsets: Vec::new(),
             resources: Vec::new(),
             annotation_idmap: IdMap::new("A".to_string()),
             resource_idmap: IdMap::new("R".to_string()),
