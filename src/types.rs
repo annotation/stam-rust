@@ -253,7 +253,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
         //insert a mapping from the public ID to the numeric ID in the idmap
         if let Some(id) = item.get_id() {
             //check if public ID does not already exist
-            if self.get_by_id(id).is_ok() {
+            if self.resolve_id(id).is_ok() {
                 return Err(StamError::DuplicateIdError(id.to_string(), self.introspect_type()));
             }
 
