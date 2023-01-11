@@ -253,7 +253,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
         //insert a mapping from the public ID to the numeric ID in the idmap
         if let Some(id) = item.get_id() {
             //check if public ID does not already exist
-            if self.resolve_id(id).is_ok() {
+            if self.has_id(id) {
                 return Err(StamError::DuplicateIdError(id.to_string(), self.introspect_type()));
             }
 
@@ -294,7 +294,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
         if let (Some(intid), Some(true)) = (item.get_pointer(), self.owns(item)) {
             self.has(intid)
         } else if let Some(id) = item.get_id() {
-            self.has_by_id(id)
+            self.has_id(id)
         } else {
             false
         }
@@ -321,7 +321,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     }
 
     /// Returns true if the store has the item with the specified global id
-    fn has_by_id(&self, id: &str) -> bool {
+    fn has_id(&self, id: &str) -> bool {
         if let Some(idmap) = self.get_idmap() {
             idmap.data.contains_key(id)
         } else {
