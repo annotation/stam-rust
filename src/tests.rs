@@ -1,3 +1,5 @@
+#[cfg(test)]
+
 use std::io::prelude::*;
 use std::fs::File;
 
@@ -15,7 +17,6 @@ use crate::datavalue::*;
 use serde::Deserialize;
 use serde_json::Value;
 
-#[cfg(test)]
 
 #[test]
 fn instantiation_naive() -> Result<(),StamError> {
@@ -356,8 +357,8 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 #[test]
 fn parse_json_cursor() -> Result<(), std::io::Error> {
     let data = r#"{
-                "@type": "BeginAlignedCursor",
-                "value": 0
+        "@type": "BeginAlignedCursor",
+        "value": 0
     }"#;
 
     let v: serde_json::Value = serde_json::from_str(data)?;
@@ -630,7 +631,4 @@ fn parse_json_annotationstore_from_file() -> Result<(), StamError> {
     example_3_common_tests(&store)?;
 
     Ok(())
-
-
-
 }

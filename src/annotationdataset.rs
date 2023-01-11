@@ -1,3 +1,7 @@
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::fs::File;
+
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer, SerializeStruct};
 use serde_with::serde_as;
@@ -206,6 +210,21 @@ impl AnnotationDataSet {
         Self::default()
     }
 
+    ///Builds a new annotation store from [`AnnotationDataSetBuilder'].
+    pub fn build_new(builder: AnnotationDataSetBuilder) -> Result<Self,StamError> {
+        let store: Self = builder.try_into()?;
+        Ok(store)
+    }
+
+    /// Loads an AnnotationDataSet from a STAM JSON file
+    /// The file must contain a single object which has "@type": "AnnotationDataSet"
+    pub fn from_file(filename: &str) -> Result<Self,StamError> {
+        let f = File::open(filename).map_err(|e| StamError::IOError(e, "Reading AnnotationDataSet from file, open failed"))?;
+        let reader = BufReader::new(f);
+        let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader).map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
+        Self::build_new(builder)
+    }
+
     /// Adds new [`AnnotationData`] to the dataset, this should be
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
     pub fn with_data(mut self, id: AnyId<AnnotationDataPointer>, key: AnyId<DataKeyPointer>, value: DataValue) -> Result<Self, StamError> {
@@ -263,13 +282,13 @@ impl AnnotationDataSet {
     }
 
     /// Get an annotation pointer from an ID.
-    /// Shortcut wraps arround get_pointer()
+    /// Shortcut wraps around get_pointer()
     pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataPointer,StamError> {
         <Self as StoreFor<AnnotationData>>::resolve_id(&self, id)
     }
 
     /// Get an annotation pointer from an ID.
-    /// Shortcut wraps arround get_pointer()
+    /// Shortcut wraps around get_pointer()
     pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyPointer,StamError> {
         <Self as StoreFor<DataKey>>::resolve_id(&self, id)
     }

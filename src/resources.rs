@@ -1,3 +1,7 @@
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::fs::File;
+
 use serde::{Serialize,Deserialize};
 use serde::ser::Serializer;
 use serde_with::serde_as;
@@ -5,11 +9,6 @@ use serde_with::serde_as;
 use crate::types::*;
 use crate::selector::{Selector,Offset};
 use crate::error::StamError;
-
-use std::io::prelude::*;
-use std::fs::File;
-
-
 
 /// This holds the textual resource to be annotated. It holds the full text in memory.
 ///
@@ -108,13 +107,26 @@ impl TextResource {
         }
     }
 
+    ///Builds a new text resource from [`TextResourceBuilder'].
+    pub fn build_new(builder: TextResourceBuilder) -> Result<Self,StamError> {
+        let store: Self = builder.try_into()?;
+        Ok(store)
+    }
+
     /// Create a new TextResource from file, the text will be loaded into memory entirely
     pub fn from_file(filename: &str) -> Result<Self, StamError> {
-        Ok(Self {
-            id: filename.to_string(),
-            text: String::new(),
-            intid: None, //unbounded for now, will be assigned when added to a AnnotationStore
-        }.with_file(filename)?)
+        if filename.ends_with(".json") {
+            let f = File::open(filename).map_err(|e| StamError::IOError(e, "Reading text resource from STAM JSON file, open failed"))?;
+            let reader = BufReader::new(f);
+            let builder: TextResourceBuilder = serde_json::from_reader(reader).map_err(|e| StamError::JsonError(e, "Reading text resource from STAM JSON file"))?;
+            Self::build_new(builder)
+        } else {
+            Ok(Self {
+                id: filename.to_string(),
+                text: String::new(),
+                intid: None, //unbounded for now, will be assigned when added to a AnnotationStore
+            }.with_file(filename)?)
+        }
     }
 
     /// Loads a text for the TextResource from file, the text will be loaded into memory entirely

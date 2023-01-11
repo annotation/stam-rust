@@ -221,6 +221,7 @@ impl AnnotationStore {
     }
 
     /// Loads an AnnotationStore from a STAM JSON file
+    /// The file must contain a single object which has "@type": "AnnotationStore"
     pub fn from_file(filename: &str) -> Result<Self,StamError> {
         let f = File::open(filename).map_err(|e| StamError::IOError(e, "Reading annotationstore from file, open failed"))?;
         let reader = BufReader::new(f);
