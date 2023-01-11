@@ -189,6 +189,21 @@ impl AnnotationBuilder {
     }
 }
 
+impl Serialize for Annotation {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationData",2)?;
+        state.serialize_field("@type", "AnnotationData")?;
+        if let Some(id) = self.get_id() {
+            state.serialize_field("@id", id)?;
+        }
+        //TODO!
+        //state.serialize_field("target", &self.target)?;
+        //state.serialize_field("data", self.data)?;
+        state.end()
+    }
+}
+
 impl<'a> AnnotationStore {
     /// Builds and adds an annotation
     pub fn with_annotation(mut self, builder: AnnotationBuilder) -> Result<Self,StamError> {

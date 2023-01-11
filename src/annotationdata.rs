@@ -72,11 +72,12 @@ impl MutableStorable for AnnotationData {
 impl Serialize for AnnotationData {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
     where S: Serializer {
-        let mut state = serializer.serialize_struct("AnnotationData",1)?;
+        let mut state = serializer.serialize_struct("AnnotationData",2)?;
         state.serialize_field("@type", "AnnotationData")?;
         if let Some(id) = self.get_id() {
             state.serialize_field("@id", id)?;
         }
+        state.serialize_field("value", self.get_value())?;
         state.end()
     }
 }

@@ -7,8 +7,9 @@ use serde::ser::{Serializer, SerializeStruct};
 #[derive(Serialize,Deserialize,Debug,PartialEq)]
 #[serde(tag = "@type", content="value")]
 pub enum DataValue {
-    ///No value
+    /// No value
     Null,
+
     String(String),
     Bool(bool),
     Int(isize),
@@ -18,7 +19,7 @@ pub enum DataValue {
     /// Value is an unordered set
     //Set(HashSet<DataValue>),
 
-    //Value is an ordered list
+    /// Value is an ordered list
     List(Vec<DataValue>)
 }
 
