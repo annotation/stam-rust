@@ -210,7 +210,7 @@ impl ApplySelector<str> for TextResource {
                 if self.pointer() != Some(*resource_pointer) {
                     Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
                 } else {
-                    Ok(self.get_text_slice(offset)?)
+                    Ok(self.text_slice(offset)?)
                 }
             },
             _ => {

@@ -232,7 +232,7 @@ impl AnnotationStore {
 
 
     /// Returns the ID of the annotation store (if any)
-    pub fn get_id(&self) -> Option<&str> { 
+    pub fn id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
 
@@ -266,14 +266,4 @@ impl AnnotationStore {
     pub fn resolve_resource_id(&self, id: &str) -> Result<TextResourcePointer,StamError> {
         <AnnotationStore as StoreFor<TextResource>>::resolve_id(&self, id)
     }
-
-    /*
-    /// Shortcut method to get annotations
-    pub fn get_annotation(&self, intid: AnnotationPointer) -> Result<&Annotation,StamError> {
-        self.annotations.get(intid as usize)
-              .ok_or_else(|| StamError::IntIdError(intid, "get_annotation()"))
-              .map(|x| x.as_ref().expect("item was deleted").as_ref())
-    }
-    */
 }
-    

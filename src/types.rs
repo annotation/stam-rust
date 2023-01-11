@@ -345,7 +345,7 @@ pub trait StoreFor<T: MutableStorable + Storable> {
         if let Some(Some(item)) = self.store().get(pointer.unwrap()) {
             Ok(item)
         } else {
-            Err(StamError::IntIdError(self.introspect_type()))
+            Err(StamError::PointerError(self.introspect_type()))
         }
     }
 
@@ -354,7 +354,7 @@ pub trait StoreFor<T: MutableStorable + Storable> {
         if let Some(Some(item)) = self.store_mut().get_mut(pointer.unwrap()) {
             Ok(item)
         } else {
-            Err(StamError::IntIdError("Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
+            Err(StamError::PointerError("Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
         }
     }
 
@@ -542,7 +542,7 @@ impl<PointerType> AnyId<PointerType> where PointerType: Pointer {
     // raises an ID error
     pub fn error(&self, contextmsg: &'static str) -> StamError {
         match self {
-            Self::Pointer(pointer) => StamError::IntIdError(contextmsg),
+            Self::Pointer(pointer) => StamError::PointerError(contextmsg),
             Self::Id(id) => StamError::IdError(id.to_string(), contextmsg),
             Self::None => StamError::Unbound("Supplied AnyId is not bound to anything!")
         }

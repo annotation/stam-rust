@@ -3,9 +3,6 @@ use std::fs::File;
 
 use stam::*;
 
-use serde::Deserialize;
-use serde_json::Value;
-
 
 #[test]
 fn instantiation_naive() -> Result<(),StamError> {
@@ -159,7 +156,7 @@ fn store_iter_data() -> Result<(),StamError> {
 fn store_get_text() -> Result<(),StamError> {
     let store = setup_example_1()?;
     let resource: &TextResource = store.get_by_id("testres")?;
-    let text = resource.get_text();
+    let text = resource.text();
     assert_eq!(text,"Hello world");
     Ok(())
 }
@@ -168,21 +165,21 @@ fn store_get_text() -> Result<(),StamError> {
 fn store_get_text_slice() -> Result<(),StamError> {
     let store = setup_example_1()?;
     let resource: &TextResource = store.get_by_id("testres")?;
-    let text = resource.get_text_slice( &Offset::new(Cursor::BeginAligned(0),Cursor::BeginAligned(5)))?;
+    let text = resource.text_slice( &Offset::new(Cursor::BeginAligned(0),Cursor::BeginAligned(5)))?;
     assert_eq!(text,"Hello");
-    let text = resource.get_text_slice( &Offset::simple(0,5))?; //same as above, shorthand
+    let text = resource.text_slice( &Offset::simple(0,5))?; //same as above, shorthand
     assert_eq!(text,"Hello");
-    let text = resource.get_text_slice( &Offset::simple(6,11))?;
+    let text = resource.text_slice( &Offset::simple(6,11))?;
     assert_eq!(text,"world");
-    let text = resource.get_text_slice( &Offset::new(Cursor::EndAligned(-5),Cursor::EndAligned(0)))?;
+    let text = resource.text_slice( &Offset::new(Cursor::EndAligned(-5),Cursor::EndAligned(0)))?;
     assert_eq!(text,"world");
-    let text = resource.get_text_slice( &Offset::new(Cursor::EndAligned(-11),Cursor::EndAligned(0)))?;
+    let text = resource.text_slice( &Offset::new(Cursor::EndAligned(-11),Cursor::EndAligned(0)))?;
     assert_eq!(text,"Hello world");
-    let text = resource.get_text_slice( &Offset::new(Cursor::EndAligned(-11),Cursor::EndAligned(-6)))?;
+    let text = resource.text_slice( &Offset::new(Cursor::EndAligned(-11),Cursor::EndAligned(-6)))?;
     assert_eq!(text,"Hello");
     //these should produce an InvalidOffset error (begin >= end)
-    assert!( resource.get_text_slice( &Offset::simple(11,7)).is_err() );
-    assert!( resource.get_text_slice( &Offset::new(Cursor::EndAligned(-9),Cursor::EndAligned(-11))).is_err() );
+    assert!( resource.text_slice( &Offset::simple(11,7)).is_err() );
+    assert!( resource.text_slice( &Offset::new(Cursor::EndAligned(-9),Cursor::EndAligned(-11))).is_err() );
     Ok(())
 }
 
