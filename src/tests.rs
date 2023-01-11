@@ -219,6 +219,22 @@ fn annotate() -> Result<(),StamError> {
     Ok(())
 }
 
+#[test]
+fn annotate_existing_data() -> Result<(),StamError> {
+    let mut store = setup_example_2()?;
+    store.annotate( AnnotationBuilder::new()
+               .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(0,5) ) )
+               .with_data("testdataset".into(),"pos".into(), DataValue::String("noun".to_string()))  //this one already exists so should not be recreated but found and referenced intead
+             )?;
+
+    //check if the dataset still contains only one key
+    let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+    assert_eq!( dataset.iter_keys().count(), 1);
+    assert_eq!( dataset.iter_data().count(), 1);
+
+    Ok(())
+}
+
 
 
 #[test]
