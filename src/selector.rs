@@ -104,20 +104,6 @@ enum SelectorJson {
 }
 
 
-/*
-impl<'de, T> DeserializeAs<'de, Box<T>> for SelectorJson
-{
-    fn deserialize_as<D>(deserializer: D) -> Result<SelectorJson, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(SelectorJson Box::new(
-            DeserializeAsWrap::<T, U>::deserialize(deserializer)?.into_inner(),
-        ))
-    }
-}
-*/
-
 impl From<SelectorJson> for SelectorBuilder { 
     fn from(helper: SelectorJson) -> Self {
         match helper {

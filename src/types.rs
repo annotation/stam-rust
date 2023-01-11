@@ -7,8 +7,7 @@ use serde_with::serde_as;
 use std::hash::Hash;
 
 /// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
-pub type Store<T> = Vec<Option<Box<T>>>;
-//                             ^----- actual T is allocated on heap (i.e. the Vec itself will contain pointers)
+pub type Store<T> = Vec<Option<T>>;
 //                       ^------- may be None when an element gets deleted
 /// A cursor points to a specific point in a text. I
 /// Used to select offsets. Units are unicode codepoints (not bytes!)
@@ -266,7 +265,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
         }
 
         //add the resource
-        self.get_mut_store().push(Some(Box::new(item)));
+        self.get_mut_store().push(Some(item));
 
         self.inserted(pointer);
 
@@ -455,10 +454,10 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     }
 }
 
-//  generic iterator implementations, these take care of skipping over deleted items (None) and providing a cleaner output reference (no Boxes)
+//  generic iterator implementations, these take care of skipping over deleted items (None)
 
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
-pub struct StoreIter<'a, T>(Iter<'a, Option<Box<T>>>);
+pub struct StoreIter<'a, T>(Iter<'a, Option<T>>);
 
 
 impl<'a, T> Iterator for StoreIter<'a, T> {
@@ -473,7 +472,7 @@ impl<'a, T> Iterator for StoreIter<'a, T> {
     }
 }
 
-pub struct StoreIterMut<'a, T>(IterMut<'a, Option<Box<T>>>);
+pub struct StoreIterMut<'a, T>(IterMut<'a, Option<T>>);
 
 impl<'a, T> Iterator for StoreIterMut<'a, T> {
     type Item = &'a mut T;
