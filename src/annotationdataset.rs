@@ -45,7 +45,7 @@ pub struct AnnotationDataSet {
 pub struct AnnotationDataSetBuilder {
     #[serde(rename="@id")]
     pub id: Option<String>,
-    pub keys: Vec<Option<Box<DataKey>>>,
+    pub keys: Vec<DataKey>,
     pub data: Option<Vec<AnnotationDataBuilder>>,
 }
 
@@ -55,10 +55,17 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     fn try_from(other: AnnotationDataSetBuilder) -> Result<Self, StamError> {
         let mut set = Self {
             id: other.id,
-            keys: other.keys,
-            data: Vec::new(),
+            keys: Vec::with_capacity(other.keys.len()),
+            data: if other.data.is_some() {
+                Vec::with_capacity(other.data.as_ref().unwrap().len())
+            } else {
+                Vec::new()
+            },
             ..Default::default()
         };
+        for key in other.keys {
+            set.insert(key)?;
+        }
         if other.data.is_some() {
             for dataitem in other.data.unwrap() {
                 set.build_insert_data(dataitem, true)?;
