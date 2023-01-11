@@ -1,6 +1,10 @@
-use crate::resources::{TextResource,TextResourcePointer}; 
-use crate::annotation::{Annotation,AnnotationPointer};
-use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
+use serde::{Serialize,Deserialize};
+use serde::ser::Serializer;
+use serde_with::serde_as;
+
+use crate::resources::{TextResource,TextResourcePointer,TextResourceBuilder}; 
+use crate::annotation::{Annotation,AnnotationPointer,AnnotationBuilder};
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer,AnnotationDataSetBuilder};
 use crate::annotationdata::AnnotationDataPointer;
 use crate::selector::Selector;
 
@@ -10,11 +14,14 @@ use crate::error::*;
 /// An Annotation Store is an unordered collection of annotations, resources and
 /// annotation data sets. It can be seen as the *root* of the *graph model* and the glue
 /// that holds everything together. It is the entry point for any stam model.
+#[serde_as]
+#[derive(Deserialize)]
+#[serde(try_from="AnnotationStoreBuilder")]
 pub struct AnnotationStore {
     id: Option<String>,
-    pub annotations: Store<Annotation>,
-    pub datasets: Store<AnnotationDataSet>,
-    pub resources: Store<TextResource>,
+    pub(crate) annotations: Store<Annotation>,
+    pub(crate) datasets: Store<AnnotationDataSet>,
+    pub(crate) resources: Store<TextResource>,
 
     /// Links to annotations by ID.
     pub(crate) annotation_idmap: IdMap<AnnotationPointer>,
@@ -44,6 +51,55 @@ pub struct AnnotationStore {
     /// Reverse index for annotations that reference other annotations
     annotation_annotation_map: RelationMap<AnnotationPointer,AnnotationPointer>
 }
+
+#[serde_as]
+#[derive(Deserialize)]
+pub struct AnnotationStoreBuilder {
+    #[serde(rename="@id")]
+    pub id: Option<String>,
+    pub datasets: Vec<AnnotationDataSetBuilder>,
+    pub annotations: Option<Vec<AnnotationBuilder>>,
+    pub resources: Option<Vec<TextResourceBuilder>>
+}
+
+impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
+    type Error = StamError;
+
+    fn try_from(builder: AnnotationStoreBuilder) -> Result<Self, StamError> {
+        let mut store = Self {
+            id: builder.id,
+            datasets: Vec::with_capacity(builder.datasets.len()),
+            annotations: if builder.annotations.is_some() {
+                Vec::with_capacity(builder.annotations.as_ref().unwrap().len())
+            } else {
+                Vec::new()
+            },
+            resources: if builder.resources.is_some() {
+                Vec::with_capacity(builder.resources.as_ref().unwrap().len())
+            } else {
+                Vec::new()
+            },
+            ..Default::default()
+        };
+        for dataset in builder.datasets {
+            let dataset: AnnotationDataSet = dataset.try_into()?;
+            store.insert(dataset)?;
+        }
+        if builder.resources.is_some() {
+            for resource in builder.resources.unwrap() {
+                let resource: TextResource = resource.try_into()?;
+                store.insert(resource)?;
+            }
+        }
+        if builder.annotations.is_some() {
+            for annotation in builder.annotations.unwrap() {
+                store.annotate(annotation)?;
+            }
+        }
+        Ok(store)
+    }
+}
+
 
 
 

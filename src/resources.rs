@@ -1,3 +1,7 @@
+use serde::{Serialize,Deserialize};
+use serde::ser::Serializer;
+use serde_with::serde_as;
+
 use crate::types::*;
 use crate::selector::{Selector,Offset};
 use crate::error::StamError;
@@ -12,6 +16,9 @@ use std::fs::File;
 /// The text *SHOULD* be in
 /// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
 /// *MAY* be in another unicode normalization forms.
+#[serde_as]
+#[derive(Deserialize)]
+#[serde(try_from="TextResourceBuilder")]
 pub struct TextResource {
     /// Public identifier for the text resource (often the filename/URL)
     id: String,
@@ -22,6 +29,44 @@ pub struct TextResource {
     /// The internal numeric identifier for the resource (may only be None upon creation when not bound yet)
     intid: Option<TextResourcePointer>
 }
+
+#[serde_as]
+#[derive(Deserialize)]
+pub struct TextResourceBuilder {
+    /// Public identifier for the text resource (often the filename/URL)
+    #[serde(rename="@id")]
+    id: Option<String>,
+    text: Option<String>,
+    #[serde(rename="@include")]
+    include: Option<String>
+}
+
+impl TryFrom<TextResourceBuilder> for TextResource {
+    type Error = StamError;
+
+    fn try_from(builder: TextResourceBuilder) -> Result<Self, StamError> {
+        let mut text = Self {
+            intid: None,
+            id: if let Some(id) = builder.id {
+                id
+            } else if let Some(filename) = builder.include.as_ref() {
+                filename.clone()
+            } else {
+                return Err(StamError::NoIdError("Expected an ID for resource"))
+            },
+            text: if let Some(text) = builder.text {
+                text
+            } else {
+                String::new()
+            }
+        };
+        if let Some(filename) = builder.include.as_ref() {
+            text = text.with_file(filename)?;
+        }
+        Ok(text)
+    }
+}
+
 
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
@@ -52,26 +97,45 @@ impl MutableStorable for TextResource {
     }
 }
 
-
 impl TextResource {
+
+    /// Instantiates a new completely empty TextResource
+    pub fn new(id: String) -> Self {
+        Self {
+            id: id,
+            intid: None,
+            text: String::new(),
+        }
+    }
+
     /// Create a new TextResource from file, the text will be loaded into memory entirely
-    pub fn from_file(filename: &str) -> Result<Self,StamError> {
+    pub fn from_file(filename: &str) -> Result<Self, StamError> {
+        Ok(Self {
+            id: filename.to_string(),
+            text: String::new(),
+            intid: None, //unbounded for now, will be assigned when added to a AnnotationStore
+        }.with_file(filename)?)
+    }
+
+    /// Loads a text for the TextResource from file, the text will be loaded into memory entirely
+    pub fn with_file(mut self, filename: &str) -> Result<Self,StamError> {
         match File::open(filename) {
             Ok(mut f) => {
-                let mut text = String::new();
-                if let Err(err) = f.read_to_string(&mut text) {
+                if let Err(err) = f.read_to_string(&mut self.text) {
                     return Err(StamError::IOError(err,"TextResource::from_file"));
                 }
-                Ok(Self {
-                    id: filename.to_string(),
-                    text,
-                    intid: None, //unbounded for now, will be assigned when passing this via AnnotationStore.add_resource()
-                })
             },
             Err(err) => {
-                Err(StamError::IOError(err,"TextResource::from_file"))
+               return Err(StamError::IOError(err,"TextResource::from_file"));
             }
         }
+        Ok(self)
+    }
+
+    /// Sets the text of the TextResource from string, kept in memory entirely
+    pub fn with_string(mut self, text: String) -> Self {
+        self.text = text;
+        self
     }
 
     /// Create a new TextResource from string, kept in memory entirely
