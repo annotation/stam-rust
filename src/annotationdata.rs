@@ -49,11 +49,11 @@ impl Pointer for AnnotationDataPointer {
 impl Storable for AnnotationData {
     type PointerType = AnnotationDataPointer;
 
-    fn get_pointer(&self) -> Option<AnnotationDataPointer> { 
+    fn pointer(&self) -> Option<AnnotationDataPointer> { 
         self.intid
     }
 
-    fn get_id(&self) -> Option<&str> { 
+    fn id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
 
@@ -74,10 +74,10 @@ impl Serialize for AnnotationData {
     where S: Serializer {
         let mut state = serializer.serialize_struct("AnnotationData",2)?;
         state.serialize_field("@type", "AnnotationData")?;
-        if let Some(id) = self.get_id() {
+        if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
-        state.serialize_field("value", self.get_value())?;
+        state.serialize_field("value", self.value())?;
         state.end()
     }
 }
@@ -96,7 +96,7 @@ impl AnnotationData {
     }
 
     /// Return a reference to the AnnotationDataSet that holds this data (and its key) 
-    pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Result<&'a AnnotationDataSet,StamError> {
+    pub fn dataset_as_ref<'a>(&self, annotationstore: &'a AnnotationStore) -> Result<&'a AnnotationDataSet,StamError> {
         if let Some(part_of_set) = self.part_of_set {
            annotationstore.get(part_of_set)
         } else {
@@ -105,18 +105,18 @@ impl AnnotationData {
     }
 
     /// Return a reference to the DataKey used by this data
-    pub fn get_key<'a>(&self, dataset: &'a AnnotationDataSet) -> Result<&'a DataKey,StamError> {
-        dataset.get(self.get_key_pointer())
+    pub fn key_as_ref<'a>(&self, dataset: &'a AnnotationDataSet) -> Result<&'a DataKey,StamError> {
+        dataset.get(self.key())
     }
 
-    pub fn get_key_pointer(&self) -> DataKeyPointer {
+    pub fn key(&self) -> DataKeyPointer {
         self.key
     }
 
     /// Get the value of this annotationdata. The value will be a DataValue instance. This will return an immutable reference.
     /// Note that there is no mutable variant nor a set_value(), values can deliberately only be set once at instantiation. 
     /// Make a new AnnotationData if you want to change data.
-    pub fn get_value(&self) -> &DataValue {
+    pub fn value(&self) -> &DataValue {
         &self.value
     }
 }

@@ -50,11 +50,11 @@ fn sanity_check() -> Result<(),StamError> {
 
     //get by pointer (internal id)
     let dataset: &AnnotationDataSet = store.get(dataset_pointer)?;
-    assert_eq!(dataset.get_id(), Some("testdataset"));
+    assert_eq!(dataset.id(), Some("testdataset"));
 
     //get by directly by id
     let resource: &TextResource = store.get_by_id("testres")?;
-    assert_eq!(resource.get_id(), Some("testres"));
+    assert_eq!(resource.id(), Some("testres"));
     Ok(())
 }
 
@@ -153,13 +153,13 @@ fn store_iter_data() -> Result<(),StamError> {
     for (datakey, annotationdata, dataset) in store.iter_data(annotation) {
         //there should be only one so we can safely test in the loop body
         count += 1;
-        assert_eq!(datakey.get_id(), Some("pos"));
+        assert_eq!(datakey.id(), Some("pos"));
         assert_eq!(datakey.as_str(), "pos"); //shortcut for the same as above
         assert_eq!(datakey, "pos"); //shortcut for the same as above
-        assert_eq!(annotationdata.get_value(), &DataValue::String("noun".to_string())); 
-        assert_eq!(annotationdata.get_value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(annotationdata.get_id(), Some("D1"));
-        assert_eq!(dataset.get_id(), Some("testdataset"));
+        assert_eq!(annotationdata.value(), &DataValue::String("noun".to_string())); 
+        assert_eq!(annotationdata.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
+        assert_eq!(annotationdata.id(), Some("D1"));
+        assert_eq!(dataset.id(), Some("testdataset"));
     }
     assert_eq!(count,1);
     
@@ -201,10 +201,10 @@ fn store_get_text_slice() -> Result<(),StamError> {
 fn text_selector() -> Result<(),StamError> {
     let store = setup_example_1()?;
     let annotation: &Annotation = store.get_by_id("A1")?;
-    let resource: &TextResource = store.select(&annotation.target)?;
-    let text: &str = resource.select(&annotation.target)?;
+    let resource: &TextResource = store.select(&annotation.target())?;
+    let text: &str = resource.select(&annotation.target())?;
     assert_eq!(text,"world");
-    let text: &str = store.select(&annotation.target)?; //shortcut form of the two previous steps combined in one
+    let text: &str = store.select(&annotation.target())?; //shortcut form of the two previous steps combined in one
     assert_eq!(text,"world");
     Ok(())
 }
@@ -281,7 +281,7 @@ fn parse_json_datakey() {
 
     let v: serde_json::Value = serde_json::from_str(json).unwrap();
     let key: DataKey = serde_json::from_value(v).unwrap();
-    assert_eq!(key.get_id().unwrap(), "pos");
+    assert_eq!(key.id().unwrap(), "pos");
 }
 
 #[test]
@@ -312,10 +312,10 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
 
     let data: &AnnotationData = dataset.get(datapointer).unwrap();
 
-    assert_eq!(data.get_id(), Some("D2")); //can also be compared with &str etc
-    assert_eq!(data.get_key(&dataset).unwrap().get_id() , Some("pos"));
-    assert_eq!(data.get_value(), &DataValue::String("verb".into()));
-    assert_eq!(data.get_value(), "verb");  //shorter version
+    assert_eq!(data.id(), Some("D2")); //can also be compared with &str etc
+    assert_eq!(data.key_as_ref(&dataset).unwrap().id() , Some("pos"));
+    assert_eq!(data.value(), &DataValue::String("verb".into()));
+    assert_eq!(data.value(), "verb");  //shorter version
 
     Ok(())
 }
@@ -346,10 +346,10 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 
     let data: &AnnotationData = dataset.get(datapointer2).unwrap();
 
-    assert_eq!(data.get_id(), Some("D1")); //can also be compared with &str etc
-    assert_eq!(data.get_key(&dataset).unwrap().get_id() , Some("pos"));
-    assert_eq!(data.get_value(), &DataValue::String("noun".into()));
-    assert_eq!(data.get_value(), "noun");  //shorter version
+    assert_eq!(data.id(), Some("D1")); //can also be compared with &str etc
+    assert_eq!(data.key_as_ref(&dataset).unwrap().id() , Some("pos"));
+    assert_eq!(data.value(), &DataValue::String("noun".into()));
+    assert_eq!(data.value(), "noun");  //shorter version
 
     Ok(())
 }
@@ -448,18 +448,18 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
     let annotationpointer = store.annotate(builder).unwrap();
     let annotation: &Annotation = store.get(annotationpointer).unwrap();
     
-    assert_eq!(annotation.get_id(), Some("A2"));
+    assert_eq!(annotation.id(), Some("A2"));
     let mut count = 0;
     for (datakey, annotationdata, dataset) in store.iter_data(annotation) {
         //there should be only one so we can safely test in the loop body
         count += 1;
-        assert_eq!(datakey.get_id(), Some("pos"));
+        assert_eq!(datakey.id(), Some("pos"));
         assert_eq!(datakey.as_str(), "pos"); //shortcut for the same as above
         assert_eq!(datakey, "pos"); //shortcut for the same as above
-        assert_eq!(annotationdata.get_value(), &DataValue::String("interjection".to_string())); 
-        assert_eq!(annotationdata.get_value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(annotationdata.get_id(), None); //No public ID was assigned
-        assert_eq!(dataset.get_id(), Some("testdataset"));
+        assert_eq!(annotationdata.value(), &DataValue::String("interjection".to_string())); 
+        assert_eq!(annotationdata.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
+        assert_eq!(annotationdata.id(), None); //No public ID was assigned
+        assert_eq!(dataset.id(), Some("testdataset"));
     }
     assert_eq!(count,1);
 
@@ -507,15 +507,15 @@ fn parse_json_dataset() -> Result<(), std::io::Error> {
     let setpointer = store.insert(dataset).unwrap();
 
     let dataset: &AnnotationDataSet = store.get(setpointer).unwrap();
-    assert_eq!(dataset.get_id(), Some("https://purl.org/dc"));
+    assert_eq!(dataset.id(), Some("https://purl.org/dc"));
 
     let mut count = 0;
     let mut firstkeypointer: Option<DataKeyPointer> = None;
     for key in dataset.iter_keys() {
         count += 1;
         if count == 1 {
-            assert_eq!(key.get_id(), Some("http://purl.org/dc/terms/creator"));
-            firstkeypointer = key.get_pointer();
+            assert_eq!(key.id(), Some("http://purl.org/dc/terms/creator"));
+            firstkeypointer = key.pointer();
         }
     }
     assert_eq!(count,3);
@@ -524,9 +524,9 @@ fn parse_json_dataset() -> Result<(), std::io::Error> {
     for data in dataset.iter_data() {
         //there should be only one so we can safely test in the loop body
         count += 1;
-        assert_eq!(data.get_id(), Some("D1"));
-        assert_eq!(data.get_key_pointer(), firstkeypointer.unwrap()); //shortcut for the same as above
-        assert_eq!(data.get_value(), "proycon");
+        assert_eq!(data.id(), Some("D1"));
+        assert_eq!(data.key(), firstkeypointer.unwrap()); //shortcut for the same as above
+        assert_eq!(data.value(), "proycon");
     }
     assert_eq!(count,1);
 
@@ -598,12 +598,12 @@ fn example_3_common_tests(store: &AnnotationStore) -> Result<(),StamError> {
 
     for key in dataset.iter_keys() {
         //there is only one so we can test in loop body
-        assert_eq!(key.get_id(), Some("pos"));
+        assert_eq!(key.id(), Some("pos"));
     }
 
     for data in dataset.iter_data() {
         //there is only one so we can test in loop body
-        assert_eq!(data.get_id(), Some("D1"));
+        assert_eq!(data.id(), Some("D1"));
     }
     Ok(())
 }

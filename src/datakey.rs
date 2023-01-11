@@ -48,10 +48,10 @@ impl Pointer for DataKeyPointer {
 impl Storable for DataKey {
     type PointerType = DataKeyPointer;
 
-    fn get_id(&self) -> Option<&str> { 
+    fn id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
-    fn get_pointer(&self) -> Option<DataKeyPointer> { 
+    fn pointer(&self) -> Option<DataKeyPointer> { 
         self.intid
     }
 }
@@ -100,7 +100,7 @@ impl DataKey {
     }
 
     /// Shortcut to return a reference to the dataset
-    pub fn get_dataset<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
+    pub fn dataset_as_ref<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
         if let Some(part_of_set) = self.part_of_set {
            annotationstore.get(part_of_set).ok()
         } else {

@@ -100,19 +100,19 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
 //An AnnotationStore is a StoreFor TextResource
 impl StoreFor<TextResource> for AnnotationStore {
     /// Get a reference to the entire store for the associated type
-    fn get_store(&self) -> &Store<TextResource> {
+    fn store(&self) -> &Store<TextResource> {
         &self.resources
     }
     /// Get a mutable reference to the entire store for the associated type
-    fn get_mut_store(&mut self) -> &mut Store<TextResource> {
+    fn store_mut(&mut self) -> &mut Store<TextResource> {
         &mut self.resources
     }
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_idmap(&self) -> Option<&IdMap<TextResourcePointer>> {
+    fn idmap(&self) -> Option<&IdMap<TextResourcePointer>> {
         Some(&self.resource_idmap)
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<TextResourcePointer>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<TextResourcePointer>> {
         Some(&mut self.resource_idmap)
     }
     fn introspect_type(&self) -> &'static str {
@@ -122,16 +122,16 @@ impl StoreFor<TextResource> for AnnotationStore {
 
 //An AnnotationStore is a StoreFor Annotation
 impl StoreFor<Annotation> for AnnotationStore {
-    fn get_store(&self) -> &Store<Annotation> {
+    fn store(&self) -> &Store<Annotation> {
         &self.annotations
     }
-    fn get_mut_store(&mut self) -> &mut Store<Annotation> {
+    fn store_mut(&mut self) -> &mut Store<Annotation> {
         &mut self.annotations
     }
-    fn get_idmap(&self) -> Option<&IdMap<AnnotationPointer>> {
+    fn idmap(&self) -> Option<&IdMap<AnnotationPointer>> {
         Some(&self.annotation_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<AnnotationPointer>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationPointer>> {
         Some(&mut self.annotation_idmap)
     }
     fn introspect_type(&self) -> &'static str {
@@ -151,15 +151,15 @@ impl StoreFor<Annotation> for AnnotationStore {
             self.dataset_data_annotation_map.insert(*dataset,*data,pointer);
         }
 
-        match annotation.target {
+        match annotation.target() {
             Selector::DataSetSelector(dataset_intid) => {
-                self.dataset_annotation_map.insert(dataset_intid, pointer);
+                self.dataset_annotation_map.insert(*dataset_intid, pointer);
             },
             Selector::ResourceSelector(res_intid) => {
-                self.resource_annotation_map.insert(res_intid, pointer);
+                self.resource_annotation_map.insert(*res_intid, pointer);
             },
             Selector::AnnotationSelector( a_pointer, .. ) => {
-                self.annotation_annotation_map.insert(a_pointer, pointer);
+                self.annotation_annotation_map.insert(*a_pointer, pointer);
             },
             _ => {
                 //TODO: implement
@@ -170,16 +170,16 @@ impl StoreFor<Annotation> for AnnotationStore {
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
 impl StoreFor<AnnotationDataSet> for AnnotationStore {
-    fn get_store(&self) -> &Store<AnnotationDataSet> {
+    fn store(&self) -> &Store<AnnotationDataSet> {
         &self.datasets
     }
-    fn get_mut_store(&mut self) -> &mut Store<AnnotationDataSet> {
+    fn store_mut(&mut self) -> &mut Store<AnnotationDataSet> {
         &mut self.datasets
     }
-    fn get_idmap(&self) -> Option<&IdMap<AnnotationDataSetPointer>> {
+    fn idmap(&self) -> Option<&IdMap<AnnotationDataSetPointer>> {
         Some(&self.dataset_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<AnnotationDataSetPointer>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationDataSetPointer>> {
         Some(&mut self.dataset_idmap)
     }
     fn introspect_type(&self) -> &'static str {

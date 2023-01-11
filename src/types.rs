@@ -159,21 +159,21 @@ pub trait Storable {
     type PointerType: Pointer;
     /// Retrieve the internal (numeric) id. For any type T uses in StoreFor<T>, this may be None only in the initial
     /// stage when it is still unbounded to a store.
-    fn get_pointer(&self) -> Option<Self::PointerType> {
+    fn pointer(&self) -> Option<Self::PointerType> {
         None
     }
 
     /// Like [`Self::get_intid()`] but returns a [`StamError:Unbound`] error if there is no internal id.
-    fn get_pointer_or_err(&self) -> Result<Self::PointerType,StamError> {
-        self.get_pointer().ok_or(StamError::Unbound(""))
+    fn pointer_or_err(&self) -> Result<Self::PointerType,StamError> {
+        self.pointer().ok_or(StamError::Unbound(""))
     }
 
     /// Get the public ID
-    fn get_id(&self) -> Option<&str> {
+    fn id(&self) -> Option<&str> {
         None
     }
-    fn get_id_or_err(&self) -> Result<&str,StamError> {
-        self.get_id().ok_or(StamError::NoIdError(""))
+    fn id_or_err(&self) -> Result<&str,StamError> {
+        self.id().ok_or(StamError::NoIdError(""))
     }
 
     /// Builder pattern to set the public Id
@@ -201,7 +201,7 @@ pub(crate) trait MutableStorable: Storable {
     }
     /// Generate a random ID in a given idmap (adds it to the map), Item must be bound
     fn generate_id(self, idmap: Option<&mut IdMap<Self::PointerType>>) -> Self where Self: Sized {
-        if let Some(intid) = self.get_pointer() {
+        if let Some(intid) = self.pointer() {
             if let Some(idmap) = idmap {
                 loop {
                     let id = format!("{}{}", idmap.autoprefix, idmap.seqnr);
@@ -222,15 +222,15 @@ pub(crate) trait MutableStorable: Storable {
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
 pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     /// Get a reference to the entire store for the associated type
-    fn get_store(&self) -> &Store<T>;
+    fn store(&self) -> &Store<T>;
     /// Get a mutable reference to the entire store for the associated type
-    fn get_mut_store(&mut self) -> &mut Store<T>;
+    fn store_mut(&mut self) -> &mut Store<T>;
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_idmap(&self) -> Option<&IdMap<T::PointerType>> {
+    fn idmap(&self) -> Option<&IdMap<T::PointerType>> {
         None
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<T::PointerType>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<T::PointerType>> {
         None
     }
 
@@ -239,7 +239,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     /// Adds an item to the store. Returns its internal id upon success
     /// This is a fairly low level method. You will likely want to use [`add`] instead.
     fn insert(&mut self, mut item: T) -> Result<T::PointerType,StamError> {
-        let pointer = if let Some(intid) = item.get_pointer() {
+        let pointer = if let Some(intid) = item.pointer() {
             intid
         } else {
             // item has no internal id yet, i.e. it is unbound
@@ -250,27 +250,27 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
         };
 
         //insert a mapping from the public ID to the numeric ID in the idmap
-        if let Some(id) = item.get_id() {
+        if let Some(id) = item.id() {
             //check if public ID does not already exist
             if self.has_id(id) {
                 return Err(StamError::DuplicateIdError(id.to_string(), self.introspect_type()));
             }
 
-            self.get_mut_idmap().map(|idmap| {
+            self.idmap_mut().map(|idmap| {
                 //                 v-- MAYBE TODO: optimise the id copy away
-                idmap.data.insert(id.to_string(), item.get_pointer().unwrap())
+                idmap.data.insert(id.to_string(), item.pointer().unwrap())
             });
         } else {
-            item = item.generate_id(self.get_mut_idmap());
+            item = item.generate_id(self.idmap_mut());
         }
 
         //add the resource
-        self.get_mut_store().push(Some(item));
+        self.store_mut().push(Some(item));
 
         self.inserted(pointer);
 
         //sanity check to ensure no item can determine its own internal id that does not correspond with what's allocated
-        assert_eq!(pointer, T::PointerType::new(self.get_store().len() - 1));
+        assert_eq!(pointer, T::PointerType::new(self.store().len() - 1));
 
         Ok(pointer)
     }
@@ -290,9 +290,9 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Returns true if the store contains the item
     fn contains(&self, item: &T) -> bool {
-        if let (Some(intid), Some(true)) = (item.get_pointer(), self.owns(item)) {
+        if let (Some(intid), Some(true)) = (item.pointer(), self.owns(item)) {
             self.has(intid)
-        } else if let Some(id) = item.get_id() {
+        } else if let Some(id) = item.id() {
             self.has_id(id)
         } else {
             false
@@ -301,10 +301,10 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Retrieves the internal id for the item as it occurs in the store. The passed item and reference item may be distinct instances.
     fn find(&self, item: &T) -> Option<T::PointerType> {
-        if let (Some(intid), Some(true)) = (item.get_pointer(), self.owns(item)) {
+        if let (Some(intid), Some(true)) = (item.pointer(), self.owns(item)) {
             Some(intid)
-        } else if let Some(id) = item.get_id() {
-            if let Some(idmap) = self.get_idmap() {
+        } else if let Some(id) = item.id() {
+            if let Some(idmap) = self.idmap() {
                 idmap.data.get(id).map(|x| *x)
             } else {
                 None
@@ -316,12 +316,12 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Returns true if the store has the item with the specified internal id
     fn has(&self, pointer: T::PointerType) -> bool {
-        self.get_store().len() > pointer.unwrap()
+        self.store().len() > pointer.unwrap()
     }
 
     /// Returns true if the store has the item with the specified global id
     fn has_id(&self, id: &str) -> bool {
-        if let Some(idmap) = self.get_idmap() {
+        if let Some(idmap) = self.idmap() {
             idmap.data.contains_key(id)
         } else {
             false
@@ -342,7 +342,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Get a reference to an item from the store by internal ID
     fn get(&self, pointer: T::PointerType) -> Result<&T,StamError> {
-        if let Some(Some(item)) = self.get_store().get(pointer.unwrap()) {
+        if let Some(Some(item)) = self.store().get(pointer.unwrap()) {
             Ok(item)
         } else {
             Err(StamError::IntIdError(self.introspect_type()))
@@ -351,7 +351,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Get a mutable reference to an item from the store by internal ID
     fn get_mut(&mut self, pointer: T::PointerType) -> Result<&mut T,StamError> {
-        if let Some(Some(item)) = self.get_mut_store().get_mut(pointer.unwrap()) {
+        if let Some(Some(item)) = self.store_mut().get_mut(pointer.unwrap()) {
             Ok(item)
         } else {
             Err(StamError::IntIdError("Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
@@ -361,7 +361,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     /// Resolves an ID to a pointer
     /// You usually don't want to call this directly
     fn resolve_id(&self, id: &str) -> Result<T::PointerType, StamError> {
-        if let Some(idmap) = self.get_idmap() {
+        if let Some(idmap) = self.idmap() {
             if let Some(pointer) = idmap.data.get(id) {
                 Ok(*pointer)
             } else {
@@ -381,12 +381,12 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Iterate over the store
     fn iter<'a>(&'a self) -> StoreIter<'a, T> {
-        StoreIter(self.get_store().iter())
+        StoreIter(self.store().iter())
     }
 
     /// Iterate over the store, mutably
     fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a,T>  {
-        StoreIterMut(self.get_mut_store().iter_mut())
+        StoreIterMut(self.store_mut().iter_mut())
     }
 
     /// Get the item from the store if it already exists, if not, add it
@@ -403,12 +403,12 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     /// Return the internal id that will be assigned for the next item to the store
     fn next_pointer(&self) -> T::PointerType {
-        T::PointerType::new(self.get_store().len()) //this is one of the very few places in the code where we create a pointer from scratch
+        T::PointerType::new(self.store().len()) //this is one of the very few places in the code where we create a pointer from scratch
     }
 
     /// Return the internal id that was assigned to last inserted item
     fn last_pointer(&self) -> T::PointerType {
-        T::PointerType::new(self.get_store().len() - 1)
+        T::PointerType::new(self.store().len() - 1)
     }
 
     /// This binds an item to the store *PRIOR* to it being actually added
@@ -416,7 +416,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
     fn bind(&mut self, mut item: T) -> Result<T,StamError> {
         //we already pass the internal id this item will get upon the next insert()
         //so it knows its internal id immediate after construction
-        if item.get_pointer().is_some() {
+        if item.pointer().is_some() {
             Err(StamError::AlreadyBound("bind()") )
         } else {
             item.set_pointer(self.next_pointer());
@@ -437,7 +437,7 @@ pub(crate) trait StoreFor<T: MutableStorable + Storable> {
 
     fn get_by_anyid_or_err(&self, anyid: &AnyId<T::PointerType>) -> Result<&T, StamError> {
         match anyid {
-            AnyId::None => Err(anyid.get_error("")),
+            AnyId::None => Err(anyid.error("")),
             AnyId::Pointer(pointer) => self.get(*pointer),
             AnyId::Id(id) => self.get_by_id(id)
         }
@@ -540,7 +540,7 @@ impl<PointerType> AnyId<PointerType> where PointerType: Pointer {
     }
 
     // raises an ID error
-    pub fn get_error(&self, contextmsg: &'static str) -> StamError {
+    pub fn error(&self, contextmsg: &'static str) -> StamError {
         match self {
             Self::Pointer(pointer) => StamError::IntIdError(contextmsg),
             Self::Id(id) => StamError::IdError(id.to_string(), contextmsg),
@@ -629,9 +629,9 @@ impl<PointerType> From<Option<String>> for AnyId<PointerType> where PointerType:
 /// Will panic on totally unbounded that also don't have a public ID
 impl<PointerType> From<&dyn Storable<PointerType=PointerType>> for AnyId<PointerType> where PointerType: Pointer {
     fn from(item: &dyn Storable<PointerType=PointerType>) -> Self {
-        if let Some(pointer) = item.get_pointer() {
+        if let Some(pointer) = item.pointer() {
             Self::Pointer(pointer)
-        } else if let Some(id) = item.get_id() {
+        } else if let Some(id) = item.id() {
             Self::Id(id.into())
         } else {
             panic!("Passed a reference to an unbound item without a public ID! Unable to convert to IdOrPointer");

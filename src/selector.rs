@@ -124,15 +124,15 @@ impl<'a> AnnotationStore {
         match item {
             SelectorBuilder::ResourceSelector(id) => {
                 let resource: &TextResource = self.get_by_anyid_or_err(&id)?;
-                Ok(Selector::ResourceSelector(resource.get_pointer_or_err()?))
+                Ok(Selector::ResourceSelector(resource.pointer_or_err()?))
             },
             SelectorBuilder::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get_by_anyid_or_err(&res_id)?;
-                Ok(Selector::TextSelector(resource.get_pointer_or_err()?, offset ) )
+                Ok(Selector::TextSelector(resource.pointer_or_err()?, offset ) )
             },
             SelectorBuilder::AnnotationSelector(a_id, offset) => {
                 let annotation: &Annotation = self.get_by_anyid_or_err(&a_id)?;
-                Ok(Selector::AnnotationSelector( annotation.get_pointer_or_err()?, offset ) )
+                Ok(Selector::AnnotationSelector( annotation.pointer_or_err()?, offset ) )
             },
             _ => {
                 panic!("not implemented yet")
@@ -150,7 +150,7 @@ pub trait SelfSelector {
 impl SelfSelector for TextResource {
     /// Returns a selector to this resource
     fn self_selector(&self) -> Result<Selector,StamError> {
-        if let Some(intid) = self.get_pointer() {
+        if let Some(intid) = self.pointer() {
             Ok(Selector::ResourceSelector(intid))
         } else {
             Err(StamError::Unbound("TextResource::self_selector()"))
@@ -161,7 +161,7 @@ impl SelfSelector for TextResource {
 impl SelfSelector for AnnotationDataSet {
     /// Returns a selector to this resource
     fn self_selector(&self) -> Result<Selector,StamError> {
-        if let Some(intid) = self.get_pointer() {
+        if let Some(intid) = self.pointer() {
             Ok(Selector::DataSetSelector(intid))
         } else {
             Err(StamError::Unbound("AnnotationDataSet::self_selector()"))
@@ -172,7 +172,7 @@ impl SelfSelector for AnnotationDataSet {
 impl SelfSelector for Annotation {
     /// Returns a selector to this resource
     fn self_selector(&self) -> Result<Selector,StamError> {
-        if let Some(pointer) = self.get_pointer() {
+        if let Some(pointer) = self.pointer() {
             Ok(Selector::AnnotationSelector(pointer,Some(Offset::default()) ))
         } else {
             Err(StamError::Unbound("Annotation::self_selector()"))
@@ -207,7 +207,7 @@ impl ApplySelector<str> for TextResource {
     fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str,StamError> {
         match selector {
             Selector::TextSelector(resource_pointer, offset) => {
-                if self.get_pointer() != Some(*resource_pointer) {
+                if self.pointer() != Some(*resource_pointer) {
                     Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
                 } else {
                     Ok(self.get_text_slice(offset)?)

@@ -33,7 +33,7 @@ pub struct Annotation {
     data: Vec<(AnnotationDataSetPointer,AnnotationDataPointer)>,
 
     /// Determines selection target
-    pub target: Selector,
+    target: Selector,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership,
     /// encapsulated by a pointer type
@@ -50,10 +50,10 @@ impl Pointer for AnnotationPointer {
 impl Storable for Annotation {
     type PointerType = AnnotationPointer;
 
-    fn get_id(&self) -> Option<&str> { 
+    fn id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
-    fn get_pointer(&self) -> Option<Self::PointerType> { 
+    fn pointer(&self) -> Option<Self::PointerType> { 
         self.intid
     }
 }
@@ -125,10 +125,12 @@ impl AnnotationBuilder {
         self
     }
 
+    /// Set the target to be a [`TextResource`]. Creates a [`Selector::ResourceSelector`]
     pub fn target_resource(self, resource: AnyId<TextResourcePointer>) -> Self {
         self.with_target(SelectorBuilder::ResourceSelector(resource))
     }
 
+    /// Set the target to be a text slice inside a [`TextResource`]. Creates a [`Selector::TextSelector`]
     pub fn target_text(self, resource: AnyId<TextResourcePointer>, offset: Offset) -> Self {
         self.with_target(SelectorBuilder::TextSelector(resource, offset))
     }
@@ -194,7 +196,7 @@ impl Serialize for Annotation {
     where S: Serializer {
         let mut state = serializer.serialize_struct("AnnotationData",2)?;
         state.serialize_field("@type", "AnnotationData")?;
-        if let Some(id) = self.get_id() {
+        if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
         //TODO!
@@ -232,7 +234,7 @@ impl<'a> AnnotationStore {
 
         // Insert the data into the dataset 
         let data_pointer = dataset.insert_data(dataitem.id, dataitem.key, dataitem.value, true)?;
-        Ok((dataset.get_pointer_or_err()?, data_pointer))
+        Ok((dataset.pointer_or_err()?, data_pointer))
     } 
 
     /// Builds and inserts an annotation
@@ -296,6 +298,11 @@ impl<'a> Annotation {
     pub fn iter_data(&'a self) -> Iter<'a,(AnnotationDataSetPointer,AnnotationDataPointer)>  {
         self.data.iter()
     }
+
+    /// Returns a reference to the selector that selects the target of this annotation
+    pub fn target(&self) -> &Selector {
+        &self.target
+    }
 }
 
 impl AnnotationStore {
@@ -322,7 +329,7 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
             Some((dataset_intid, annotationdata_intid)) => {
                 let dataset: &AnnotationDataSet = self.store.get(*dataset_intid).expect("Getting dataset for annotation");
                 let annotationdata: &AnnotationData = dataset.get(*annotationdata_intid).expect("Getting annotationdata for annotation");
-                let datakey = annotationdata.get_key(dataset).expect("Getting datakey for annotation");
+                let datakey = annotationdata.key_as_ref(dataset).expect("Getting datakey for annotation");
                 Some((datakey, annotationdata, dataset))
             },
             None => None

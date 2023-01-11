@@ -91,14 +91,14 @@ impl Pointer for AnnotationDataSetPointer {
 impl Storable for AnnotationDataSet {
     type PointerType = AnnotationDataSetPointer;
 
-    fn get_id(&self) -> Option<&str> { 
+    fn id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
     fn with_id(mut self, id: String) ->  Self {
         self.id = Some(id);
         self
     }
-    fn get_pointer(&self) -> Option<Self::PointerType> { 
+    fn pointer(&self) -> Option<Self::PointerType> { 
         self.intid
     }
 }
@@ -112,14 +112,14 @@ impl MutableStorable for AnnotationDataSet {
     /// This ensure the part_of_set relation (backreference)
     /// is set right.
     fn bound(&mut self) {
-        let intid = self.get_pointer().expect("getting internal id");
-        let datastore: &mut Store<AnnotationData> = self.get_mut_store();
+        let intid = self.pointer().expect("getting internal id");
+        let datastore: &mut Store<AnnotationData> = self.store_mut();
         for data in datastore.iter_mut() {
             if let Some(data) = data {
                 data.part_of_set = Some(intid);
             }
         }
-        let keystore: &mut Store<DataKey> = self.get_mut_store();
+        let keystore: &mut Store<DataKey> = self.store_mut();
         for key in keystore.iter_mut() {
             if let Some(key) = key {
                 key.part_of_set = Some(intid);
@@ -130,24 +130,24 @@ impl MutableStorable for AnnotationDataSet {
 
 
 impl StoreFor<DataKey> for AnnotationDataSet {
-    fn get_store(&self) -> &Store<DataKey> {
+    fn store(&self) -> &Store<DataKey> {
         &self.keys
     }
-    fn get_mut_store(&mut self) -> &mut Store<DataKey> {
+    fn store_mut(&mut self) -> &mut Store<DataKey> {
         &mut self.keys
     }
-    fn get_idmap(&self) -> Option<&IdMap<DataKeyPointer>> {
+    fn idmap(&self) -> Option<&IdMap<DataKeyPointer>> {
         Some(&self.key_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<DataKeyPointer>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<DataKeyPointer>> {
         Some(&mut self.key_idmap)
     }
     fn owns(&self, item: &DataKey) -> Option<bool> {
-        if item.part_of_set.is_none() || self.get_pointer().is_none() {
+        if item.part_of_set.is_none() || self.pointer().is_none() {
             //ownership is unclear because one of both is unbound
             None
         } else {
-            Some(item.part_of_set == self.get_pointer())
+            Some(item.part_of_set == self.pointer())
         }
     }
     fn introspect_type(&self) -> &'static str {
@@ -157,24 +157,24 @@ impl StoreFor<DataKey> for AnnotationDataSet {
 }
 
 impl StoreFor<AnnotationData> for AnnotationDataSet {
-    fn get_store(&self) -> &Store<AnnotationData> {
+    fn store(&self) -> &Store<AnnotationData> {
         &self.data
     }
-    fn get_mut_store(&mut self) -> &mut Store<AnnotationData> {
+    fn store_mut(&mut self) -> &mut Store<AnnotationData> {
         &mut self.data
     }
-    fn get_idmap(&self) -> Option<&IdMap<AnnotationDataPointer>> {
+    fn idmap(&self) -> Option<&IdMap<AnnotationDataPointer>> {
         Some(&self.data_idmap)
     }
-    fn get_mut_idmap(&mut self) -> Option<&mut IdMap<AnnotationDataPointer>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationDataPointer>> {
         Some(&mut self.data_idmap)
     }
     fn owns(&self, item: &AnnotationData) -> Option<bool> {
-        if item.part_of_set.is_none() || self.get_pointer().is_none() {
+        if item.part_of_set.is_none() || self.pointer().is_none() {
             //ownership is unclear because one of both is unbound
             None
         } else {
-            Some(item.part_of_set == self.get_pointer())
+            Some(item.part_of_set == self.pointer())
         }
     }
     fn introspect_type(&self) -> &'static str {
@@ -240,7 +240,7 @@ impl AnnotationDataSet {
         let annotationdata: Option<&AnnotationData> = self.get_by_anyid(&id);
         if let Some(annotationdata) = annotationdata {
             //already exists, return as is
-            return Ok(annotationdata.get_pointer().expect("item must have intid when in store"))
+            return Ok(annotationdata.pointer().expect("item must have intid when in store"))
         }
         if key.is_none() {
             return Err(StamError::IncompleteError("Key supplied to AnnotationDataSet.with_data() can not be None"));
@@ -249,13 +249,13 @@ impl AnnotationDataSet {
         let datakey: Option<&DataKey> = self.get_by_anyid(&key);
         let mut newkey = false;
         let datakey_pointer = if let Some(datakey) = datakey {
-            datakey.get_pointer_or_err()?
+            datakey.pointer_or_err()?
         } else if key.is_id() {
             //datakey not found, create new one and add it to the store
             newkey = true;
             self.insert(DataKey::new(key.to_string().unwrap()))?
         } else {
-            return Err(key.get_error("Datakey not found by AnnotationDataSet.with_data()"));
+            return Err(key.error("Datakey not found by AnnotationDataSet.with_data()"));
         };
 
         if !newkey && id.is_none() && safety {
@@ -263,9 +263,9 @@ impl AnnotationDataSet {
             if let Some(dataitems) = self.key_data_map.data.get(&datakey_pointer) {
                 for intid in dataitems.iter() { //MAYBE TODO: this may get slow if there is a key with a lot of data values
                     let data: &AnnotationData = self.get(*intid).expect("getting item");
-                    if data.get_value() == &value {
+                    if data.value() == &value {
                         // Data with this exact key and value already exists, return it:
-                        return Ok(data.get_pointer().expect("item must have intid if in store"));
+                        return Ok(data.pointer().expect("item must have intid if in store"));
                     }
                 }
             }
@@ -282,13 +282,10 @@ impl AnnotationDataSet {
     }
 
     /// Get an annotation pointer from an ID.
-    /// Shortcut wraps around get_pointer()
     pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataPointer,StamError> {
         <Self as StoreFor<AnnotationData>>::resolve_id(&self, id)
     }
 
-    /// Get an annotation pointer from an ID.
-    /// Shortcut wraps around get_pointer()
     pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyPointer,StamError> {
         <Self as StoreFor<DataKey>>::resolve_id(&self, id)
     }

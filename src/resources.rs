@@ -78,10 +78,10 @@ impl Pointer for TextResourcePointer {
 impl Storable for TextResource {
     type PointerType = TextResourcePointer;
 
-    fn get_id(&self) -> Option<&str> { 
+    fn id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
-    fn get_pointer(&self) -> Option<TextResourcePointer> { 
+    fn pointer(&self) -> Option<TextResourcePointer> { 
         self.intid
     }
     fn with_id(mut self, id: String) -> Self {
@@ -215,7 +215,7 @@ impl TextResource {
 
 
     pub fn select_text(&self, begin: Cursor, end: Cursor) -> Result<Selector,StamError> {
-        if let Some(pointer) = self.get_pointer() {
+        if let Some(pointer) = self.pointer() {
             Ok(Selector::TextSelector(pointer, Offset { begin, end }))
         } else {
             Err(StamError::Unbound("TextResource::select_text()"))
