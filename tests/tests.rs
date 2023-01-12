@@ -285,9 +285,10 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
     let datahandle = dataset.build_insert_data(data,true).unwrap();
 
     let data: &AnnotationData = dataset.get(datahandle).unwrap();
+    let key: &DataKey = dataset.get(data.key()).unwrap();
 
     assert_eq!(data.id(), Some("D2")); //can also be compared with &str etc
-    assert_eq!(data.key_as_ref(&dataset).unwrap().id() , Some("pos"));
+    assert_eq!(key.id() , Some("pos"));
     assert_eq!(data.value(), &DataValue::String("verb".into()));
     assert_eq!(data.value(), "verb");  //shorter version
 
@@ -318,9 +319,10 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
     assert_eq!(datahandle1, datahandle2);
 
     let data: &AnnotationData = dataset.get(datahandle2).unwrap();
+    let key: &DataKey = dataset.get(data.key()).unwrap();
 
     assert_eq!(data.id(), Some("D1")); //can also be compared with &str etc
-    assert_eq!(data.key_as_ref(&dataset).unwrap().id() , Some("pos"));
+    assert_eq!(key.id() , Some("pos"));
     assert_eq!(data.value(), &DataValue::String("noun".into()));
     assert_eq!(data.value(), "noun");  //shorter version
 
@@ -574,12 +576,21 @@ fn parse_json_annotationstore_from_file() -> Result<(), StamError> {
 #[test]
 fn wrapped() -> Result<(), StamError> {
     let store = setup_example_2()?;
+
     let annotation: &Annotation = store.get_by_id("A1")?;
-    let wrappedannotation = store.wrap(annotation);
+    let wrappedannotation = store.wrap(annotation)?; //alternative we could have used wrap_in() directly on the previous line, but that would require more complex type annotations
 
     assert_eq!(wrappedannotation.id(), Some("A1"));
     let store2 = wrappedannotation.store();
 
+    Ok(())
+}
+
+#[test]
+fn serialize_annotationset() -> Result<(),StamError> {
+    let store = setup_example_2()?;
+    let annotationset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+    serde_json::to_string(&annotationset).expect("serialization");
     Ok(())
 }
 

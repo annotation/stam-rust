@@ -1,6 +1,6 @@
 //use Chrono::DateTime;
 use serde::{Serialize,Deserialize};
-use serde::ser::{Serializer, SerializeStruct};
+use serde::ser::{Serializer, SerializeStruct,SerializeSeq};
 //use serde_json::Result;
 
 use crate::types::*;
@@ -67,7 +67,7 @@ impl Storable for AnnotationData {
 }
 
 
-impl Serialize for AnnotationData {
+impl<'a> Serialize for WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
     where S: Serializer {
         let mut state = serializer.serialize_struct("AnnotationData",2)?;
@@ -75,8 +75,30 @@ impl Serialize for AnnotationData {
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
+        if let Ok(key) = self.key_as_ref() {
+            state.serialize_field("key", key)?;
+        } else {
+            return Err(serde::ser::Error::custom("Unable to resolve datakey for annotationitem during serialization"));
+        }
         state.serialize_field("value", self.value())?;
         state.end()
+    }
+}
+
+impl<'a> Serialize for WrappedStore<'a, AnnotationData,AnnotationDataSet> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
+        for data in self.store.iter() {
+            if let Some(data) = data {
+                if let Ok(data) = self.parent.wrap(data) {
+                    seq.serialize_element(&data);
+                } else {
+                    return Err(serde::ser::Error::custom("Unable to wrap annotationdata during serialization"));
+                }
+            }
+        }
+        seq.end()
     }
 }
 
@@ -93,20 +115,6 @@ impl AnnotationData {
         }
     }
 
-    /// Return a reference to the AnnotationDataSet that holds this data (and its key) 
-    pub fn dataset_as_ref<'a>(&self, annotationstore: &'a AnnotationStore) -> Result<&'a AnnotationDataSet,StamError> {
-        if let Some(part_of_set) = self.part_of_set {
-           annotationstore.get(part_of_set)
-        } else {
-            Err(StamError::Unbound("AnnotationData.get_dataset failed due to unbound part_of_set"))
-        }
-    }
-
-    /// Return a reference to the DataKey used by this data
-    pub fn key_as_ref<'a>(&self, dataset: &'a AnnotationDataSet) -> Result<&'a DataKey,StamError> {
-        dataset.get(self.key())
-    }
-
     pub fn key(&self) -> DataKeyHandle {
         self.key
     }
@@ -116,6 +124,18 @@ impl AnnotationData {
     /// Make a new AnnotationData if you want to change data.
     pub fn value(&self) -> &DataValue {
         &self.value
+    }
+}
+
+impl<'a> WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
+    /// Return a reference to the AnnotationDataSet that holds this data (and its key) 
+    pub fn dataset_as_ref(&'a self) -> &'a AnnotationDataSet {
+       self.store()
+    }
+
+    /// Return a reference to the DataKey used by this data
+    pub fn key_as_ref(&'a self) -> Result<&'a DataKey,StamError> {
+        self.store().get(self.key())
     }
 }
 

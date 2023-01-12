@@ -185,9 +185,10 @@ pub trait Storable {
         self
     }
 
-    /// Returns a wrapped variant of this item
+    /// Returns a wrapped reference to this item and the store that owns it. This allows for some
+    /// more introspection on the part of the item.
     /// reverse of [`ForStore<T>::wrap()`]
-    fn wrap_in<'a, S: StoreFor<Self>>(&'a self, store: &'a S) -> WrappedStorable<Self,S> where Self: Sized {
+    fn wrap_in<'a, S: StoreFor<Self>>(&'a self, store: &'a S) -> Result<WrappedStorable<Self,S>,StamError> where Self: Sized {
         store.wrap(self)
     }
 
@@ -201,6 +202,7 @@ pub trait Storable {
     fn bound(&mut self) {
         //no-op by default
     }
+
     /// Generate a random ID in a given idmap (adds it to the map), Item must be bound
     fn generate_id(self, idmap: Option<&mut IdMap<Self::HandleType>>) -> Self where Self: Sized {
         if let Some(intid) = self.handle() {
@@ -456,10 +458,15 @@ pub trait StoreFor<T: Storable> {
     }
 
     /// Wraps the reference with a reference to the store
-    fn wrap<'a>(&'a self, item: &'a T) -> WrappedStorable<T, Self> where Self: Sized {
-        WrappedStorable {
-            item,
-            store: self,
+    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedStorable<T, Self>,StamError> where Self: Sized {
+        WrappedStorable::new(item, self)
+    }
+
+    /// Wraps the entire store along with a reference to self
+    fn wrappedstore<'a>(&'a self) -> WrappedStore<T, Self> where Self: Sized {
+        WrappedStore {
+            store: self.store(),
+            parent: self,
         }
     }
 }
@@ -677,10 +684,11 @@ impl<HandleType> PartialEq<String> for AnyId<HandleType> where HandleType: Handl
 }
 
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
-/// It allows the item to have some more introspection as it knows who its parent is.
+/// It allows the item to have some more introspection as it knows who its immediate parent is.
+/// It is used for example in serialization.
 pub struct WrappedStorable<'a, T,S: StoreFor<T>> where T: Storable {
     item: &'a T,
-    store: &'a S,
+    store: &'a S
 }
 
 impl<'a, T,S> Deref for WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor<T> {
@@ -692,7 +700,47 @@ impl<'a, T,S> Deref for WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor
 }
 
 impl<'a, T,S>  WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor<T> {
+
+    //Create a new wrapped item
+    pub(crate) fn new(item: &'a T, store: &'a S) -> Result<Self, StamError> {
+        if item.handle().is_none() {
+            return Err(StamError::Unbound("can't wrap unbound items"));
+        } else if store.owns(item) == Some(false) {
+            return Err(StamError::Unbound("Can't wrap an item in a store that doesn't own it!"));
+        }
+        Ok(WrappedStorable {
+            item, 
+            store,
+        })
+    }
+
     pub fn store(&self) -> &S {
-        return self.store;
+        self.store
+    }
+}
+
+
+
+// the following structure may be a bit obscure but it required internally to 
+// make serialization via serde work on our stores
+// (ideally it needn't be public)
+
+/// Helper structure that contains a store and a reference to self. Mostly for internal use.
+pub struct WrappedStore<'a, T, S: StoreFor<T>> where T: Storable, S: Sized {
+    pub(crate) store: &'a Store<T>,
+    pub(crate) parent: &'a S
+}
+
+impl<'a, T,S> Deref for WrappedStore<'a, T,S>  where T: Storable, S: StoreFor<T> {
+    type Target = Store<T>;
+
+    fn deref(&self) -> &Self::Target {
+        self.store
+    }
+}
+
+impl<'a,T,S> WrappedStore<'a, T,S> where T: Storable, S: Sized, S: StoreFor<T> {
+    pub fn parent(&self) -> &S {
+        self.parent
     }
 }

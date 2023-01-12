@@ -217,11 +217,12 @@ impl Serialize for AnnotationDataSet {
             state.serialize_field("@id", id)?;
         }
         state.serialize_field("keys", &self.keys)?;
-
-        state.serialize_field("data", &self.data)?;
+        let wrappedstore: WrappedStore<AnnotationData,Self> = self.wrappedstore();
+        state.serialize_field("data", &wrappedstore )?;
         state.end()
     }
 }
+
 
 impl AnnotationDataSet {
     pub fn new() -> Self {

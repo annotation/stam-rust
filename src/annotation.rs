@@ -330,7 +330,7 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
             Some((annotationset_handle, annotationdata_intid)) => {
                 let annotationset: &AnnotationDataSet = self.store.get(*annotationset_handle).expect("Getting dataset for annotation");
                 let annotationdata: &AnnotationData = annotationset.get(*annotationdata_intid).expect("Getting annotationdata for annotation");
-                let datakey = annotationdata.key_as_ref(annotationset).expect("Getting datakey for annotation");
+                let datakey: &DataKey = annotationset.get(annotationdata.key()).expect("Getting datakey for annotation");
                 Some((datakey, annotationdata, annotationset))
             },
             None => None
