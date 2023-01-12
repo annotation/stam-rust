@@ -25,17 +25,17 @@ fn sanity_check() -> Result<(),StamError> {
     let mut store = AnnotationStore::new().with_id("test".into());
 
     // Insert a text resource into the store
-    let _res_pointer = store.insert(
+    let _res_handle = store.insert(
         TextResource::from_string("testres".into(),"Hello world".into())
     );
 
     // Create a dataset with one key and insert it into the store
     let mut annotationset = AnnotationDataSet::new().with_id("testdataset".into());
-    annotationset.insert(DataKey::new("pos".into()))?;  //returns a DataKeyPointer, not further used in this test
-    let set_pointer = store.insert(annotationset)?;
+    annotationset.insert(DataKey::new("pos".into()))?;  //returns a DataKeyHandle, not further used in this test
+    let set_handle = store.insert(annotationset)?;
 
-    //get by pointer (internal id)
-    let annotationset: &AnnotationDataSet = store.get(set_pointer)?;
+    //get by handle (internal id)
+    let annotationset: &AnnotationDataSet = store.get(set_handle)?;
     assert_eq!(annotationset.id(), Some("testdataset"));
 
     //get by directly by id
@@ -83,14 +83,14 @@ fn store_resolve_id() -> Result<(),StamError> {
     let store = setup_example_1()?;
 
     //this is a bit too contrived
-    let pointer: AnnotationPointer = <AnnotationStore as StoreFor<Annotation>>::resolve_id(&store, "A1")?;
-    let _annotation: &Annotation = store.get(pointer)?;
+    let handle: AnnotationHandle = <AnnotationStore as StoreFor<Annotation>>::resolve_id(&store, "A1")?;
+    let _annotation: &Annotation = store.get(handle)?;
 
-    //This is the shortcut if you want an intermediate pointer
-    let pointer = store.resolve_annotation_id("A1")?;
-    let _annotation: &Annotation = store.get(pointer)?;
+    //This is the shortcut if you want an intermediate handle
+    let handle = store.resolve_annotation_id("A1")?;
+    let _annotation: &Annotation = store.get(handle)?;
 
-    //this is the direct method without intermediate pointer (still used internally but no longer exposed)
+    //this is the direct method without intermediate handle (still used internally but no longer exposed)
     let _annotation: &Annotation = store.get_by_id("A1")?;
     Ok(())
 }
@@ -125,7 +125,7 @@ fn store_get_by_id_2() -> Result<(),StamError> {
 fn store_get_by_anyid() -> Result<(),StamError> {
     let store = setup_example_1()?;
 
-    let anyid: AnyId<AnnotationPointer> = "A1".into();
+    let anyid: AnyId<AnnotationHandle> = "A1".into();
     let _annotation: &Annotation = store.get_by_anyid_or_err(&anyid)?;
     Ok(())
 }
@@ -294,9 +294,9 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
 
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
-    let datapointer = dataset.build_insert_data(data,true).unwrap();
+    let datahandle = dataset.build_insert_data(data,true).unwrap();
 
-    let data: &AnnotationData = dataset.get(datapointer).unwrap();
+    let data: &AnnotationData = dataset.get(datahandle).unwrap();
 
     assert_eq!(data.id(), Some("D2")); //can also be compared with &str etc
     assert_eq!(data.key_as_ref(&dataset).unwrap().id() , Some("pos"));
@@ -325,12 +325,12 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
     //we alreayd had this annotation, check prior to insert
-    let datapointer1: AnnotationDataPointer = dataset.resolve_data_id("D1").unwrap();
-    //insert (which doesn't really insert in this case) but returns the same existing pointer
-    let datapointer2 = dataset.build_insert_data(data,true).unwrap();
-    assert_eq!(datapointer1, datapointer2);
+    let datahandle1: AnnotationDataHandle = dataset.resolve_data_id("D1").unwrap();
+    //insert (which doesn't really insert in this case) but returns the same existing handle
+    let datahandle2 = dataset.build_insert_data(data,true).unwrap();
+    assert_eq!(datahandle1, datahandle2);
 
-    let data: &AnnotationData = dataset.get(datapointer2).unwrap();
+    let data: &AnnotationData = dataset.get(datahandle2).unwrap();
 
     assert_eq!(data.id(), Some("D1")); //can also be compared with &str etc
     assert_eq!(data.key_as_ref(&dataset).unwrap().id() , Some("pos"));
@@ -431,8 +431,8 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
     let v: serde_json::Value = serde_json::from_str(data)?;
     let builder: AnnotationBuilder = serde_json::from_value(v)?;
     let mut store = setup_example_2().unwrap();
-    let annotationpointer = store.annotate(builder).unwrap();
-    let annotation: &Annotation = store.get(annotationpointer).unwrap();
+    let annotationhandle = store.annotate(builder).unwrap();
+    let annotation: &Annotation = store.get(annotationhandle).unwrap();
     
     assert_eq!(annotation.id(), Some("A2"));
     let mut count = 0;
@@ -490,18 +490,18 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
 
 
     let mut store = setup_example_2().unwrap();
-    let setpointer = store.insert(annotationset).unwrap();
+    let sethandle = store.insert(annotationset).unwrap();
 
-    let annotationset: &AnnotationDataSet = store.get(setpointer).unwrap();
+    let annotationset: &AnnotationDataSet = store.get(sethandle).unwrap();
     assert_eq!(annotationset.id(), Some("https://purl.org/dc"));
 
     let mut count = 0;
-    let mut firstkeypointer: Option<DataKeyPointer> = None;
+    let mut firstkeyhandle: Option<DataKeyHandle> = None;
     for key in annotationset.iter_keys() {
         count += 1;
         if count == 1 {
             assert_eq!(key.id(), Some("http://purl.org/dc/terms/creator"));
-            firstkeypointer = key.pointer();
+            firstkeyhandle = key.handle();
         }
     }
     assert_eq!(count,3);
@@ -511,7 +511,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(data.id(), Some("D1"));
-        assert_eq!(data.key(), firstkeypointer.unwrap()); //shortcut for the same as above
+        assert_eq!(data.key(), firstkeyhandle.unwrap()); //shortcut for the same as above
         assert_eq!(data.value(), "proycon");
     }
     assert_eq!(count,1);

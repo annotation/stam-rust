@@ -8,12 +8,12 @@ use serde_with::serde_as;
 
 use crate::types::*;
 use crate::error::*;
-use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataPointer};
-use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
-use crate::datakey::{DataKey,DataKeyPointer};
+use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataHandle};
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
+use crate::datakey::{DataKey,DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::annotationstore::AnnotationStore;
-use crate::resources::{TextResource,TextResourcePointer};
+use crate::resources::{TextResource,TextResourceHandle};
 use crate::selector::{Selector,Offset,SelectorBuilder};
 
 /// `Annotation` represents a particular *instance of annotation* and is the central
@@ -30,41 +30,41 @@ pub struct Annotation {
     id: Option<String>,
 
     /// Reference to the annotation data (may be multiple) that describe(s) this annotation, the first ID refers to an AnnotationDataSet as owned by the AnnotationStore, the second to an AnnotationData instance as owned by that set
-    data: Vec<(AnnotationDataSetPointer,AnnotationDataPointer)>,
+    data: Vec<(AnnotationDataSetHandle,AnnotationDataHandle)>,
 
     /// Determines selection target
     target: Selector,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership,
-    /// encapsulated by a pointer type
-    intid: Option<AnnotationPointer>,
+    /// encapsulated by a handle type
+    intid: Option<AnnotationHandle>,
 }
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
-pub struct AnnotationPointer(u32);
-impl Pointer for AnnotationPointer {
+pub struct AnnotationHandle(u32);
+impl Handle for AnnotationHandle {
     fn new(intid: usize) -> Self { Self(intid as u32) }
     fn unwrap(&self) -> usize { self.0 as usize }
 }
 
 impl Storable for Annotation {
-    type PointerType = AnnotationPointer;
+    type HandleType = AnnotationHandle;
 
     fn id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
     }
-    fn pointer(&self) -> Option<Self::PointerType> { 
+    fn handle(&self) -> Option<Self::HandleType> { 
         self.intid
     }
 }
 
 impl MutableStorable for Annotation {
-    fn set_pointer(&mut self, pointer: Self::PointerType) {
-        self.intid = Some(pointer);
+    fn set_handle(&mut self, handle: Self::HandleType) {
+        self.intid = Some(handle);
     }
 }
 
-/// This is the build recipe for `Annotation`. It contains public IDs or pointers that will be resolved
+/// This is the build recipe for `Annotation`. It contains public IDs or handles that will be resolved
 /// when the actual Annotation is built. The building is done by passing this to [`AnnotationStore::annotate()`].
 #[serde_as]
 #[derive(Deserialize,Debug)]
@@ -72,7 +72,7 @@ impl MutableStorable for Annotation {
 #[serde(from="AnnotationJson")]
 pub struct AnnotationBuilder {
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
-    id: AnyId<AnnotationPointer>,
+    id: AnyId<AnnotationHandle>,
     data: Vec<AnnotationDataBuilder>,
     target: WithAnnotationTarget,
 }
@@ -126,12 +126,12 @@ impl AnnotationBuilder {
     }
 
     /// Set the target to be a [`TextResource`]. Creates a [`Selector::ResourceSelector`]
-    pub fn target_resource(self, resource: AnyId<TextResourcePointer>) -> Self {
+    pub fn target_resource(self, resource: AnyId<TextResourceHandle>) -> Self {
         self.with_target(SelectorBuilder::ResourceSelector(resource))
     }
 
     /// Set the target to be a text slice inside a [`TextResource`]. Creates a [`Selector::TextSelector`]
-    pub fn target_text(self, resource: AnyId<TextResourcePointer>, offset: Offset) -> Self {
+    pub fn target_text(self, resource: AnyId<TextResourceHandle>, offset: Offset) -> Self {
         self.with_target(SelectorBuilder::TextSelector(resource, offset))
     }
 
@@ -148,7 +148,7 @@ impl AnnotationBuilder {
     /// You may use this (and similar methods) multiple times. 
     /// Do note that multiple data associated with the same annotation is considered *inter-dependent*,
     /// use multiple annotations instead if each it interpretable independent of the others.
-    pub fn with_data(self, annotationset: AnyId<AnnotationDataSetPointer>, key: AnyId<DataKeyPointer>, value: DataValue) -> Self {
+    pub fn with_data(self, annotationset: AnyId<AnnotationDataSetHandle>, key: AnyId<DataKeyHandle>, value: DataValue) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
                 annotationset,
@@ -160,7 +160,7 @@ impl AnnotationBuilder {
     }
 
     /// Use this method instead of [`with_data()`]  if you want to assign a public identifier (last argument)
-    pub fn with_data_with_id(self, dataset: AnyId<AnnotationDataSetPointer>, key: AnyId<DataKeyPointer>, value: DataValue, id: AnyId<AnnotationDataPointer>) -> Self {
+    pub fn with_data_with_id(self, dataset: AnyId<AnnotationDataSetHandle>, key: AnyId<DataKeyHandle>, value: DataValue, id: AnyId<AnnotationDataHandle>) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
                 id,
@@ -174,7 +174,7 @@ impl AnnotationBuilder {
 
     /// This references existing [`AnnotationData`], in a particular [`AnnotationDataSet'], by Id.
     /// Useful if you have an Id or reference instance already.
-    pub fn with_data_by_id(self, dataset: AnyId<AnnotationDataSetPointer>, id: AnyId<AnnotationDataPointer>) -> Self {
+    pub fn with_data_by_id(self, dataset: AnyId<AnnotationDataSetHandle>, id: AnyId<AnnotationDataHandle>) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
                 id,
@@ -191,20 +191,24 @@ impl AnnotationBuilder {
     }
 }
 
-impl Serialize for Annotation {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+/*
+impl SerializeWithStore for Annotation {
+    fn serialize_with_store<S>(&self, serializer: S, store: &AnnotationStore) -> Result<S::Ok, S::Error> 
     where S: Serializer {
         let mut state = serializer.serialize_struct("AnnotationData",2)?;
         state.serialize_field("@type", "AnnotationData")?;
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
+
+        //we can't serialize Selector directly 
         //TODO!
         //state.serialize_field("target", &self.target)?;
         //state.serialize_field("data", self.data)?;
         state.end()
     }
 }
+*/
 
 impl<'a> AnnotationStore {
     /// Builds and adds an annotation
@@ -214,7 +218,7 @@ impl<'a> AnnotationStore {
     }
 
     /// Builds an inserts an AnnotationData item
-    pub fn insert_data(&mut self, dataitem: AnnotationDataBuilder) -> Result<(AnnotationDataSetPointer, AnnotationDataPointer),StamError> {
+    pub fn insert_data(&mut self, dataitem: AnnotationDataBuilder) -> Result<(AnnotationDataSetHandle, AnnotationDataHandle),StamError> {
         // Obtain the dataset for this data item
         let dataset: &mut AnnotationDataSet = if let Some(dataset) = self.get_mut_by_anyid(&dataitem.annotationset) {
             dataset
@@ -233,13 +237,13 @@ impl<'a> AnnotationStore {
         };
 
         // Insert the data into the dataset 
-        let data_pointer = dataset.insert_data(dataitem.id, dataitem.key, dataitem.value, true)?;
-        Ok((dataset.pointer_or_err()?, data_pointer))
+        let data_handle = dataset.insert_data(dataitem.id, dataitem.key, dataitem.value, true)?;
+        Ok((dataset.handle_or_err()?, data_handle))
     } 
 
     /// Builds and inserts an annotation
     /// In a builder pattenr, use [`with_annotation()`] instead
-    pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationPointer,StamError> {
+    pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationHandle,StamError> {
 
         // Create the target selector if needed
         // If the selector fails, the annotate() fails with an error
@@ -261,8 +265,8 @@ impl<'a> AnnotationStore {
         // Convert AnnotationDataBuilder into AnnotationData that is ready to be stored
         let mut data = Vec::with_capacity(builder.data.len());
         for dataitem in builder.data {
-            let (datasetpointer,datapointer) = self.insert_data(dataitem)?;
-            data.push((datasetpointer,datapointer));
+            let (datasethandle,datahandle) = self.insert_data(dataitem)?;
+            data.push((datasethandle,datahandle));
         }
 
         // Has the caller set a public ID for this annotation?
@@ -280,7 +284,7 @@ impl<'a> AnnotationStore {
 
 impl<'a> Annotation {
     /// Create a new unbounded Annotation instance, you will likely want to use BuildAnnotation::new() instead and pass it to AnnotationStore.build()
-    pub fn new(id: Option<String>, target: Selector, data: Vec<(AnnotationDataSetPointer,AnnotationDataPointer)>) -> Self {
+    pub fn new(id: Option<String>, target: Selector, data: Vec<(AnnotationDataSetHandle,AnnotationDataHandle)>) -> Self {
         Annotation {
             id,
             data,
@@ -295,7 +299,7 @@ impl<'a> Annotation {
     }
 
     /// Iterate over the annotation data, returns tuples of internal IDs for (annotationset,annotationdata)
-    pub fn iter_data(&'a self) -> Iter<'a,(AnnotationDataSetPointer,AnnotationDataPointer)>  {
+    pub fn iter_data(&'a self) -> Iter<'a,(AnnotationDataSetHandle,AnnotationDataHandle)>  {
         self.data.iter()
     }
 
@@ -317,7 +321,7 @@ impl AnnotationStore {
 
 pub struct AnnotationDataIter<'a> {
     store: &'a AnnotationStore,
-    iter: Iter<'a, (AnnotationDataSetPointer,AnnotationDataPointer)>
+    iter: Iter<'a, (AnnotationDataSetHandle,AnnotationDataHandle)>
 }
 
 
@@ -326,8 +330,8 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.iter.next() {
-            Some((annotationset_pointer, annotationdata_intid)) => {
-                let annotationset: &AnnotationDataSet = self.store.get(*annotationset_pointer).expect("Getting dataset for annotation");
+            Some((annotationset_handle, annotationdata_intid)) => {
+                let annotationset: &AnnotationDataSet = self.store.get(*annotationset_handle).expect("Getting dataset for annotation");
                 let annotationdata: &AnnotationData = annotationset.get(*annotationdata_intid).expect("Getting annotationdata for annotation");
                 let datakey = annotationdata.key_as_ref(annotationset).expect("Getting datakey for annotation");
                 Some((datakey, annotationdata, annotationset))

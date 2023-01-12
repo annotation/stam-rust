@@ -5,7 +5,7 @@ use serde::ser::{Serializer, SerializeStruct};
 
 use crate::types::*;
 use crate::annotationstore::AnnotationStore;
-use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
 
 /// The DataKey class defines a vocabulary field, it 
 /// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
@@ -20,11 +20,11 @@ pub struct DataKey {
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
     #[serde(skip)]
-    intid: Option<DataKeyPointer>,
+    intid: Option<DataKeyHandle>,
 
     ///Refers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey. May be unbound (None) only during creation.
     #[serde(skip)]
-    pub(crate) part_of_set: Option<AnnotationDataSetPointer>
+    pub(crate) part_of_set: Option<AnnotationDataSetHandle>
 }
 
 impl Serialize for DataKey {
@@ -39,24 +39,24 @@ impl Serialize for DataKey {
 
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
-pub struct DataKeyPointer(u16);
-impl Pointer for DataKeyPointer {
+pub struct DataKeyHandle(u16);
+impl Handle for DataKeyHandle {
     fn new(intid: usize) -> Self { Self(intid as u16) }
     fn unwrap(&self) -> usize { self.0 as usize }
 }
 
 impl Storable for DataKey {
-    type PointerType = DataKeyPointer;
+    type HandleType = DataKeyHandle;
 
     fn id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
-    fn pointer(&self) -> Option<DataKeyPointer> { 
+    fn handle(&self) -> Option<DataKeyHandle> { 
         self.intid
     }
 }
 impl MutableStorable for DataKey {
-    fn set_pointer(&mut self, intid: DataKeyPointer) {
+    fn set_handle(&mut self, intid: DataKeyHandle) {
         self.intid = Some(intid);
     }
 }
@@ -94,8 +94,8 @@ impl DataKey {
         self.id.as_str()
     }
 
-    /// Returns a pointer to the [`AnnotationDataSet`]
-    pub fn annotationset(&self) -> Option<AnnotationDataSetPointer> {
+    /// Returns a handle to the [`AnnotationDataSet`]
+    pub fn annotationset(&self) -> Option<AnnotationDataSetHandle> {
         self.part_of_set
     }
 

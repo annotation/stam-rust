@@ -5,8 +5,8 @@ use serde::ser::{Serializer, SerializeStruct};
 
 use crate::types::*;
 use crate::annotationstore::AnnotationStore;
-use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetPointer};
-use crate::datakey::{DataKey,DataKeyPointer};
+use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
+use crate::datakey::{DataKey,DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
 
@@ -28,28 +28,28 @@ pub struct AnnotationData {
     id: Option<String>,
 
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
-    pub(crate) key: DataKeyPointer,
+    pub(crate) key: DataKeyHandle,
 
     //Actual annotation value
     value: DataValue,
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership 
-    intid: Option<AnnotationDataPointer>,
+    intid: Option<AnnotationDataHandle>,
     ///Referers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey
-    pub(crate) part_of_set: Option<AnnotationDataSetPointer>
+    pub(crate) part_of_set: Option<AnnotationDataSetHandle>
 }
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
-pub struct AnnotationDataPointer(u32);
-impl Pointer for AnnotationDataPointer {
+pub struct AnnotationDataHandle(u32);
+impl Handle for AnnotationDataHandle {
     fn new(intid: usize) -> Self { Self(intid as u32) }
     fn unwrap(&self) -> usize { self.0 as usize }
 }
 
 impl Storable for AnnotationData {
-    type PointerType = AnnotationDataPointer;
+    type HandleType = AnnotationDataHandle;
 
-    fn pointer(&self) -> Option<AnnotationDataPointer> { 
+    fn handle(&self) -> Option<AnnotationDataHandle> { 
         self.intid
     }
 
@@ -63,7 +63,7 @@ impl Storable for AnnotationData {
     }
 }
 impl MutableStorable for AnnotationData {
-    fn set_pointer(&mut self, intid: AnnotationDataPointer) {
+    fn set_handle(&mut self, intid: AnnotationDataHandle) {
         self.intid = Some(intid);
     }
 }
@@ -85,7 +85,7 @@ impl Serialize for AnnotationData {
 impl AnnotationData {
     /// Creates a new unbounded AnnotationData instance, you will likely never want to instantiate this directly, but via 
     //// [`AnnotationDataSet::with_data()`] or indirectly [`AnnotationBuilder::with_data()`].
-    pub fn new(id: Option<String>, key: DataKeyPointer, value: DataValue) -> Self {
+    pub fn new(id: Option<String>, key: DataKeyHandle, value: DataValue) -> Self {
         AnnotationData {
             id,
             key,
@@ -109,7 +109,7 @@ impl AnnotationData {
         dataset.get(self.key())
     }
 
-    pub fn key(&self) -> DataKeyPointer {
+    pub fn key(&self) -> DataKeyHandle {
         self.key
     }
 
@@ -121,17 +121,17 @@ impl AnnotationData {
     }
 }
 
-/// This is the build recipe for `AnnotationData`. It contains public IDs or pointers that will be resolved.
+/// This is the build recipe for `AnnotationData`. It contains public IDs or handles that will be resolved.
 /// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] methods.
 #[derive(Deserialize,Debug)]
 #[serde(tag="AnnotationData")]
 #[serde(from="AnnotationDataJson")]
 pub struct AnnotationDataBuilder {
     #[serde(rename="@id")]
-    pub id: AnyId<AnnotationDataPointer>,
+    pub id: AnyId<AnnotationDataHandle>,
     #[serde(rename="set")]
-    pub annotationset: AnyId<AnnotationDataSetPointer>,
-    pub key: AnyId<DataKeyPointer>,
+    pub annotationset: AnyId<AnnotationDataSetHandle>,
+    pub key: AnyId<DataKeyHandle>,
     pub value: DataValue,
 }
 

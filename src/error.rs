@@ -9,7 +9,7 @@ use serde_json::error::Error;
 pub enum StamError {
     /// This error is raised when the specified internal ID does not exist.
     /// The first parameter is the requested internal ID
-    PointerError(&'static str),
+    HandleError(&'static str),
 
     /// This error is raised when the specified public ID does not exist
     /// The first parameter is the requested public ID
@@ -68,7 +68,7 @@ impl From<&StamError> for String {
     /// Returns the error message as a String
     fn from(error: &StamError) -> String {
         match error {
-            StamError::PointerError(contextmsg) => format!("IntIdError: No such internal ID: ({})", contextmsg),
+            StamError::HandleError(contextmsg) => format!("IntIdError: No such internal ID: ({})", contextmsg),
             StamError::IdError(id, contextmsg) => format!("IdError: No such ID: {} ({})",id, contextmsg),
             StamError::Unbound(contextmsg) => format!("Unbound: Item is not bound yet, add it to a store first. ({})", contextmsg),
             StamError::AlreadyBound(contextmsg) => format!("AlreadyBound: Item is already bound. ({})", contextmsg),

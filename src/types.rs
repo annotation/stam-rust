@@ -45,10 +45,10 @@ impl TryFrom<isize> for Cursor {
     }
 }
 
-/// The pointer trait is implemented on various pointer types. They have in common that refer to the internal id 
-/// a [`Storable`] item in a [`Store`]. Types implementing this are lightweigt and do ott borrow anything, they can be passed and copied freely.
-// To get an actual reference to the item from a pointer type, call the `get()`` method on the store that holds it.
-pub trait Pointer: Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Hash {
+/// The handle trait is implemented on various handle types. They have in common that refer to the internal id 
+/// a [`Storable`] item in a [`Store`] by index. Types implementing this are lightweigt and do not borrow anything, they can be passed and copied freely.
+// To get an actual reference to the item from a handle type, call the `get()`` method on the store that holds it.
+pub trait Handle: Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Hash {
     fn new(intid: usize) -> Self;
     fn unwrap(&self) -> usize;
 }
@@ -57,9 +57,9 @@ pub trait Pointer: Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
 /// Used to resolve public IDs to internal ones.
 #[derive(Debug)]
-pub struct IdMap<PointerType> {
+pub struct IdMap<HandleType> {
     /// The actual map
-    data: HashMap<String,PointerType>,
+    data: HashMap<String,HandleType>,
 
     /// A prefix that automatically generated IDs will get when added to this map
     autoprefix: String,
@@ -68,7 +68,7 @@ pub struct IdMap<PointerType> {
     seqnr: usize,
 }
 
-impl<PointerType> Default for IdMap<PointerType> where PointerType: Pointer {
+impl<HandleType> Default for IdMap<HandleType> where HandleType: Handle {
     fn default() -> Self {
         Self {
             data: HashMap::new(),
@@ -78,7 +78,7 @@ impl<PointerType> Default for IdMap<PointerType> where PointerType: Pointer {
     }
 }
 
-impl<PointerType> IdMap<PointerType> where PointerType: Pointer {
+impl<HandleType> IdMap<HandleType> where HandleType: Handle {
     pub fn new(autoprefix: String) -> Self {
         Self {
             autoprefix,
@@ -98,7 +98,7 @@ pub struct RelationMap<A,B> {
     pub(crate) data: HashMap<A,Vec<B>>
 }
 
-impl<A,B> Default for RelationMap<A,B> where A: Pointer, B: Pointer {
+impl<A,B> Default for RelationMap<A,B> where A: Handle, B: Handle {
     fn default() -> Self {
         Self {
             data: HashMap::new()
@@ -106,7 +106,7 @@ impl<A,B> Default for RelationMap<A,B> where A: Pointer, B: Pointer {
     }
 }
 
-impl<A,B> RelationMap<A,B> where A: Pointer, B: Pointer {
+impl<A,B> RelationMap<A,B> where A: Handle, B: Handle {
     pub fn new() -> Self { Self::default() }
 
     pub fn insert(&mut self, x: A, y: B) {
@@ -114,7 +114,7 @@ impl<A,B> RelationMap<A,B> where A: Pointer, B: Pointer {
     }
 }
 
-impl<A,B> Extend<(A,B)> for RelationMap<A,B> where A: Pointer, B: Pointer {
+impl<A,B> Extend<(A,B)> for RelationMap<A,B> where A: Handle, B: Handle {
     fn extend<T>(&mut self, iter: T)  where T: IntoIterator<Item=(A,B)> {
         for (x,y) in iter {
             self.insert(x,y);
@@ -135,7 +135,7 @@ impl<A,B,C> Default for TripleRelationMap<A,B,C> {
     }
 }
 
-impl<A,B,C> TripleRelationMap<A,B,C> where A: Pointer, B: Pointer, C: Pointer {
+impl<A,B,C> TripleRelationMap<A,B,C> where A: Handle, B: Handle, C: Handle {
     pub fn new() -> Self { Self::default() }
 
     pub fn insert(&mut self, x: A, y: B, z: C) {
@@ -143,7 +143,7 @@ impl<A,B,C> TripleRelationMap<A,B,C> where A: Pointer, B: Pointer, C: Pointer {
     }
 }
 
-impl<A,B,C> Extend<(A,B,C)> for TripleRelationMap<A,B,C> where A: Pointer, B: Pointer, C: Pointer  {
+impl<A,B,C> Extend<(A,B,C)> for TripleRelationMap<A,B,C> where A: Handle, B: Handle, C: Handle  {
     fn extend<T>(&mut self, iter: T)  where T: IntoIterator<Item=(A,B,C)> {
         for (x,y,z) in iter {
             self.insert(x,y,z);
@@ -156,16 +156,16 @@ impl<A,B,C> Extend<(A,B,C)> for TripleRelationMap<A,B,C> where A: Pointer, B: Po
 
 
 pub trait Storable {
-    type PointerType: Pointer;
+    type HandleType: Handle;
     /// Retrieve the internal (numeric) id. For any type T uses in StoreFor<T>, this may be None only in the initial
     /// stage when it is still unbounded to a store.
-    fn pointer(&self) -> Option<Self::PointerType> {
+    fn handle(&self) -> Option<Self::HandleType> {
         None
     }
 
     /// Like [`Self::get_intid()`] but returns a [`StamError:Unbound`] error if there is no internal id.
-    fn pointer_or_err(&self) -> Result<Self::PointerType,StamError> {
-        self.pointer().ok_or(StamError::Unbound(""))
+    fn handle_or_err(&self) -> Result<Self::HandleType,StamError> {
+        self.handle().ok_or(StamError::Unbound(""))
     }
 
     /// Get the public ID
@@ -191,7 +191,7 @@ pub trait Storable {
 pub trait MutableStorable: Storable {
     /// Set the internal ID. May only be called once (though currently not enforced).
     #[allow(unused_variables)]
-    fn set_pointer(&mut self, pointer: <Self as Storable>::PointerType) {
+    fn set_handle(&mut self, handle: <Self as Storable>::HandleType) {
         //no-op in default implementation
     }
 
@@ -200,8 +200,8 @@ pub trait MutableStorable: Storable {
         //no-op by default
     }
     /// Generate a random ID in a given idmap (adds it to the map), Item must be bound
-    fn generate_id(self, idmap: Option<&mut IdMap<Self::PointerType>>) -> Self where Self: Sized {
-        if let Some(intid) = self.pointer() {
+    fn generate_id(self, idmap: Option<&mut IdMap<Self::HandleType>>) -> Self where Self: Sized {
+        if let Some(intid) = self.handle() {
             if let Some(idmap) = idmap {
                 loop {
                     let id = format!("{}{}", idmap.autoprefix, idmap.seqnr);
@@ -226,11 +226,11 @@ pub trait StoreFor<T: MutableStorable + Storable> {
     /// Get a mutable reference to the entire store for the associated type
     fn store_mut(&mut self) -> &mut Store<T>;
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
-    fn idmap(&self) -> Option<&IdMap<T::PointerType>> {
+    fn idmap(&self) -> Option<&IdMap<T::HandleType>> {
         None
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
-    fn idmap_mut(&mut self) -> Option<&mut IdMap<T::PointerType>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<T::HandleType>> {
         None
     }
 
@@ -238,13 +238,13 @@ pub trait StoreFor<T: MutableStorable + Storable> {
 
     /// Adds an item to the store. Returns its internal id upon success
     /// This is a fairly low level method. You will likely want to use [`add`] instead.
-    fn insert(&mut self, mut item: T) -> Result<T::PointerType,StamError> {
-        let pointer = if let Some(intid) = item.pointer() {
+    fn insert(&mut self, mut item: T) -> Result<T::HandleType,StamError> {
+        let handle = if let Some(intid) = item.handle() {
             intid
         } else {
             // item has no internal id yet, i.e. it is unbound
             // we generate an id and bind it now
-            let intid = self.next_pointer();
+            let intid = self.next_handle();
             item = self.bind(item)?;
             intid
         };
@@ -258,7 +258,7 @@ pub trait StoreFor<T: MutableStorable + Storable> {
 
             self.idmap_mut().map(|idmap| {
                 //                 v-- MAYBE TODO: optimise the id copy away
-                idmap.data.insert(id.to_string(), item.pointer().unwrap())
+                idmap.data.insert(id.to_string(), item.handle().unwrap())
             });
         } else {
             item = item.generate_id(self.idmap_mut());
@@ -267,19 +267,19 @@ pub trait StoreFor<T: MutableStorable + Storable> {
         //add the resource
         self.store_mut().push(Some(item));
 
-        self.inserted(pointer);
+        self.inserted(handle);
 
         //sanity check to ensure no item can determine its own internal id that does not correspond with what's allocated
-        assert_eq!(pointer, T::PointerType::new(self.store().len() - 1));
+        assert_eq!(handle, T::HandleType::new(self.store().len() - 1));
 
-        Ok(pointer)
+        Ok(handle)
     }
 
     /// Called after an item was inserted to the store
     /// Allows the store to do further bookkeeping
     /// like updating relation maps
     #[allow(unused_variables)]
-    fn inserted(&mut self, pointer: T::PointerType) {
+    fn inserted(&mut self, handle: T::HandleType) {
         //default implementation does nothing
     }
 
@@ -290,7 +290,7 @@ pub trait StoreFor<T: MutableStorable + Storable> {
 
     /// Returns true if the store contains the item
     fn contains(&self, item: &T) -> bool {
-        if let (Some(intid), Some(true)) = (item.pointer(), self.owns(item)) {
+        if let (Some(intid), Some(true)) = (item.handle(), self.owns(item)) {
             self.has(intid)
         } else if let Some(id) = item.id() {
             self.has_id(id)
@@ -300,8 +300,8 @@ pub trait StoreFor<T: MutableStorable + Storable> {
     }
 
     /// Retrieves the internal id for the item as it occurs in the store. The passed item and reference item may be distinct instances.
-    fn find(&self, item: &T) -> Option<T::PointerType> {
-        if let (Some(intid), Some(true)) = (item.pointer(), self.owns(item)) {
+    fn find(&self, item: &T) -> Option<T::HandleType> {
+        if let (Some(intid), Some(true)) = (item.handle(), self.owns(item)) {
             Some(intid)
         } else if let Some(id) = item.id() {
             if let Some(idmap) = self.idmap() {
@@ -315,8 +315,8 @@ pub trait StoreFor<T: MutableStorable + Storable> {
     }
 
     /// Returns true if the store has the item with the specified internal id
-    fn has(&self, pointer: T::PointerType) -> bool {
-        self.store().len() > pointer.unwrap()
+    fn has(&self, handle: T::HandleType) -> bool {
+        self.store().len() > handle.unwrap()
     }
 
     /// Returns true if the store has the item with the specified global id
@@ -330,40 +330,40 @@ pub trait StoreFor<T: MutableStorable + Storable> {
 
     /// Get a reference to an item from the store by its global ID
     fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
-        let pointer = self.resolve_id(id)?;
-        self.get(pointer)
+        let handle = self.resolve_id(id)?;
+        self.get(handle)
     }
 
     /// Get a mutable reference to an item from the store by its global ID
     fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T,StamError> {
-        let pointer = self.resolve_id(id)?;
-        self.get_mut(pointer)
+        let handle = self.resolve_id(id)?;
+        self.get_mut(handle)
     }
 
     /// Get a reference to an item from the store by internal ID
-    fn get(&self, pointer: T::PointerType) -> Result<&T,StamError> {
-        if let Some(Some(item)) = self.store().get(pointer.unwrap()) {
+    fn get(&self, handle: T::HandleType) -> Result<&T,StamError> {
+        if let Some(Some(item)) = self.store().get(handle.unwrap()) {
             Ok(item)
         } else {
-            Err(StamError::PointerError(self.introspect_type()))
+            Err(StamError::HandleError(self.introspect_type()))
         }
     }
 
     /// Get a mutable reference to an item from the store by internal ID
-    fn get_mut(&mut self, pointer: T::PointerType) -> Result<&mut T,StamError> {
-        if let Some(Some(item)) = self.store_mut().get_mut(pointer.unwrap()) {
+    fn get_mut(&mut self, handle: T::HandleType) -> Result<&mut T,StamError> {
+        if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
             Ok(item)
         } else {
-            Err(StamError::PointerError("Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
+            Err(StamError::HandleError("Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
         }
     }
 
-    /// Resolves an ID to a pointer
+    /// Resolves an ID to a handle
     /// You usually don't want to call this directly
-    fn resolve_id(&self, id: &str) -> Result<T::PointerType, StamError> {
+    fn resolve_id(&self, id: &str) -> Result<T::HandleType, StamError> {
         if let Some(idmap) = self.idmap() {
-            if let Some(pointer) = idmap.data.get(id) {
-                Ok(*pointer)
+            if let Some(handle) = idmap.data.get(id) {
+                Ok(*handle)
             } else {
                 Err(StamError::IdError(id.to_string(), self.introspect_type()))
             }
@@ -402,13 +402,13 @@ pub trait StoreFor<T: MutableStorable + Storable> {
     }
 
     /// Return the internal id that will be assigned for the next item to the store
-    fn next_pointer(&self) -> T::PointerType {
-        T::PointerType::new(self.store().len()) //this is one of the very few places in the code where we create a pointer from scratch
+    fn next_handle(&self) -> T::HandleType {
+        T::HandleType::new(self.store().len()) //this is one of the very few places in the code where we create a handle from scratch
     }
 
     /// Return the internal id that was assigned to last inserted item
-    fn last_pointer(&self) -> T::PointerType {
-        T::PointerType::new(self.store().len() - 1)
+    fn last_handle(&self) -> T::HandleType {
+        T::HandleType::new(self.store().len() - 1)
     }
 
     /// This binds an item to the store *PRIOR* to it being actually added
@@ -416,10 +416,10 @@ pub trait StoreFor<T: MutableStorable + Storable> {
     fn bind(&mut self, mut item: T) -> Result<T,StamError> {
         //we already pass the internal id this item will get upon the next insert()
         //so it knows its internal id immediate after construction
-        if item.pointer().is_some() {
+        if item.handle().is_some() {
             Err(StamError::AlreadyBound("bind()") )
         } else {
-            item.set_pointer(self.next_pointer());
+            item.set_handle(self.next_handle());
             item.bound();
             Ok(item)
         }
@@ -427,28 +427,28 @@ pub trait StoreFor<T: MutableStorable + Storable> {
 
     /// Get a reference to an item from the store by any ID
     /// If the item does not exist, None will be returned
-    fn get_by_anyid(&self, anyid: &AnyId<T::PointerType>) -> Option<&T> {
+    fn get_by_anyid(&self, anyid: &AnyId<T::HandleType>) -> Option<&T> {
         match anyid {
             AnyId::None => None,
-            AnyId::Pointer(pointer) => self.get(*pointer).ok(),
+            AnyId::Handle(handle) => self.get(*handle).ok(),
             AnyId::Id(id) => self.get_by_id(id).ok()
         }
     }
 
-    fn get_by_anyid_or_err(&self, anyid: &AnyId<T::PointerType>) -> Result<&T, StamError> {
+    fn get_by_anyid_or_err(&self, anyid: &AnyId<T::HandleType>) -> Result<&T, StamError> {
         match anyid {
             AnyId::None => Err(anyid.error("")),
-            AnyId::Pointer(pointer) => self.get(*pointer),
+            AnyId::Handle(handle) => self.get(*handle),
             AnyId::Id(id) => self.get_by_id(id)
         }
     }
 
     /// Get a reference to an item from the store by any ID
     /// If the item does not exist, None will be returned
-    fn get_mut_by_anyid(&mut self, anyid: &AnyId<T::PointerType>) -> Option<&mut T> {
+    fn get_mut_by_anyid(&mut self, anyid: &AnyId<T::HandleType>) -> Option<&mut T> {
         match anyid {
             AnyId::None => None,
-            AnyId::Pointer(pointer) => self.get_mut(*pointer).ok(),
+            AnyId::Handle(handle) => self.get_mut(*handle).ok(),
             AnyId::Id(id) => self.get_mut_by_id(id).ok()
         }
     }
@@ -492,28 +492,28 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 
 #[derive(Debug,Clone,Deserialize,PartialEq)]
 #[serde(untagged)]
-/// This is either an public ID or a Pointer
-pub enum AnyId<PointerType> where PointerType: Pointer {
+/// This is either an public ID or a Handle
+pub enum AnyId<HandleType> where HandleType: Handle {
     Id(String), //for deserialisation only this variant is avaiable
 
     #[serde(skip)]
-    Pointer(PointerType),
+    Handle(HandleType),
 
     #[serde(skip)]
     None,
 }
 
-impl<PointerType> Default for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> Default for AnyId<HandleType> where HandleType: Handle {
     fn default() -> Self {
         Self::None
     }
 }
 
 
-impl<PointerType> AnyId<PointerType> where PointerType: Pointer {
-    pub fn is_pointer(&self) -> bool {
+impl<HandleType> AnyId<HandleType> where HandleType: Handle {
+    pub fn is_handle(&self) -> bool {
         match self {
-            Self::Pointer(_) => true,
+            Self::Handle(_) => true,
             _ => false
         }
     }
@@ -542,7 +542,7 @@ impl<PointerType> AnyId<PointerType> where PointerType: Pointer {
     // raises an ID error
     pub fn error(&self, contextmsg: &'static str) -> StamError {
         match self {
-            Self::Pointer(pointer) => StamError::PointerError(contextmsg),
+            Self::Handle(handle) => StamError::HandleError(contextmsg),
             Self::Id(id) => StamError::IdError(id.to_string(), contextmsg),
             Self::None => StamError::Unbound("Supplied AnyId is not bound to anything!")
         }
@@ -558,7 +558,7 @@ impl<PointerType> AnyId<PointerType> where PointerType: Pointer {
 }
 
 
-impl<PointerType> From<&str> for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> From<&str> for AnyId<HandleType> where HandleType: Handle {
     fn from(id: &str) -> Self {
         if id.is_empty()  {
             Self::None
@@ -567,7 +567,7 @@ impl<PointerType> From<&str> for AnyId<PointerType> where PointerType: Pointer {
         }
     }
 }
-impl<PointerType> From<String> for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> From<String> for AnyId<HandleType> where HandleType: Handle {
     fn from(id: String) -> Self {
         if id.is_empty()  {
             Self::None
@@ -576,28 +576,28 @@ impl<PointerType> From<String> for AnyId<PointerType> where PointerType: Pointer
         }
     }
 }
-impl<PointerType> From<PointerType> for AnyId<PointerType> where PointerType: Pointer {
-    fn from(pointer: PointerType) -> Self {
-        Self::Pointer(pointer)
+impl<HandleType> From<HandleType> for AnyId<HandleType> where HandleType: Handle {
+    fn from(handle: HandleType) -> Self {
+        Self::Handle(handle)
     }
 }
-impl<PointerType> From<&PointerType> for AnyId<PointerType> where PointerType: Pointer   {
-    fn from(pointer: &PointerType) -> Self {
-        Self::Pointer(*pointer)
+impl<HandleType> From<&HandleType> for AnyId<HandleType> where HandleType: Handle   {
+    fn from(handle: &HandleType) -> Self {
+        Self::Handle(*handle)
     }
 }
 
-impl<PointerType> From<Option<PointerType>> for AnyId<PointerType> where PointerType: Pointer {
-    fn from(pointer: Option<PointerType>) -> Self {
-        if let Some(pointer) = pointer {
-            Self::Pointer(pointer)
+impl<HandleType> From<Option<HandleType>> for AnyId<HandleType> where HandleType: Handle {
+    fn from(handle: Option<HandleType>) -> Self {
+        if let Some(handle) = handle {
+            Self::Handle(handle)
         } else {
             Self::None
         }
     }
 }
 
-impl<PointerType> From<Option<&str>> for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> From<Option<&str>> for AnyId<HandleType> where HandleType: Handle {
     fn from(id: Option<&str>) -> Self {
         if let Some(id) = id {
             if id.is_empty()  {
@@ -611,7 +611,7 @@ impl<PointerType> From<Option<&str>> for AnyId<PointerType> where PointerType: P
     }
 }
 
-impl<PointerType> From<Option<String>> for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> From<Option<String>> for AnyId<HandleType> where HandleType: Handle {
     fn from(id: Option<String>) -> Self {
         if let Some(id) = id {
             if id.is_empty()  {
@@ -627,19 +627,19 @@ impl<PointerType> From<Option<String>> for AnyId<PointerType> where PointerType:
 
 /// This allows us to pass a reference to any stored item and get back the best AnyId for it
 /// Will panic on totally unbounded that also don't have a public ID
-impl<PointerType> From<&dyn Storable<PointerType=PointerType>> for AnyId<PointerType> where PointerType: Pointer {
-    fn from(item: &dyn Storable<PointerType=PointerType>) -> Self {
-        if let Some(pointer) = item.pointer() {
-            Self::Pointer(pointer)
+impl<HandleType> From<&dyn Storable<HandleType=HandleType>> for AnyId<HandleType> where HandleType: Handle {
+    fn from(item: &dyn Storable<HandleType=HandleType>) -> Self {
+        if let Some(handle) = item.handle() {
+            Self::Handle(handle)
         } else if let Some(id) = item.id() {
             Self::Id(id.into())
         } else {
-            panic!("Passed a reference to an unbound item without a public ID! Unable to convert to IdOrPointer");
+            panic!("Passed a reference to an unbound item without a public ID! Unable to convert to AnyId");
         }
     }
 }
 
-impl<PointerType> PartialEq<&str> for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> PartialEq<&str> for AnyId<HandleType> where HandleType: Handle {
     fn eq(&self, other: &&str) -> bool {
         match self {
             Self::Id(v) => v.as_str() == *other,
@@ -648,7 +648,7 @@ impl<PointerType> PartialEq<&str> for AnyId<PointerType> where PointerType: Poin
     }
 }
 
-impl<PointerType> PartialEq<str> for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> PartialEq<str> for AnyId<HandleType> where HandleType: Handle {
     fn eq(&self, other: &str) -> bool {
         match self {
             Self::Id(v) => v.as_str() == other,
@@ -657,7 +657,7 @@ impl<PointerType> PartialEq<str> for AnyId<PointerType> where PointerType: Point
     }
 }
 
-impl<PointerType> PartialEq<String> for AnyId<PointerType> where PointerType: Pointer {
+impl<HandleType> PartialEq<String> for AnyId<HandleType> where HandleType: Handle {
     fn eq(&self, other: &String) -> bool {
         match self {
             Self::Id(v) => v == other,

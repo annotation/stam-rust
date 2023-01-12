@@ -8,8 +8,8 @@ use serde_with::serde_as;
 //use serde_json::Result;
 
 use crate::types::*;
-use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataPointer};
-use crate::datakey::{DataKey,DataKeyPointer};
+use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataHandle};
+use crate::datakey::{DataKey,DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
 
@@ -32,15 +32,15 @@ pub struct AnnotationDataSet {
     data: Store<AnnotationData>,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
-    intid: Option<AnnotationDataSetPointer>,
+    intid: Option<AnnotationDataSetHandle>,
 
     /// Maps public IDs to internal IDs for 
-    key_idmap: IdMap<DataKeyPointer>,
+    key_idmap: IdMap<DataKeyHandle>,
 
     /// Maps public IDs to internal IDs for AnnotationData
-    data_idmap: IdMap<AnnotationDataPointer>,
+    data_idmap: IdMap<AnnotationDataHandle>,
 
-    key_data_map: RelationMap<DataKeyPointer,AnnotationDataPointer>
+    key_data_map: RelationMap<DataKeyHandle,AnnotationDataHandle>
 }
 
 
@@ -82,14 +82,14 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
 
 
 #[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash)]
-pub struct AnnotationDataSetPointer(u16);
-impl Pointer for AnnotationDataSetPointer {
+pub struct AnnotationDataSetHandle(u16);
+impl Handle for AnnotationDataSetHandle {
     fn new(intid: usize) -> Self { Self(intid as u16) }
     fn unwrap(&self) -> usize { self.0 as usize }
 }
 
 impl Storable for AnnotationDataSet {
-    type PointerType = AnnotationDataSetPointer;
+    type HandleType = AnnotationDataSetHandle;
 
     fn id(&self) -> Option<&str> { 
         self.id.as_ref().map(|x| &**x)
@@ -98,21 +98,21 @@ impl Storable for AnnotationDataSet {
         self.id = Some(id);
         self
     }
-    fn pointer(&self) -> Option<Self::PointerType> { 
+    fn handle(&self) -> Option<Self::HandleType> { 
         self.intid
     }
 }
 
 impl MutableStorable for AnnotationDataSet {
-    fn set_pointer(&mut self, pointer: AnnotationDataSetPointer) {
-        self.intid = Some(pointer);
+    fn set_handle(&mut self, handle: AnnotationDataSetHandle) {
+        self.intid = Some(handle);
     }
 
     /// Sets the ownership of all items in the store
     /// This ensure the part_of_set relation (backreference)
     /// is set right.
     fn bound(&mut self) {
-        let intid = self.pointer().expect("getting internal id");
+        let intid = self.handle().expect("getting internal id");
         let datastore: &mut Store<AnnotationData> = self.store_mut();
         for data in datastore.iter_mut() {
             if let Some(data) = data {
@@ -136,18 +136,18 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     fn store_mut(&mut self) -> &mut Store<DataKey> {
         &mut self.keys
     }
-    fn idmap(&self) -> Option<&IdMap<DataKeyPointer>> {
+    fn idmap(&self) -> Option<&IdMap<DataKeyHandle>> {
         Some(&self.key_idmap)
     }
-    fn idmap_mut(&mut self) -> Option<&mut IdMap<DataKeyPointer>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<DataKeyHandle>> {
         Some(&mut self.key_idmap)
     }
     fn owns(&self, item: &DataKey) -> Option<bool> {
-        if item.part_of_set.is_none() || self.pointer().is_none() {
+        if item.part_of_set.is_none() || self.handle().is_none() {
             //ownership is unclear because one of both is unbound
             None
         } else {
-            Some(item.part_of_set == self.pointer())
+            Some(item.part_of_set == self.handle())
         }
     }
     fn introspect_type(&self) -> &'static str {
@@ -163,30 +163,30 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     fn store_mut(&mut self) -> &mut Store<AnnotationData> {
         &mut self.data
     }
-    fn idmap(&self) -> Option<&IdMap<AnnotationDataPointer>> {
+    fn idmap(&self) -> Option<&IdMap<AnnotationDataHandle>> {
         Some(&self.data_idmap)
     }
-    fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationDataPointer>> {
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationDataHandle>> {
         Some(&mut self.data_idmap)
     }
     fn owns(&self, item: &AnnotationData) -> Option<bool> {
-        if item.part_of_set.is_none() || self.pointer().is_none() {
+        if item.part_of_set.is_none() || self.handle().is_none() {
             //ownership is unclear because one of both is unbound
             None
         } else {
-            Some(item.part_of_set == self.pointer())
+            Some(item.part_of_set == self.handle())
         }
     }
     fn introspect_type(&self) -> &'static str {
         "AnnotationData in AnnotationDataSet"
     }
 
-    fn inserted(&mut self, pointer: AnnotationDataPointer) {
+    fn inserted(&mut self, handle: AnnotationDataHandle) {
         // called after the item is inserted in the store
         // update the relation map
-        let annotationdata: &AnnotationData = self.get(pointer).expect("item must exist after insertion");
+        let annotationdata: &AnnotationData = self.get(handle).expect("item must exist after insertion");
 
-        self.key_data_map.insert(annotationdata.key, pointer);
+        self.key_data_map.insert(annotationdata.key, handle);
     }
 
 }
@@ -227,20 +227,20 @@ impl AnnotationDataSet {
 
     /// Adds new [`AnnotationData`] to the dataset, this should be
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
-    pub fn with_data(mut self, id: AnyId<AnnotationDataPointer>, key: AnyId<DataKeyPointer>, value: DataValue) -> Result<Self, StamError> {
+    pub fn with_data(mut self, id: AnyId<AnnotationDataHandle>, key: AnyId<DataKeyHandle>, value: DataValue) -> Result<Self, StamError> {
         self.insert_data(id,key,value,true)?;
         Ok(self)
     }
 
     /// Adds new [`AnnotationData`] to the dataset. Use [`with_data`] instead if you are using a regular builder pattern.
-    /// If the data already exists, this returns a pointer to the existing data and inserts nothing new
+    /// If the data already exists, this returns a handle to the existing data and inserts nothing new
     ///
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
-    pub fn insert_data(&mut self, id: AnyId<AnnotationDataPointer>, key: AnyId<DataKeyPointer>, value: DataValue, safety: bool) -> Result<AnnotationDataPointer, StamError> {
+    pub fn insert_data(&mut self, id: AnyId<AnnotationDataHandle>, key: AnyId<DataKeyHandle>, value: DataValue, safety: bool) -> Result<AnnotationDataHandle, StamError> {
         let annotationdata: Option<&AnnotationData> = self.get_by_anyid(&id);
         if let Some(annotationdata) = annotationdata {
             //already exists, return as is
-            return Ok(annotationdata.pointer().expect("item must have intid when in store"))
+            return Ok(annotationdata.handle().expect("item must have intid when in store"))
         }
         if key.is_none() {
             return Err(StamError::IncompleteError("Key supplied to AnnotationDataSet.with_data() can not be None"));
@@ -248,8 +248,8 @@ impl AnnotationDataSet {
 
         let datakey: Option<&DataKey> = self.get_by_anyid(&key);
         let mut newkey = false;
-        let datakey_pointer = if let Some(datakey) = datakey {
-            datakey.pointer_or_err()?
+        let datakey_handle = if let Some(datakey) = datakey {
+            datakey.handle_or_err()?
         } else if key.is_id() {
             //datakey not found, create new one and add it to the store
             newkey = true;
@@ -260,12 +260,12 @@ impl AnnotationDataSet {
 
         if !newkey && id.is_none() && safety {
             // there is a chance that this key and value combination already occurs, check it
-            if let Some(dataitems) = self.key_data_map.data.get(&datakey_pointer) {
+            if let Some(dataitems) = self.key_data_map.data.get(&datakey_handle) {
                 for intid in dataitems.iter() { //MAYBE TODO: this may get slow if there is a key with a lot of data values
                     let data: &AnnotationData = self.get(*intid).expect("getting item");
                     if data.value() == &value {
                         // Data with this exact key and value already exists, return it:
-                        return Ok(data.pointer().expect("item must have intid if in store"));
+                        return Ok(data.handle().expect("item must have intid if in store"));
                     }
                 }
             }
@@ -273,20 +273,20 @@ impl AnnotationDataSet {
 
         let public_id: Option<String> = id.to_string();
 
-        self.insert(AnnotationData::new(public_id, datakey_pointer, value))
+        self.insert(AnnotationData::new(public_id, datakey_handle, value))
     }
 
     /// Build and insert data into the dataset, similar to [`insert_data()`] and [`with_data()`], but takes a prepared `AnnotationDataBuilder` instead.
-    pub fn build_insert_data(&mut self, dataitem: AnnotationDataBuilder, safety: bool) -> Result<AnnotationDataPointer, StamError> {
+    pub fn build_insert_data(&mut self, dataitem: AnnotationDataBuilder, safety: bool) -> Result<AnnotationDataHandle, StamError> {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }
 
-    /// Get an annotation pointer from an ID.
-    pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataPointer,StamError> {
+    /// Get an annotation handle from an ID.
+    pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataHandle,StamError> {
         <Self as StoreFor<AnnotationData>>::resolve_id(&self, id)
     }
 
-    pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyPointer,StamError> {
+    pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyHandle,StamError> {
         <Self as StoreFor<DataKey>>::resolve_id(&self, id)
     }
 

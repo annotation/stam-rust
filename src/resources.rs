@@ -26,7 +26,7 @@ pub struct TextResource {
     text: String,
 
     /// The internal numeric identifier for the resource (may only be None upon creation when not bound yet)
-    intid: Option<TextResourcePointer>
+    intid: Option<TextResourceHandle>
 }
 
 #[serde_as]
@@ -69,19 +69,19 @@ impl TryFrom<TextResourceBuilder> for TextResource {
 
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
-pub struct TextResourcePointer(u32);
-impl Pointer for TextResourcePointer {
+pub struct TextResourceHandle(u32);
+impl Handle for TextResourceHandle {
     fn new(intid: usize) -> Self { Self(intid as u32) }
     fn unwrap(&self) -> usize { self.0 as usize }
 }
 
 impl Storable for TextResource {
-    type PointerType = TextResourcePointer;
+    type HandleType = TextResourceHandle;
 
     fn id(&self) -> Option<&str> { 
         Some(self.id.as_str())
     }
-    fn pointer(&self) -> Option<TextResourcePointer> { 
+    fn handle(&self) -> Option<TextResourceHandle> { 
         self.intid
     }
     fn with_id(mut self, id: String) -> Self {
@@ -91,8 +91,8 @@ impl Storable for TextResource {
 }
 
 impl MutableStorable for TextResource {
-    fn set_pointer(&mut self, pointer: TextResourcePointer) {
-        self.intid = Some(pointer);
+    fn set_handle(&mut self, handle: TextResourceHandle) {
+        self.intid = Some(handle);
     }
 }
 
@@ -215,8 +215,8 @@ impl TextResource {
 
 
     pub fn select_text(&self, begin: Cursor, end: Cursor) -> Result<Selector,StamError> {
-        if let Some(pointer) = self.pointer() {
-            Ok(Selector::TextSelector(pointer, Offset { begin, end }))
+        if let Some(handle) = self.handle() {
+            Ok(Selector::TextSelector(handle, Offset { begin, end }))
         } else {
             Err(StamError::Unbound("TextResource::select_text()"))
         }
