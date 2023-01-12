@@ -76,11 +76,30 @@ impl<'a> Serialize for WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
             state.serialize_field("@id", id)?;
         }
         if let Ok(key) = self.key_as_ref() {
-            state.serialize_field("key", key)?;
+            state.serialize_field("key", &key.id())?;
         } else {
             return Err(serde::ser::Error::custom("Unable to resolve datakey for annotationitem during serialization"));
         }
         state.serialize_field("value", self.value())?;
+        state.end()
+    }
+}
+
+// This is just a newtype wrapping the one above, and used if one explicitly wants to serialize a set (needed if serialized from Annotation context)
+pub(crate) struct AnnotationDataRefWithSet<'a>(pub(crate) WrappedStorable<'a, AnnotationData, AnnotationDataSet>);
+
+impl<'a> Serialize for AnnotationDataRefWithSet<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationData",2)?;
+        state.serialize_field("@type", "AnnotationData")?;
+        state.serialize_field("@id", &self.0.id())?;
+        if let Ok(key) = self.0.key_as_ref() {
+            state.serialize_field("key", &key.id())?;
+        } else {
+            return Err(serde::ser::Error::custom("Unable to resolve datakey for annotationitem during serialization"));
+        }
+        state.serialize_field("value", self.0.value())?;
         state.end()
     }
 }

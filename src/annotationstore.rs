@@ -1,8 +1,8 @@
 use std::io::prelude::*;
-use std::io::BufReader;
+use std::io::{BufReader,BufWriter};
 use std::fs::File;
 use serde::{Serialize,Deserialize};
-use serde::ser::{Serializer,SerializeStruct};
+use serde::ser::{Serializer,SerializeStruct,SerializeSeq};
 use serde_with::serde_as;
 
 use crate::resources::{TextResource,TextResourceHandle,TextResourceBuilder}; 
@@ -218,8 +218,26 @@ impl Serialize for AnnotationStore {
         }
         state.serialize_field("resources", &self.resources)?;
         state.serialize_field("annotationsets", &self.annotationsets)?;
-        //TODO: implement
+        let wrappedstore: WrappedStore<Annotation,Self> = self.wrappedstore();
+        state.serialize_field("annotations", &wrappedstore )?;
         state.end()
+    }
+}
+
+impl<'a> Serialize for WrappedStore<'a, Annotation,AnnotationStore> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
+        for data in self.store.iter() {
+            if let Some(data) = data {
+                if let Ok(data) = self.parent.wrap(data) {
+                    seq.serialize_element(&data)?;
+                } else {
+                    return Err(serde::ser::Error::custom("Unable to wrap annotationdata during serialization"));
+                }
+            }
+        }
+        seq.end()
     }
 }
 
@@ -244,6 +262,21 @@ impl AnnotationStore {
         Self::build_new(builder)
     }
 
+    /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
+    pub fn to_file(&self, filename: &str) -> Result<(),StamError> {
+        let f = File::create(filename).map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
+        let writer = BufWriter::new(f);
+        serde_json::to_writer_pretty(writer, &self).map_err(|e| StamError::SerializationError(format!("Writing annotationstore to file: {}", e)))?;
+        Ok(())
+    }
+
+    /// Writes an AnnotationStore to a STAM JSON file, without any indentation
+    pub fn to_file_compact(&self, filename: &str) -> Result<(),StamError> {
+        let f = File::create(filename).map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
+        let writer = BufWriter::new(f);
+        serde_json::to_writer(writer, &self).map_err(|e| StamError::SerializationError(format!("Writing annotationstore to file: {}", e)))?;
+        Ok(())
+    }
 
 
     /// Returns the ID of the annotation store (if any)

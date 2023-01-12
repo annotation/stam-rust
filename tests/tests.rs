@@ -594,3 +594,15 @@ fn serialize_annotationset() -> Result<(),StamError> {
     Ok(())
 }
 
+#[test]
+fn serialize_annotationstore() -> Result<(),StamError> {
+    let store = setup_example_2()?;
+    serde_json::to_string(&store).expect("serialization");
+    Ok(())
+}
+
+#[test]
+fn serialize_annotationstore_to_file() -> Result<(),StamError> {
+    let store = setup_example_2()?;
+    store.to_file("/tmp/testoutput.stam.json")
+}

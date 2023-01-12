@@ -295,7 +295,14 @@ impl<'a> Deref for WrappedSelector<'a> {
 }
 
 impl<'a> WrappedSelector<'a> {
-    fn store(&'a self)  -> &'a AnnotationStore {
+    pub(crate) fn new(selector: &'a Selector, store: &'a AnnotationStore) -> Self {
+        WrappedSelector {
+            selector,
+            store
+        }
+    }
+
+    pub(crate) fn store(&'a self)  -> &'a AnnotationStore {
         self.store
     }
 }
@@ -307,13 +314,12 @@ impl<'a> Serialize for WrappedSelector<'a> {
             Selector::ResourceSelector(res_handle) => {
                 let textresource: Result<&TextResource,_> = self.store().get(*res_handle); 
                 if let Ok(textresource) = textresource {
-                    let mut state = serializer.serialize_struct_variant("Selector", 0, "ResourceSelector", 2)?;
+                    let mut state = serializer.serialize_struct("Selector", 2)?;
                     state.serialize_field("@type","ResourceSelector")?;
-                    if let Some(id) = textresource.id() {
-                        state.serialize_field("target", id)?;
-                    } else {
-                        return Err(serde::ser::Error::custom("Unable to find resource ID for TextResource during serialization of ResourceSelector. Selected resources must have a public ID"));
+                    if textresource.id().is_none() {
+                        return Err(serde::ser::Error::custom("Selector target must have an ID"));
                     }
+                    state.serialize_field("resource", &textresource.id())?;
                     state.end()
                 } else {
                     return Err(serde::ser::Error::custom("Unable to resolve resource for ResourceSelector during serialization"));
@@ -322,13 +328,12 @@ impl<'a> Serialize for WrappedSelector<'a> {
             Selector::TextSelector(res_handle, offset) => {
                 let textresource: Result<&TextResource,_> = self.store().get(*res_handle); 
                 if let Ok(textresource) = textresource {
-                    let mut state = serializer.serialize_struct_variant("Selector", 0, "TextSelector", 3)?;
+                    let mut state = serializer.serialize_struct("Selector", 3)?;
                     state.serialize_field("@type","TextSelector")?;
-                    if let Some(id) = textresource.id() {
-                        state.serialize_field("target", id)?;
-                    } else {
-                        return Err(serde::ser::Error::custom("Unable to find resource ID for TextResource during serialization of ResourceSelector. Selected resources must have a public ID"));
+                    if textresource.id().is_none() {
+                        return Err(serde::ser::Error::custom("Selector target must have an ID"));
                     }
+                    state.serialize_field("resource", &textresource.id())?;
                     state.serialize_field("offset", offset)?;
                     state.end()
                 } else {

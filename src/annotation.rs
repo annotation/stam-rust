@@ -2,19 +2,19 @@ use std::slice::Iter;
 use std::fmt;
 
 use serde::{Serialize,Deserialize};
-use serde::ser::{Serializer, SerializeStruct};
+use serde::ser::{Serializer, SerializeStruct,SerializeSeq};
 use serde::de::Deserializer;
 use serde_with::serde_as;
 
 use crate::types::*;
 use crate::error::*;
-use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataHandle};
+use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataHandle,AnnotationDataRefWithSet};
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
 use crate::datakey::{DataKey,DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::annotationstore::AnnotationStore;
 use crate::resources::{TextResource,TextResourceHandle};
-use crate::selector::{Selector,Offset,SelectorBuilder};
+use crate::selector::{Selector,Offset,SelectorBuilder,WrappedSelector};
 
 /// `Annotation` represents a particular *instance of annotation* and is the central
 /// concept of the model. They can be considered the primary nodes of the graph model. The
@@ -188,24 +188,71 @@ impl AnnotationBuilder {
     }
 }
 
-/*
-impl SerializeWithStore for Annotation {
-    fn serialize_with_store<S>(&self, serializer: S, store: &AnnotationStore) -> Result<S::Ok, S::Error> 
-    where S: Serializer {
-        let mut state = serializer.serialize_struct("AnnotationData",2)?;
-        state.serialize_field("@type", "AnnotationData")?;
-        if let Some(id) = self.id() {
-            state.serialize_field("@id", id)?;
-        }
 
-        //we can't serialize Selector directly 
-        //TODO!
-        //state.serialize_field("target", &self.target)?;
-        //state.serialize_field("data", self.data)?;
+impl<'a> Serialize for WrappedStorable<'a, Annotation, AnnotationStore> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("Annotation",2)?;
+        state.serialize_field("@type", "Annotation")?;
+        state.serialize_field("@id", &self.id())?;
+        // we need to wrap the selector in a smart pointer so it has a reference to the annotation store
+        // only as a smart pointer can it be serialized (because it needs to look up the resource IDs)
+        let target = WrappedSelector::new(&self.target, &self.store());
+        state.serialize_field("target", &target)?;
+        let wrappeddata = AnnotationDataRefSerializer {
+            annotation: &self,
+        };
+        state.serialize_field("data", &wrappeddata )?;
         state.end()
     }
 }
-*/
+
+//Helper for serialising annotationdata under to annotations
+struct AnnotationDataRefSerializer<'a,'b> { annotation: &'b WrappedStorable<'a, Annotation, AnnotationStore> }
+
+struct AnnotationDataRef<'a> {
+    id: &'a str,
+    set: &'a str,
+}
+
+impl<'a> Serialize for AnnotationDataRef<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationDataRef",3)?;
+        state.serialize_field("@type", "AnnotationData")?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("set", &self.set)?;
+        state.end()
+    }
+}
+
+//This implementation serializes the AnnotationData references under Annotation
+impl<'a,'b> Serialize for AnnotationDataRefSerializer<'a,'b> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut seq = serializer.serialize_seq(Some(self.annotation.data.len()))?;
+        for (datasethandle,datahandle) in self.annotation.data.iter() {
+            let store: &AnnotationStore = self.annotation.store();
+            let annotationset: &AnnotationDataSet = store.get(*datasethandle).map_err(|e| serde::ser::Error::custom(format!("{}",e)))?;
+            let annotationdata: &AnnotationData = annotationset.get(*datahandle).map_err(|e| serde::ser::Error::custom(format!("{}",e)))?;
+            if annotationdata.id().is_none() {
+                //AnnotationData has no ID, we can't make a reference, therefore we serialize the whole thing (may lead to redundancy in the output)
+                //                v--- this is just a newtype wrapper around WrappedStorable<'a, AnnotationData, AnnotationDataSet>, with a distinct
+                //                     serialize implementation so it also outputs the set
+                let wrappeddata = AnnotationDataRefWithSet(annotationset.wrap(annotationdata).map_err(|e| serde::ser::Error::custom(format!("{}",e)))?);
+                seq.serialize_element(&wrappeddata)?;
+            } else {
+                seq.serialize_element(&AnnotationDataRef {
+                    id: annotationdata.id().unwrap(),
+                    set: annotationset.id().ok_or_else(|| serde::ser::Error::custom("AnnotationDataSet must have a public ID if it is to be serialized"))?
+                })?;
+            }
+        }
+        seq.end()
+    }
+}
+
+
 
 impl<'a> AnnotationStore {
     /// Builds and adds an annotation

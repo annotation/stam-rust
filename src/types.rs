@@ -686,6 +686,7 @@ impl<HandleType> PartialEq<String> for AnyId<HandleType> where HandleType: Handl
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
+#[derive(Clone,Copy,Debug)]
 pub struct WrappedStorable<'a, T,S: StoreFor<T>> where T: Storable {
     item: &'a T,
     store: &'a S
