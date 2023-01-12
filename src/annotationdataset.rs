@@ -23,6 +23,7 @@ use crate::error::StamError;
 #[serde(try_from="AnnotationDataSetBuilder")]
 pub struct AnnotationDataSet {
     /// Public Id
+    #[serde(rename="@id")]
     id: Option<String>,
 
     /// A store for [`DataKey`]
@@ -32,14 +33,18 @@ pub struct AnnotationDataSet {
     data: Store<AnnotationData>,
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
+    #[serde(skip)]
     intid: Option<AnnotationDataSetHandle>,
 
     /// Maps public IDs to internal IDs for 
+    #[serde(skip)]
     key_idmap: IdMap<DataKeyHandle>,
 
     /// Maps public IDs to internal IDs for AnnotationData
+    #[serde(skip)]
     data_idmap: IdMap<AnnotationDataHandle>,
 
+    #[serde(skip)]
     key_data_map: RelationMap<DataKeyHandle,AnnotationDataHandle>
 }
 
@@ -202,6 +207,20 @@ impl Default for AnnotationDataSet {
             data_idmap: IdMap::new("D".to_string()),
             key_data_map: RelationMap::new(),
         }
+    }
+}
+
+impl Serialize for AnnotationDataSet {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationDataSet",4)?;
+        state.serialize_field("@type", "AnnotationDataSet")?;
+        if let Some(id) = self.id() {
+            state.serialize_field("@id", id)?;
+        }
+        state.serialize_field("keys", &self.keys)?;
+        state.serialize_field("data", &self.data)?;
+        state.end()
     }
 }
 
