@@ -45,6 +45,8 @@ pub enum StamError {
     /// This error indicates there was an error during JSON parsing. It wraps the deeper error that occurred.
     JsonError(serde_json::error::Error,&'static str),
 
+    SerializationError(String),
+
     /// This error is raised when you ask a selector to do something it is not capable of because it is the wrong type of selector
     WrongSelectorType(&'static str),
 
@@ -77,6 +79,7 @@ impl From<&StamError> for String {
             StamError::DuplicateIdError(id, contextmsg) => format!("DuplicatIdError: ID already exists: {} ({})",id, contextmsg),
             StamError::IOError(err, contextmsg) => format!("IOError: {} ({})",err,contextmsg),
             StamError::JsonError(err, contextmsg) => format!("JsonError: Parsing failed: {} ({})",err,contextmsg),
+            StamError::SerializationError(err) => format!("SerializationError: Serialization failed: {}", err),
             StamError::BuildError(err, contextmsg) => format!("BuildError: Error during build: {} ({})",err, contextmsg),
             StamError::StoreError(err, contextmsg) => format!("StoreError: Error during store: {} ({}) ",err, contextmsg),
             StamError::WrongSelectorType(contextmsg) => format!("WrongSelectorType: Selector is not of the right type here ({})", contextmsg),
@@ -94,5 +97,13 @@ impl fmt::Display for StamError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let errmsg: String = String::from(self);
         write!(f, "[StamError] {}", errmsg)
+    }
+}
+
+impl std::error::Error for StamError {}
+
+impl serde::ser::Error for StamError {
+    fn custom<T>(msg: T)  -> Self where T: fmt::Display {
+        StamError::SerializationError(format!("{}",msg))
     }
 }

@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::ops::Deref;
 
 use crate::error::StamError;
-use serde::Deserialize;
+use serde::{Serialize,Deserialize};
 use serde_with::serde_as;
 use std::hash::Hash;
 
@@ -18,7 +18,7 @@ pub type Store<T> = Vec<Option<T>>;
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
 #[serde_as]
-#[derive(Debug,Clone,Copy,Deserialize,PartialEq)]
+#[derive(Debug,Clone,Copy,Deserialize,Serialize,PartialEq)]
 #[serde(tag="@type",content = "value")]
 pub enum Cursor {
     /// Cursor relative to the start of a text. Has a value of 0 or higher

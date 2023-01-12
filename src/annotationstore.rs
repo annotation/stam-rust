@@ -2,7 +2,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs::File;
 use serde::{Serialize,Deserialize};
-use serde::ser::Serializer;
+use serde::ser::{Serializer,SerializeStruct};
 use serde_with::serde_as;
 
 use crate::resources::{TextResource,TextResourceHandle,TextResourceBuilder}; 
@@ -208,6 +208,21 @@ impl Default for AnnotationStore {
     }
 }
 
+impl Serialize for AnnotationStore {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationStore",2)?;
+        state.serialize_field("@type", "AnnotationStore")?;
+        if let Some(id) = self.id() {
+            state.serialize_field("@id", id)?;
+        }
+        state.serialize_field("resources", &self.resources)?;
+        state.serialize_field("annotationsets", &self.annotationsets)?;
+        //TODO: implement
+        state.end()
+    }
+}
+
 impl AnnotationStore {
     ///Creates a new empty annotation store
     pub fn new() -> Self {
@@ -267,22 +282,3 @@ impl AnnotationStore {
         <AnnotationStore as StoreFor<TextResource>>::resolve_id(&self, id)
     }
 }
-
-/*
-impl Serialize for AnnotationStore {
-    fn serialize<S>(&self, serializer: S, store: &AnnotationStore) -> Result<S::Ok, S::Error> 
-    where S: Serializer {
-        let mut state = serializer.serialize_struct("AnnotationStore",2)?;
-        state.serialize_field("@type", "AnnotationStore")?;
-        if let Some(id) = self.id() {
-            state.serialize_field("@id", id)?;
-        }
-
-        //we can't serialize Selector directly 
-        //TODO!
-        //state.serialize_field("target", &self.target)?;
-        //state.serialize_field("data", self.data)?;
-        state.end()
-    }
-}
-*/

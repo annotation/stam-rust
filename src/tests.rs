@@ -1,6 +1,6 @@
 #[cfg(tests)]
 
-use crate::types::{StoreFor,Storable};
+use crate::types::{StoreFor,Storable,Cursor};
 use crate::error::StamError;
 use crate::annotationdata::AnnotationDataBuilder;
 use crate::annotationdataset::AnnotationDataSet;
@@ -9,11 +9,6 @@ use crate::datavalue::DataValue;
 use crate::selector::{SelectorBuilder,Offset};
 use crate::resources::TextResource;
 
-#[test]
-fn serialize_datakey()  {
-    let datakey = DataKey::new("pos".into());
-    serde_json::to_string(&datakey).expect("serialization");
-}
 
 
 #[test]
@@ -125,3 +120,26 @@ fn textresource() {
 }
 
 
+#[test]
+fn serialize_datakey()  {
+    let datakey = DataKey::new("pos".into());
+    serde_json::to_string(&datakey).expect("serialization");
+}
+
+#[test]
+fn serialize_cursor()  {
+    let cursor = crate::types::Cursor::BeginAligned(42);
+    serde_json::to_string(&cursor).expect("serialization");
+}
+
+#[test]
+fn serialize_cursor_end()  {
+    let cursor = crate::types::Cursor::EndAligned(-2);
+    serde_json::to_string(&cursor).expect("serialization");
+}
+
+#[test]
+fn serialize_offset()  {
+    let offset = crate::selector::Offset::simple(0,5);
+    serde_json::to_string(&offset).expect("serialization");
+}

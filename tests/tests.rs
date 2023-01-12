@@ -581,7 +581,7 @@ fn wrapped() -> Result<(), StamError> {
     let wrappedannotation = store.wrap(annotation)?; //alternative we could have used wrap_in() directly on the previous line, but that would require more complex type annotations
 
     assert_eq!(wrappedannotation.id(), Some("A1"));
-    let store2 = wrappedannotation.store();
+    let _store2 = wrappedannotation.store();
 
     Ok(())
 }

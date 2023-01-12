@@ -1,6 +1,7 @@
+use std::ops::Deref;
 use serde::{Serialize,Deserialize};
 use serde_with::serde_as;
-use serde::ser::{Serializer, SerializeStruct};
+use serde::ser::{Serializer, SerializeStruct,SerializeStructVariant};
 
 use crate::types::*;
 use crate::error::*;
@@ -47,6 +48,16 @@ impl Default for Offset {
     }
 }
 
+impl Serialize for Offset {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationData",2)?;
+        state.serialize_field("@type", "Offset")?;
+        state.serialize_field("begin", &self.begin)?;
+        state.serialize_field("end", &self.end)?;
+        state.end()
+    }
+}
 
 /// A `Selector` identifies the target of an annotation and the part of the
 /// target that the annotation applies to. Selectors can be considered the labelled edges of the graph model, tying all nodes together.
@@ -265,6 +276,66 @@ impl ApplySelector<Annotation> for AnnotationStore {
             _ => {
                 Err(StamError::WrongSelectorType("AnnotationStore::select() expected an AnnotationSelector, got another"))
             }
+        }
+    }
+}
+
+/// This is a smart pointer that encapsulates both a selector and the annotationstore in which it can be resolved
+pub struct WrappedSelector<'a> {
+    selector: &'a Selector,
+    store: &'a AnnotationStore
+}
+
+impl<'a> Deref for WrappedSelector<'a> {
+    type Target = Selector;
+
+    fn deref(&self) -> &Self::Target {
+        self.selector
+    }
+}
+
+impl<'a> WrappedSelector<'a> {
+    fn store(&'a self)  -> &'a AnnotationStore {
+        self.store
+    }
+}
+
+
+impl<'a> Serialize for WrappedSelector<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        match self.selector {
+            Selector::ResourceSelector(res_handle) => {
+                let textresource: Result<&TextResource,_> = self.store().get(*res_handle); 
+                if let Ok(textresource) = textresource {
+                    let mut state = serializer.serialize_struct_variant("Selector", 0, "ResourceSelector", 2)?;
+                    state.serialize_field("@type","ResourceSelector")?;
+                    if let Some(id) = textresource.id() {
+                        state.serialize_field("target", id)?;
+                    } else {
+                        return Err(serde::ser::Error::custom("Unable to find resource ID for TextResource during serialization of ResourceSelector. Selected resources must have a public ID"));
+                    }
+                    state.end()
+                } else {
+                    return Err(serde::ser::Error::custom("Unable to resolve resource for ResourceSelector during serialization"));
+                }
+            },
+            Selector::TextSelector(res_handle, offset) => {
+                let textresource: Result<&TextResource,_> = self.store().get(*res_handle); 
+                if let Ok(textresource) = textresource {
+                    let mut state = serializer.serialize_struct_variant("Selector", 0, "TextSelector", 3)?;
+                    state.serialize_field("@type","TextSelector")?;
+                    if let Some(id) = textresource.id() {
+                        state.serialize_field("target", id)?;
+                    } else {
+                        return Err(serde::ser::Error::custom("Unable to find resource ID for TextResource during serialization of ResourceSelector. Selected resources must have a public ID"));
+                    }
+                    state.serialize_field("offset", offset)?;
+                    state.end()
+                } else {
+                    return Err(serde::ser::Error::custom("Unable to resolve resource for ResourceSelector during serialization"));
+                }
+            },
+            _ => panic!("Serialiser for this selector not implemented yet") //TODO
         }
     }
 }

@@ -3,7 +3,7 @@ use std::io::BufReader;
 use std::fs::File;
 
 use serde::{Serialize,Deserialize};
-use serde::ser::Serializer;
+use serde::ser::{Serializer,SerializeStruct};
 use serde_with::serde_as;
 
 use crate::types::*;
@@ -90,6 +90,18 @@ impl Storable for TextResource {
     }
     fn set_handle(&mut self, handle: TextResourceHandle) {
         self.intid = Some(handle);
+    }
+}
+
+impl Serialize for TextResource {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("TextResource",2)?;
+        state.serialize_field("@type", "TextResource")?;
+        state.serialize_field("@id", &self.id())?;
+        state.serialize_field("text", &self.text())?;
+        //TODO: implement @include
+        state.end()
     }
 }
 
