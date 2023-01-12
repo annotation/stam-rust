@@ -5,6 +5,8 @@ use crate::error::StamError;
 use crate::annotationdata::AnnotationDataBuilder;
 use crate::datakey::DataKey;
 use crate::datavalue::DataValue;
+use crate::selector::{SelectorBuilder,Offset};
+use crate::resources::TextResource;
 
 #[test]
 fn serialize_datakey()  {
@@ -50,4 +52,73 @@ fn parse_json_annotationdatabuilder() -> Result<(), std::io::Error> {
     assert_eq!(data.value, DataValue::String("verb".into()));
     assert_eq!(data.value, "verb");  //shorter version
     Ok(())
+}
+
+#[test]
+fn parse_json_cursor() -> Result<(), std::io::Error> {
+    let data = r#"{
+        "@type": "BeginAlignedCursor",
+        "value": 0
+    }"#;
+
+    let cursor: crate::types::Cursor = serde_json::from_str(data)?;
+    assert_eq!( cursor, crate::types::Cursor::BeginAligned(0) );
+    Ok(())
+}
+
+#[test]
+fn parse_json_cursor_end() -> Result<(), std::io::Error> {
+    let data = r#"{
+        "@type": "EndAlignedCursor",
+        "value": 0
+    }"#;
+
+    let cursor: crate::types::Cursor = serde_json::from_str(data)?;
+    assert_eq!( cursor, crate::types::Cursor::EndAligned(0) );
+    Ok(())
+}
+
+#[test]
+fn parse_json_offset() -> Result<(), std::io::Error> {
+    let data = r#"{
+        "begin": {
+            "@type": "BeginAlignedCursor",
+            "value": 0
+        },
+        "end": {
+            "@type": "BeginAlignedCursor",
+            "value": 5
+        }
+    }"#;
+
+    let offset: Offset = serde_json::from_str(data)?;
+    assert_eq!( offset, Offset::simple(0,5) );
+    Ok(())
+}
+
+#[test]
+fn parse_json_textselector() -> Result<(), std::io::Error> {
+    let data = r#"{ 
+        "@type": "TextSelector",
+        "resource": "testres",
+        "offset": {
+            "begin": {
+                "@type": "BeginAlignedCursor",
+                "value": 0
+            },
+            "end": {
+                "@type": "BeginAlignedCursor",
+                "value": 5
+            }
+        }
+    }"#;
+
+    let _builder: SelectorBuilder = serde_json::from_str(data)?;
+    Ok(())
+}
+
+#[test]
+fn textresource() {
+    let resource = TextResource::from_string("testres".into(),"Hello world".into());
+    assert_eq!(<TextResource as crate::types::Storable>::id(&resource), Some("testres"));
 }

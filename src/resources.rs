@@ -16,7 +16,7 @@ use crate::error::StamError;
 /// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
 /// *MAY* be in another unicode normalization forms.
 #[serde_as]
-#[derive(Deserialize)]
+#[derive(Deserialize,Debug)]
 #[serde(try_from="TextResourceBuilder")]
 pub struct TextResource {
     /// Public identifier for the text resource (often the filename/URL)
@@ -30,7 +30,7 @@ pub struct TextResource {
 }
 
 #[serde_as]
-#[derive(Deserialize)]
+#[derive(Deserialize,Debug)]
 pub struct TextResourceBuilder {
     /// Public identifier for the text resource (often the filename/URL)
     #[serde(rename="@id")]
