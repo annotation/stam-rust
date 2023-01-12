@@ -88,9 +88,6 @@ impl Storable for TextResource {
         self.id = id;
         self
     }
-}
-
-impl MutableStorable for TextResource {
     fn set_handle(&mut self, handle: TextResourceHandle) {
         self.intid = Some(handle);
     }

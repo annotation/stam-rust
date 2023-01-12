@@ -54,8 +54,6 @@ impl Storable for DataKey {
     fn handle(&self) -> Option<DataKeyHandle> { 
         self.intid
     }
-}
-impl MutableStorable for DataKey {
     fn set_handle(&mut self, intid: DataKeyHandle) {
         self.intid = Some(intid);
     }
@@ -98,13 +96,11 @@ impl DataKey {
     pub fn annotationset(&self) -> Option<AnnotationDataSetHandle> {
         self.part_of_set
     }
+}
 
+impl<'a> WrappedStorable<'a, DataKey, AnnotationDataSet> {
     /// Shortcut to return a reference to the dataset
-    pub fn annotationset_as_ref<'a>(&self, annotationstore: &'a AnnotationStore) -> Option<&'a AnnotationDataSet> {
-        if let Some(part_of_set) = self.part_of_set {
-           annotationstore.get(part_of_set).ok()
-        } else {
-            None
-        }
+    pub fn annotationset_as_ref(&'a self) -> &'a AnnotationDataSet {
+        self.store()
     }
 }

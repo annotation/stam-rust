@@ -570,3 +570,16 @@ fn parse_json_annotationstore_from_file() -> Result<(), StamError> {
 
     Ok(())
 }
+
+#[test]
+fn wrapped() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let annotation: &Annotation = store.get_by_id("A1")?;
+    let wrappedannotation = store.wrap(annotation);
+
+    assert_eq!(wrappedannotation.id(), Some("A1"));
+    let store2 = wrappedannotation.store();
+
+    Ok(())
+}
+

@@ -61,8 +61,6 @@ impl Storable for AnnotationData {
         self.id = Some(id);
         self
     }
-}
-impl MutableStorable for AnnotationData {
     fn set_handle(&mut self, intid: AnnotationDataHandle) {
         self.intid = Some(intid);
     }

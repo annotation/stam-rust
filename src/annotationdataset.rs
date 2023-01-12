@@ -58,6 +58,7 @@ pub struct AnnotationDataSetBuilder {
     pub data: Option<Vec<AnnotationDataBuilder>>,
 }
 
+
 impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     type Error = StamError;
 
@@ -106,9 +107,6 @@ impl Storable for AnnotationDataSet {
     fn handle(&self) -> Option<Self::HandleType> { 
         self.intid
     }
-}
-
-impl MutableStorable for AnnotationDataSet {
     fn set_handle(&mut self, handle: AnnotationDataSetHandle) {
         self.intid = Some(handle);
     }
@@ -219,6 +217,7 @@ impl Serialize for AnnotationDataSet {
             state.serialize_field("@id", id)?;
         }
         state.serialize_field("keys", &self.keys)?;
+
         state.serialize_field("data", &self.data)?;
         state.end()
     }

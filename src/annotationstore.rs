@@ -267,3 +267,22 @@ impl AnnotationStore {
         <AnnotationStore as StoreFor<TextResource>>::resolve_id(&self, id)
     }
 }
+
+/*
+impl Serialize for AnnotationStore {
+    fn serialize<S>(&self, serializer: S, store: &AnnotationStore) -> Result<S::Ok, S::Error> 
+    where S: Serializer {
+        let mut state = serializer.serialize_struct("AnnotationStore",2)?;
+        state.serialize_field("@type", "AnnotationStore")?;
+        if let Some(id) = self.id() {
+            state.serialize_field("@id", id)?;
+        }
+
+        //we can't serialize Selector directly 
+        //TODO!
+        //state.serialize_field("target", &self.target)?;
+        //state.serialize_field("data", self.data)?;
+        state.end()
+    }
+}
+*/

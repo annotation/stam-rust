@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::slice::{Iter,IterMut};
-use std::borrow::Cow;
+use std::cell::RefCell;
+use std::ops::Deref;
+
 use crate::error::StamError;
 use serde::Deserialize;
 use serde_with::serde_as;
@@ -183,12 +185,12 @@ pub trait Storable {
         self
     }
 
-}
+    /// Returns a wrapped variant of this item
+    /// reverse of [`ForStore<T>::wrap()`]
+    fn wrap_in<'a, S: StoreFor<Self>>(&'a self, store: &'a S) -> WrappedStorable<Self,S> where Self: Sized {
+        store.wrap(self)
+    }
 
-//v -- this trait separate from the above because we don't want to expose it publicly.
-//     internal ID setting is an internal business.
-
-pub trait MutableStorable: Storable {
     /// Set the internal ID. May only be called once (though currently not enforced).
     #[allow(unused_variables)]
     fn set_handle(&mut self, handle: <Self as Storable>::HandleType) {
@@ -220,7 +222,7 @@ pub trait MutableStorable: Storable {
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
-pub trait StoreFor<T: MutableStorable + Storable> {
+pub trait StoreFor<T: Storable> {
     /// Get a reference to the entire store for the associated type
     fn store(&self) -> &Store<T>;
     /// Get a mutable reference to the entire store for the associated type
@@ -452,6 +454,14 @@ pub trait StoreFor<T: MutableStorable + Storable> {
             AnyId::Id(id) => self.get_mut_by_id(id).ok()
         }
     }
+
+    /// Wraps the reference with a reference to the store
+    fn wrap<'a>(&'a self, item: &'a T) -> WrappedStorable<T, Self> where Self: Sized {
+        WrappedStorable {
+            item,
+            store: self,
+        }
+    }
 }
 
 //  generic iterator implementations, these take care of skipping over deleted items (None)
@@ -663,5 +673,26 @@ impl<HandleType> PartialEq<String> for AnyId<HandleType> where HandleType: Handl
             Self::Id(v) => v == other,
             _ => false
         }
+    }
+}
+
+/// This is a smart pointer that encapsulates both the item and the store that owns it.
+/// It allows the item to have some more introspection as it knows who its parent is.
+pub struct WrappedStorable<'a, T,S: StoreFor<T>> where T: Storable {
+    item: &'a T,
+    store: &'a S,
+}
+
+impl<'a, T,S> Deref for WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        return self.item;
+    }
+}
+
+impl<'a, T,S>  WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor<T> {
+    pub fn store(&self) -> &S {
+        return self.store;
     }
 }

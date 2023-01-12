@@ -56,9 +56,6 @@ impl Storable for Annotation {
     fn handle(&self) -> Option<Self::HandleType> { 
         self.intid
     }
-}
-
-impl MutableStorable for Annotation {
     fn set_handle(&mut self, handle: Self::HandleType) {
         self.intid = Some(handle);
     }
