@@ -11,7 +11,8 @@ pub mod annotation;
 pub mod resources;
 pub mod selector;
 pub mod error;
-//pub mod tests;
+mod tests;
+
 
 pub use types::*;
 pub use annotationstore::*;

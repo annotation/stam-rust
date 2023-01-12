@@ -258,17 +258,6 @@ fn add_during_borrowproblem() -> Result<(),StamError> {
 }
 
 
-#[test]
-fn parse_json_datakey() {
-    let json = r#"{ 
-        "@type": "DataKey",
-        "@id": "pos"
-    }"#;
-
-    let v: serde_json::Value = serde_json::from_str(json).unwrap();
-    let key: DataKey = serde_json::from_value(v).unwrap();
-    assert_eq!(key.id().unwrap(), "pos");
-}
 
 #[test]
 fn parse_json_annotationdata() -> Result<(), std::io::Error> {
@@ -282,8 +271,7 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
         }
     }"#;
 
-    let v: serde_json::Value = serde_json::from_str(json)?;
-    let data: AnnotationDataBuilder = serde_json::from_value(v)?;
+    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
 
     assert_eq!(data.id, AnyId::Id("D2".into()));
     assert_eq!(data.id, "D2"); //can also be compared with &str etc
@@ -314,8 +302,7 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
         "set": "testdataset"
     }"#;
 
-    let v: serde_json::Value = serde_json::from_str(data)?;
-    let data: AnnotationDataBuilder = serde_json::from_value(v)?;
+    let data: AnnotationDataBuilder = serde_json::from_str(data)?;
 
     assert_eq!(data.id, AnyId::Id("D1".into()));
     assert_eq!(data.id, "D1"); //can also be compared with &str etc
@@ -389,8 +376,7 @@ fn parse_json_textselector() -> Result<(), std::io::Error> {
         }
     }"#;
 
-    let v: serde_json::Value = serde_json::from_str(data)?;
-    let builder: SelectorBuilder = serde_json::from_value(v)?;
+    let builder: SelectorBuilder = serde_json::from_str(data)?;
 
     let mut store = setup_example_2().unwrap();
     let selector = store.selector(builder).unwrap(); 
@@ -428,8 +414,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
         }]
     }"#;
 
-    let v: serde_json::Value = serde_json::from_str(data)?;
-    let builder: AnnotationBuilder = serde_json::from_value(v)?;
+    let builder: AnnotationBuilder = serde_json::from_str(data)?;
     let mut store = setup_example_2().unwrap();
     let annotationhandle = store.annotate(builder).unwrap();
     let annotation: &Annotation = store.get(annotationhandle).unwrap();
@@ -484,8 +469,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
         ]
     }"#;
 
-    let v: serde_json::Value = serde_json::from_str(json)?;
-    let builder: AnnotationDataSetBuilder = serde_json::from_value(v)?;
+    let builder: AnnotationDataSetBuilder = serde_json::from_str(json)?;
     let annotationset: AnnotationDataSet = builder.try_into().expect("conversion to dataset");
 
 
@@ -596,8 +580,7 @@ fn example_3_common_tests(store: &AnnotationStore) -> Result<(),StamError> {
 
 #[test]
 fn parse_json_annotationstore() -> Result<(), StamError> {
-    let v: serde_json::Value = serde_json::from_str(EXAMPLE_3).expect("Parsing json");
-    let builder: AnnotationStoreBuilder = serde_json::from_value(v).expect("Parsing json into struct");
+    let builder: AnnotationStoreBuilder = serde_json::from_str(EXAMPLE_3).expect("Parsing json");
 
     let store = AnnotationStore::build_new(builder).expect("Building store");
     example_3_common_tests(&store)?;
