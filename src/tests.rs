@@ -1,15 +1,6 @@
-#[cfg(tests)]
+#[cfg(test)]
 
-use crate::types::{StoreFor,Storable,Cursor};
-use crate::error::StamError;
-use crate::annotationdata::AnnotationDataBuilder;
-use crate::annotationdataset::AnnotationDataSet;
-use crate::datakey::DataKey;
-use crate::datavalue::DataValue;
-use crate::selector::{SelectorBuilder,Offset};
-use crate::resources::TextResource;
-
-
+use crate::*;
 
 #[test]
 fn parse_json_datakey() {
@@ -21,10 +12,7 @@ fn parse_json_datakey() {
     let v: serde_json::Value = serde_json::from_str(json).unwrap();
     let key: DataKey = serde_json::from_value(v).unwrap();
 
-    //not sure why I have to annotate the type verbosely here, worked fine in integration tests,
-    //perhaps because unit tests can see private fields and there's one named 'id'?
-    //assert_eq!(key.id(&key).unwrap(), "pos");
-    assert_eq!(<DataKey as crate::types::Storable>::id(&key).unwrap(), "pos");
+    assert_eq!(key.id().unwrap(), "pos");
 }
 
 #[test]
@@ -41,9 +29,9 @@ fn parse_json_annotationdatabuilder() -> Result<(), std::io::Error> {
 
     let data: AnnotationDataBuilder = serde_json::from_str(json)?;
 
-    assert_eq!(data.id, crate::types::AnyId::Id("D2".into()));
+    assert_eq!(data.id, AnyId::Id("D2".into()));
     assert_eq!(data.id, "D2"); //can also be compared with &str etc
-    assert_eq!(data.key, crate::types::AnyId::Id("pos".into()));
+    assert_eq!(data.key, AnyId::Id("pos".into()));
     assert_eq!(data.key, "pos");
     assert_eq!(data.value, DataValue::String("verb".into()));
     assert_eq!(data.value, "verb");  //shorter version
@@ -57,8 +45,8 @@ fn parse_json_cursor() -> Result<(), std::io::Error> {
         "value": 0
     }"#;
 
-    let cursor: crate::types::Cursor = serde_json::from_str(data)?;
-    assert_eq!( cursor, crate::types::Cursor::BeginAligned(0) );
+    let cursor: Cursor = serde_json::from_str(data)?;
+    assert_eq!( cursor, Cursor::BeginAligned(0) );
     Ok(())
 }
 
@@ -69,8 +57,8 @@ fn parse_json_cursor_end() -> Result<(), std::io::Error> {
         "value": 0
     }"#;
 
-    let cursor: crate::types::Cursor = serde_json::from_str(data)?;
-    assert_eq!( cursor, crate::types::Cursor::EndAligned(0) );
+    let cursor: Cursor = serde_json::from_str(data)?;
+    assert_eq!( cursor, Cursor::EndAligned(0) );
     Ok(())
 }
 
@@ -116,7 +104,7 @@ fn parse_json_textselector() -> Result<(), std::io::Error> {
 #[test]
 fn textresource() {
     let resource = TextResource::from_string("testres".into(),"Hello world".into());
-    assert_eq!(<TextResource as crate::types::Storable>::id(&resource), Some("testres"));
+    assert_eq!(resource.id(), Some("testres"));
 }
 
 
@@ -128,13 +116,13 @@ fn serialize_datakey()  {
 
 #[test]
 fn serialize_cursor()  {
-    let cursor = crate::types::Cursor::BeginAligned(42);
+    let cursor = Cursor::BeginAligned(42);
     serde_json::to_string(&cursor).expect("serialization");
 }
 
 #[test]
 fn serialize_cursor_end()  {
-    let cursor = crate::types::Cursor::EndAligned(-2);
+    let cursor = Cursor::EndAligned(-2);
     serde_json::to_string(&cursor).expect("serialization");
 }
 

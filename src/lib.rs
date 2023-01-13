@@ -11,7 +11,6 @@ pub mod annotation;
 pub mod resources;
 pub mod selector;
 pub mod error;
-mod tests;
 
 
 pub use types::*;
@@ -24,3 +23,5 @@ pub use annotation::*;
 pub use resources::*;
 pub use selector::*;
 pub use error::*;
+
+mod tests;

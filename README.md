@@ -118,7 +118,7 @@ let store = stam::AnnotationStore::new().with_id("test".into())
     )?;
 ```
 
-The implementation will ensure to reuse any already existing `AnnotationData` if possible, as that is one of the core characteristics of the STAM model.
+The implementation will ensure to reuse any already existing `AnnotationData` if possible, as not duplicating data is one of the core characteristics of the STAM model.
 
 You can serialize the entire annotation store (including all sets and annotations) to a STAM JSON file:
 
