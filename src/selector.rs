@@ -85,14 +85,13 @@ pub enum Selector {
 }
 
 impl Selector {
-    /// Returns a [`SelectorType']
-    //    v-- type is a reserved keyword so we need this special syntax to use it
-    pub fn r#type(&self) -> SelectorType {
+    /// Returns a [`SelectorKind`]
+    pub fn kind(&self) -> SelectorKind {
         self.into()
     }
 }
 
-pub enum SelectorType {
+pub enum SelectorKind {
     ResourceSelector,
     AnnotatinoSelector,
     TextSelector,
@@ -101,7 +100,7 @@ pub enum SelectorType {
     DirectionalSelector
 }
 
-impl From<&Selector> for SelectorType {
+impl From<&Selector> for SelectorKind {
     fn from(selector: &Selector) -> Self {
         match selector {
             Selector::ResourceSelector(_) => Self::ResourceSelector,
