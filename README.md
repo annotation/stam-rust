@@ -34,11 +34,11 @@ The annotation store is your workspace, it holds all resources, annotation sets 
 Retrieving anything by ID:
 
 ```rust
-let annotation: &stam::Annotation = store.get_by_id("my-annotation");
-let resource: &stam::TextResource = store.get_by_id("my-resource");
-let annotationset: &stam::AnnotationDataSet = store.get_by_id("my-annotationset");
-let key: &stam::DataKey = annotationset.get_by_id("my-key");
-let data: &stam::AnnotationData = annotationset.get_by_id("my-data");
+let annotation: &stam::Annotation = store.get_by_id("my-annotation")?;
+let resource: &stam::TextResource = store.get_by_id("my-resource")?;
+let annotationset: &stam::AnnotationDataSet = store.get_by_id("my-annotationset")?;
+let key: &stam::DataKey = annotationset.get_by_id("my-key")?;
+let data: &stam::AnnotationData = annotationset.get_by_id("my-data")?;
 ```
 
 *Note it is important to specify the return type, as that's how the compiler can infer what you want to get.
