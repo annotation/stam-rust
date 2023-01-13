@@ -5,6 +5,7 @@
     * Propose new ideas to the specification first (as extensions)
     * Specifications should leave enough freedom to the implementations for details
 * Formatting: Indentation style: 4 spaces, unix newlines
+* STAM extensions may be implemented in the this library but need to be implemented as [features](https://doc.rust-lang.org/cargo/reference/features.html) that can be enabled/disabled. This allows users to compile a lighter version if certain extensions are not needed.
 * We follow the [Rust API guidelines](https://rust-lang.github.io/api-guidelines/checklist.html) as much as possible 
     * [Variable naming](https://rust-lang.github.io/api-guidelines/naming.html)
 * Recommended reading for Rust
