@@ -80,10 +80,10 @@ Retrieving items by handle is much faster than retrieval by public ID, as handle
 Add annotations:
 
 ```rust
-let annotation_handle store.annotate( stam::Annotation::builder()
+let annotation_handle = store.annotate( stam::Annotation::builder()
            .target_text( "testres".into(), stam::Offset::simple(6,11)) 
            .with_data("testdataset".into(), "pos".into(), stam::DataValue::String("noun".to_string())) 
- )?;
+)?;
 ```
 
 *Here we see some `Builder` types that are use a builder pattern to construct instances of their respective types. The actual instances will be built by the underlying store. You can note the heavy use of `into()` to coerce the parameters to the right type. Rather than pass string parameters referring to public IDs, you may just as well pass and coerce (again with `into()`) references like `&Annotation`, `&AnnotationDataSet`, `&DataKey` or handles. We call the type of these parameters `AnyId<T>` and you will encounter them in more places.*
