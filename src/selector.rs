@@ -84,6 +84,35 @@ pub enum Selector {
     DirectionalSelector(Vec<Selector>)
 }
 
+impl Selector {
+    /// Returns a [`SelectorType']
+    //    v-- type is a reserved keyword so we need this special syntax to use it
+    pub fn r#type(&self) -> SelectorType {
+        self.into()
+    }
+}
+
+pub enum SelectorType {
+    ResourceSelector,
+    AnnotatinoSelector,
+    TextSelector,
+    DataSetSelector,
+    MultiSelector,
+    DirectionalSelector
+}
+
+impl From<&Selector> for SelectorType {
+    fn from(selector: &Selector) -> Self {
+        match selector {
+            Selector::ResourceSelector(_) => Self::ResourceSelector,
+            Selector::AnnotationSelector(_,_) => Self::AnnotatinoSelector,
+            Selector::TextSelector(_,_) => Self::TextSelector,
+            Selector::DataSetSelector(_) => Self::DataSetSelector,
+            Selector::MultiSelector(_) => Self::MultiSelector,
+            Selector::DirectionalSelector(_) => Self::DirectionalSelector,
+        }
+    }
+}
 
 /// A `SelectorBuilder` is a recipe that, when applied, identifies the target of an annotation and the part of the
 /// target that the annotation applies to. They produce a `Selector` and you can do so via [`Annotationstore.selector`].
