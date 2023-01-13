@@ -2,8 +2,15 @@
 name = "stam"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
+description = "STAM is a library for dealing with standoff annotations on text"
+documentation = "https://docs.rs/stam"
+homepage = "https://github.com/annotation/stam"
+include = ["src/**/*","tests/**/*", "LICENSE", "README.md"]
+license = "GPL-3.0"
+readme = "README.md"
+repository = "https://github.com/annotation/stsm-rust"
+keywords = [ "text-processing", "annotation", "linguistics", "standoff", "nlp"]
 
 [dependencies]
 chrono = "0.4.23"
