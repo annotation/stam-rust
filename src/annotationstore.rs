@@ -314,4 +314,19 @@ impl AnnotationStore {
     pub fn resolve_resource_id(&self, id: &str) -> Result<TextResourceHandle,StamError> {
         <AnnotationStore as StoreFor<TextResource>>::resolve_id(&self, id)
     }
+
+    /// Returns an iterator over all annotations in the store
+    pub fn annotations<'a>(&'a self) -> StoreIter<'a, Annotation> {
+        self.iter()
+    }
+
+    /// Returns an iterator over all resources in the store
+    pub fn resources<'a>(&'a self) -> StoreIter<'a, TextResource> {
+        self.iter()
+    }
+
+    /// Returns an iterator over all annotationsets in the store
+    pub fn annotationsets<'a>(&'a self) -> StoreIter<'a, AnnotationDataSet> {
+        self.iter()
+    }
 }
