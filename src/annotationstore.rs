@@ -147,7 +147,7 @@ impl StoreFor<Annotation> for AnnotationStore {
         //       the other option would be to dp annotation.clone(), at a slightly higher cost which we don't want here
         let annotation = self.annotations.get(handle.unwrap()).unwrap().as_ref().unwrap();
 
-        for (dataset, data) in annotation.iter_data() {
+        for (dataset, data) in annotation.data() {
             self.dataset_data_annotation_map.insert(*dataset,*data,handle);
         }
 

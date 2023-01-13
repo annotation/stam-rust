@@ -136,7 +136,7 @@ fn store_iter_data() -> Result<(),StamError> {
     let annotation: &Annotation = store.get_by_id("A1")?;
 
     let mut count = 0;
-    for (datakey, annotationdata, annotationset) in store.iter_data(annotation) {
+    for (datakey, annotationdata, annotationset) in store.data(annotation) {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(datakey.id(), Some("pos"));
@@ -219,8 +219,8 @@ fn annotate_existing_data() -> Result<(),StamError> {
 
     //check if the dataset still contains only one key
     let dataset: &AnnotationDataSet = store.get_by_id("testdataset")?;
-    assert_eq!( dataset.iter_keys().count(), 1);
-    assert_eq!( dataset.iter_data().count(), 1);
+    assert_eq!( dataset.keys().count(), 1);
+    assert_eq!( dataset.data().count(), 1);
 
     Ok(())
 }
@@ -232,7 +232,7 @@ fn add_after_borrow() -> Result<(),StamError> {
     let mut store = setup_example_2()?;
     let annotation: &Annotation = store.get_by_id("A1".into())?;
     let mut count = 0;
-    for (_datakey, _annotationdata, _dataset) in store.iter_data(annotation) {
+    for (_datakey, _annotationdata, _dataset) in store.data(annotation) {
         count += 1;
     }
     assert_eq!(count,1);
@@ -248,7 +248,7 @@ fn add_during_borrowproblem() -> Result<(),StamError> {
     let mut store = setup_example_2()?;
     let annotation: &Annotation = store.get_by_id("A1".into())?;
     //                                 V---- here we clone the annotation to prevent a borrow problem (cannot borrow `store` as mutable because it is also borrowed as immutable (annotation)), this is relatively low-cost
-    for (dataset, data) in annotation.clone().iter_data() {
+    for (dataset, data) in annotation.clone().data() {
         store.annotate( AnnotationBuilder::new()
                    .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(6,11) ) )
                    .with_data_by_id(dataset.into(), data.into())
@@ -392,7 +392,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
     
     assert_eq!(annotation.id(), Some("A2"));
     let mut count = 0;
-    for (datakey, annotationdata, dataset) in store.iter_data(annotation) {
+    for (datakey, annotationdata, dataset) in store.data(annotation) {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(datakey.id(), Some("pos"));
@@ -452,7 +452,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
 
     let mut count = 0;
     let mut firstkeyhandle: Option<DataKeyHandle> = None;
-    for key in annotationset.iter_keys() {
+    for key in annotationset.keys() {
         count += 1;
         if count == 1 {
             assert_eq!(key.id(), Some("http://purl.org/dc/terms/creator"));
@@ -462,7 +462,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
     assert_eq!(count,3);
 
     count = 0;
-    for data in annotationset.iter_data() {
+    for data in annotationset.data() {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(data.id(), Some("D1"));
@@ -537,12 +537,12 @@ fn example_3_common_tests(store: &AnnotationStore) -> Result<(),StamError> {
     let _annotationdata: &AnnotationData = annotationset.get_by_id("D1")?;
     let _annotation: &Annotation = store.get_by_id("A1")?;
 
-    for key in annotationset.iter_keys() {
+    for key in annotationset.keys() {
         //there is only one so we can test in loop body
         assert_eq!(key.id(), Some("pos"));
     }
 
-    for data in annotationset.iter_data() {
+    for data in annotationset.data() {
         //there is only one so we can test in loop body
         assert_eq!(data.id(), Some("D1"));
     }

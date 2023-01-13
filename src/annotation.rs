@@ -343,7 +343,7 @@ impl<'a> Annotation {
     }
 
     /// Iterate over the annotation data, returns tuples of internal IDs for (annotationset,annotationdata)
-    pub fn iter_data(&'a self) -> Iter<'a,(AnnotationDataSetHandle,AnnotationDataHandle)>  {
+    pub fn data(&'a self) -> Iter<'a,(AnnotationDataSetHandle,AnnotationDataHandle)>  {
         self.data.iter()
     }
 
@@ -355,7 +355,7 @@ impl<'a> Annotation {
 
 impl AnnotationStore {
     /// Iterate over the data for the specified annotation, returning `(&DataKey, &AnnotationData, &AnnotationDataSet)` tuples
-    pub fn iter_data<'a>(&'a self, annotation: &'a Annotation) -> AnnotationDataIter<'a>  {
+    pub fn data<'a>(&'a self, annotation: &'a Annotation) -> AnnotationDataIter<'a>  {
         AnnotationDataIter {
             store: self,
             iter: annotation.data.iter()

@@ -310,12 +310,12 @@ impl AnnotationDataSet {
     }
 
     ///Iteratest over all the data ([`AnnotationData`]) in this set, returns references
-    pub fn iter_data(&self) -> StoreIter<AnnotationData> {
+    pub fn data(&self) -> StoreIter<AnnotationData> {
         <Self as StoreFor<AnnotationData>>::iter(&self)
     }
 
     ///Iteratest over all the keys in this set, returns references
-    pub fn iter_keys(&self) -> StoreIter<DataKey> {
+    pub fn keys(&self) -> StoreIter<DataKey> {
         <Self as StoreFor<DataKey>>::iter(&self)
     }
 }
