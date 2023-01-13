@@ -23,6 +23,27 @@ pub enum DataValue {
     List(Vec<DataValue>)
 }
 
+impl fmt::Display for DataValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Null => write!(f,""),
+            Self::String(v) => write!(f,"{}",v),
+            Self::Bool(v) => write!(f,"{}",v),
+            Self::Int(v) => write!(f,"{}",v),
+            Self::Float(v) => write!(f,"{}",v),
+            Self::List(v) => {
+                for (i, item) in v.iter().enumerate() {
+                    if i < v.len() - 1 {
+                        write!(f,", ")?;
+                    }
+                    write!(f,"{}",item)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 impl From<&str> for DataValue {
     fn from(item: &str) -> Self {
         Self::String(item.to_string())

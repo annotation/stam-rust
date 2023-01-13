@@ -23,19 +23,32 @@ Loading a STAM JSON file containing an annotation store:
 ```rust
 fn your_function() -> Result<(),stam::StamError> {
     let store = stam::AnnotationStore::from_file("example.stam.json")?;
+    ...
 }
 ```
+
+Retrieving anything by ID:
+
+```rust
+let annotation: &stam::Annotation = store.get_by_id("my-annotation");
+let resource: &stam::TextResource = store.get_by_id("my-resource");
+let annotationset: &stam::AnnotationDataSet = store.get_by_id("my-annotationset");
+let key: &stam::DataKey = annotationset.get_by_id("my-key");
+let data: &stam::AnnotationData = annotationset.get_by_id("my-data");
+```
+
+
 
 Iterating through all annotations in the store, and outputting a simple tab separated format:
 
 ```rust
 for annotation in store.annotations() {
-    let id = store.annotation.id().unwrap_or("");
-    for key, data, dataset in annotation.data() {
+    let id = annotation.id().unwrap_or("");
+    for (key, data, dataset) in store.data(annotation) {
         // get the text to which this annotation refers (if any)
-        let text = match annotation.target.type() {
-            stam::SelectorType::TextSelector => {
-                store.select(annotation.target)?
+        let text: &str = match annotation.target().kind() {
+            stam::SelectorKind::TextSelector => {
+                store.select(annotation.target())?
             },
             _ => "",
         };
@@ -43,6 +56,19 @@ for annotation in store.annotations() {
     }
 }
 ```
+
+Add annotations:
+
+
+```rust
+store.annotate( AnnotationBuilder::new()
+           .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(0,5) ) )
+           .with_data("testdataset".into(),"pos".into(), DataValue::String("noun".to_string())) 
+ )?;
+```
+
+
+Create annotations from scratch:
 
 
 ## API Reference Documentation
