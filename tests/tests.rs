@@ -553,7 +553,7 @@ fn example_3_common_tests(store: &AnnotationStore) -> Result<(),StamError> {
 fn parse_json_annotationstore() -> Result<(), StamError> {
     let builder: AnnotationStoreBuilder = serde_json::from_str(EXAMPLE_3).expect("Parsing json");
 
-    let store = AnnotationStore::build_new(builder).expect("Building store");
+    let store = AnnotationStore::from_builder(builder).expect("Building store");
     example_3_common_tests(&store)?;
 
     Ok(())

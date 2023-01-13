@@ -164,7 +164,7 @@ pub trait Storable {
         None
     }
 
-    /// Like [`Self::get_intid()`] but returns a [`StamError:Unbound`] error if there is no internal id.
+    /// Like [`Self::handle()`] but returns a [`StamError::Unbound`] error if there is no internal id.
     fn handle_or_err(&self) -> Result<Self::HandleType,StamError> {
         self.handle().ok_or(StamError::Unbound(""))
     }
@@ -173,6 +173,7 @@ pub trait Storable {
     fn id(&self) -> Option<&str> {
         None
     }
+    /// Like [`Self::id()`] but returns a [`StamError::NoIdError`] error if there is no internal id.
     fn id_or_err(&self) -> Result<&str,StamError> {
         self.id().ok_or(StamError::NoIdError(""))
     }
@@ -186,7 +187,7 @@ pub trait Storable {
 
     /// Returns a wrapped reference to this item and the store that owns it. This allows for some
     /// more introspection on the part of the item.
-    /// reverse of [`ForStore<T>::wrap()`]
+    /// reverse of [`StoreFor<T>::wrap()`]
     fn wrap_in<'a, S: StoreFor<Self>>(&'a self, store: &'a S) -> Result<WrappedStorable<Self,S>,StamError> where Self: Sized {
         store.wrap(self)
     }
@@ -239,8 +240,7 @@ pub trait StoreFor<T: Storable> {
 
     fn introspect_type(&self) -> &'static str;
 
-    /// Adds an item to the store. Returns its internal id upon success
-    /// This is a fairly low level method. You will likely want to use [`add`] instead.
+    /// Adds an item to the store. Returns a handle to it upon success.
     fn insert(&mut self, mut item: T) -> Result<T::HandleType,StamError> {
         let handle = if let Some(intid) = item.handle() {
             intid
@@ -429,6 +429,7 @@ pub trait StoreFor<T: Storable> {
     }
 
     /// Get a reference to an item from the store by any ID
+    /// The advantage of AnyId is that you can coerce strings, references and handles to it using `into()`.
     /// If the item does not exist, None will be returned
     fn get_by_anyid(&self, anyid: &AnyId<T::HandleType>) -> Option<&T> {
         match anyid {
@@ -438,6 +439,9 @@ pub trait StoreFor<T: Storable> {
         }
     }
 
+    /// Get a reference to an item from the store by any ID. Returns an error on failure.
+    /// The advantage of AnyId is that you can coerce strings, references and handles to it using `into()`.
+    /// If the item does not exist, None will be returned
     fn get_by_anyid_or_err(&self, anyid: &AnyId<T::HandleType>) -> Result<&T, StamError> {
         match anyid {
             AnyId::None => Err(anyid.error("")),

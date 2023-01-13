@@ -15,7 +15,7 @@ use crate::error::StamError;
 /// An `AnnotationDataSet` stores the keys [`DataKey`] and values
 /// [`AnnotationData`] (which in turn encapsulates [`DataValue`]) that are used by annotations.
 /// It effectively defines a certain vocabulary, i.e. key/value pairs. 
-/// The `AnnotationDataSet` does not store the [`Annotation`] instances themselves, those are in
+/// The `AnnotationDataSet` does not store the [`crate::annotation::Annotation`] instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
 #[serde_as]
 #[derive(Deserialize)]
@@ -229,7 +229,7 @@ impl AnnotationDataSet {
     }
 
     ///Builds a new annotation store from [`AnnotationDataSetBuilder'].
-    pub fn build_new(builder: AnnotationDataSetBuilder) -> Result<Self,StamError> {
+    pub fn from_builder(builder: AnnotationDataSetBuilder) -> Result<Self,StamError> {
         let store: Self = builder.try_into()?;
         Ok(store)
     }
@@ -240,7 +240,7 @@ impl AnnotationDataSet {
         let f = File::open(filename).map_err(|e| StamError::IOError(e, "Reading AnnotationDataSet from file, open failed"))?;
         let reader = BufReader::new(f);
         let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader).map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
-        Self::build_new(builder)
+        Self::from_builder(builder)
     }
 
     /// Adds new [`AnnotationData`] to the dataset, this should be
@@ -250,8 +250,9 @@ impl AnnotationDataSet {
         Ok(self)
     }
 
-    /// Adds new [`AnnotationData`] to the dataset. Use [`with_data`] instead if you are using a regular builder pattern.
-    /// If the data already exists, this returns a handle to the existing data and inserts nothing new
+    /// Adds new [`AnnotationData`] to the dataset. Use [`Self.with_data()`] instead if you are using a regular builder pattern.
+    /// If the data already exists, this returns a handle to the existing data and inserts nothing new.
+    /// If the data is new, it returns a handle to the new data.
     ///
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
     pub fn insert_data(&mut self, id: AnyId<AnnotationDataHandle>, key: AnyId<DataKeyHandle>, value: DataValue, safety: bool) -> Result<AnnotationDataHandle, StamError> {
@@ -294,7 +295,7 @@ impl AnnotationDataSet {
         self.insert(AnnotationData::new(public_id, datakey_handle, value))
     }
 
-    /// Build and insert data into the dataset, similar to [`insert_data()`] and [`with_data()`], but takes a prepared `AnnotationDataBuilder` instead.
+    /// Build and insert data into the dataset, similar to [`Self.insert_data()`] and [`Self.with_data()`], but takes a prepared `AnnotationDataBuilder` instead.
     pub fn build_insert_data(&mut self, dataitem: AnnotationDataBuilder, safety: bool) -> Result<AnnotationDataHandle, StamError> {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }

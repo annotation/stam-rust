@@ -247,7 +247,7 @@ impl AnnotationStore {
     }
 
     ///Builds a new annotation store from [`AnnotationStoreBuilder'].
-    pub fn build_new(builder: AnnotationStoreBuilder) -> Result<Self,StamError> {
+    pub fn from_builder(builder: AnnotationStoreBuilder) -> Result<Self,StamError> {
         let store: Self = builder.try_into()?;
         Ok(store)
     }
@@ -258,7 +258,7 @@ impl AnnotationStore {
         let f = File::open(filename).map_err(|e| StamError::IOError(e, "Reading annotationstore from file, open failed"))?;
         let reader = BufReader::new(f);
         let builder: AnnotationStoreBuilder = serde_json::from_reader(reader).map_err(|e| StamError::JsonError(e, "Reading annotationstore from file"))?;
-        Self::build_new(builder)
+        Self::from_builder(builder)
     }
 
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting

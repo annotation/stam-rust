@@ -114,23 +114,23 @@ impl AnnotationBuilder {
     }
 
     /// Sets the annotation target using an already existing selector
-    /// Use [`with_target()`] or one of the `target_` shortcut methods instead if you still need to build the target selector
+    /// Use [`Self.with_target()`] or one of the `target_` shortcut methods instead if you still need to build the target selector
     pub fn with_selector(mut self, selector: Selector) -> Self {
         self.target = WithAnnotationTarget::FromSelector(selector);
         self
     }
 
-    /// Set the target to be a [`TextResource`]. Creates a [`Selector::ResourceSelector`]
+    /// Set the target to be a [`crate::resources::TextResource`]. Creates a [`Selector::ResourceSelector`]
     pub fn target_resource(self, resource: AnyId<TextResourceHandle>) -> Self {
         self.with_target(SelectorBuilder::ResourceSelector(resource))
     }
 
-    /// Set the target to be a text slice inside a [`TextResource`]. Creates a [`Selector::TextSelector`]
+    /// Set the target to be a text slice inside a [`crate::resources::TextResource`]. Creates a [`Selector::TextSelector`]
     pub fn target_text(self, resource: AnyId<TextResourceHandle>, offset: Offset) -> Self {
         self.with_target(SelectorBuilder::TextSelector(resource, offset))
     }
 
-    /// Sets the annotation target. Instantiates a new selector. Use [`with_target()`] instead if you already have
+    /// Sets the annotation target. Instantiates a new selector. Use [`Self.with_target()`] instead if you already have
     /// a selector. Under the hood, this will invoke `select()` to obtain a selector.
     pub fn with_target(mut self, selector: SelectorBuilder) -> Self {
         self.target = WithAnnotationTarget::FromSelectorBuilder(selector);
@@ -154,7 +154,7 @@ impl AnnotationBuilder {
         )
     }
 
-    /// Use this method instead of [`with_data()`]  if you want to assign a public identifier (last argument)
+    /// Use this method instead of [`Self.with_data()`]  if you want to assign a public identifier (last argument)
     pub fn with_data_with_id(self, dataset: AnyId<AnnotationDataSetHandle>, key: AnyId<DataKeyHandle>, value: DataValue, id: AnyId<AnnotationDataHandle>) -> Self {
         self.with_data_builder(
             AnnotationDataBuilder {
@@ -284,7 +284,7 @@ impl<'a> AnnotationStore {
     } 
 
     /// Builds and inserts an annotation
-    /// In a builder pattenr, use [`with_annotation()`] instead
+    /// In a builder pattenr, use [`Self.with_annotation()`] instead
     pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationHandle,StamError> {
 
         // Create the target selector if needed
