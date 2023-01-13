@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::slice::{Iter,IterMut};
-use std::cell::RefCell;
 use std::ops::Deref;
 
 use crate::error::StamError;
@@ -559,7 +558,7 @@ impl<HandleType> AnyId<HandleType> where HandleType: Handle {
     // raises an ID error
     pub fn error(&self, contextmsg: &'static str) -> StamError {
         match self {
-            Self::Handle(handle) => StamError::HandleError(contextmsg),
+            Self::Handle(_) => StamError::HandleError(contextmsg),
             Self::Id(id) => StamError::IdError(id.to_string(), contextmsg),
             Self::None => StamError::Unbound("Supplied AnyId is not bound to anything!")
         }

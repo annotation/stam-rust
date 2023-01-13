@@ -612,7 +612,7 @@ fn loop_annotations() -> Result<(),StamError> {
     let store = setup_example_2()?;
     for annotation in store.annotations() {
         let id = annotation.id().unwrap_or("");
-        for (key, data, dataset) in store.data(annotation) {
+        for (key, data, _dataset) in store.data(annotation) {
             // get the text to which this annotation refers (if any)
             let text: &str = match annotation.target().kind() {
                 stam::SelectorKind::TextSelector => {

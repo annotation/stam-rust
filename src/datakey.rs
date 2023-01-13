@@ -4,7 +4,6 @@ use serde::ser::{Serializer, SerializeStruct};
 //use serde_json::Result;
 
 use crate::types::*;
-use crate::annotationstore::AnnotationStore;
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
 
 /// The DataKey class defines a vocabulary field, it 

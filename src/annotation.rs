@@ -1,9 +1,7 @@
 use std::slice::Iter;
-use std::fmt;
 
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer, SerializeStruct,SerializeSeq};
-use serde::de::Deserializer;
 use serde_with::serde_as;
 
 use crate::types::*;
@@ -13,7 +11,7 @@ use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
 use crate::datakey::{DataKey,DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::annotationstore::AnnotationStore;
-use crate::resources::{TextResource,TextResourceHandle};
+use crate::resources::TextResourceHandle;
 use crate::selector::{Selector,Offset,SelectorBuilder,WrappedSelector};
 
 /// `Annotation` represents a particular *instance of annotation* and is the central

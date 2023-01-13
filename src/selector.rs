@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use serde::{Serialize,Deserialize};
 use serde_with::serde_as;
-use serde::ser::{Serializer, SerializeStruct,SerializeStructVariant};
+use serde::ser::{Serializer, SerializeStruct};
 
 use crate::types::*;
 use crate::error::*;

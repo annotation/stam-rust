@@ -4,7 +4,6 @@ use serde::ser::{Serializer, SerializeStruct,SerializeSeq};
 //use serde_json::Result;
 
 use crate::types::*;
-use crate::annotationstore::AnnotationStore;
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
 use crate::datakey::{DataKey,DataKeyHandle};
 use crate::datavalue::DataValue;
@@ -111,7 +110,7 @@ impl<'a> Serialize for WrappedStore<'a, AnnotationData,AnnotationDataSet> {
         for data in self.store.iter() {
             if let Some(data) = data {
                 if let Ok(data) = self.parent.wrap(data) {
-                    seq.serialize_element(&data);
+                    seq.serialize_element(&data)?;
                 } else {
                     return Err(serde::ser::Error::custom("Unable to wrap annotationdata during serialization"));
                 }

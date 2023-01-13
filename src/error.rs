@@ -1,6 +1,5 @@
 use crate::types::*;
 use std::fmt;
-use serde_json::error::Error;
 
 // ------------------------------ ERROR DEFINITIONS & IMPLEMENTATIONS -------------------------------------------------------------
 
