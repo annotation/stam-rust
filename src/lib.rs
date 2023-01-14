@@ -11,6 +11,7 @@ pub mod annotation;
 pub mod resources;
 pub mod selector;
 pub mod error;
+pub mod textselection;
 
 
 pub use types::*;

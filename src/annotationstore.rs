@@ -8,6 +8,7 @@ use crate::resources::{TextResource,TextResourceHandle,TextResourceBuilder};
 use crate::annotation::{Annotation,AnnotationHandle,AnnotationBuilder};
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle,AnnotationDataSetBuilder};
 use crate::annotationdata::AnnotationDataHandle;
+use crate::textselection::TextRelationMap;
 use crate::selector::Selector;
 
 use crate::types::*;
@@ -41,8 +42,8 @@ pub struct AnnotationStore {
     // Note there is no AnnotationDataSet => DataKey => Annotation map, that relationship
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
 
-    //TODO
-    //resource_text_annotation_map: RelationMap<TextResource,TextSelection,Annotation>,
+    /// This is the reverse index for text, it maps TextResource => TextSelection => Annotation
+    textrelationmap: TextRelationMap,
 
     /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
     resource_annotation_map: RelationMap<TextResourceHandle,AnnotationHandle>,
@@ -256,7 +257,8 @@ impl Default for AnnotationStore {
             dataset_data_annotation_map: TripleRelationMap::new(),
             dataset_annotation_map: RelationMap::new(),
             resource_annotation_map: RelationMap::new(),
-            annotation_annotation_map: RelationMap::new()
+            annotation_annotation_map: RelationMap::new(),
+            textrelationmap: TextRelationMap::new()
         }
     }
 }
