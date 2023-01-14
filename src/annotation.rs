@@ -349,6 +349,7 @@ impl<'a> Annotation {
     pub fn target(&self) -> &Selector {
         &self.target
     }
+
 }
 
 impl AnnotationStore {

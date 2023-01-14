@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use crate::types::*;
 use crate::annotation::AnnotationHandle;
 use crate::resources::TextResourceHandle;
+use crate::error::StamError;
 
 #[derive(PartialEq,Eq,Debug,Clone,Copy)]
 /// Corresponds to a slice of the text. The result of applying a [`crate::selector:Selector::TextSelector`].
@@ -38,6 +39,44 @@ impl TextSelection {
 
     pub fn endbyte(&self) -> usize {
         self.endbyte
+    }
+
+    /// Resolves a cursor *relative to te text selection* to a utf8 byte position, the text of the TextSelection has to be explicitly passed
+    pub fn resolve_cursor(&self, slice_text: &str, cursor: &Cursor) -> Result<usize,StamError> {
+        //TODO: implementation is not efficient on large text slices
+        match *cursor {
+            Cursor::BeginAligned(cursor) => {
+                let mut prevcharindex = 0;
+                for (charindex, (byteindex, _)) in slice_text.char_indices().enumerate() {
+                    if cursor == charindex {
+                        return Ok(byteindex);
+                    } else if cursor < charindex {
+                        break;
+                    }
+                    prevcharindex = charindex;
+                }
+                //is the cursor at the very end? (non-inclusive)
+                if cursor == prevcharindex + 1 {
+                    return Ok(slice_text.len());
+                }
+            },
+            Cursor::EndAligned(0) => {
+                return Ok(slice_text.len())
+            },
+            Cursor::EndAligned(cursor) => {
+                let mut iter = slice_text.char_indices();
+                let mut endcharindex: isize = 0;
+                while let Some((byteindex, _)) = iter.next_back() {
+                    endcharindex -= 1;
+                    if cursor == endcharindex {
+                        return Ok(byteindex)
+                    } else if cursor > endcharindex {
+                        break;
+                    }
+                }
+            }
+        };
+        Err(StamError::CursorOutOfBounds(*cursor,"TextSelection::resolve_cursor()"))
     }
 }
 

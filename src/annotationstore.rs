@@ -1,5 +1,6 @@
 use std::io::{BufReader,BufWriter};
 use std::fs::File;
+use std::marker::PhantomData;
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer,SerializeStruct,SerializeSeq};
 use serde_with::serde_as;
@@ -9,7 +10,7 @@ use crate::annotation::{Annotation,AnnotationHandle,AnnotationBuilder};
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle,AnnotationDataSetBuilder};
 use crate::annotationdata::AnnotationDataHandle;
 use crate::textselection::TextRelationMap;
-use crate::selector::Selector;
+use crate::selector::{Selector,Offset};
 
 use crate::types::*;
 use crate::error::*;
@@ -170,13 +171,18 @@ impl StoreFor<Annotation> for AnnotationStore {
             Selector::ResourceSelector(res_intid) => {
                 self.resource_annotation_map.insert(*res_intid, handle);
             },
-            Selector::AnnotationSelector( a_handle, .. ) => {
+            Selector::AnnotationSelector( a_handle, offset ) => {
                 self.annotation_annotation_map.insert(*a_handle, handle);
-                //TODO: process offset
+                if let Some(offset) = offset {
+                    //TODO: process offset
+                    if let Ok(resource) = self.resource_for(handle) {
+                        let textselection = resource.text_selection(&offset)?;
+                    }
+                }
             },
             Selector::TextSelector(res_intid, offset) => {
                 let resource: &TextResource = self.get(*res_intid)?;
-                let textselection = resource.text_selection(offset)?;
+                let textselection = resource.text_selection(&offset)?;
                 self.textrelationmap.insert(*res_intid, textselection, handle);
             },
             _ => {
@@ -392,4 +398,78 @@ impl AnnotationStore {
     pub fn annotationsets<'a>(&'a self) -> StoreIter<'a, AnnotationDataSet> {
         self.iter()
     }
+
+
+    /// Returns the resource the annotation points to
+    /// Returns a WrongSelectorType error if the annotation does not point at any resource.
+    pub fn resource_for<'a>(&'a self, annotation_handle: AnnotationHandle) -> Result<&'a TextResource,StamError> {
+        let annotation: &Annotation = self.get(annotation_handle)?;
+        match annotation.target() {
+            Selector::TextSelector(res_id,_ ) | Selector::ResourceSelector(res_id)=> {
+                let resource: &TextResource = self.get(*res_id)?;
+                Ok(resource)
+            },
+            Selector::AnnotationSelector(a_id,_ ) => {
+                self.resource_for(*a_id)
+            },
+            _ => Err(StamError::WrongSelectorType("resource_for()"))
+        }
+
+    }
+
+    /// Iterates over the resource this annotation points to
+    pub fn iter_target_resources<'a>(&'a self, annotation_handle: AnnotationHandle) -> TargetIter<'a,TextResourceHandle> {
+        TargetIter {
+            annotation_handle,
+            store: self,
+            subiterstack: Vec::new(),
+            _phantomdata: PhantomData
+        }
+    }
 }
+
+
+pub struct TargetIter<'a, T> where T: Handle {
+    annotation_handle: AnnotationHandle,
+    store: &'a AnnotationStore,
+    subiterstack: Vec<TargetIter<'a,T>>,
+    _phantomdata: PhantomData<T>
+}
+
+impl<'a> Iterator for TargetIter<'a, TextResourceHandle>  {
+    type Item = (TextResourceHandle, Option<Offset>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.subiterstack.is_empty() {
+            let annotation: &Annotation = self.store.get(self.annotation_handle).expect("annotation must exist");
+            match annotation.target() {
+                Selector::TextSelector(res_id, offset ) => {
+                    Some((*res_id, Some(offset.clone())))
+                },
+                Selector::ResourceSelector(res_id)=> {
+                    Some((*res_id, None))
+                },
+                Selector::AnnotationSelector(a_id, _) => {
+                    self.subiterstack.push(
+                        self.store.iter_target_resources(*a_id)
+                    );
+                    self.next() //recursion
+                },
+                _ => None, //TODO: implement others!
+            }
+        } else {
+            let result = self.subiterstack.last_mut().unwrap().next();
+            if result.is_none() {
+                self.subiterstack.pop();
+                if self.subiterstack.is_empty() {
+                    None
+                } else {
+                    self.next() //recursion
+                }
+            } else {
+                result
+            }
+        }
+    }
+}
+
