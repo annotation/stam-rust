@@ -8,8 +8,8 @@ use crate::resources::TextResourceHandle;
 #[derive(PartialEq,Eq,Debug)]
 /// Corresponds to a slice of the text. The result of applying a [`crate::selector:Selector::TextSelector`].
 pub struct TextSelection {
-    beginbyte: usize,
-    endbyte: usize
+    pub(crate) beginbyte: usize,
+    pub(crate) endbyte: usize
 }
 
 impl Ord for TextSelection {
@@ -29,6 +29,16 @@ impl PartialOrd for TextSelection {
         Some(self.cmp(other))
     }
 
+}
+
+impl TextSelection {
+    pub fn beginbyte(&self) -> usize {
+        self.beginbyte
+    }
+
+    pub fn endbyte(&self) -> usize {
+        self.endbyte
+    }
 }
 
 pub struct TextSelectionSet(pub Vec<TextSelection>);
@@ -61,5 +71,8 @@ impl TextRelationMap {
         }
         self.data[x.unwrap()].insert(y,z);
     }
+
+
+    //TODO: implement remove()
 }
 

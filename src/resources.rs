@@ -8,6 +8,7 @@ use serde_with::serde_as;
 
 use crate::types::*;
 use crate::selector::{Selector,Offset};
+use crate::textselection::TextSelection;
 use crate::error::StamError;
 
 /// This holds the textual resource to be annotated. It holds the full text in memory.
@@ -173,15 +174,30 @@ impl TextResource {
         self.text.as_str()
     }
 
-    /// Returns a reference to a slice of the text as specified by the offset
-    pub fn text_slice(&self, offset: &Offset) -> Result<&str,StamError> {
-        let begin = self.resolve_cursor(&offset.begin)?;
-        let end = self.resolve_cursor(&offset.end)?;
-        if end > begin {
-            Ok(&self.text()[begin..end])
+    /// Returns a text selection to a slice of the text as specified by the offset
+    pub fn text_selection(&self, offset: &Offset) -> Result<TextSelection,StamError> {
+        let beginbyte = self.resolve_cursor(&offset.begin)?;
+        let endbyte = self.resolve_cursor(&offset.end)?;
+        if endbyte > beginbyte {
+            Ok(TextSelection {
+                beginbyte,
+                endbyte
+            })
         } else {
             Err(StamError::InvalidOffset(offset.begin, offset.end,""))
         }
+    }
+
+    /// Returns a reference to a slice of the text as specified by the offset
+    pub fn text_slice(&self, offset: &Offset) -> Result<&str,StamError> {
+        let textselection = self.text_selection(offset)?;
+        Ok(self.text_of(&textselection))
+    }
+
+    /// Returns the text for a give [`TextSelection`]. Make sure the [`TextSelection`] applies to this resource, there are no further checks here. 
+    /// Use [`text_slice()`] for a safer method if you want to explicitly specify an offset.
+    pub fn text_of(&self, selection: &TextSelection) -> &str {
+        &self.text()[selection.beginbyte()..selection.endbyte()]
     }
 
     /// Resolves a cursor to a utf8 byte position on the text
@@ -223,7 +239,8 @@ impl TextResource {
     }
 
 
-    pub fn select_text(&self, begin: Cursor, end: Cursor) -> Result<Selector,StamError> {
+    /// Returns a text selector the the specified offsed in this resource
+    pub fn text_selector(&self, begin: Cursor, end: Cursor) -> Result<Selector,StamError> {
         if let Some(handle) = self.handle() {
             Ok(Selector::TextSelector(handle, Offset { begin, end }))
         } else {
