@@ -357,7 +357,17 @@ pub trait StoreFor<T: Storable> {
         if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
             Ok(item)
         } else {
-            Err(StamError::HandleError("Store::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
+            Err(StamError::HandleError("StoreFor::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
+        }
+    }
+
+    /// Removes an item by handle
+    fn remove(&mut self, handle: T::HandleType) -> Result<(),StamError> {
+        if let Some(item) = self.store_mut().get_mut(handle.unwrap()) {
+            *item = None;
+            Ok(())
+        } else {
+            Err(StamError::HandleError("StoreFor::remove"))
         }
     }
 
