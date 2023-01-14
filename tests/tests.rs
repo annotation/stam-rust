@@ -184,6 +184,18 @@ fn store_get_text_slice() -> Result<(),StamError> {
 }
 
 #[test]
+fn store_get_text_selection() -> Result<(),StamError> {
+    let store = setup_example_1()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let textselection = resource.text_selection( &Offset::new(Cursor::BeginAligned(0),Cursor::BeginAligned(5)))?;
+    //note that textselection uses utf-8 bytes, they correspond with the unicode endpoints in this example , but this is often not the case
+    assert_eq!(textselection.beginbyte(), 0);
+    assert_eq!(textselection.endbyte(), 5);
+    assert_eq!(resource.text_of(&textselection), "Hello");
+    Ok(())
+}
+
+#[test]
 fn text_selector() -> Result<(),StamError> {
     let store = setup_example_1()?;
     let annotation: &Annotation = store.get_by_id("A1")?;
