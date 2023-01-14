@@ -162,12 +162,12 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         if self.handle().is_some() {
             return Err(StamError::InUse("Refusing to remove datakey because its AnnotationDataSet is bound and we can't guarantee it's not used"));
         }
-        if let Some(datavec) = self.key_data_map.data.get(&handle) {
+        if let Some(datavec) = self.key_data_map.data.get(handle.unwrap()) {
             if datavec.is_empty() {
                 return Err(StamError::InUse("DataKey"));
             }
         }
-        self.key_data_map.data.remove(&handle);
+        self.key_data_map.data.remove(handle.unwrap());
         Ok(())
     }
 
@@ -305,7 +305,7 @@ impl AnnotationDataSet {
 
         if !newkey && id.is_none() && safety {
             // there is a chance that this key and value combination already occurs, check it
-            if let Some(dataitems) = self.key_data_map.data.get(&datakey_handle) {
+            if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
                 for intid in dataitems.iter() { //MAYBE TODO: this may get slow if there is a key with a lot of data values
                     let data: &AnnotationData = self.get(*intid).expect("getting item");
                     if data.value() == &value {

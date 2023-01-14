@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::slice::{Iter,IterMut};
 use std::ops::Deref;
+use std::marker::PhantomData;
 
 use crate::error::StamError;
 use serde::{Serialize,Deserialize};
@@ -97,13 +98,15 @@ impl<HandleType> IdMap<HandleType> where HandleType: Handle {
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
 pub struct RelationMap<A,B> {
     /// The actual map
-    pub(crate) data: HashMap<A,Vec<B>>
+    pub(crate) data: Vec<Vec<B>>,
+    _marker: PhantomData<A> //zero-size, only needed to bind generic A
 }
 
 impl<A,B> Default for RelationMap<A,B> where A: Handle, B: Handle {
     fn default() -> Self {
         Self {
-            data: HashMap::new()
+            data: Vec::new(),
+            _marker: PhantomData
         }
     }
 }
@@ -113,12 +116,16 @@ impl<A,B> RelationMap<A,B> where A: Handle, B: Handle {
 
     /// Insert a relation into the map
     pub fn insert(&mut self, x: A, y: B) {
-        self.data.entry(x).or_default().push(y);
+        if x.unwrap() >= self.data.len() {
+            //expand the map
+            self.data.resize_with(x.unwrap() + 1, Default::default);
+        }
+        self.data[x.unwrap()].push(y);
     }
 
     /// Remove a relation from the map
     pub fn remove(&mut self, x: A, y: B) {
-        if let Some(values) = self.data.get_mut(&x) {
+        if let Some(values) = self.data.get_mut(x.unwrap()) {
             if let Some(pos) = values.iter().position(|z| *z == y) {
                 values.remove(pos); //note: this shifts the array and may take O(n)
             }
@@ -136,13 +143,15 @@ impl<A,B> Extend<(A,B)> for RelationMap<A,B> where A: Handle, B: Handle {
 
 pub struct TripleRelationMap<A,B,C> {
     /// The actual map
-    pub(crate) data: HashMap<A,RelationMap<B,C>>
+    pub(crate) data: Vec<RelationMap<B,C>>,
+    _marker: PhantomData<A>,
 }
 
 impl<A,B,C> Default for TripleRelationMap<A,B,C> {
     fn default() -> Self {
         Self {
-            data: HashMap::new()
+            data: Vec::new(),
+            _marker: PhantomData
         }
     }
 }
@@ -151,7 +160,11 @@ impl<A,B,C> TripleRelationMap<A,B,C> where A: Handle, B: Handle, C: Handle {
     pub fn new() -> Self { Self::default() }
 
     pub fn insert(&mut self, x: A, y: B, z: C) {
-        self.data.entry(x).or_default().insert(y,z);
+        if x.unwrap() >= self.data.len() {
+            //expand the map
+            self.data.resize_with(x.unwrap() + 1, Default::default);
+        }
+        self.data[x.unwrap()].insert(y,z);
     }
 }
 

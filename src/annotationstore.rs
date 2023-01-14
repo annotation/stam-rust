@@ -121,12 +121,12 @@ impl StoreFor<TextResource> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: TextResourceHandle) -> Result<(),StamError> {
-        if let Some(annotations) = self.resource_annotation_map.data.get(&handle) {
+        if let Some(annotations) = self.resource_annotation_map.data.get(handle.unwrap()) {
             if !annotations.is_empty() {
                 return Err(StamError::InUse("TextResource"));
             }
         }
-        self.resource_annotation_map.data.remove(&handle);
+        self.resource_annotation_map.data.remove(handle.unwrap());
         Ok(())
     }
 }
@@ -230,12 +230,12 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationDataSetHandle) -> Result<(),StamError> {
-        if let Some(annotations) = self.dataset_annotation_map.data.get(&handle) {
+        if let Some(annotations) = self.dataset_annotation_map.data.get(handle.unwrap()) {
             if !annotations.is_empty() {
                 return Err(StamError::InUse("AnnotationDataSet"));
             }
         }
-        self.dataset_annotation_map.data.remove(&handle);
+        self.dataset_annotation_map.data.remove(handle.unwrap());
         Ok(())
     }
 }
