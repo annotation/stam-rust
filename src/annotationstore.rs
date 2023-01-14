@@ -117,6 +117,18 @@ impl StoreFor<TextResource> for AnnotationStore {
     fn introspect_type(&self) -> &'static str {
         "TextResource in AnnotationStore"
     }
+
+    /// called before the item is removed from the store
+    /// updates the relation maps, no need to call manually
+    fn preremove(&mut self, handle: TextResourceHandle) -> Result<(),StamError> {
+        if let Some(annotations) = self.resource_annotation_map.data.get(&handle) {
+            if !annotations.is_empty() {
+                return Err(StamError::InUse("TextResource"));
+            }
+        }
+        self.resource_annotation_map.data.remove(&handle);
+        Ok(())
+    }
 }
 
 //An AnnotationStore is a StoreFor Annotation
@@ -165,6 +177,36 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
         }
     }
+
+    /// called before the item is removed from the store
+    /// updates the relation maps, no need to call manually
+    fn preremove(&mut self, handle: AnnotationHandle) -> Result<(),StamError> {
+        let annotation: &Annotation = self.get(handle)?;
+        let resource_handle: Option<TextResourceHandle> = match annotation.target() {
+            Selector::ResourceSelector(res_handle) => Some(*res_handle),
+            _ => None,
+        };
+        let annotationset_handle: Option<AnnotationDataSetHandle> = match annotation.target() {
+            Selector::DataSetSelector(annotationset_handle) => Some(*annotationset_handle),
+            _ => None,
+        };
+        let annotation_handle: Option<AnnotationHandle> = match annotation.target() {
+            Selector::AnnotationSelector(annotation_handle,_) => Some(*annotation_handle),
+            _ => None,
+        };
+
+        if let Some(resource_handle) = resource_handle {
+            self.resource_annotation_map.remove(resource_handle, handle);
+        }
+        if let Some(annotationset_handle) = annotationset_handle {
+            self.dataset_annotation_map.remove(annotationset_handle, handle);
+        }
+        if let Some(annotation_handle) = annotation_handle {
+            self.annotation_annotation_map.remove(annotation_handle, handle);
+        }
+
+        Ok(())
+    }
 }
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
@@ -183,6 +225,18 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     }
     fn introspect_type(&self) -> &'static str {
         "AnnotationDataSet in AnnotationStore"
+    }
+
+    /// called before the item is removed from the store
+    /// updates the relation maps, no need to call manually
+    fn preremove(&mut self, handle: AnnotationDataSetHandle) -> Result<(),StamError> {
+        if let Some(annotations) = self.dataset_annotation_map.data.get(&handle) {
+            if !annotations.is_empty() {
+                return Err(StamError::InUse("AnnotationDataSet"));
+            }
+        }
+        self.dataset_annotation_map.data.remove(&handle);
+        Ok(())
     }
 }
 

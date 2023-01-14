@@ -61,6 +61,9 @@ pub enum StamError {
     /// Annotation has no target 
     NoTarget(&'static str),
 
+    /// Called when removal of an item is requested but it is still being referenced.
+    InUse(&'static str),
+
     /// This error is raised when the information supplied during build is incomplete 
     IncompleteError(&'static str)
 }
@@ -86,6 +89,7 @@ impl From<&StamError> for String {
             StamError::CursorOutOfBounds(cursor, contextmsg) => format!("CursorOutOfBounds: {:?} ({}) ",cursor, contextmsg),
             StamError::InvalidOffset(begincursor, endcursor, contextmsg) => format!("InvalidOffset: begin cursor {:?} must be before end cursor {:?} ({}) ",begincursor, endcursor, contextmsg),
             StamError::NoTarget(contextmsg) => format!("NoTarget: Annotation has no target ({})", contextmsg),
+            StamError::InUse(contextmsg) => format!("InUse: Item can't be removed because it is being referenced ({})", contextmsg),
             StamError::IncompleteError(contextmsg) => format!("IncompleteError: Not enough data to build ({})", contextmsg)
         }
     }

@@ -94,6 +94,7 @@ impl<HandleType> IdMap<HandleType> where HandleType: Handle {
 }
 
 
+/// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
 pub struct RelationMap<A,B> {
     /// The actual map
     pub(crate) data: HashMap<A,Vec<B>>
@@ -110,8 +111,18 @@ impl<A,B> Default for RelationMap<A,B> where A: Handle, B: Handle {
 impl<A,B> RelationMap<A,B> where A: Handle, B: Handle {
     pub fn new() -> Self { Self::default() }
 
+    /// Insert a relation into the map
     pub fn insert(&mut self, x: A, y: B) {
         self.data.entry(x).or_default().push(y);
+    }
+
+    /// Remove a relation from the map
+    pub fn remove(&mut self, x: A, y: B) {
+        if let Some(values) = self.data.get_mut(&x) {
+            if let Some(pos) = values.iter().position(|z| *z == y) {
+                values.remove(pos); //note: this shifts the array and may take O(n)
+            }
+        }
     }
 }
 
@@ -361,15 +372,36 @@ pub trait StoreFor<T: Storable> {
         }
     }
 
-    /// Removes an item by handle
+    /// Removes an item by handle, returns an error if the item has dependencies and can't be removed
     fn remove(&mut self, handle: T::HandleType) -> Result<(),StamError> {
-        if let Some(item) = self.store_mut().get_mut(handle.unwrap()) {
-            *item = None;
-            Ok(())
-        } else {
-            Err(StamError::HandleError("StoreFor::remove"))
+        //callback to remove the item from relation maps, may return an error and refuse to remove an item
+        self.preremove(handle)?;
+
+        //remove item from idmap
+        let item: &T = self.get(handle)?;
+        let id: Option<String> = item.id().map(|x| x.to_string());
+        if id.is_some() {
+            if let Some(idmap) = self.idmap_mut() {
+                idmap.data.remove(id.unwrap().as_str());
+            }
         }
+        
+        //now remove the actual item, removing means just setting its previously occupied index to None
+        //(and the actual item is owned so will be deallocated)
+        let item = self.store_mut().get_mut(handle.unwrap()).unwrap(); 
+        *item = None;
+        Ok(())
     }
+
+    /// Called before an item is removed from the store
+    /// Allows the store to do further bookkeeping
+    /// like updating relation maps
+    #[allow(unused_variables)]
+    fn preremove(&mut self, handle: T::HandleType) -> Result<(),StamError> {
+        //default implementation does nothing
+        Ok(())
+    }
+
 
     /// Resolves an ID to a handle
     /// You usually don't want to call this directly

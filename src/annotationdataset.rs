@@ -156,6 +156,21 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         "DataKey in AnnotationDataSet"
     }
 
+    /// called before the item is removed from the store
+    /// updates the relation maps, no need to call manually
+    fn preremove(&mut self, handle: DataKeyHandle) -> Result<(),StamError> {
+        if self.handle().is_some() {
+            return Err(StamError::InUse("Refusing to remove datakey because its AnnotationDataSet is bound and we can't guarantee it's not used"));
+        }
+        if let Some(datavec) = self.key_data_map.data.get(&handle) {
+            if datavec.is_empty() {
+                return Err(StamError::InUse("DataKey"));
+            }
+        }
+        self.key_data_map.data.remove(&handle);
+        Ok(())
+    }
+
 }
 
 impl StoreFor<AnnotationData> for AnnotationDataSet {
@@ -189,6 +204,17 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         let annotationdata: &AnnotationData = self.get(handle).expect("item must exist after insertion");
 
         self.key_data_map.insert(annotationdata.key, handle);
+    }
+
+    /// called before the item is removed from the store
+    /// updates the relation maps, no need to call manually
+    fn preremove(&mut self, handle: AnnotationDataHandle) -> Result<(),StamError> {
+        let data: &AnnotationData = self.get(handle)?;
+        if self.handle().is_some() {
+            return Err(StamError::InUse("Refusing to remove annotationdata because AnnotationDataSet is bound and we can't guarantee it's not used"));
+        }
+        self.key_data_map.remove(data.key, handle);
+        Ok(())
     }
 
 }
