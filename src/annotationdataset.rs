@@ -198,12 +198,13 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         "AnnotationData in AnnotationDataSet"
     }
 
-    fn inserted(&mut self, handle: AnnotationDataHandle) {
+    fn inserted(&mut self, handle: AnnotationDataHandle) -> Result<(),StamError> {
         // called after the item is inserted in the store
         // update the relation map
         let annotationdata: &AnnotationData = self.get(handle).expect("item must exist after insertion");
 
         self.key_data_map.insert(annotationdata.key, handle);
+        Ok(())
     }
 
     /// called before the item is removed from the store

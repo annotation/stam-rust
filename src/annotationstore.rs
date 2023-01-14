@@ -150,7 +150,7 @@ impl StoreFor<Annotation> for AnnotationStore {
         "Annotation in AnnotationStore"
     }
 
-    fn inserted(&mut self, handle: AnnotationHandle) {
+    fn inserted(&mut self, handle: AnnotationHandle) -> Result<(),StamError> {
         // called after the item is inserted in the store
         // update the relation map
 
@@ -172,11 +172,19 @@ impl StoreFor<Annotation> for AnnotationStore {
             },
             Selector::AnnotationSelector( a_handle, .. ) => {
                 self.annotation_annotation_map.insert(*a_handle, handle);
+                //TODO: process offset
+            },
+            Selector::TextSelector(res_intid, offset) => {
+                let resource: &TextResource = self.get(*res_intid)?;
+                let textselection = resource.text_selection(offset)?;
+                self.textrelationmap.insert(*res_intid, textselection, handle);
             },
             _ => {
                 //TODO: implement
+                panic!("Selector not implemented yet!");
             }
         }
+        Ok(())
     }
 
     /// called before the item is removed from the store

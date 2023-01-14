@@ -294,7 +294,7 @@ pub trait StoreFor<T: Storable> {
         //add the resource
         self.store_mut().push(Some(item));
 
-        self.inserted(handle);
+        self.inserted(handle)?;
 
         //sanity check to ensure no item can determine its own internal id that does not correspond with what's allocated
         assert_eq!(handle, T::HandleType::new(self.store().len() - 1));
@@ -306,8 +306,9 @@ pub trait StoreFor<T: Storable> {
     /// Allows the store to do further bookkeeping
     /// like updating relation maps
     #[allow(unused_variables)]
-    fn inserted(&mut self, handle: T::HandleType) {
+    fn inserted(&mut self, handle: T::HandleType) -> Result<(),StamError> {
         //default implementation does nothing
+        Ok(())
     }
 
     fn add(mut self, item: T) -> Result<Self, StamError> where Self: Sized {
