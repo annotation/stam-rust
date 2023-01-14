@@ -5,7 +5,7 @@ use crate::types::*;
 use crate::annotation::AnnotationHandle;
 use crate::resources::TextResourceHandle;
 
-#[derive(PartialEq,Eq,Debug)]
+#[derive(PartialEq,Eq,Debug,Clone,Copy)]
 /// Corresponds to a slice of the text. The result of applying a [`crate::selector:Selector::TextSelector`].
 pub struct TextSelection {
     pub(crate) beginbyte: usize,
