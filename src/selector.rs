@@ -374,57 +374,99 @@ impl<'a> Serialize for WrappedSelector<'a> {
     }
 }
 
-/// Iterator that returns all Selectors under a particular selector
+impl Selector {
+    /// Returns an iterator that yields all Selectors under a particular selector
+    pub fn iter<'a>(&'a self, store: &'a AnnotationStore) -> SelectorIter<'a> {
+        SelectorIter {
+            selector: self,
+            parent: None,
+            subiterstack: Vec::new(),
+            store,
+            depth: 0,
+        }
+    }
+}
+
+/// Iterator that returns the selector itself, plus all selectors under it (recursively)
 pub struct SelectorIter<'a> {
     selector: &'a Selector, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
+    parent: Option<&'a Selector>,
     subiterstack: Vec<SelectorIter<'a>>,
-    store: &'a AnnotationStore,
-    depth: usize
+    pub(crate) store: &'a AnnotationStore,
+    pub(crate) depth: usize
+}
+
+pub struct SelectorIterItem<'a> {
+    parent: Option<&'a Selector>,
+    selector: &'a Selector,
+    depth: usize,
+    leaf: bool,
+}
+
+impl<'a> Deref for SelectorIterItem<'a> {
+    type Target = Selector;
+    fn deref(&self) -> &'a Selector {
+        self.selector
+    }
+}
+
+impl<'a> SelectorIterItem<'a> {
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
+    pub fn parent(&self) -> Option<&'a Selector> {
+        self.parent
+    }
+    pub fn is_leaf(&self) -> bool {
+        self.leaf
+    }
 }
 
 impl<'a> Iterator for SelectorIter<'a>  {
-    type Item = &'a Selector;
+    type Item = SelectorIterItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.subiterstack.is_empty() {
+            let mut leaf = true;
             match self.selector {
-                Selector::TextSelector(res_handle, offset ) => {
-                    None
-                },
-                Selector::ResourceSelector(res_handle)=> {
-                    None
-                },
                 Selector::AnnotationSelector(a_handle, offset) => {
-                    if offset.is_none() {
-                        None
-                    } else {
+                    if offset.is_some() {
+                        //annotation selectors are only recursed into if an offset is specified (because then we need to dig down to find the final TextResource)
+                        leaf = false;
                         let annotation: &Annotation = self.store.get(*a_handle).expect("referenced annotation must exist");
                         self.subiterstack.push(
                             SelectorIter {
                                 selector: annotation.target(),
+                                parent: Some(self.selector),
                                 subiterstack: Vec::new(),
                                 store: self.store,
                                 depth: self.depth + 1,
                             }
                         );
-                        self.next() //recursion
                     }
                 },
                 Selector::MultiSelector(v) | Selector::DirectionalSelector(v) => {
+                    leaf = false;
                     for subselector in v.iter() {
                         self.subiterstack.push(
                             SelectorIter {
                                 selector: subselector,
+                                parent: Some(self.selector),
                                 subiterstack: Vec::new(),
                                 store: self.store,
                                 depth: self.depth + 1,
                             }
                         );
                     }
-                    self.next() //recursion
-                },
-                _ => None, //TODO: implement others!
-            }
+                }
+                _ => {}
+            };
+            Some( SelectorIterItem {
+                parent: self.parent,
+                selector: self.selector,
+                depth: self.depth,
+                leaf,
+            })
         } else {
             let result = self.subiterstack.last_mut().unwrap().next();
             if result.is_none() {

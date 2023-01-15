@@ -1,5 +1,6 @@
 use std::io::{BufReader,BufWriter};
 use std::fs::File;
+use std::ops::Deref;
 use std::marker::PhantomData;
 use serde::{Serialize,Deserialize};
 use serde::ser::{Serializer,SerializeStruct,SerializeSeq};
@@ -10,7 +11,7 @@ use crate::annotation::{Annotation,AnnotationHandle,AnnotationBuilder};
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle,AnnotationDataSetBuilder};
 use crate::annotationdata::AnnotationDataHandle;
 use crate::textselection::TextRelationMap;
-use crate::selector::{Selector,Offset};
+use crate::selector::{Selector,Offset,SelectorIter,SelectorIterItem};
 
 use crate::types::*;
 use crate::error::*;
@@ -164,6 +165,7 @@ impl StoreFor<Annotation> for AnnotationStore {
             self.dataset_data_annotation_map.insert(*dataset,*data,handle);
         }
 
+        let mut complextarget = false;
         match annotation.target() {
             Selector::DataSetSelector(dataset_intid) => {
                 self.dataset_annotation_map.insert(*dataset_intid, handle);
@@ -172,12 +174,14 @@ impl StoreFor<Annotation> for AnnotationStore {
                 self.resource_annotation_map.insert(*res_intid, handle);
             },
             Selector::AnnotationSelector( a_handle, offset ) => {
-                self.annotation_annotation_map.insert(*a_handle, handle);
-                if let Some(offset) = offset {
+                if offset.is_some() {
+                    complextarget = true;
                     //TODO: process offset
-                    if let Ok(resource) = self.resource_for(handle) {
-                        let textselection = resource.text_selection(&offset)?;
-                    }
+                    //if let Ok(resource) = self.resource_for(handle) {
+                        //let textselection = resource.text_selection(&offset)?;
+                    //}
+                } else { 
+                    self.annotation_annotation_map.insert(*a_handle, handle);
                 }
             },
             Selector::TextSelector(res_intid, offset) => {
@@ -186,10 +190,17 @@ impl StoreFor<Annotation> for AnnotationStore {
                 self.textrelationmap.insert(*res_intid, textselection, handle);
             },
             _ => {
-                //TODO: implement
-                panic!("Selector not implemented yet!");
+                complextarget = true;
             }
         }
+
+        if complextarget {
+            for item in self.iter_target_resources(annotation) {
+                //TODO
+            }
+        }
+
+
         Ok(())
     }
 
@@ -418,63 +429,67 @@ impl AnnotationStore {
     }
 
     /// Iterates over the resource this annotation points to
-    pub fn iter_target_resources<'a>(&'a self, annotation_handle: AnnotationHandle) -> TargetIter<'a,TextResourceHandle> {
+    pub fn iter_target_resources<'a>(&'a self, annotation: &'a Annotation) -> TargetIter<'a,TextResource> {
+        let selector_iter: SelectorIter<'a> = annotation.target().iter(self);
         TargetIter {
-            annotation_handle,
-            store: self,
-            subiterstack: Vec::new(),
+            iter: selector_iter,
             _phantomdata: PhantomData
         }
     }
 }
 
 
-pub struct TargetIter<'a, T> where T: Handle {
-    annotation_handle: AnnotationHandle,
-    store: &'a AnnotationStore,
-    subiterstack: Vec<TargetIter<'a,T>>,
+pub struct TargetIter<'a, T> where T: Storable {
+    iter: SelectorIter<'a>,
     _phantomdata: PhantomData<T>
 }
 
-impl<'a> Iterator for TargetIter<'a, TextResourceHandle>  {
-    type Item = (TextResourceHandle, Option<Offset>);
+pub struct TargetIterItem<'a, T> {
+    item: &'a T,
+    selectoriteritem: SelectorIterItem<'a>,
+}
+
+impl<'a,T> Deref for TargetIterItem<'a,T> where T: Storable {
+    type Target = T;
+    fn deref(&self) -> &'a T {
+        self.item
+    }
+}
+
+impl<'a,T> TargetIterItem<'a,T> {
+    pub fn depth(&self) -> usize {
+        self.selectoriteritem.depth()
+    }
+    pub fn parent(&self) -> Option<&'a Selector> {
+        self.selectoriteritem.parent()
+    }
+    pub fn is_leaf(&self) -> bool {
+        self.selectoriteritem.is_leaf()
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, TextResource>  {
+    type Item = TargetIterItem<'a,TextResource>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.subiterstack.is_empty() {
-            let annotation: &Annotation = self.store.get(self.annotation_handle).expect("referenced annotation must exist");
-            match annotation.target() {
-                Selector::TextSelector(res_id, offset ) => {
-                    Some((*res_id, Some(offset.clone())))
-                },
-                Selector::ResourceSelector(res_id)=> {
-                    Some((*res_id, None))
-                },
-                Selector::AnnotationSelector(a_id, _) => {
-                    self.subiterstack.push(
-                        self.store.iter_target_resources(*a_id)
-                    );
-                    self.next() //recursion
-                },
-                Selector::MultiSelector(v) => {
-                    for subselector in v.iter() {
-                        match subselector.target() {
+        let selectoritem = self.iter.next();
+        if let Some(selectoritem) = selectoritem {
+            match &*selectoritem {
+                Selector::TextSelector(res_id, _ ) | Selector::ResourceSelector(res_id) => {
+                    let resource: &TextResource = self.iter.store.get(*res_id).expect("Resource must exist");
+                    Some(
+                        TargetIterItem {
+                            item: resource,
+                            selectoriteritem: selectoritem
                         }
-                    }
+                    )
+                },
+                _ => {
+                    self.next()
                 }
-                _ => None, //TODO: implement others!
             }
         } else {
-            let result = self.subiterstack.last_mut().unwrap().next();
-            if result.is_none() {
-                self.subiterstack.pop();
-                if self.subiterstack.is_empty() {
-                    None
-                } else {
-                    self.next() //recursion
-                }
-            } else {
-                result
-            }
+            None
         }
     }
 }
