@@ -376,11 +376,13 @@ impl<'a> Serialize for WrappedSelector<'a> {
 
 impl Selector {
     /// Returns an iterator that yields all Selectors under a particular selector
-    pub fn iter<'a>(&'a self, store: &'a AnnotationStore) -> SelectorIter<'a> {
+    /// The paramter `recurse_annotation` determines whether an AnnotationSelector will be resolved recursively or not (finding all it points at)
+    pub fn iter<'a>(&'a self, store: &'a AnnotationStore, recurse_annotation: bool) -> SelectorIter<'a> {
         SelectorIter {
             selector: self,
             parent: None,
             subiterstack: Vec::new(),
+            recurse_annotation,
             store,
             depth: 0,
         }
@@ -392,6 +394,7 @@ pub struct SelectorIter<'a> {
     selector: &'a Selector, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
     parent: Option<&'a Selector>,
     subiterstack: Vec<SelectorIter<'a>>,
+    recurse_annotation: bool,
     pub(crate) store: &'a AnnotationStore,
     pub(crate) depth: usize
 }
@@ -430,7 +433,7 @@ impl<'a> Iterator for SelectorIter<'a>  {
             let mut leaf = true;
             match self.selector {
                 Selector::AnnotationSelector(a_handle, offset) => {
-                    if offset.is_some() {
+                    if self.recurse_annotation {
                         //annotation selectors are only recursed into if an offset is specified (because then we need to dig down to find the final TextResource)
                         leaf = false;
                         let annotation: &Annotation = self.store.get(*a_handle).expect("referenced annotation must exist");
@@ -439,6 +442,7 @@ impl<'a> Iterator for SelectorIter<'a>  {
                                 selector: annotation.target(),
                                 parent: Some(self.selector),
                                 subiterstack: Vec::new(),
+                                recurse_annotation: self.recurse_annotation,
                                 store: self.store,
                                 depth: self.depth + 1,
                             }
@@ -453,6 +457,7 @@ impl<'a> Iterator for SelectorIter<'a>  {
                                 selector: subselector,
                                 parent: Some(self.selector),
                                 subiterstack: Vec::new(),
+                                recurse_annotation: self.recurse_annotation,
                                 store: self.store,
                                 depth: self.depth + 1,
                             }

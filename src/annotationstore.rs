@@ -165,7 +165,8 @@ impl StoreFor<Annotation> for AnnotationStore {
             self.dataset_data_annotation_map.insert(*dataset,*data,handle);
         }
 
-        let mut complextarget = false;
+        let mut multitarget = false;
+        // first we handle the simple singular targets, and determine if we need to do more 
         match annotation.target() {
             Selector::DataSetSelector(dataset_intid) => {
                 self.dataset_annotation_map.insert(*dataset_intid, handle);
@@ -175,11 +176,7 @@ impl StoreFor<Annotation> for AnnotationStore {
             },
             Selector::AnnotationSelector( a_handle, offset ) => {
                 if offset.is_some() {
-                    complextarget = true;
-                    //TODO: process offset
-                    //if let Ok(resource) = self.resource_for(handle) {
-                        //let textselection = resource.text_selection(&offset)?;
-                    //}
+                    multitarget = true;
                 } else { 
                     self.annotation_annotation_map.insert(*a_handle, handle);
                 }
@@ -190,14 +187,28 @@ impl StoreFor<Annotation> for AnnotationStore {
                 self.textrelationmap.insert(*res_intid, textselection, handle);
             },
             _ => {
-                complextarget = true;
+                multitarget = true;
             }
         }
 
-        if complextarget {
-            for item in self.iter_target_resources(annotation) {
-                //TODO
-            }
+        // if needed, we handle more complex situations where there are multiple targets
+        if multitarget {
+            let target_resources: Vec<(TextResourceHandle,AnnotationHandle)> = self.iter_target_resources(annotation).map(|targetitem| {
+               (targetitem.handle().expect("resource must have a handle"), handle)
+            }).collect();
+            self.resource_annotation_map.extend(target_resources.into_iter());
+
+            let target_datasets: Vec<(AnnotationDataSetHandle,AnnotationHandle)> = self.iter_target_annotationsets(annotation).map(|targetitem| {
+               (targetitem.handle().expect("annotationset must have a handle"), handle)
+            }).collect();
+            self.dataset_annotation_map.extend(target_datasets.into_iter());
+
+            let target_annotations: Vec<(AnnotationHandle,AnnotationHandle)> = self.iter_target_annotations(annotation, false).map(|targetitem| {
+               (targetitem.handle().expect("annotation must have a handle"), handle)
+            }).collect();
+            self.annotation_annotation_map.extend(target_annotations.into_iter());
+
+            //TODO: process offset and update textrelationmap!
         }
 
 
@@ -428,14 +439,34 @@ impl AnnotationStore {
 
     }
 
-    /// Iterates over the resource this annotation points to
+    /// Iterates over the resources this annotation points to
     pub fn iter_target_resources<'a>(&'a self, annotation: &'a Annotation) -> TargetIter<'a,TextResource> {
-        let selector_iter: SelectorIter<'a> = annotation.target().iter(self);
+        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true);
         TargetIter {
             iter: selector_iter,
             _phantomdata: PhantomData
         }
     }
+
+    /// Iterates over the annotations this annotation points to directly
+    pub fn iter_target_annotations<'a>(&'a self, annotation: &'a Annotation, recursive: bool) -> TargetIter<'a,Annotation> {
+        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, recursive);
+        TargetIter {
+            iter: selector_iter,
+            _phantomdata: PhantomData
+        }
+    }
+
+    /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
+    pub fn iter_target_annotationsets<'a>(&'a self, annotation: &'a Annotation) -> TargetIter<'a,AnnotationDataSet> {
+        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true);
+        TargetIter {
+            iter: selector_iter,
+            _phantomdata: PhantomData
+        }
+    }
+
+
 }
 
 
@@ -494,3 +525,54 @@ impl<'a> Iterator for TargetIter<'a, TextResource>  {
     }
 }
 
+impl<'a> Iterator for TargetIter<'a,AnnotationDataSet>  {
+    type Item = TargetIterItem<'a,AnnotationDataSet>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let selectoritem = self.iter.next();
+        if let Some(selectoritem) = selectoritem {
+            match &*selectoritem {
+                Selector::DataSetSelector(set_id) => {
+                    let annotationset: &AnnotationDataSet = self.iter.store.get(*set_id).expect("Dataset must exist");
+                    Some(
+                        TargetIterItem {
+                            item: annotationset,
+                            selectoriteritem: selectoritem
+                        }
+                    )
+                },
+                _ => {
+                    self.next()
+                }
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a,Annotation>  {
+    type Item = TargetIterItem<'a,Annotation>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let selectoritem = self.iter.next();
+        if let Some(selectoritem) = selectoritem {
+            match &*selectoritem {
+                Selector::AnnotationSelector(a_id,_) => {
+                    let annotation: &Annotation = self.iter.store.get(*a_id).expect("Annotation must exist");
+                    Some(
+                        TargetIterItem {
+                            item: annotation,
+                            selectoriteritem: selectoritem
+                        }
+                    )
+                },
+                _ => {
+                    self.next()
+                }
+            }
+        } else {
+            None
+        }
+    }
+}
