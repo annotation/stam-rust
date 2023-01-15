@@ -168,11 +168,11 @@ impl StoreFor<Annotation> for AnnotationStore {
         let mut multitarget = false;
         // first we handle the simple singular targets, and determine if we need to do more 
         match annotation.target() {
-            Selector::DataSetSelector(dataset_intid) => {
-                self.dataset_annotation_map.insert(*dataset_intid, handle);
+            Selector::DataSetSelector(dataset_handle) => {
+                self.dataset_annotation_map.insert(*dataset_handle, handle);
             },
-            Selector::ResourceSelector(res_intid) => {
-                self.resource_annotation_map.insert(*res_intid, handle);
+            Selector::ResourceSelector(res_handle) => {
+                self.resource_annotation_map.insert(*res_handle, handle);
             },
             Selector::AnnotationSelector( a_handle, offset ) => {
                 if offset.is_some() {
@@ -181,10 +181,10 @@ impl StoreFor<Annotation> for AnnotationStore {
                     self.annotation_annotation_map.insert(*a_handle, handle);
                 }
             },
-            Selector::TextSelector(res_intid, offset) => {
-                let resource: &TextResource = self.get(*res_intid)?;
+            Selector::TextSelector(res_handle, offset) => {
+                let resource: &TextResource = self.get(*res_handle)?;
                 let textselection = resource.text_selection(&offset)?;
-                self.textrelationmap.insert(*res_intid, textselection, handle);
+                self.textrelationmap.insert(*res_handle, textselection, handle);
             },
             _ => {
                 multitarget = true;
@@ -193,20 +193,21 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
-            let target_resources: Vec<(TextResourceHandle,AnnotationHandle)> = self.iter_target_resources(annotation).map(|targetitem| {
-               (targetitem.handle().expect("resource must have a handle"), handle)
-            }).collect();
-            self.resource_annotation_map.extend(target_resources.into_iter());
-
             let target_datasets: Vec<(AnnotationDataSetHandle,AnnotationHandle)> = self.iter_target_annotationsets(annotation).map(|targetitem| {
                (targetitem.handle().expect("annotationset must have a handle"), handle)
             }).collect();
             self.dataset_annotation_map.extend(target_datasets.into_iter());
 
-            let target_annotations: Vec<(AnnotationHandle,AnnotationHandle)> = self.iter_target_annotations(annotation, false).map(|targetitem| {
+            let target_annotations: Vec<(AnnotationHandle,AnnotationHandle)> = self.iter_target_annotations(annotation, false, false).map(|targetitem| {
                (targetitem.handle().expect("annotation must have a handle"), handle)
             }).collect();
             self.annotation_annotation_map.extend(target_annotations.into_iter());
+
+            let target_resources: Vec<(TextResourceHandle,AnnotationHandle)> = self.iter_target_resources(annotation).map(|targetitem| {
+               (targetitem.handle().expect("resource must have a handle"), handle)
+            }).collect();
+            self.resource_annotation_map.extend(target_resources.iter().map(|(x,y)| (*x,*y)).into_iter());
+
 
             //TODO: process offset and update textrelationmap!
         }
@@ -441,7 +442,8 @@ impl AnnotationStore {
 
     /// Iterates over the resources this annotation points to
     pub fn iter_target_resources<'a>(&'a self, annotation: &'a Annotation) -> TargetIter<'a,TextResource> {
-        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true);
+        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true, true);
+        //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
         TargetIter {
             iter: selector_iter,
             _phantomdata: PhantomData
@@ -449,8 +451,8 @@ impl AnnotationStore {
     }
 
     /// Iterates over the annotations this annotation points to directly
-    pub fn iter_target_annotations<'a>(&'a self, annotation: &'a Annotation, recursive: bool) -> TargetIter<'a,Annotation> {
-        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, recursive);
+    pub fn iter_target_annotations<'a>(&'a self, annotation: &'a Annotation, recursive: bool, track_ancestors: bool) -> TargetIter<'a,Annotation> {
+        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, recursive, track_ancestors);
         TargetIter {
             iter: selector_iter,
             _phantomdata: PhantomData
@@ -459,7 +461,7 @@ impl AnnotationStore {
 
     /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
     pub fn iter_target_annotationsets<'a>(&'a self, annotation: &'a Annotation) -> TargetIter<'a,AnnotationDataSet> {
-        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true);
+        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true, false);
         TargetIter {
             iter: selector_iter,
             _phantomdata: PhantomData
@@ -491,8 +493,8 @@ impl<'a,T> TargetIterItem<'a,T> {
     pub fn depth(&self) -> usize {
         self.selectoriteritem.depth()
     }
-    pub fn parent(&self) -> Option<&'a Selector> {
-        self.selectoriteritem.parent()
+    pub fn ancestors<'b>(&'b self) -> &'b Vec<&'a Selector> {
+        self.selectoriteritem.ancestors()
     }
     pub fn is_leaf(&self) -> bool {
         self.selectoriteritem.is_leaf()

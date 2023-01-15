@@ -377,12 +377,13 @@ impl<'a> Serialize for WrappedSelector<'a> {
 impl Selector {
     /// Returns an iterator that yields all Selectors under a particular selector
     /// The paramter `recurse_annotation` determines whether an AnnotationSelector will be resolved recursively or not (finding all it points at)
-    pub fn iter<'a>(&'a self, store: &'a AnnotationStore, recurse_annotation: bool) -> SelectorIter<'a> {
+    pub fn iter<'a>(&'a self, store: &'a AnnotationStore, recurse_annotation: bool, track_ancestors: bool) -> SelectorIter<'a> {
         SelectorIter {
             selector: self,
-            parent: None,
+            ancestors: Vec::new(),
             subiterstack: Vec::new(),
             recurse_annotation,
+            track_ancestors,
             store,
             depth: 0,
         }
@@ -392,15 +393,16 @@ impl Selector {
 /// Iterator that returns the selector itself, plus all selectors under it (recursively)
 pub struct SelectorIter<'a> {
     selector: &'a Selector, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
-    parent: Option<&'a Selector>,
+    ancestors: Vec<&'a Selector>,
     subiterstack: Vec<SelectorIter<'a>>,
     recurse_annotation: bool,
+    track_ancestors: bool,
     pub(crate) store: &'a AnnotationStore,
     pub(crate) depth: usize
 }
 
 pub struct SelectorIterItem<'a> {
-    parent: Option<&'a Selector>,
+    ancestors: Vec<&'a Selector>,
     selector: &'a Selector,
     depth: usize,
     leaf: bool,
@@ -417,32 +419,41 @@ impl<'a> SelectorIterItem<'a> {
     pub fn depth(&self) -> usize {
         self.depth
     }
-    pub fn parent(&self) -> Option<&'a Selector> {
-        self.parent
+    pub fn ancestors<'b>(&'b self) -> &'b Vec<&'a Selector> {
+        &self.ancestors
     }
     pub fn is_leaf(&self) -> bool {
         self.leaf
     }
+
 }
 
 impl<'a> Iterator for SelectorIter<'a>  {
     type Item = SelectorIterItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        //note: Vec::new() should be cheap as Vec only allocates on push!
+
         if self.subiterstack.is_empty() {
             let mut leaf = true;
             match self.selector {
                 Selector::AnnotationSelector(a_handle, offset) => {
                     if self.recurse_annotation {
-                        //annotation selectors are only recursed into if an offset is specified (because then we need to dig down to find the final TextResource)
                         leaf = false;
                         let annotation: &Annotation = self.store.get(*a_handle).expect("referenced annotation must exist");
                         self.subiterstack.push(
                             SelectorIter {
                                 selector: annotation.target(),
-                                parent: Some(self.selector),
+                                ancestors: if self.track_ancestors {
+                                    let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
+                                    ancestors.push(self.selector);
+                                    ancestors
+                                } else {
+                                    Vec::new()
+                                },
                                 subiterstack: Vec::new(),
                                 recurse_annotation: self.recurse_annotation,
+                                track_ancestors: self.track_ancestors,
                                 store: self.store,
                                 depth: self.depth + 1,
                             }
@@ -455,9 +466,16 @@ impl<'a> Iterator for SelectorIter<'a>  {
                         self.subiterstack.push(
                             SelectorIter {
                                 selector: subselector,
-                                parent: Some(self.selector),
+                                ancestors: if self.track_ancestors {
+                                    let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
+                                    ancestors.push(self.selector);
+                                    ancestors
+                                } else {
+                                    Vec::new()
+                                },
                                 subiterstack: Vec::new(),
                                 recurse_annotation: self.recurse_annotation,
+                                track_ancestors: self.track_ancestors,
                                 store: self.store,
                                 depth: self.depth + 1,
                             }
@@ -467,7 +485,11 @@ impl<'a> Iterator for SelectorIter<'a>  {
                 _ => {}
             };
             Some( SelectorIterItem {
-                parent: self.parent,
+                ancestors: if self.track_ancestors {
+                    self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
+                } else {
+                    Vec::new()
+                },
                 selector: self.selector,
                 depth: self.depth,
                 leaf,
@@ -487,4 +509,3 @@ impl<'a> Iterator for SelectorIter<'a>  {
         }
     }
 }
-
