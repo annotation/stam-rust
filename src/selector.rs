@@ -373,3 +373,71 @@ impl<'a> Serialize for WrappedSelector<'a> {
         }
     }
 }
+
+/// Iterator that returns all Selectors under a particular selector
+pub struct SelectorIter<'a> {
+    selector: &'a Selector, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
+    subiterstack: Vec<SelectorIter<'a>>,
+    store: &'a AnnotationStore,
+    depth: usize
+}
+
+impl<'a> Iterator for SelectorIter<'a>  {
+    type Item = &'a Selector;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.subiterstack.is_empty() {
+            match self.selector {
+                Selector::TextSelector(res_handle, offset ) => {
+                    None
+                },
+                Selector::ResourceSelector(res_handle)=> {
+                    None
+                },
+                Selector::AnnotationSelector(a_handle, offset) => {
+                    if offset.is_none() {
+                        None
+                    } else {
+                        let annotation: &Annotation = self.store.get(*a_handle).expect("referenced annotation must exist");
+                        self.subiterstack.push(
+                            SelectorIter {
+                                selector: annotation.target(),
+                                subiterstack: Vec::new(),
+                                store: self.store,
+                                depth: self.depth + 1,
+                            }
+                        );
+                        self.next() //recursion
+                    }
+                },
+                Selector::MultiSelector(v) | Selector::DirectionalSelector(v) => {
+                    for subselector in v.iter() {
+                        self.subiterstack.push(
+                            SelectorIter {
+                                selector: subselector,
+                                subiterstack: Vec::new(),
+                                store: self.store,
+                                depth: self.depth + 1,
+                            }
+                        );
+                    }
+                    self.next() //recursion
+                },
+                _ => None, //TODO: implement others!
+            }
+        } else {
+            let result = self.subiterstack.last_mut().unwrap().next();
+            if result.is_none() {
+                self.subiterstack.pop();
+                if self.subiterstack.is_empty() {
+                    None
+                } else {
+                    self.next() //recursion
+                }
+            } else {
+                result
+            }
+        }
+    }
+}
+

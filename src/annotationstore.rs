@@ -441,7 +441,7 @@ impl<'a> Iterator for TargetIter<'a, TextResourceHandle>  {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.subiterstack.is_empty() {
-            let annotation: &Annotation = self.store.get(self.annotation_handle).expect("annotation must exist");
+            let annotation: &Annotation = self.store.get(self.annotation_handle).expect("referenced annotation must exist");
             match annotation.target() {
                 Selector::TextSelector(res_id, offset ) => {
                     Some((*res_id, Some(offset.clone())))
@@ -455,6 +455,12 @@ impl<'a> Iterator for TargetIter<'a, TextResourceHandle>  {
                     );
                     self.next() //recursion
                 },
+                Selector::MultiSelector(v) => {
+                    for subselector in v.iter() {
+                        match subselector.target() {
+                        }
+                    }
+                }
                 _ => None, //TODO: implement others!
             }
         } else {
