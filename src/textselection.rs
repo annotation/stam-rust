@@ -115,3 +115,10 @@ impl TextRelationMap {
     //TODO: implement remove()
 }
 
+impl Extend<(TextResourceHandle,TextSelection,AnnotationHandle)> for TextRelationMap  {
+    fn extend<T>(&mut self, iter: T)  where T: IntoIterator<Item=(TextResourceHandle,TextSelection,AnnotationHandle)> {
+        for (x,y,z) in iter {
+            self.insert(x,y,z);
+        }
+    }
+}
