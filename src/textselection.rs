@@ -41,7 +41,7 @@ impl TextSelection {
         self.endbyte
     }
 
-    /// Resolves a cursor *relative to te text selection* to a utf8 byte position, the text of the TextSelection has to be explicitly passed
+    /// Resolves a cursor *relative to the text selection* to a utf8 byte position, the text of the TextSelection has to be explicitly passed
     pub fn resolve_cursor(&self, slice_text: &str, cursor: &Cursor) -> Result<usize,StamError> {
         //TODO: implementation is not efficient on large text slices
         match *cursor {

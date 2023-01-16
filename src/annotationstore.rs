@@ -504,8 +504,8 @@ impl AnnotationStore {
                             //each annotation selector selects a subslice of the previous textselection
                             let text = resource.text_of(&textselection);
                             textselection = TextSelection {
-                                beginbyte: textselection.resolve_cursor(text, &offset.begin)?,
-                                endbyte: textselection.resolve_cursor(text, &offset.end)?
+                                beginbyte: textselection.beginbyte + textselection.resolve_cursor(text, &offset.begin)?,
+                                endbyte: textselection.beginbyte + textselection.resolve_cursor(text, &offset.end)?
                             };
                         }
                     }
