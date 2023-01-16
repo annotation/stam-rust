@@ -692,3 +692,20 @@ fn textselection_relative() -> Result<(),StamError> {
     }
     Ok(())
 }
+
+#[test]
+fn textselection_relative_endaligned() -> Result<(),StamError> {
+    let store = setup_example_3()?.with_annotation( Annotation::builder()
+            .with_id("sentence2lastword".into())
+            .with_target( SelectorBuilder::AnnotationSelector( "sentence2".into(), Some(Offset::new(
+                Cursor::EndAligned(-8),
+                Cursor::EndAligned(0)
+            )) ))
+            .with_data("testdataset".into(),"type".into(),"word".into()))?;
+    let word: &Annotation = store.get_by_id("sentence2lastword")?;
+    for (resourcehandle, textselection) in store.iter_target_textselection(&word) {
+        let resource: &TextResource = store.get(resourcehandle)?;
+        assert_eq!(resource.text_of(&textselection), "curious.")
+    }
+    Ok(())
+}
