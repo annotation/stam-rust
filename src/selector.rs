@@ -95,7 +95,7 @@ impl Selector {
 #[derive(Debug,Clone,PartialEq,Eq)]
 pub enum SelectorKind {
     ResourceSelector,
-    AnnotatinoSelector,
+    AnnotationSelector,
     TextSelector,
     DataSetSelector,
     MultiSelector,
@@ -106,7 +106,7 @@ impl From<&Selector> for SelectorKind {
     fn from(selector: &Selector) -> Self {
         match selector {
             Selector::ResourceSelector(_) => Self::ResourceSelector,
-            Selector::AnnotationSelector(_,_) => Self::AnnotatinoSelector,
+            Selector::AnnotationSelector(_,_) => Self::AnnotationSelector,
             Selector::TextSelector(_,_) => Self::TextSelector,
             Selector::DataSetSelector(_) => Self::DataSetSelector,
             Selector::MultiSelector(_) => Self::MultiSelector,
@@ -376,8 +376,8 @@ impl<'a> Serialize for WrappedSelector<'a> {
 }
 
 impl Selector {
-    /// Returns an iterator that yields all Selectors under a particular selector
-    /// The paramter `recurse_annotation` determines whether an AnnotationSelector will be resolved recursively or not (finding all it points at)
+    /// Returns an iterator that yields all Selectors under a particular selector, including the selcetor in question as well.
+    /// The parameter `recurse_annotation` determines whether an AnnotationSelector will be resolved recursively or not (finding all it points at)
     pub fn iter<'a>(&'a self, store: &'a AnnotationStore, recurse_annotation: bool, track_ancestors: bool) -> SelectorIter<'a> {
         SelectorIter {
             selector: Some(self),

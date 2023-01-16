@@ -80,11 +80,11 @@ pub fn setup_example_3() -> Result<AnnotationStore,StamError> {
         .with_annotation( Annotation::builder()
                 .with_id("sentence2".into())
                 .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(26,57) ))
-                .with_data_with_id("testdataset".into(),"type".into(),"sentence".into(),"S".into()))?
+                .with_data("testdataset".into(),"type".into(),"sentence".into()))?
         .with_annotation( Annotation::builder()
                 .with_id("sentence2word2".into())
                 .with_target( SelectorBuilder::AnnotationSelector( "sentence2".into(), Some(Offset::simple(2,4)) ))
-                .with_data_with_id("testdataset".into(),"type".into(),"word".into(),"W".into()))?;
+                .with_data("testdataset".into(),"type".into(),"word".into()))?;
     Ok(store)
 }
 
@@ -661,6 +661,23 @@ fn textselection() -> Result<(),StamError> {
     for (resourcehandle, textselection) in store.iter_target_textselection(&sentence) {
         let resource: &TextResource = store.get(resourcehandle)?;
         assert_eq!(resource.text_of(&textselection), "I am only passionately curious.")
+    }
+    Ok(())
+}
+
+#[test]
+fn selectoriter() -> Result<(),StamError> {
+    let store = setup_example_3()?;
+    let word: &Annotation = store.get_by_id("sentence2word2")?;
+    for (i, selectoritem) in word.target().iter(&store, true, true).enumerate() {
+        match i {
+            0 => assert!(selectoritem.ancestors().is_empty()),
+            1 => {
+                assert_eq!(selectoritem.ancestors().len(),1);
+                assert_eq!(selectoritem.ancestors().get(0).unwrap().kind(),SelectorKind::AnnotationSelector);
+            },
+            _ => panic!("expected only two iterations!")
+        }
     }
     Ok(())
 }
