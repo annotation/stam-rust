@@ -72,6 +72,22 @@ pub fn setup_example_2() -> Result<AnnotationStore,StamError> {
     Ok(store)
 }
 
+pub fn setup_example_3() -> Result<AnnotationStore,StamError> {
+    //this example includes a higher-order annotation with relative offset
+    let store = AnnotationStore::new().with_id("test".into())
+        .add( TextResource::from_string("testres".to_string(),"I have no special talent. I am only passionately curious. -- Albert Einstein".into()))?
+        .add( AnnotationDataSet::new().with_id("testdataset".into()))?
+        .with_annotation( Annotation::builder()
+                .with_id("sentence2".into())
+                .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(28,58) ))
+                .with_data_with_id("testdataset".into(),"type".into(),"sentence".into(),"S".into()))?
+        .with_annotation( Annotation::builder()
+                .with_id("sentence2word2".into())
+                .with_target( SelectorBuilder::AnnotationSelector( "sentence2".into(), Some(Offset::simple(2,4)) ))
+                .with_data_with_id("testdataset".into(),"type".into(),"word".into(),"W".into()))?;
+    Ok(store)
+}
+
 #[test]
 fn instantiation_with_builder_pattern() -> Result<(),StamError> {
     setup_example_1()?;
@@ -635,5 +651,11 @@ fn loop_annotations() -> Result<(),StamError> {
             print!("{}\t{}\t{}\t{}", id, key.id().unwrap(), data.value(), text);
         }
     }
+    Ok(())
+}
+
+#[test]
+fn annotationselector() -> Result<(),StamError> {
+    let store = setup_example_3()?;
     Ok(())
 }

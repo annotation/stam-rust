@@ -494,7 +494,6 @@ impl AnnotationStore {
                             };
                         }
                     }
-                    panic!("implementation not finished yet");
                 }
                 Ok(textselection)
             },

@@ -380,7 +380,7 @@ impl Selector {
     /// The paramter `recurse_annotation` determines whether an AnnotationSelector will be resolved recursively or not (finding all it points at)
     pub fn iter<'a>(&'a self, store: &'a AnnotationStore, recurse_annotation: bool, track_ancestors: bool) -> SelectorIter<'a> {
         SelectorIter {
-            selector: self,
+            selector: Some(self),
             ancestors: Vec::new(),
             subiterstack: Vec::new(),
             recurse_annotation,
@@ -393,7 +393,7 @@ impl Selector {
 
 /// Iterator that returns the selector itself, plus all selectors under it (recursively)
 pub struct SelectorIter<'a> {
-    selector: &'a Selector, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
+    selector: Option<&'a Selector>, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
     ancestors: Vec<&'a Selector>,
     subiterstack: Vec<SelectorIter<'a>>,
     recurse_annotation: bool,
@@ -436,65 +436,70 @@ impl<'a> Iterator for SelectorIter<'a>  {
         //note: Vec::new() should be cheap as Vec only allocates on push!
 
         if self.subiterstack.is_empty() {
-            let mut leaf = true;
-            match self.selector {
-                Selector::AnnotationSelector(a_handle, offset) => {
-                    if self.recurse_annotation {
+            if let Some(selector) = self.selector {
+                let mut leaf = true;
+                match selector {
+                    Selector::AnnotationSelector(a_handle, offset) => {
+                        if self.recurse_annotation {
+                            leaf = false;
+                            let annotation: &Annotation = self.store.get(*a_handle).expect("referenced annotation must exist");
+                            self.subiterstack.push(
+                                SelectorIter {
+                                    selector: Some(annotation.target()),
+                                    ancestors: if self.track_ancestors {
+                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
+                                        ancestors.push(selector);
+                                        ancestors
+                                    } else {
+                                        Vec::new()
+                                    },
+                                    subiterstack: Vec::new(),
+                                    recurse_annotation: self.recurse_annotation,
+                                    track_ancestors: self.track_ancestors,
+                                    store: self.store,
+                                    depth: self.depth + 1,
+                                }
+                            );
+                        }
+                    },
+                    Selector::MultiSelector(v) | Selector::DirectionalSelector(v) => {
                         leaf = false;
-                        let annotation: &Annotation = self.store.get(*a_handle).expect("referenced annotation must exist");
-                        self.subiterstack.push(
-                            SelectorIter {
-                                selector: annotation.target(),
-                                ancestors: if self.track_ancestors {
-                                    let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
-                                    ancestors.push(self.selector);
-                                    ancestors
-                                } else {
-                                    Vec::new()
-                                },
-                                subiterstack: Vec::new(),
-                                recurse_annotation: self.recurse_annotation,
-                                track_ancestors: self.track_ancestors,
-                                store: self.store,
-                                depth: self.depth + 1,
-                            }
-                        );
+                        for subselector in v.iter() {
+                            self.subiterstack.push(
+                                SelectorIter {
+                                    selector: Some(subselector),
+                                    ancestors: if self.track_ancestors {
+                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
+                                        ancestors.push(subselector);
+                                        ancestors
+                                    } else {
+                                        Vec::new()
+                                    },
+                                    subiterstack: Vec::new(),
+                                    recurse_annotation: self.recurse_annotation,
+                                    track_ancestors: self.track_ancestors,
+                                    store: self.store,
+                                    depth: self.depth + 1,
+                                }
+                            );
+                        }
                     }
-                },
-                Selector::MultiSelector(v) | Selector::DirectionalSelector(v) => {
-                    leaf = false;
-                    for subselector in v.iter() {
-                        self.subiterstack.push(
-                            SelectorIter {
-                                selector: subselector,
-                                ancestors: if self.track_ancestors {
-                                    let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
-                                    ancestors.push(self.selector);
-                                    ancestors
-                                } else {
-                                    Vec::new()
-                                },
-                                subiterstack: Vec::new(),
-                                recurse_annotation: self.recurse_annotation,
-                                track_ancestors: self.track_ancestors,
-                                store: self.store,
-                                depth: self.depth + 1,
-                            }
-                        );
-                    }
-                }
-                _ => {}
-            };
-            Some( SelectorIterItem {
-                ancestors: if self.track_ancestors {
-                    self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
-                } else {
-                    Vec::new()
-                },
-                selector: self.selector,
-                depth: self.depth,
-                leaf,
-            })
+                    _ => {}
+                };
+                self.selector = None; //this flags that we have processed the selector
+                Some( SelectorIterItem {
+                    ancestors: if self.track_ancestors {
+                        self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
+                    } else {
+                        Vec::new()
+                    },
+                    selector,
+                    depth: self.depth,
+                    leaf,
+                })
+            } else {
+                None
+            }
         } else {
             let result = self.subiterstack.last_mut().unwrap().next();
             if result.is_none() {
