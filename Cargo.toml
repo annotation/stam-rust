@@ -9,7 +9,7 @@ homepage = "https://github.com/annotation/stam"
 include = ["src/**/*","tests/**/*", "LICENSE", "README.md"]
 license = "GPL-3.0"
 readme = "README.md"
-repository = "https://github.com/annotation/stsm-rust"
+repository = "https://github.com/annotation/stam-rust"
 keywords = [ "text-processing", "annotation", "linguistics", "standoff", "nlp"]
 
 [dependencies]
