@@ -10,8 +10,8 @@ use crate::resources::{TextResource,TextResourceHandle,TextResourceBuilder};
 use crate::annotation::{Annotation,AnnotationHandle,AnnotationBuilder};
 use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle,AnnotationDataSetBuilder};
 use crate::annotationdata::AnnotationDataHandle;
-use crate::textselection::TextRelationMap;
-use crate::selector::{Selector,Offset,SelectorIter,SelectorIterItem};
+use crate::textselection::{TextSelection,TextRelationMap};
+use crate::selector::{Selector,Offset,SelectorIter,SelectorIterItem,SelectorKind};
 
 use crate::types::*;
 use crate::error::*;
@@ -154,7 +154,8 @@ impl StoreFor<Annotation> for AnnotationStore {
 
     fn inserted(&mut self, handle: AnnotationHandle) -> Result<(),StamError> {
         // called after the item is inserted in the store
-        // update the relation map
+        // updates the relation map, this is where most of the reverse indexing happens
+        // that facilitate search at later stages
 
         // note: a normal self.get() doesn't cut it here because then all of self will be borrowed for 'a and we have problems with the mutable reference later
         //       now at least the borrow checker knows self.annotations is distinct
@@ -203,13 +204,19 @@ impl StoreFor<Annotation> for AnnotationStore {
             }).collect();
             self.annotation_annotation_map.extend(target_annotations.into_iter());
 
+            let mut extend_textrelationmap: Vec<(TextResourceHandle, TextSelection, AnnotationHandle)> = Vec::new();
             let target_resources: Vec<(TextResourceHandle,AnnotationHandle)> = self.iter_target_resources(annotation).map(|targetitem| {
-               (targetitem.handle().expect("resource must have a handle"), handle)
+                //process offset relative offset
+                let res_handle = targetitem.handle().expect("resource must have a handle");
+                match self.text_selection(targetitem.selector(), Some(targetitem.ancestors())) {
+                    Ok(textselection) => extend_textrelationmap.push(( res_handle, textselection, handle )),
+                    Err(err) => panic!("Error resolving relative text: {}", err) //TODO: panic is too strong here! handle more nicely
+                }
+               (res_handle, handle)
             }).collect();
             self.resource_annotation_map.extend(target_resources.iter().map(|(x,y)| (*x,*y)).into_iter());
 
-
-            //TODO: process offset and update textrelationmap!
+            self.textrelationmap.extend(extend_textrelationmap.into_iter());
         }
 
 
@@ -468,6 +475,33 @@ impl AnnotationStore {
         }
     }
 
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. If multiple AnnotationSelectors are involved, they can be passed as subselectors
+    /// and will further refine the TextSelection
+    pub fn text_selection(&self, selector: &Selector, subselectors: Option<&Vec<&Selector>>) -> Result<TextSelection,StamError> {
+
+        match selector {
+            Selector::TextSelector(res_id, offset)=> {
+                let resource: &TextResource = self.get(*res_id)?;
+                let mut textselection = resource.text_selection(offset)?;
+                if let Some(subselectors) = subselectors {
+                    for selector in subselectors.iter() {
+                        if let Selector::AnnotationSelector(a_id, Some(offset)) = selector {
+                            //each annotation selector selects a subslice of the previous textselection
+                            let text = resource.text_of(&textselection);
+                            textselection = TextSelection {
+                                beginbyte: textselection.resolve_cursor(text, &offset.begin)?,
+                                endbyte: textselection.resolve_cursor(text, &offset.end)?
+                            };
+                        }
+                    }
+                    panic!("implementation not finished yet");
+                }
+                Ok(textselection)
+            },
+            _ => Err(StamError::WrongSelectorType("selector for Annotationstore::text_selection() must be a TextSelector"))
+        }
+    }
+
 
 }
 
@@ -492,6 +526,9 @@ impl<'a,T> Deref for TargetIterItem<'a,T> where T: Storable {
 impl<'a,T> TargetIterItem<'a,T> {
     pub fn depth(&self) -> usize {
         self.selectoriteritem.depth()
+    }
+    pub fn selector(&self) -> &Selector {
+        self.selectoriteritem.deref()
     }
     pub fn ancestors<'b>(&'b self) -> &'b Vec<&'a Selector> {
         self.selectoriteritem.ancestors()

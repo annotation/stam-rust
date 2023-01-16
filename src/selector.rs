@@ -92,6 +92,7 @@ impl Selector {
 
 }
 
+#[derive(Debug,Clone,PartialEq,Eq)]
 pub enum SelectorKind {
     ResourceSelector,
     AnnotatinoSelector,
