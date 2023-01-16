@@ -79,7 +79,7 @@ pub fn setup_example_3() -> Result<AnnotationStore,StamError> {
         .add( AnnotationDataSet::new().with_id("testdataset".into()))?
         .with_annotation( Annotation::builder()
                 .with_id("sentence2".into())
-                .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(28,58) ))
+                .with_target( SelectorBuilder::TextSelector( "testres".into(), Offset::simple(26,57) ))
                 .with_data_with_id("testdataset".into(),"type".into(),"sentence".into(),"S".into()))?
         .with_annotation( Annotation::builder()
                 .with_id("sentence2word2".into())
@@ -655,7 +655,12 @@ fn loop_annotations() -> Result<(),StamError> {
 }
 
 #[test]
-fn annotationselector() -> Result<(),StamError> {
+fn textselection() -> Result<(),StamError> {
     let store = setup_example_3()?;
+    let sentence: &Annotation = store.get_by_id("sentence2")?;
+    for (resourcehandle, textselection) in store.iter_target_textselection(&sentence) {
+        let resource: &TextResource = store.get(resourcehandle)?;
+        assert_eq!(resource.text_of(&textselection), "I am only passionately curious.")
+    }
     Ok(())
 }

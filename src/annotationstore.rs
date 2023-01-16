@@ -206,7 +206,8 @@ impl StoreFor<Annotation> for AnnotationStore {
 
             let mut extend_textrelationmap: Vec<(TextResourceHandle, TextSelection, AnnotationHandle)> = Vec::new();
             let target_resources: Vec<(TextResourceHandle,AnnotationHandle)> = self.iter_target_resources(annotation).map(|targetitem| {
-                //process offset relative offset
+                //process offset relative offset (note that this essentially duplicates 'iter_target_textselection` but 
+                //it allows us to combine two things in one and save an iteration.
                 let res_handle = targetitem.handle().expect("resource must have a handle");
                 match self.text_selection(targetitem.selector(), Some(targetitem.ancestors())) {
                     Ok(textselection) => extend_textrelationmap.push(( res_handle, textselection, handle )),
@@ -475,17 +476,31 @@ impl AnnotationStore {
         }
     }
 
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. If multiple AnnotationSelectors are involved, they can be passed as subselectors
-    /// and will further refine the TextSelection
-    pub fn text_selection(&self, selector: &Selector, subselectors: Option<&Vec<&Selector>>) -> Result<TextSelection,StamError> {
 
+    /// Iterate over all resources with text selections this annotation refers to
+    pub fn iter_target_textselection<'a>(&'a self, annotation: &'a Annotation) -> Box<dyn Iterator<Item=(TextResourceHandle,TextSelection)> + 'a> {
+        Box::new(self.iter_target_resources(annotation).map(|targetitem| {
+            //process offset relative offset
+            let res_handle = targetitem.handle().expect("resource must have a handle");
+            match self.text_selection(targetitem.selector(), Some(targetitem.ancestors())) {
+                Ok(textselection) => (res_handle, textselection),
+                Err(err) => panic!("Error resolving relative text: {}", err) //TODO: panic is too strong here! handle more nicely
+            }
+        }))
+    }
+
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use [`iter_text_selection`] instead for those.
+    ///
+    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
+    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`iter_text_selection`]
+    pub fn text_selection(&self, selector: &Selector, subselectors: Option<&Vec<&Selector>>) -> Result<TextSelection,StamError> {
         match selector {
             Selector::TextSelector(res_id, offset)=> {
                 let resource: &TextResource = self.get(*res_id)?;
                 let mut textselection = resource.text_selection(offset)?;
                 if let Some(subselectors) = subselectors {
                     for selector in subselectors.iter() {
-                        if let Selector::AnnotationSelector(a_id, Some(offset)) = selector {
+                        if let Selector::AnnotationSelector(_a_id, Some(offset)) = selector {
                             //each annotation selector selects a subslice of the previous textselection
                             let text = resource.text_of(&textselection);
                             textselection = TextSelection {
