@@ -664,3 +664,14 @@ fn textselection() -> Result<(),StamError> {
     }
     Ok(())
 }
+
+#[test]
+fn textselection_relative() -> Result<(),StamError> {
+    let store = setup_example_3()?;
+    let word: &Annotation = store.get_by_id("sentence2word2")?;
+    for (resourcehandle, textselection) in store.iter_target_textselection(&word) {
+        let resource: &TextResource = store.get(resourcehandle)?;
+        assert_eq!(resource.text_of(&textselection), "am")
+    }
+    Ok(())
+}
