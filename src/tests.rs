@@ -141,6 +141,7 @@ fn textselectionoperator_equals_1vs1() {
         endbyte: 24,
     };
     assert!(a.test(&TextSelectionOperator::Equals(&b.into())));
+    assert!(a.test(&TextSelectionOperator::Overlaps(&b.into())));
 }
 
 #[test]
@@ -153,5 +154,35 @@ fn textselectionoperator_equals_false_1vs1() {
         beginbyte: 11,
         endbyte: 25,
     };
+    //not equal
     assert!(!a.test(&TextSelectionOperator::Equals(&b.into())));
+}
+
+#[test]
+fn textselectionoperator_overlaps1_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 11,
+        endbyte: 25,
+    };
+    //overlaps
+    assert!(a.test(&TextSelectionOperator::Overlaps(&b.into())));
+    assert!(b.test(&TextSelectionOperator::Overlaps(&a.into())));
+}
+
+#[test]
+fn textselectionoperator_overlaps2_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 18,
+        endbyte: 32,
+    };
+    assert!(a.test(&TextSelectionOperator::Overlaps(&b.into())));
+    assert!(b.test(&TextSelectionOperator::Overlaps(&a.into())));
 }

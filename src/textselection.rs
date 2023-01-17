@@ -304,6 +304,8 @@ impl TextSelection {
                 for other in otherset.iter() {
                     if (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
                         || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte)
+                        || (other.beginbyte <= self.beginbyte && other.endbyte >= self.endbyte)
+                        || (self.beginbyte <= other.beginbyte && self.endbyte >= other.endbyte)
                     {
                         return true;
                     }
