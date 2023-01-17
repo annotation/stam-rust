@@ -223,28 +223,30 @@ impl Extend<(TextResourceHandle, TextSelection, AnnotationHandle)> for TextRelat
 
 #[derive(Debug, Clone)]
 pub enum TextSelectionOperator<'a> {
-    // Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
+    /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
     Equals(&'a TextSelectionSet),
 
-    // A TextSelections in A that overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
+    /// A TextSelections in A that overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
     Overlaps(&'a TextSelectionSet),
 
-    // All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
+    /// All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
     Embeds(&'a TextSelectionSet),
 
-    // All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
+    /// All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
     Embedded(&'a TextSelectionSet),
 
-    // All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
+    /// All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
     Precedes(&'a TextSelectionSet),
 
-    // All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
+    /// All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
     Succeeds(&'a TextSelectionSet),
 
-    // The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
+    /// The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
+    //TODO: add dsitance argument
     LeftAdjacent(&'a TextSelectionSet),
 
-    // The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
+    /// The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
+    //TODO: add dsitance argument
     RightAdjacent(&'a TextSelectionSet),
 
     Not(Box<TextSelectionOperator<'a>>),
