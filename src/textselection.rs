@@ -313,7 +313,7 @@ impl TextSelection {
                 false
             }
             TextSelectionOperator::Embeds(otherset) => otherset.test(
-                &TextSelectionOperator::Embeds(&TextSelectionSet::new(*self)),
+                &TextSelectionOperator::Embedded(&TextSelectionSet::new(*self)),
             ),
             TextSelectionOperator::Embedded(otherset) => {
                 // all in A is embedded in B

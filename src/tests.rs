@@ -186,3 +186,79 @@ fn textselectionoperator_overlaps2_1vs1() {
     assert!(a.test(&TextSelectionOperator::Overlaps(&b.into())));
     assert!(b.test(&TextSelectionOperator::Overlaps(&a.into())));
 }
+
+#[test]
+fn textselectionoperator_overlaps_false_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 24,
+        endbyte: 48,
+    };
+    assert!(!a.test(&TextSelectionOperator::Overlaps(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::Overlaps(&a.into())));
+}
+
+#[test]
+fn textselectionoperator_embed_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 11,
+        endbyte: 25,
+    };
+    assert!(a.test(&TextSelectionOperator::Embedded(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::Embedded(&a.into())));
+    assert!(b.test(&TextSelectionOperator::Embeds(&a.into())));
+}
+
+#[test]
+fn textselectionoperator_embed_false_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 18,
+        endbyte: 32,
+    };
+    //overlap is not embedding
+    assert!(!a.test(&TextSelectionOperator::Embedded(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::Embedded(&a.into())));
+}
+
+#[test]
+fn textselectionoperator_precedes_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 24,
+        endbyte: 48,
+    };
+    assert!(a.test(&TextSelectionOperator::Precedes(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::Precedes(&a.into())));
+    assert!(b.test(&TextSelectionOperator::Succeeds(&a.into())));
+    assert!(!a.test(&TextSelectionOperator::Succeeds(&b.into())));
+}
+
+#[test]
+fn textselectionoperator_precedes2_1vs1() {
+    let a = TextSelection {
+        beginbyte: 0,
+        endbyte: 12,
+    };
+    let b = TextSelection {
+        beginbyte: 24,
+        endbyte: 48,
+    };
+    assert!(a.test(&TextSelectionOperator::Precedes(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::Precedes(&a.into())));
+    assert!(b.test(&TextSelectionOperator::Succeeds(&a.into())));
+    assert!(!a.test(&TextSelectionOperator::Succeeds(&b.into())));
+}
