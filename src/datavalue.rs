@@ -1,9 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
-use serde::{Serialize,Deserialize};
 
-
-#[derive(Serialize,Deserialize,Debug,PartialEq)]
-#[serde(tag = "@type", content="value")]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(tag = "@type", content = "value")]
 pub enum DataValue {
     /// No value
     Null,
@@ -13,28 +12,27 @@ pub enum DataValue {
     Int(isize),
     Float(f64),
     //Datetime(chrono::DateTime), //TODO
-
     /// Value is an unordered set
     //Set(HashSet<DataValue>),
 
     /// Value is an ordered list
-    List(Vec<DataValue>)
+    List(Vec<DataValue>),
 }
 
 impl fmt::Display for DataValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Null => write!(f,""),
-            Self::String(v) => write!(f,"{}",v),
-            Self::Bool(v) => write!(f,"{}",v),
-            Self::Int(v) => write!(f,"{}",v),
-            Self::Float(v) => write!(f,"{}",v),
+            Self::Null => write!(f, ""),
+            Self::String(v) => write!(f, "{}", v),
+            Self::Bool(v) => write!(f, "{}", v),
+            Self::Int(v) => write!(f, "{}", v),
+            Self::Float(v) => write!(f, "{}", v),
             Self::List(v) => {
                 for (i, item) in v.iter().enumerate() {
                     if i < v.len() - 1 {
-                        write!(f,", ")?;
+                        write!(f, ", ")?;
                     }
-                    write!(f,"{}",item)?;
+                    write!(f, "{}", item)?;
                 }
                 Ok(())
             }
@@ -47,7 +45,6 @@ impl From<&str> for DataValue {
         Self::String(item.to_string())
     }
 }
-
 
 impl From<String> for DataValue {
     fn from(item: String) -> Self {
@@ -99,13 +96,19 @@ impl From<i8> for DataValue {
 
 impl From<usize> for DataValue {
     fn from(item: usize) -> Self {
-        Self::Int(item.try_into().expect("integer out of bounds (u64 -> i64 failed)"))
+        Self::Int(
+            item.try_into()
+                .expect("integer out of bounds (u64 -> i64 failed)"),
+        )
     }
 }
 
 impl From<u64> for DataValue {
     fn from(item: u64) -> Self {
-        Self::Int(item.try_into().expect("integer out of bounds (u64 -> i64 failed)"))
+        Self::Int(
+            item.try_into()
+                .expect("integer out of bounds (u64 -> i64 failed)"),
+        )
     }
 }
 
@@ -139,14 +142,13 @@ impl From<Vec<DataValue>> for DataValue {
     }
 }
 
-
-// These PartialEq implementation allow for more direct comparisons 
+// These PartialEq implementation allow for more direct comparisons
 
 impl PartialEq<str> for DataValue {
     fn eq(&self, other: &str) -> bool {
         match self {
             Self::String(v) => v == other,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -155,7 +157,7 @@ impl PartialEq<&str> for DataValue {
     fn eq(&self, other: &&str) -> bool {
         match self {
             Self::String(v) => v == other,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -164,7 +166,7 @@ impl PartialEq<DataValue> for str {
     fn eq(&self, other: &DataValue) -> bool {
         match other {
             DataValue::String(v) => v.as_str() == self,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -173,7 +175,7 @@ impl PartialEq<DataValue> for &str {
     fn eq(&self, other: &DataValue) -> bool {
         match other {
             DataValue::String(v) => v.as_str() == *self,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -182,7 +184,7 @@ impl PartialEq<f64> for DataValue {
     fn eq(&self, other: &f64) -> bool {
         match self {
             Self::Float(v) => v == other,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -191,7 +193,7 @@ impl PartialEq<DataValue> for f64 {
     fn eq(&self, other: &DataValue) -> bool {
         match other {
             DataValue::Float(v) => v == self,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -200,7 +202,7 @@ impl PartialEq<isize> for DataValue {
     fn eq(&self, other: &isize) -> bool {
         match self {
             Self::Int(v) => v == other,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -209,8 +211,7 @@ impl PartialEq<DataValue> for isize {
     fn eq(&self, other: &DataValue) -> bool {
         match other {
             DataValue::Int(v) => v == self,
-            _ => false
+            _ => false,
         }
     }
 }
-

@@ -1,56 +1,60 @@
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 use std::fmt;
-use serde::{Serialize,Deserialize};
-use serde::ser::{Serializer, SerializeStruct};
 //use serde_json::Result;
 
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::types::*;
-use crate::annotationdataset::{AnnotationDataSet,AnnotationDataSetHandle};
 
-/// The DataKey class defines a vocabulary field, it 
+/// The DataKey class defines a vocabulary field, it
 /// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
-#[derive(Deserialize,Debug)]
+#[derive(Deserialize, Debug)]
 pub struct DataKey {
     /// The Id is the name that identifies this key, it must be unique in the dataset to which it pertains
-    #[serde(rename="@id")]
+    #[serde(rename = "@id")]
     id: String,
 
     //indexed: bool,  //TODO: handle later
-
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
     #[serde(skip)]
     intid: Option<DataKeyHandle>,
 
     ///Refers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey. May be unbound (None) only during creation.
     #[serde(skip)]
-    pub(crate) part_of_set: Option<AnnotationDataSetHandle>
+    pub(crate) part_of_set: Option<AnnotationDataSetHandle>,
 }
 
 impl Serialize for DataKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
-    where S: Serializer {
-        let mut state = serializer.serialize_struct("DataKey",1)?;
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("DataKey", 1)?;
         state.serialize_field("@type", "DataKey")?;
         state.serialize_field("@id", &self.id)?;
         state.end()
     }
 }
 
-
-#[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
 pub struct DataKeyHandle(u16);
 impl Handle for DataKeyHandle {
-    fn new(intid: usize) -> Self { Self(intid as u16) }
-    fn unwrap(&self) -> usize { self.0 as usize }
+    fn new(intid: usize) -> Self {
+        Self(intid as u16)
+    }
+    fn unwrap(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl Storable for DataKey {
     type HandleType = DataKeyHandle;
 
-    fn id(&self) -> Option<&str> { 
+    fn id(&self) -> Option<&str> {
         Some(self.id.as_str())
     }
-    fn handle(&self) -> Option<DataKeyHandle> { 
+    fn handle(&self) -> Option<DataKeyHandle> {
         self.intid
     }
     fn set_handle(&mut self, intid: DataKeyHandle) {
@@ -60,7 +64,7 @@ impl Storable for DataKey {
 
 impl fmt::Display for DataKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,"{}",self.as_str())
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -79,10 +83,10 @@ impl PartialEq<DataKey> for str {
 impl DataKey {
     ///Creates a new DataKey which you can add to an AnnotationDataSet using AnnotationDataSet.add_key()
     pub fn new(id: String) -> Self {
-        Self { 
+        Self {
             id,
             intid: None,
-            part_of_set: None
+            part_of_set: None,
         }
     }
 

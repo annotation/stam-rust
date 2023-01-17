@@ -1,28 +1,28 @@
-use std::io::BufReader;
 use std::fs::File;
+use std::io::BufReader;
 
-use serde::{Serialize,Deserialize};
-use serde::ser::{Serializer, SerializeStruct};
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 //use serde_json::Result;
 
-use crate::types::*;
-use crate::annotationdata::{AnnotationData,AnnotationDataBuilder,AnnotationDataHandle};
-use crate::datakey::{DataKey,DataKeyHandle};
+use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
+use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
+use crate::types::*;
 
 /// An `AnnotationDataSet` stores the keys [`DataKey`] and values
 /// [`AnnotationData`] (which in turn encapsulates [`DataValue`]) that are used by annotations.
-/// It effectively defines a certain vocabulary, i.e. key/value pairs. 
+/// It effectively defines a certain vocabulary, i.e. key/value pairs.
 /// The `AnnotationDataSet` does not store the [`crate::annotation::Annotation`] instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
 #[serde_as]
 #[derive(Deserialize)]
-#[serde(try_from="AnnotationDataSetBuilder")]
+#[serde(try_from = "AnnotationDataSetBuilder")]
 pub struct AnnotationDataSet {
     /// Public Id
-    #[serde(rename="@id")]
+    #[serde(rename = "@id")]
     id: Option<String>,
 
     /// A store for [`DataKey`]
@@ -31,11 +31,11 @@ pub struct AnnotationDataSet {
     /// A store for [`AnnotationData`], each makes *reference* to a [`DataKey`] (in this same `AnnotationDataSet`) and gives it a value  ([`DataValue`])
     data: Store<AnnotationData>,
 
-    ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership 
+    ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership
     #[serde(skip)]
     intid: Option<AnnotationDataSetHandle>,
 
-    /// Maps public IDs to internal IDs for 
+    /// Maps public IDs to internal IDs for
     #[serde(skip)]
     key_idmap: IdMap<DataKeyHandle>,
 
@@ -44,19 +44,17 @@ pub struct AnnotationDataSet {
     data_idmap: IdMap<AnnotationDataHandle>,
 
     #[serde(skip)]
-    key_data_map: RelationMap<DataKeyHandle,AnnotationDataHandle>
+    key_data_map: RelationMap<DataKeyHandle, AnnotationDataHandle>,
 }
-
 
 #[serde_as]
 #[derive(Deserialize)]
 pub struct AnnotationDataSetBuilder {
-    #[serde(rename="@id")]
+    #[serde(rename = "@id")]
     pub id: Option<String>,
     pub keys: Vec<DataKey>,
     pub data: Option<Vec<AnnotationDataBuilder>>,
 }
-
 
 impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     type Error = StamError;
@@ -84,26 +82,28 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     }
 }
 
-
-
-#[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct AnnotationDataSetHandle(u16);
 impl Handle for AnnotationDataSetHandle {
-    fn new(intid: usize) -> Self { Self(intid as u16) }
-    fn unwrap(&self) -> usize { self.0 as usize }
+    fn new(intid: usize) -> Self {
+        Self(intid as u16)
+    }
+    fn unwrap(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
 
-    fn id(&self) -> Option<&str> { 
+    fn id(&self) -> Option<&str> {
         self.id.as_ref().map(|x| &**x)
     }
-    fn with_id(mut self, id: String) ->  Self {
+    fn with_id(mut self, id: String) -> Self {
         self.id = Some(id);
         self
     }
-    fn handle(&self) -> Option<Self::HandleType> { 
+    fn handle(&self) -> Option<Self::HandleType> {
         self.intid
     }
     fn set_handle(&mut self, handle: AnnotationDataSetHandle) {
@@ -129,7 +129,6 @@ impl Storable for AnnotationDataSet {
         }
     }
 }
-
 
 impl StoreFor<DataKey> for AnnotationDataSet {
     fn store(&self) -> &Store<DataKey> {
@@ -158,7 +157,7 @@ impl StoreFor<DataKey> for AnnotationDataSet {
 
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
-    fn preremove(&mut self, handle: DataKeyHandle) -> Result<(),StamError> {
+    fn preremove(&mut self, handle: DataKeyHandle) -> Result<(), StamError> {
         if self.handle().is_some() {
             return Err(StamError::InUse("Refusing to remove datakey because its AnnotationDataSet is bound and we can't guarantee it's not used"));
         }
@@ -170,7 +169,6 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         self.key_data_map.data.remove(handle.unwrap());
         Ok(())
     }
-
 }
 
 impl StoreFor<AnnotationData> for AnnotationDataSet {
@@ -198,10 +196,11 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         "AnnotationData in AnnotationDataSet"
     }
 
-    fn inserted(&mut self, handle: AnnotationDataHandle) -> Result<(),StamError> {
+    fn inserted(&mut self, handle: AnnotationDataHandle) -> Result<(), StamError> {
         // called after the item is inserted in the store
         // update the relation map
-        let annotationdata: &AnnotationData = self.get(handle).expect("item must exist after insertion");
+        let annotationdata: &AnnotationData =
+            self.get(handle).expect("item must exist after insertion");
 
         self.key_data_map.insert(annotationdata.key, handle);
         Ok(())
@@ -209,7 +208,7 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
 
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
-    fn preremove(&mut self, handle: AnnotationDataHandle) -> Result<(),StamError> {
+    fn preremove(&mut self, handle: AnnotationDataHandle) -> Result<(), StamError> {
         let data: &AnnotationData = self.get(handle)?;
         if self.handle().is_some() {
             return Err(StamError::InUse("Refusing to remove annotationdata because AnnotationDataSet is bound and we can't guarantee it's not used"));
@@ -217,7 +216,6 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         self.key_data_map.remove(data.key, handle);
         Ok(())
     }
-
 }
 
 impl Default for AnnotationDataSet {
@@ -235,20 +233,21 @@ impl Default for AnnotationDataSet {
 }
 
 impl Serialize for AnnotationDataSet {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
-    where S: Serializer {
-        let mut state = serializer.serialize_struct("AnnotationDataSet",4)?;
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("AnnotationDataSet", 4)?;
         state.serialize_field("@type", "AnnotationDataSet")?;
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
         state.serialize_field("keys", &self.keys)?;
-        let wrappedstore: WrappedStore<AnnotationData,Self> = self.wrappedstore();
-        state.serialize_field("data", &wrappedstore )?;
+        let wrappedstore: WrappedStore<AnnotationData, Self> = self.wrappedstore();
+        state.serialize_field("data", &wrappedstore)?;
         state.end()
     }
 }
-
 
 impl AnnotationDataSet {
     pub fn new() -> Self {
@@ -256,24 +255,32 @@ impl AnnotationDataSet {
     }
 
     ///Builds a new annotation store from [`AnnotationDataSetBuilder'].
-    pub fn from_builder(builder: AnnotationDataSetBuilder) -> Result<Self,StamError> {
+    pub fn from_builder(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
         let store: Self = builder.try_into()?;
         Ok(store)
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_file(filename: &str) -> Result<Self,StamError> {
-        let f = File::open(filename).map_err(|e| StamError::IOError(e, "Reading AnnotationDataSet from file, open failed"))?;
+    pub fn from_file(filename: &str) -> Result<Self, StamError> {
+        let f = File::open(filename).map_err(|e| {
+            StamError::IOError(e, "Reading AnnotationDataSet from file, open failed")
+        })?;
         let reader = BufReader::new(f);
-        let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader).map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
+        let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader)
+            .map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
         Self::from_builder(builder)
     }
 
     /// Adds new [`AnnotationData`] to the dataset, this should be
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
-    pub fn with_data(mut self, id: AnyId<AnnotationDataHandle>, key: AnyId<DataKeyHandle>, value: DataValue) -> Result<Self, StamError> {
-        self.insert_data(id,key,value,true)?;
+    pub fn with_data(
+        mut self,
+        id: AnyId<AnnotationDataHandle>,
+        key: AnyId<DataKeyHandle>,
+        value: DataValue,
+    ) -> Result<Self, StamError> {
+        self.insert_data(id, key, value, true)?;
         Ok(self)
     }
 
@@ -282,14 +289,24 @@ impl AnnotationDataSet {
     /// If the data is new, it returns a handle to the new data.
     ///
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
-    pub fn insert_data(&mut self, id: AnyId<AnnotationDataHandle>, key: AnyId<DataKeyHandle>, value: DataValue, safety: bool) -> Result<AnnotationDataHandle, StamError> {
+    pub fn insert_data(
+        &mut self,
+        id: AnyId<AnnotationDataHandle>,
+        key: AnyId<DataKeyHandle>,
+        value: DataValue,
+        safety: bool,
+    ) -> Result<AnnotationDataHandle, StamError> {
         let annotationdata: Option<&AnnotationData> = self.get_by_anyid(&id);
         if let Some(annotationdata) = annotationdata {
             //already exists, return as is
-            return Ok(annotationdata.handle().expect("item must have intid when in store"))
+            return Ok(annotationdata
+                .handle()
+                .expect("item must have intid when in store"));
         }
         if key.is_none() {
-            return Err(StamError::IncompleteError("Key supplied to AnnotationDataSet.with_data() can not be None"));
+            return Err(StamError::IncompleteError(
+                "Key supplied to AnnotationDataSet.with_data() can not be None",
+            ));
         }
 
         let datakey: Option<&DataKey> = self.get_by_anyid(&key);
@@ -307,7 +324,8 @@ impl AnnotationDataSet {
         if !newkey && id.is_none() && safety {
             // there is a chance that this key and value combination already occurs, check it
             if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
-                for intid in dataitems.iter() { //MAYBE TODO: this may get slow if there is a key with a lot of data values
+                for intid in dataitems.iter() {
+                    //MAYBE TODO: this may get slow if there is a key with a lot of data values
                     let data: &AnnotationData = self.get(*intid).expect("getting item");
                     if data.value() == &value {
                         // Data with this exact key and value already exists, return it:
@@ -323,16 +341,20 @@ impl AnnotationDataSet {
     }
 
     /// Build and insert data into the dataset, similar to [`Self.insert_data()`] and [`Self.with_data()`], but takes a prepared `AnnotationDataBuilder` instead.
-    pub fn build_insert_data(&mut self, dataitem: AnnotationDataBuilder, safety: bool) -> Result<AnnotationDataHandle, StamError> {
+    pub fn build_insert_data(
+        &mut self,
+        dataitem: AnnotationDataBuilder,
+        safety: bool,
+    ) -> Result<AnnotationDataHandle, StamError> {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }
 
     /// Get an annotation handle from an ID.
-    pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataHandle,StamError> {
+    pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataHandle, StamError> {
         <Self as StoreFor<AnnotationData>>::resolve_id(&self, id)
     }
 
-    pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyHandle,StamError> {
+    pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyHandle, StamError> {
         <Self as StoreFor<DataKey>>::resolve_id(&self, id)
     }
 

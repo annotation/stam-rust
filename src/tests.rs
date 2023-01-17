@@ -1,5 +1,4 @@
 #[cfg(test)]
-
 use crate::*;
 
 #[test]
@@ -34,7 +33,7 @@ fn parse_json_annotationdatabuilder() -> Result<(), std::io::Error> {
     assert_eq!(data.key, AnyId::Id("pos".into()));
     assert_eq!(data.key, "pos");
     assert_eq!(data.value, DataValue::String("verb".into()));
-    assert_eq!(data.value, "verb");  //shorter version
+    assert_eq!(data.value, "verb"); //shorter version
     Ok(())
 }
 
@@ -46,7 +45,7 @@ fn parse_json_cursor() -> Result<(), std::io::Error> {
     }"#;
 
     let cursor: Cursor = serde_json::from_str(data)?;
-    assert_eq!( cursor, Cursor::BeginAligned(0) );
+    assert_eq!(cursor, Cursor::BeginAligned(0));
     Ok(())
 }
 
@@ -58,7 +57,7 @@ fn parse_json_cursor_end() -> Result<(), std::io::Error> {
     }"#;
 
     let cursor: Cursor = serde_json::from_str(data)?;
-    assert_eq!( cursor, Cursor::EndAligned(0) );
+    assert_eq!(cursor, Cursor::EndAligned(0));
     Ok(())
 }
 
@@ -76,7 +75,7 @@ fn parse_json_offset() -> Result<(), std::io::Error> {
     }"#;
 
     let offset: Offset = serde_json::from_str(data)?;
-    assert_eq!( offset, Offset::simple(0,5) );
+    assert_eq!(offset, Offset::simple(0, 5));
     Ok(())
 }
 
@@ -103,31 +102,30 @@ fn parse_json_textselector() -> Result<(), std::io::Error> {
 
 #[test]
 fn textresource() {
-    let resource = TextResource::from_string("testres".into(),"Hello world".into());
+    let resource = TextResource::from_string("testres".into(), "Hello world".into());
     assert_eq!(resource.id(), Some("testres"));
 }
 
-
 #[test]
-fn serialize_datakey()  {
+fn serialize_datakey() {
     let datakey = DataKey::new("pos".into());
     serde_json::to_string(&datakey).expect("serialization");
 }
 
 #[test]
-fn serialize_cursor()  {
+fn serialize_cursor() {
     let cursor = Cursor::BeginAligned(42);
     serde_json::to_string(&cursor).expect("serialization");
 }
 
 #[test]
-fn serialize_cursor_end()  {
+fn serialize_cursor_end() {
     let cursor = Cursor::EndAligned(-2);
     serde_json::to_string(&cursor).expect("serialization");
 }
 
 #[test]
-fn serialize_offset()  {
-    let offset = crate::selector::Offset::simple(0,5);
+fn serialize_offset() {
+    let offset = crate::selector::Offset::simple(0, 5);
     serde_json::to_string(&offset).expect("serialization");
 }

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::slice::{Iter,IterMut};
-use std::ops::Deref;
 use std::marker::PhantomData;
+use std::ops::Deref;
+use std::slice::{Iter, IterMut};
 
 use crate::error::StamError;
-use serde::{Serialize,Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::hash::Hash;
 
@@ -18,17 +18,16 @@ pub type Store<T> = Vec<Option<T>>;
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
 #[serde_as]
-#[derive(Debug,Clone,Copy,Deserialize,Serialize,PartialEq)]
-#[serde(tag="@type",content = "value")]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "@type", content = "value")]
 pub enum Cursor {
     /// Cursor relative to the start of a text. Has a value of 0 or higher
-    #[serde(rename="BeginAlignedCursor")]
+    #[serde(rename = "BeginAlignedCursor")]
     BeginAligned(usize),
     /// Cursor relative to the end of a text. Has a value of 0 or lower. The last character of a text begins at EndAlignedCursor(-1) and ends at EndAlignedCursor(0)
-    #[serde(rename="EndAlignedCursor")]
-    EndAligned(isize)
+    #[serde(rename = "EndAlignedCursor")]
+    EndAligned(isize),
 }
-
 
 impl From<usize> for Cursor {
     fn from(cursor: usize) -> Self {
@@ -38,7 +37,7 @@ impl From<usize> for Cursor {
 
 impl TryFrom<isize> for Cursor {
     type Error = &'static str;
-    fn try_from(cursor: isize) -> Result<Self,Self::Error> {
+    fn try_from(cursor: isize) -> Result<Self, Self::Error> {
         if cursor > 0 {
             Err("Cursor is a signed integer and converts to EndAlignedCursor, expected a value <= 0. Conver from an unsigned integer for a normal BeginAlignedCursor")
         } else {
@@ -47,7 +46,7 @@ impl TryFrom<isize> for Cursor {
     }
 }
 
-/// The handle trait is implemented on various handle types. They have in common that refer to the internal id 
+/// The handle trait is implemented on various handle types. They have in common that refer to the internal id
 /// a [`Storable`] item in a [`Store`] by index. Types implementing this are lightweigt and do not borrow anything, they can be passed and copied freely.
 // To get an actual reference to the item from a handle type, call the `get()`` method on the store that holds it.
 pub trait Handle: Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Hash {
@@ -55,13 +54,12 @@ pub trait Handle: Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd 
     fn unwrap(&self) -> usize;
 }
 
-
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
 /// Used to resolve public IDs to internal ones.
 #[derive(Debug)]
 pub struct IdMap<HandleType> {
     /// The actual map
-    data: HashMap<String,HandleType>,
+    data: HashMap<String, HandleType>,
 
     /// A prefix that automatically generated IDs will get when added to this map
     autoprefix: String,
@@ -70,7 +68,10 @@ pub struct IdMap<HandleType> {
     seqnr: usize,
 }
 
-impl<HandleType> Default for IdMap<HandleType> where HandleType: Handle {
+impl<HandleType> Default for IdMap<HandleType>
+where
+    HandleType: Handle,
+{
     fn default() -> Self {
         Self {
             data: HashMap::new(),
@@ -80,7 +81,10 @@ impl<HandleType> Default for IdMap<HandleType> where HandleType: Handle {
     }
 }
 
-impl<HandleType> IdMap<HandleType> where HandleType: Handle {
+impl<HandleType> IdMap<HandleType>
+where
+    HandleType: Handle,
+{
     pub fn new(autoprefix: String) -> Self {
         Self {
             autoprefix,
@@ -94,25 +98,34 @@ impl<HandleType> IdMap<HandleType> where HandleType: Handle {
     }
 }
 
-
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
-pub struct RelationMap<A,B> {
+pub struct RelationMap<A, B> {
     /// The actual map
     pub(crate) data: Vec<Vec<B>>,
-    _marker: PhantomData<A> //zero-size, only needed to bind generic A
+    _marker: PhantomData<A>, //zero-size, only needed to bind generic A
 }
 
-impl<A,B> Default for RelationMap<A,B> where A: Handle, B: Handle {
+impl<A, B> Default for RelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
     fn default() -> Self {
         Self {
             data: Vec::new(),
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 }
 
-impl<A,B> RelationMap<A,B> where A: Handle, B: Handle {
-    pub fn new() -> Self { Self::default() }
+impl<A, B> RelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Insert a relation into the map
     pub fn insert(&mut self, x: A, y: B) {
@@ -133,52 +146,72 @@ impl<A,B> RelationMap<A,B> where A: Handle, B: Handle {
     }
 }
 
-impl<A,B> Extend<(A,B)> for RelationMap<A,B> where A: Handle, B: Handle {
-    fn extend<T>(&mut self, iter: T)  where T: IntoIterator<Item=(A,B)> {
-        for (x,y) in iter {
-            self.insert(x,y);
+impl<A, B> Extend<(A, B)> for RelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    fn extend<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<Item = (A, B)>,
+    {
+        for (x, y) in iter {
+            self.insert(x, y);
         }
     }
 }
 
-pub struct TripleRelationMap<A,B,C> {
+pub struct TripleRelationMap<A, B, C> {
     /// The actual map
-    pub(crate) data: Vec<RelationMap<B,C>>,
+    pub(crate) data: Vec<RelationMap<B, C>>,
     _marker: PhantomData<A>,
 }
 
-impl<A,B,C> Default for TripleRelationMap<A,B,C> {
+impl<A, B, C> Default for TripleRelationMap<A, B, C> {
     fn default() -> Self {
         Self {
             data: Vec::new(),
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 }
 
-impl<A,B,C> TripleRelationMap<A,B,C> where A: Handle, B: Handle, C: Handle {
-    pub fn new() -> Self { Self::default() }
+impl<A, B, C> TripleRelationMap<A, B, C>
+where
+    A: Handle,
+    B: Handle,
+    C: Handle,
+{
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn insert(&mut self, x: A, y: B, z: C) {
         if x.unwrap() >= self.data.len() {
             //expand the map
             self.data.resize_with(x.unwrap() + 1, Default::default);
         }
-        self.data[x.unwrap()].insert(y,z);
+        self.data[x.unwrap()].insert(y, z);
     }
 }
 
-impl<A,B,C> Extend<(A,B,C)> for TripleRelationMap<A,B,C> where A: Handle, B: Handle, C: Handle  {
-    fn extend<T>(&mut self, iter: T)  where T: IntoIterator<Item=(A,B,C)> {
-        for (x,y,z) in iter {
-            self.insert(x,y,z);
+impl<A, B, C> Extend<(A, B, C)> for TripleRelationMap<A, B, C>
+where
+    A: Handle,
+    B: Handle,
+    C: Handle,
+{
+    fn extend<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<Item = (A, B, C)>,
+    {
+        for (x, y, z) in iter {
+            self.insert(x, y, z);
         }
     }
 }
 
-
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
-
 
 pub trait Storable {
     type HandleType: Handle;
@@ -189,7 +222,7 @@ pub trait Storable {
     }
 
     /// Like [`Self::handle()`] but returns a [`StamError::Unbound`] error if there is no internal id.
-    fn handle_or_err(&self) -> Result<Self::HandleType,StamError> {
+    fn handle_or_err(&self) -> Result<Self::HandleType, StamError> {
         self.handle().ok_or(StamError::Unbound(""))
     }
 
@@ -198,13 +231,16 @@ pub trait Storable {
         None
     }
     /// Like [`Self::id()`] but returns a [`StamError::NoIdError`] error if there is no internal id.
-    fn id_or_err(&self) -> Result<&str,StamError> {
+    fn id_or_err(&self) -> Result<&str, StamError> {
         self.id().ok_or(StamError::NoIdError(""))
     }
 
     /// Builder pattern to set the public Id
     #[allow(unused_variables)]
-    fn with_id(self, id: String) -> Self where Self: Sized {
+    fn with_id(self, id: String) -> Self
+    where
+        Self: Sized,
+    {
         //no-op
         self
     }
@@ -212,7 +248,13 @@ pub trait Storable {
     /// Returns a wrapped reference to this item and the store that owns it. This allows for some
     /// more introspection on the part of the item.
     /// reverse of [`StoreFor<T>::wrap()`]
-    fn wrap_in<'a, S: StoreFor<Self>>(&'a self, store: &'a S) -> Result<WrappedStorable<Self,S>,StamError> where Self: Sized {
+    fn wrap_in<'a, S: StoreFor<Self>>(
+        &'a self,
+        store: &'a S,
+    ) -> Result<WrappedStorable<Self, S>, StamError>
+    where
+        Self: Sized,
+    {
         store.wrap(self)
     }
 
@@ -228,13 +270,17 @@ pub trait Storable {
     }
 
     /// Generate a random ID in a given idmap (adds it to the map), Item must be bound
-    fn generate_id(self, idmap: Option<&mut IdMap<Self::HandleType>>) -> Self where Self: Sized {
+    fn generate_id(self, idmap: Option<&mut IdMap<Self::HandleType>>) -> Self
+    where
+        Self: Sized,
+    {
         if let Some(intid) = self.handle() {
             if let Some(idmap) = idmap {
                 loop {
                     let id = format!("{}{}", idmap.autoprefix, idmap.seqnr);
-                    if idmap.data.insert(id, intid).is_none() { //returns none if the key did not exist yet
-                        break
+                    if idmap.data.insert(id, intid).is_none() {
+                        //returns none if the key did not exist yet
+                        break;
                     }
                     idmap.seqnr += 1
                 }
@@ -243,8 +289,6 @@ pub trait Storable {
         self
     }
 }
-
-
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
@@ -265,7 +309,7 @@ pub trait StoreFor<T: Storable> {
     fn introspect_type(&self) -> &'static str;
 
     /// Adds an item to the store. Returns a handle to it upon success.
-    fn insert(&mut self, mut item: T) -> Result<T::HandleType,StamError> {
+    fn insert(&mut self, mut item: T) -> Result<T::HandleType, StamError> {
         let handle = if let Some(intid) = item.handle() {
             intid
         } else {
@@ -280,7 +324,10 @@ pub trait StoreFor<T: Storable> {
         if let Some(id) = item.id() {
             //check if public ID does not already exist
             if self.has_id(id) {
-                return Err(StamError::DuplicateIdError(id.to_string(), self.introspect_type()));
+                return Err(StamError::DuplicateIdError(
+                    id.to_string(),
+                    self.introspect_type(),
+                ));
             }
 
             self.idmap_mut().map(|idmap| {
@@ -306,12 +353,15 @@ pub trait StoreFor<T: Storable> {
     /// Allows the store to do further bookkeeping
     /// like updating relation maps
     #[allow(unused_variables)]
-    fn inserted(&mut self, handle: T::HandleType) -> Result<(),StamError> {
+    fn inserted(&mut self, handle: T::HandleType) -> Result<(), StamError> {
         //default implementation does nothing
         Ok(())
     }
 
-    fn add(mut self, item: T) -> Result<Self, StamError> where Self: Sized {
+    fn add(mut self, item: T) -> Result<Self, StamError>
+    where
+        Self: Sized,
+    {
         self.insert(item)?;
         Ok(self)
     }
@@ -357,19 +407,19 @@ pub trait StoreFor<T: Storable> {
     }
 
     /// Get a reference to an item from the store by its global ID
-    fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T,StamError> {
+    fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T, StamError> {
         let handle = self.resolve_id(id)?;
         self.get(handle)
     }
 
     /// Get a mutable reference to an item from the store by its global ID
-    fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T,StamError> {
+    fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T, StamError> {
         let handle = self.resolve_id(id)?;
         self.get_mut(handle)
     }
 
     /// Get a reference to an item from the store by internal ID
-    fn get(&self, handle: T::HandleType) -> Result<&T,StamError> {
+    fn get(&self, handle: T::HandleType) -> Result<&T, StamError> {
         if let Some(Some(item)) = self.store().get(handle.unwrap()) {
             Ok(item)
         } else {
@@ -378,7 +428,7 @@ pub trait StoreFor<T: Storable> {
     }
 
     /// Get a mutable reference to an item from the store by internal ID
-    fn get_mut(&mut self, handle: T::HandleType) -> Result<&mut T,StamError> {
+    fn get_mut(&mut self, handle: T::HandleType) -> Result<&mut T, StamError> {
         if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
             Ok(item)
         } else {
@@ -387,7 +437,7 @@ pub trait StoreFor<T: Storable> {
     }
 
     /// Removes an item by handle, returns an error if the item has dependencies and can't be removed
-    fn remove(&mut self, handle: T::HandleType) -> Result<(),StamError> {
+    fn remove(&mut self, handle: T::HandleType) -> Result<(), StamError> {
         //callback to remove the item from relation maps, may return an error and refuse to remove an item
         self.preremove(handle)?;
 
@@ -399,10 +449,10 @@ pub trait StoreFor<T: Storable> {
                 idmap.data.remove(id.unwrap().as_str());
             }
         }
-        
+
         //now remove the actual item, removing means just setting its previously occupied index to None
         //(and the actual item is owned so will be deallocated)
-        let item = self.store_mut().get_mut(handle.unwrap()).unwrap(); 
+        let item = self.store_mut().get_mut(handle.unwrap()).unwrap();
         *item = None;
         Ok(())
     }
@@ -411,11 +461,10 @@ pub trait StoreFor<T: Storable> {
     /// Allows the store to do further bookkeeping
     /// like updating relation maps
     #[allow(unused_variables)]
-    fn preremove(&mut self, handle: T::HandleType) -> Result<(),StamError> {
+    fn preremove(&mut self, handle: T::HandleType) -> Result<(), StamError> {
         //default implementation does nothing
         Ok(())
     }
-
 
     /// Resolves an ID to a handle
     /// You usually don't want to call this directly
@@ -431,7 +480,6 @@ pub trait StoreFor<T: Storable> {
         }
     }
 
-
     /// Tests if the item is owner by the store, returns None if ownership is unknown
     #[allow(unused_variables)]
     fn owns(&self, item: &T) -> Option<bool> {
@@ -444,18 +492,18 @@ pub trait StoreFor<T: Storable> {
     }
 
     /// Iterate over the store, mutably
-    fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a,T>  {
+    fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a, T> {
         StoreIterMut(self.store_mut().iter_mut())
     }
 
     /// Get the item from the store if it already exists, if not, add it
-    fn get_or_add(&mut self, item: T) -> Result<&T,StamError>  {
+    fn get_or_add(&mut self, item: T) -> Result<&T, StamError> {
         if let Some(intid) = self.find(&item) {
             self.get(intid)
         } else {
             match self.insert(item) {
                 Ok(intid) => self.get(intid),
-                Err(err) => Err(err)
+                Err(err) => Err(err),
             }
         }
     }
@@ -472,11 +520,11 @@ pub trait StoreFor<T: Storable> {
 
     /// This binds an item to the store *PRIOR* to it being actually added
     /// You should never need to call this directly (it can only be called once per item anyway).
-    fn bind(&mut self, mut item: T) -> Result<T,StamError> {
+    fn bind(&mut self, mut item: T) -> Result<T, StamError> {
         //we already pass the internal id this item will get upon the next insert()
         //so it knows its internal id immediate after construction
         if item.handle().is_some() {
-            Err(StamError::AlreadyBound("bind()") )
+            Err(StamError::AlreadyBound("bind()"))
         } else {
             item.set_handle(self.next_handle());
             item.bound();
@@ -491,7 +539,7 @@ pub trait StoreFor<T: Storable> {
         match anyid {
             AnyId::None => None,
             AnyId::Handle(handle) => self.get(*handle).ok(),
-            AnyId::Id(id) => self.get_by_id(id).ok()
+            AnyId::Id(id) => self.get_by_id(id).ok(),
         }
     }
 
@@ -502,7 +550,7 @@ pub trait StoreFor<T: Storable> {
         match anyid {
             AnyId::None => Err(anyid.error("")),
             AnyId::Handle(handle) => self.get(*handle),
-            AnyId::Id(id) => self.get_by_id(id)
+            AnyId::Id(id) => self.get_by_id(id),
         }
     }
 
@@ -512,17 +560,23 @@ pub trait StoreFor<T: Storable> {
         match anyid {
             AnyId::None => None,
             AnyId::Handle(handle) => self.get_mut(*handle).ok(),
-            AnyId::Id(id) => self.get_mut_by_id(id).ok()
+            AnyId::Id(id) => self.get_mut_by_id(id).ok(),
         }
     }
 
     /// Wraps the reference with a reference to the store
-    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedStorable<T, Self>,StamError> where Self: Sized {
+    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedStorable<T, Self>, StamError>
+    where
+        Self: Sized,
+    {
         WrappedStorable::new(item, self)
     }
 
     /// Wraps the entire store along with a reference to self
-    fn wrappedstore<'a>(&'a self) -> WrappedStore<T, Self> where Self: Sized {
+    fn wrappedstore<'a>(&'a self) -> WrappedStore<T, Self>
+    where
+        Self: Sized,
+    {
         WrappedStore {
             store: self.store(),
             parent: self,
@@ -535,7 +589,6 @@ pub trait StoreFor<T: Storable> {
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
 pub struct StoreIter<'a, T>(Iter<'a, Option<T>>);
 
-
 impl<'a, T> Iterator for StoreIter<'a, T> {
     type Item = &'a T;
 
@@ -543,7 +596,7 @@ impl<'a, T> Iterator for StoreIter<'a, T> {
         match self.0.next() {
             Some(Some(item)) => Some(item),
             Some(None) => self.next(),
-            None => None
+            None => None,
         }
     }
 }
@@ -557,19 +610,18 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
         match self.0.next() {
             Some(Some(item)) => Some(item),
             Some(None) => self.next(),
-            None => None
+            None => None,
         }
     }
 }
 
-
-
-
-
-#[derive(Debug,Clone,Deserialize,PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(untagged)]
 /// This is either an public ID or a Handle
-pub enum AnyId<HandleType> where HandleType: Handle {
+pub enum AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     Id(String), //for deserialisation only this variant is avaiable
 
     #[serde(skip)]
@@ -579,39 +631,44 @@ pub enum AnyId<HandleType> where HandleType: Handle {
     None,
 }
 
-impl<HandleType> Default for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> Default for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn default() -> Self {
         Self::None
     }
 }
 
-
-impl<HandleType> AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     pub fn is_handle(&self) -> bool {
         match self {
             Self::Handle(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_id(&self) -> bool {
         match self {
             Self::Id(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_none(&self) -> bool {
         match self {
             Self::None => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_some(&self) -> bool {
         match self {
             Self::None => false,
-            _ => true
+            _ => true,
         }
     }
 
@@ -620,7 +677,7 @@ impl<HandleType> AnyId<HandleType> where HandleType: Handle {
         match self {
             Self::Handle(_) => StamError::HandleError(contextmsg),
             Self::Id(id) => StamError::IdError(id.to_string(), contextmsg),
-            Self::None => StamError::Unbound("Supplied AnyId is not bound to anything!")
+            Self::None => StamError::Unbound("Supplied AnyId is not bound to anything!"),
         }
     }
 
@@ -633,37 +690,51 @@ impl<HandleType> AnyId<HandleType> where HandleType: Handle {
     }
 }
 
-
-impl<HandleType> From<&str> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> From<&str> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn from(id: &str) -> Self {
-        if id.is_empty()  {
+        if id.is_empty() {
             Self::None
         } else {
             Self::Id(id.to_string())
         }
     }
 }
-impl<HandleType> From<String> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> From<String> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn from(id: String) -> Self {
-        if id.is_empty()  {
+        if id.is_empty() {
             Self::None
         } else {
             Self::Id(id)
         }
     }
 }
-impl<HandleType> From<HandleType> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> From<HandleType> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn from(handle: HandleType) -> Self {
         Self::Handle(handle)
     }
 }
-impl<HandleType> From<&HandleType> for AnyId<HandleType> where HandleType: Handle   {
+impl<HandleType> From<&HandleType> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn from(handle: &HandleType) -> Self {
         Self::Handle(*handle)
     }
 }
 
-impl<HandleType> From<Option<HandleType>> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> From<Option<HandleType>> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn from(handle: Option<HandleType>) -> Self {
         if let Some(handle) = handle {
             Self::Handle(handle)
@@ -673,10 +744,13 @@ impl<HandleType> From<Option<HandleType>> for AnyId<HandleType> where HandleType
     }
 }
 
-impl<HandleType> From<Option<&str>> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> From<Option<&str>> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn from(id: Option<&str>) -> Self {
         if let Some(id) = id {
-            if id.is_empty()  {
+            if id.is_empty() {
                 Self::None
             } else {
                 Self::Id(id.to_string())
@@ -687,10 +761,13 @@ impl<HandleType> From<Option<&str>> for AnyId<HandleType> where HandleType: Hand
     }
 }
 
-impl<HandleType> From<Option<String>> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> From<Option<String>> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn from(id: Option<String>) -> Self {
         if let Some(id) = id {
-            if id.is_empty()  {
+            if id.is_empty() {
                 Self::None
             } else {
                 Self::Id(id)
@@ -703,8 +780,11 @@ impl<HandleType> From<Option<String>> for AnyId<HandleType> where HandleType: Ha
 
 /// This allows us to pass a reference to any stored item and get back the best AnyId for it
 /// Will panic on totally unbounded that also don't have a public ID
-impl<HandleType> From<&dyn Storable<HandleType=HandleType>> for AnyId<HandleType> where HandleType: Handle {
-    fn from(item: &dyn Storable<HandleType=HandleType>) -> Self {
+impl<HandleType> From<&dyn Storable<HandleType = HandleType>> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
+    fn from(item: &dyn Storable<HandleType = HandleType>) -> Self {
         if let Some(handle) = item.handle() {
             Self::Handle(handle)
         } else if let Some(id) = item.id() {
@@ -715,29 +795,38 @@ impl<HandleType> From<&dyn Storable<HandleType=HandleType>> for AnyId<HandleType
     }
 }
 
-impl<HandleType> PartialEq<&str> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> PartialEq<&str> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn eq(&self, other: &&str) -> bool {
         match self {
             Self::Id(v) => v.as_str() == *other,
-            _ => false
+            _ => false,
         }
     }
 }
 
-impl<HandleType> PartialEq<str> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> PartialEq<str> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn eq(&self, other: &str) -> bool {
         match self {
             Self::Id(v) => v.as_str() == other,
-            _ => false
+            _ => false,
         }
     }
 }
 
-impl<HandleType> PartialEq<String> for AnyId<HandleType> where HandleType: Handle {
+impl<HandleType> PartialEq<String> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
     fn eq(&self, other: &String) -> bool {
         match self {
             Self::Id(v) => v == other,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -745,13 +834,20 @@ impl<HandleType> PartialEq<String> for AnyId<HandleType> where HandleType: Handl
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
-#[derive(Clone,Copy,Debug)]
-pub struct WrappedStorable<'a, T,S: StoreFor<T>> where T: Storable {
+#[derive(Clone, Copy, Debug)]
+pub struct WrappedStorable<'a, T, S: StoreFor<T>>
+where
+    T: Storable,
+{
     item: &'a T,
-    store: &'a S
+    store: &'a S,
 }
 
-impl<'a, T,S> Deref for WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor<T> {
+impl<'a, T, S> Deref for WrappedStorable<'a, T, S>
+where
+    T: Storable,
+    S: StoreFor<T>,
+{
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -759,19 +855,21 @@ impl<'a, T,S> Deref for WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor
     }
 }
 
-impl<'a, T,S>  WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor<T> {
-
+impl<'a, T, S> WrappedStorable<'a, T, S>
+where
+    T: Storable,
+    S: StoreFor<T>,
+{
     //Create a new wrapped item
     pub(crate) fn new(item: &'a T, store: &'a S) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
         } else if store.owns(item) == Some(false) {
-            return Err(StamError::Unbound("Can't wrap an item in a store that doesn't own it!"));
+            return Err(StamError::Unbound(
+                "Can't wrap an item in a store that doesn't own it!",
+            ));
         }
-        Ok(WrappedStorable {
-            item, 
-            store,
-        })
+        Ok(WrappedStorable { item, store })
     }
 
     pub fn store(&self) -> &S {
@@ -779,19 +877,25 @@ impl<'a, T,S>  WrappedStorable<'a, T,S>  where T: Storable, S: StoreFor<T> {
     }
 }
 
-
-
-// the following structure may be a bit obscure but it required internally to 
+// the following structure may be a bit obscure but it required internally to
 // make serialization via serde work on our stores
 // (ideally it needn't be public)
 
 /// Helper structure that contains a store and a reference to self. Mostly for internal use.
-pub struct WrappedStore<'a, T, S: StoreFor<T>> where T: Storable, S: Sized {
+pub struct WrappedStore<'a, T, S: StoreFor<T>>
+where
+    T: Storable,
+    S: Sized,
+{
     pub(crate) store: &'a Store<T>,
-    pub(crate) parent: &'a S
+    pub(crate) parent: &'a S,
 }
 
-impl<'a, T,S> Deref for WrappedStore<'a, T,S>  where T: Storable, S: StoreFor<T> {
+impl<'a, T, S> Deref for WrappedStore<'a, T, S>
+where
+    T: Storable,
+    S: StoreFor<T>,
+{
     type Target = Store<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -799,7 +903,12 @@ impl<'a, T,S> Deref for WrappedStore<'a, T,S>  where T: Storable, S: StoreFor<T>
     }
 }
 
-impl<'a,T,S> WrappedStore<'a, T,S> where T: Storable, S: Sized, S: StoreFor<T> {
+impl<'a, T, S> WrappedStore<'a, T, S>
+where
+    T: Storable,
+    S: Sized,
+    S: StoreFor<T>,
+{
     pub fn parent(&self) -> &S {
         self.parent
     }
