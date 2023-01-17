@@ -39,7 +39,7 @@ impl TryFrom<isize> for Cursor {
     type Error = &'static str;
     fn try_from(cursor: isize) -> Result<Self, Self::Error> {
         if cursor > 0 {
-            Err("Cursor is a signed integer and converts to EndAlignedCursor, expected a value <= 0. Conver from an unsigned integer for a normal BeginAlignedCursor")
+            Err("Cursor is a signed integer and converts to EndAlignedCursor, expected a value <= 0. Convert from an unsigned integer for a normal BeginAlignedCursor")
         } else {
             Ok(Self::EndAligned(cursor))
         }
