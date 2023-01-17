@@ -734,7 +734,7 @@ fn loop_annotations() -> Result<(), StamError> {
 fn textselection() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let sentence: &Annotation = store.get_by_id("sentence2")?;
-    for (resourcehandle, textselection) in store.iter_target_textselection(&sentence) {
+    for (resourcehandle, textselection) in store.textselections_by_annotation(&sentence) {
         let resource: &TextResource = store.get(resourcehandle)?;
         assert_eq!(
             resource.text_of(&textselection),
@@ -768,7 +768,7 @@ fn selectoriter() -> Result<(), StamError> {
 fn textselection_relative() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let word: &Annotation = store.get_by_id("sentence2word2")?;
-    for (resourcehandle, textselection) in store.iter_target_textselection(&word) {
+    for (resourcehandle, textselection) in store.textselections_by_annotation(&word) {
         let resource: &TextResource = store.get(resourcehandle)?;
         assert_eq!(resource.text_of(&textselection), "am")
     }
@@ -787,7 +787,7 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
             .with_data("testdataset".into(), "type".into(), "word".into()),
     )?;
     let word: &Annotation = store.get_by_id("sentence2lastword")?;
-    for (resourcehandle, textselection) in store.iter_target_textselection(&word) {
+    for (resourcehandle, textselection) in store.textselections_by_annotation(&word) {
         let resource: &TextResource = store.get(resourcehandle)?;
         assert_eq!(resource.text_of(&textselection), "curious")
     }

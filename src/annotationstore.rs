@@ -241,7 +241,7 @@ impl StoreFor<Annotation> for AnnotationStore {
         if multitarget {
             if self.configuration.dataset_annotation_map {
                 let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = self
-                    .iter_target_annotationsets(annotation)
+                    .annotationsets_by_annotation(annotation)
                     .map(|targetitem| {
                         (
                             targetitem
@@ -257,7 +257,7 @@ impl StoreFor<Annotation> for AnnotationStore {
 
             if self.configuration.annotation_annotation_map {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = self
-                    .iter_target_annotations(annotation, false, false)
+                    .annotations_by_annotation(annotation, false, false)
                     .map(|targetitem| {
                         (
                             targetitem.handle().expect("annotation must have a handle"),
@@ -275,7 +275,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                 AnnotationHandle,
             )> = Vec::new();
             let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = self
-                .iter_target_resources(annotation)
+                .resources_by_annotation(annotation)
                 .map(|targetitem| {
                     let res_handle = targetitem.handle().expect("resource must have a handle");
                     if self.configuration.textrelationmap {
@@ -555,7 +555,7 @@ impl AnnotationStore {
     }
 
     /// Iterates over the resources this annotation points to
-    pub fn iter_target_resources<'a>(
+    pub fn resources_by_annotation<'a>(
         &'a self,
         annotation: &'a Annotation,
     ) -> TargetIter<'a, TextResource> {
@@ -568,7 +568,8 @@ impl AnnotationStore {
     }
 
     /// Iterates over the annotations this annotation points to directly
-    pub fn iter_target_annotations<'a>(
+    /// Use [`annotations_by_annotation_reverse'] if you want to find the annotations this resource is pointed by.
+    pub fn annotations_by_annotation<'a>(
         &'a self,
         annotation: &'a Annotation,
         recursive: bool,
@@ -583,7 +584,7 @@ impl AnnotationStore {
     }
 
     /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
-    pub fn iter_target_annotationsets<'a>(
+    pub fn annotationsets_by_annotation<'a>(
         &'a self,
         annotation: &'a Annotation,
     ) -> TargetIter<'a, AnnotationDataSet> {
@@ -595,11 +596,11 @@ impl AnnotationStore {
     }
 
     /// Iterate over all resources with text selections this annotation refers to
-    pub fn iter_target_textselection<'a>(
+    pub fn textselections_by_annotation<'a>(
         &'a self,
         annotation: &'a Annotation,
     ) -> Box<dyn Iterator<Item = (TextResourceHandle, TextSelection)> + 'a> {
-        Box::new(self.iter_target_resources(annotation).map(|targetitem| {
+        Box::new(self.resources_by_annotation(annotation).map(|targetitem| {
             //process offset relative offset
             let res_handle = targetitem.handle().expect("resource must have a handle");
             match self.text_selection(targetitem.selector(), Some(targetitem.ancestors())) {
@@ -608,6 +609,15 @@ impl AnnotationStore {
             }
         }))
     }
+
+    /*
+    //TODO: implement
+    pub fn annotations_by_resource<'a>(
+        &'a self,
+        resource_handle: TextResourceHandle,
+    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
+    }
+    */
 
     /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
@@ -651,7 +661,7 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
     /// Use [`iter_target_annotation`] instead if you are looking for the annotations that an annotation points at.
-    pub fn annotations_by_annotation<'a>(
+    pub fn annotations_by_annotation_reverse<'a>(
         &'a self,
         annotation_handle: AnnotationHandle,
     ) -> Option<&'a Vec<AnnotationHandle>> {
