@@ -81,7 +81,7 @@ impl TextSelection {
 }
 
 /// Holds one or more TextSelection items. This structure is optimized to be quick when there is only one item (which is often).
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct TextSelectionSet {
     head: TextSelection,
     tail: Option<Box<TextSelectionSet>>,
@@ -104,13 +104,16 @@ impl TextSelectionSet {
 
     pub fn pop(self) -> (TextSelection, Option<Self>) {
         if let Some(tail) = self.tail {
-            (self.head, Some(Self {
-                head: tail.head,
-                tail: tail.tail
-            }))
+            (
+                self.head,
+                Some(Self {
+                    head: tail.head,
+                    tail: tail.tail,
+                }),
+            )
         } else {
             (self.head, None)
-         }
+        }
     }
 
     pub fn head(&self) -> &TextSelection {
@@ -124,7 +127,7 @@ impl TextSelectionSet {
     pub fn iter<'a>(&'a self) -> TextSelectionSetIter<'a> {
         TextSelectionSetIter {
             set: Some(self),
-            next: None
+            next: None,
         }
     }
 
@@ -141,7 +144,6 @@ impl TextSelectionSet {
         }
         count
     }
-
 }
 
 pub struct TextSelectionSetIter<'a> {
@@ -158,7 +160,7 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
             if let Some(tail) = set.tail() {
                 self.next = Some(Box::new(TextSelectionSetIter {
                     set: Some(tail.as_ref()),
-                    next: None
+                    next: None,
                 }));
             }
             Some(set.head())
@@ -167,7 +169,6 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
         }
     }
 }
-
 
 /// Maps TextResourceHandle => TextSelection => AnnotationHandle
 /// The text selection map is ordered
@@ -209,8 +210,7 @@ impl Extend<(TextResourceHandle, TextSelection, AnnotationHandle)> for TextRelat
     }
 }
 
-
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum TextSelectionOperator<'a> {
     // Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
     Equals(&'a TextSelectionSet),
@@ -218,7 +218,7 @@ pub enum TextSelectionOperator<'a> {
     // There are TextSelections in A that are also in B (cf. textfabric's `&&`), commutative
     Overlaps(&'a TextSelectionSet),
 
-    Not(Box<TextSelectionOperator<'a>>)
+    Not(Box<TextSelectionOperator<'a>>),
 }
 
 impl TextSelectionSet {
@@ -236,7 +236,7 @@ impl TextSelectionSet {
                     }
                 }
                 true
-            },
+            }
             TextSelectionOperator::Overlaps(_) => {
                 //all of the items in this set must match with an item in the otherset
                 for item in self.iter() {
@@ -245,10 +245,8 @@ impl TextSelectionSet {
                     }
                 }
                 true
-            },
-            TextSelectionOperator::Not(suboperator) => {
-                !self.test(suboperator)
             }
+            TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
 }
@@ -264,16 +262,15 @@ impl TextSelection {
                     }
                 }
                 false
-            },
+            }
             TextSelectionOperator::Overlaps(otherset) => {
                 for other in otherset.iter() {
-                    return (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte) || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte);
+                    return (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
+                        || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte);
                 }
                 false
-            },
-            TextSelectionOperator::Not(suboperator) => {
-                !self.test(suboperator)
             }
+            TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
 }
