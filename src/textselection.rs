@@ -238,13 +238,13 @@ impl TextSelectionSet {
                 true
             }
             TextSelectionOperator::Overlaps(_) => {
-                //all of the items in this set must match with an item in the otherset
+                //any of the items in this set must match with any item in the otherset
                 for item in self.iter() {
-                    if !item.test(&operator) {
-                        return false;
+                    if item.test(&operator) {
+                        return true;
                     }
                 }
-                true
+                false
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
