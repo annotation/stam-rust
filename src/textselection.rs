@@ -251,19 +251,19 @@ impl TextSelectionSet {
                     }
                 }
                 false
-            },
+            }
             TextSelectionOperator::Embeds(otherset) => {
                 otherset.test(&TextSelectionOperator::Embedded(self))
-            },
+            }
             TextSelectionOperator::Embedded(_) => {
-                //all of the items in this set must be embeded by any item in the other 
+                //all of the items in this set must be embeded by any item in the other
                 for item in self.iter() {
                     if !item.test(&operator) {
                         return false;
                     }
                 }
                 true
-            },
+            }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
@@ -290,10 +290,10 @@ impl TextSelection {
                     }
                 }
                 false
-            },
-            TextSelectionOperator::Embeds(otherset) => {
-                otherset.test(&TextSelectionOperator::Embeds(&TextSelectionSet::new(*self)))
-            },
+            }
+            TextSelectionOperator::Embeds(otherset) => otherset.test(
+                &TextSelectionOperator::Embeds(&TextSelectionSet::new(*self)),
+            ),
             TextSelectionOperator::Embedded(otherset) => {
                 // all in A is embedded in B
                 for other in otherset.iter() {
@@ -302,7 +302,7 @@ impl TextSelection {
                     }
                 }
                 false
-            },
+            }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
