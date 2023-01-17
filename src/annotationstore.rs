@@ -59,7 +59,7 @@ pub struct AnnotationStore {
 }
 
 /// This holds the configuration for the annotationstore
-#[derive(Deserialize,Serialize,Debug,Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Configuration {
     /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
     pub textrelationmap: bool,
@@ -281,7 +281,9 @@ impl StoreFor<Annotation> for AnnotationStore {
                     if self.configuration.textrelationmap {
                         //process offset relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
-                        match self.text_selection(targetitem.selector(), Some(targetitem.ancestors())) {
+                        match self
+                            .text_selection(targetitem.selector(), Some(targetitem.ancestors()))
+                        {
                             Ok(textselection) => {
                                 extend_textrelationmap.push((res_handle, textselection, handle))
                             }
@@ -605,6 +607,68 @@ impl AnnotationStore {
                 Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
             }
         }))
+    }
+
+    /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
+    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
+    /// point at a text in the resource, use [`iter_annotations_by_resource`] instead for those.
+    pub fn annotations_by_resource_metadata<'a>(
+        &'a self,
+        resource_handle: TextResourceHandle,
+    ) -> Option<&'a Vec<AnnotationHandle>> {
+        self.resource_annotation_map
+            .data
+            .get(resource_handle.unwrap())
+    }
+
+    /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
+    pub fn annotations_by_textselection<'a>(
+        &'a self,
+        resource_handle: TextResourceHandle,
+        textselection: &TextSelection,
+    ) -> Option<&'a Vec<AnnotationHandle>> {
+        self.textrelationmap
+            .get_by_textselection(resource_handle, textselection)
+    }
+
+    /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
+    pub fn annotations_by_offset<'a>(
+        &'a self,
+        resource_handle: TextResourceHandle,
+        offset: &Offset,
+    ) -> Option<&'a Vec<AnnotationHandle>> {
+        let resource: Option<&TextResource> = self.get(resource_handle).ok();
+        if resource.is_none() {
+            return None;
+        }
+        if let Ok(textselection) = resource.unwrap().text_selection(&offset) {
+            self.textrelationmap
+                .get_by_textselection(resource_handle, &textselection)
+        } else {
+            None
+        }
+    }
+
+    /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
+    /// Use [`iter_target_annotation`] instead if you are looking for the annotations that an annotation points at.
+    pub fn annotations_by_annotation<'a>(
+        &'a self,
+        annotation_handle: AnnotationHandle,
+    ) -> Option<&'a Vec<AnnotationHandle>> {
+        self.annotation_annotation_map
+            .data
+            .get(annotation_handle.unwrap())
+    }
+
+    /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
+    /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
+    pub fn annotations_by_annotationset_metadata<'a>(
+        &'a self,
+        annotationset_handle: AnnotationDataSetHandle,
+    ) -> Option<&'a Vec<AnnotationHandle>> {
+        self.dataset_annotation_map
+            .data
+            .get(annotationset_handle.unwrap())
     }
 
     /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use [`iter_text_selection`] instead for those.

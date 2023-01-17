@@ -185,7 +185,7 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
 /// The text selection map is ordered
 pub struct TextRelationMap {
     //primary indices correspond to TextResourceHandle
-    data: Vec<BTreeMap<TextSelection, AnnotationHandle>>,
+    data: Vec<BTreeMap<TextSelection, Vec<AnnotationHandle>>>,
 }
 
 impl Default for TextRelationMap {
@@ -204,7 +204,28 @@ impl TextRelationMap {
             //expand the map
             self.data.resize_with(x.unwrap() + 1, Default::default);
         }
-        self.data[x.unwrap()].insert(y, z);
+        self.data[x.unwrap()].entry(y).or_default().push(z);
+    }
+
+    /// Returns a text selection => annotation map that is referenced from the specified resource
+    pub fn get_by_resource(
+        &self,
+        resource_handle: TextResourceHandle,
+    ) -> Option<&BTreeMap<TextSelection, Vec<AnnotationHandle>>> {
+        self.data.get(resource_handle.unwrap())
+    }
+
+    /// Returns annotations that are referenced from the specified resource and text selection
+    pub fn get_by_textselection(
+        &self,
+        resource_handle: TextResourceHandle,
+        textselection: &TextSelection,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        if let Some(map) = self.get_by_resource(resource_handle) {
+            map.get(textselection)
+        } else {
+            None
+        }
     }
 
     //TODO: implement remove()
@@ -242,11 +263,11 @@ pub enum TextSelectionOperator<'a> {
     Succeeds(&'a TextSelectionSet),
 
     /// The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
-    //TODO: add dsitance argument
+    //TODO: add mindistance,maxdistance arguments
     LeftAdjacent(&'a TextSelectionSet),
 
     /// The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
-    //TODO: add dsitance argument
+    //TODO: add mindistance,maxdistance argument
     RightAdjacent(&'a TextSelectionSet),
 
     Not(Box<TextSelectionOperator<'a>>),
