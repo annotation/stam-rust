@@ -262,3 +262,19 @@ fn textselectionoperator_precedes2_1vs1() {
     assert!(b.test(&TextSelectionOperator::Succeeds(&a.into())));
     assert!(!a.test(&TextSelectionOperator::Succeeds(&b.into())));
 }
+
+#[test]
+fn textselectionoperator_adjacent_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 24,
+        endbyte: 48,
+    };
+    assert!(a.test(&TextSelectionOperator::LeftAdjacent(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::LeftAdjacent(&a.into())));
+    assert!(b.test(&TextSelectionOperator::RightAdjacent(&a.into())));
+    assert!(!a.test(&TextSelectionOperator::RightAdjacent(&b.into())));
+}

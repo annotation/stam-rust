@@ -241,6 +241,12 @@ pub enum TextSelectionOperator<'a> {
     // All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
     Succeeds(&'a TextSelectionSet),
 
+    // The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
+    LeftAdjacent(&'a TextSelectionSet),
+
+    // The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
+    RightAdjacent(&'a TextSelectionSet),
+
     Not(Box<TextSelectionOperator<'a>>),
 }
 
@@ -275,13 +281,41 @@ impl TextSelectionSet {
             TextSelectionOperator::Embedded(_)
             | TextSelectionOperator::Precedes(_)
             | TextSelectionOperator::Succeeds(_) => {
-                //all of the items in this set must be embeded by, must precede, must succeed any item in the other
+                //all of the items in this set must be embedded by/precede/succeed any item in the other
                 for item in self.iter() {
                     if !item.test(&operator) {
                         return false;
                     }
                 }
                 true
+            }
+            TextSelectionOperator::LeftAdjacent(_) => {
+                //Find rightmost item in self
+                let mut rightmost: Option<&TextSelection> = None;
+                for item in self.iter() {
+                    if rightmost.is_none() || item.endbyte > rightmost.unwrap().endbyte {
+                        rightmost = Some(item);
+                    }
+                }
+                if rightmost.is_none() {
+                    false
+                } else {
+                    rightmost.unwrap().test(&operator)
+                }
+            }
+            TextSelectionOperator::RightAdjacent(_) => {
+                //Find leftmost item in self
+                let mut leftmost: Option<&TextSelection> = None;
+                for item in self.iter() {
+                    if leftmost.is_none() || item.beginbyte < leftmost.unwrap().beginbyte {
+                        leftmost = Some(item);
+                    }
+                }
+                if leftmost.is_none() {
+                    false
+                } else {
+                    leftmost.unwrap().test(&operator)
+                }
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
@@ -339,6 +373,24 @@ impl TextSelection {
                     }
                 }
                 true
+            }
+            TextSelectionOperator::LeftAdjacent(otherset) => {
+                let mut leftmost = None;
+                for other in otherset.iter() {
+                    if leftmost.is_none() || other.beginbyte < leftmost.unwrap() {
+                        leftmost = Some(other.beginbyte);
+                    }
+                }
+                Some(self.endbyte) == leftmost
+            }
+            TextSelectionOperator::RightAdjacent(otherset) => {
+                let mut rightmost = None;
+                for other in otherset.iter() {
+                    if rightmost.is_none() || other.endbyte > rightmost.unwrap() {
+                        rightmost = Some(other.endbyte);
+                    }
+                }
+                Some(self.beginbyte) == rightmost
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
