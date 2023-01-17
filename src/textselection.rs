@@ -215,8 +215,14 @@ pub enum TextSelectionOperator<'a> {
     // Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
     Equals(&'a TextSelectionSet),
 
-    // There are TextSelections in A that are also in B (cf. textfabric's `&&`), commutative
+    // A TextSelections in A that overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
     Overlaps(&'a TextSelectionSet),
+
+    // All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
+    Embeds(&'a TextSelectionSet),
+
+    // All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
+    Embedded(&'a TextSelectionSet),
 
     Not(Box<TextSelectionOperator<'a>>),
 }
@@ -245,7 +251,19 @@ impl TextSelectionSet {
                     }
                 }
                 false
-            }
+            },
+            TextSelectionOperator::Embeds(otherset) => {
+                otherset.test(&TextSelectionOperator::Embedded(self))
+            },
+            TextSelectionOperator::Embedded(_) => {
+                //all of the items in this set must be embeded by any item in the other 
+                for item in self.iter() {
+                    if !item.test(&operator) {
+                        return false;
+                    }
+                }
+                true
+            },
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
@@ -272,7 +290,19 @@ impl TextSelection {
                     }
                 }
                 false
-            }
+            },
+            TextSelectionOperator::Embeds(otherset) => {
+                otherset.test(&TextSelectionOperator::Embeds(&TextSelectionSet::new(*self)))
+            },
+            TextSelectionOperator::Embedded(otherset) => {
+                // all in A is embedded in B
+                for other in otherset.iter() {
+                    if self.beginbyte >= other.beginbyte && self.endbyte <= other.endbyte {
+                        return true;
+                    }
+                }
+                false
+            },
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
