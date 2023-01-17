@@ -80,7 +80,94 @@ impl TextSelection {
     }
 }
 
-pub struct TextSelectionSet(pub Vec<TextSelection>);
+/// Holds one or more TextSelection items. This structure is optimized to be quick when there is only one item (which is often).
+#[derive(Clone,Debug)]
+pub struct TextSelectionSet {
+    head: TextSelection,
+    tail: Option<Box<TextSelectionSet>>,
+}
+
+impl TextSelectionSet {
+    pub fn new(textselection: TextSelection) -> Self {
+        Self {
+            head: textselection,
+            tail: None,
+        }
+    }
+
+    pub fn push(self, textselection: TextSelection) -> Self {
+        Self {
+            head: textselection,
+            tail: Some(Box::new(self)),
+        }
+    }
+
+    pub fn pop(self) -> (TextSelection, Option<Self>) {
+        if let Some(tail) = self.tail {
+            (self.head, Some(Self {
+                head: tail.head,
+                tail: tail.tail
+            }))
+        } else {
+            (self.head, None)
+         }
+    }
+
+    pub fn head(&self) -> &TextSelection {
+        &self.head
+    }
+
+    pub fn tail(&self) -> Option<&Box<TextSelectionSet>> {
+        self.tail.as_ref()
+    }
+
+    pub fn iter<'a>(&'a self) -> TextSelectionSetIter<'a> {
+        TextSelectionSetIter {
+            set: Some(self),
+            next: None
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        let mut count = 0;
+        let mut tail = self.tail();
+        loop {
+            if tail.is_some() {
+                count += 1;
+                tail = tail.unwrap().tail();
+            } else {
+                break;
+            }
+        }
+        count
+    }
+
+}
+
+pub struct TextSelectionSetIter<'a> {
+    set: Option<&'a TextSelectionSet>,
+    next: Option<Box<TextSelectionSetIter<'a>>>,
+}
+
+impl<'a> Iterator for TextSelectionSetIter<'a> {
+    type Item = &'a TextSelection;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next.is_some() {
+            self.next.as_mut().unwrap().next()
+        } else if let Some(set) = self.set {
+            if let Some(tail) = set.tail() {
+                self.next = Some(Box::new(TextSelectionSetIter {
+                    set: Some(tail.as_ref()),
+                    next: None
+                }));
+            }
+            Some(set.head())
+        } else {
+            None
+        }
+    }
+}
+
 
 /// Maps TextResourceHandle => TextSelection => AnnotationHandle
 /// The text selection map is ordered
@@ -118,6 +205,75 @@ impl Extend<(TextResourceHandle, TextSelection, AnnotationHandle)> for TextRelat
     {
         for (x, y, z) in iter {
             self.insert(x, y, z);
+        }
+    }
+}
+
+
+#[derive(Debug,Clone)]
+pub enum TextSelectionOperator<'a> {
+    // Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
+    Equals(&'a TextSelectionSet),
+
+    // There are TextSelections in A that are also in B (cf. textfabric's `&&`), commutative
+    Overlaps(&'a TextSelectionSet),
+
+    Not(Box<TextSelectionOperator<'a>>)
+}
+
+impl TextSelectionSet {
+    pub fn test(&self, operator: &TextSelectionOperator) -> bool {
+        match operator {
+            TextSelectionOperator::Equals(otherset) => {
+                if self.len() != otherset.len() {
+                    //each item must have a counterpart so the sets must be equal length
+                    return false;
+                }
+                //all of the items in this set must match with an item in the otherset
+                for item in self.iter() {
+                    if !item.test(&operator) {
+                        return false;
+                    }
+                }
+                true
+            },
+            TextSelectionOperator::Overlaps(_) => {
+                //all of the items in this set must match with an item in the otherset
+                for item in self.iter() {
+                    if !item.test(&operator) {
+                        return false;
+                    }
+                }
+                true
+            },
+            TextSelectionOperator::Not(suboperator) => {
+                !self.test(suboperator)
+            }
+        }
+    }
+}
+
+impl TextSelection {
+    pub fn test(&self, operator: &TextSelectionOperator) -> bool {
+        match operator {
+            TextSelectionOperator::Equals(otherset) => {
+                //item must be equal to ANY of the items in the other set
+                for other in otherset.iter() {
+                    if self == other {
+                        return true;
+                    }
+                }
+                false
+            },
+            TextSelectionOperator::Overlaps(otherset) => {
+                for other in otherset.iter() {
+                    return (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte) || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte);
+                }
+                false
+            },
+            TextSelectionOperator::Not(suboperator) => {
+                !self.test(suboperator)
+            }
         }
     }
 }
