@@ -87,6 +87,15 @@ pub struct TextSelectionSet {
     tail: Option<Box<TextSelectionSet>>,
 }
 
+impl From<TextSelection> for TextSelectionSet {
+    fn from(other: TextSelection) -> Self {
+        Self {
+            head: other,
+            tail: None,
+        }
+    }
+}
+
 impl TextSelectionSet {
     pub fn new(textselection: TextSelection) -> Self {
         Self {
@@ -163,7 +172,9 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
                     next: None,
                 }));
             }
-            Some(set.head())
+            let head = set.head();
+            self.set = None;
+            Some(head)
         } else {
             None
         }

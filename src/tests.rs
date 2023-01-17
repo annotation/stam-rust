@@ -126,6 +126,32 @@ fn serialize_cursor_end() {
 
 #[test]
 fn serialize_offset() {
-    let offset = crate::selector::Offset::simple(0, 5);
+    let offset = Offset::simple(0, 5);
     serde_json::to_string(&offset).expect("serialization");
+}
+
+#[test]
+fn textselectionoperator_equals_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    assert!(a.test(&TextSelectionOperator::Equals(&b.into())));
+}
+
+#[test]
+fn textselectionoperator_equals_false_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 11,
+        endbyte: 25,
+    };
+    assert!(!a.test(&TextSelectionOperator::Equals(&b.into())));
 }

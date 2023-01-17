@@ -22,6 +22,7 @@ pub use datavalue::*;
 pub use error::*;
 pub use resources::*;
 pub use selector::*;
+pub use textselection::*;
 pub use types::*;
 
 mod tests;
