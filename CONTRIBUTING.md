@@ -4,7 +4,7 @@
     * Make sure you're familiar with the model as explained in the specification
     * Propose new ideas to the specification first (as extensions)
     * Specifications should leave enough freedom to the implementations for details
-* Formatting: Indentation style: 4 spaces, unix newlines
+* Formatting: Indentation style: 4 spaces, unix newlines, run a rust formatter (`rustfmt`)
 * Avoid merge commits and use rebase by default for merges, set `git config pull.rebase true`
 * STAM extensions may be implemented in the this library but need to be implemented as [features](https://doc.rust-lang.org/cargo/reference/features.html) that can be enabled/disabled. This allows users to compile a lighter version if certain extensions are not needed.
 * We follow the [Rust API guidelines](https://rust-lang.github.io/api-guidelines/checklist.html) as much as possible 
