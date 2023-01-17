@@ -321,7 +321,7 @@ impl TextSelection {
             }
             TextSelectionOperator::Succeeds(otherset) => {
                 for other in otherset.iter() {
-                    if self.beginbyte <= other.endbyte {
+                    if self.beginbyte < other.endbyte {
                         return false;
                     }
                 }
