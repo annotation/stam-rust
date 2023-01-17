@@ -265,8 +265,11 @@ impl TextSelection {
             }
             TextSelectionOperator::Overlaps(otherset) => {
                 for other in otherset.iter() {
-                    return (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
-                        || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte);
+                    if (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
+                        || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte)
+                    {
+                        return true;
+                    }
                 }
                 false
             }
