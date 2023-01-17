@@ -224,6 +224,12 @@ pub enum TextSelectionOperator<'a> {
     // All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
     Embedded(&'a TextSelectionSet),
 
+    // All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
+    Precedes(&'a TextSelectionSet),
+
+    // All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
+    Succeeds(&'a TextSelectionSet),
+
     Not(Box<TextSelectionOperator<'a>>),
 }
 
@@ -255,8 +261,10 @@ impl TextSelectionSet {
             TextSelectionOperator::Embeds(otherset) => {
                 otherset.test(&TextSelectionOperator::Embedded(self))
             }
-            TextSelectionOperator::Embedded(_) => {
-                //all of the items in this set must be embeded by any item in the other
+            TextSelectionOperator::Embedded(_)
+            | TextSelectionOperator::Precedes(_)
+            | TextSelectionOperator::Succeeds(_) => {
+                //all of the items in this set must be embeded by, must precede, must succeed any item in the other
                 for item in self.iter() {
                     if !item.test(&operator) {
                         return false;
@@ -302,6 +310,22 @@ impl TextSelection {
                     }
                 }
                 false
+            }
+            TextSelectionOperator::Precedes(otherset) => {
+                for other in otherset.iter() {
+                    if self.endbyte > other.beginbyte {
+                        return false;
+                    }
+                }
+                true
+            }
+            TextSelectionOperator::Succeeds(otherset) => {
+                for other in otherset.iter() {
+                    if self.beginbyte <= other.endbyte {
+                        return false;
+                    }
+                }
+                true
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }

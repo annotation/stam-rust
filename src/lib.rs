@@ -1,28 +1,27 @@
 extern crate chrono;
 extern crate serde;
 
-pub mod types;
-pub mod annotationstore;
+pub mod annotation;
 pub mod annotationdata;
 pub mod annotationdataset;
+pub mod annotationstore;
 pub mod datakey;
 pub mod datavalue;
-pub mod annotation;
+pub mod error;
 pub mod resources;
 pub mod selector;
-pub mod error;
 pub mod textselection;
+pub mod types;
 
-
-pub use types::*;
-pub use annotationstore::*;
+pub use annotation::*;
 pub use annotationdata::*;
 pub use annotationdataset::*;
+pub use annotationstore::*;
 pub use datakey::*;
 pub use datavalue::*;
-pub use annotation::*;
+pub use error::*;
 pub use resources::*;
 pub use selector::*;
-pub use error::*;
+pub use types::*;
 
 mod tests;
