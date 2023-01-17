@@ -610,6 +610,20 @@ impl AnnotationStore {
         }))
     }
 
+    /// Iterates over all text slices this annotation refers to
+    pub fn text_by_annotation<'a>(
+        &'a self,
+        annotation: &'a Annotation,
+    ) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+        Box::new(
+            self.textselections_by_annotation(annotation)
+                .map(|(reshandle, selection)| {
+                    let resource: &TextResource = self.get(reshandle).expect("resource must exist");
+                    resource.text_of(&selection)
+                }),
+        )
+    }
+
     /*
     //TODO: implement
     pub fn annotations_by_resource<'a>(
