@@ -278,3 +278,20 @@ fn textselectionoperator_adjacent_1vs1() {
     assert!(b.test(&TextSelectionOperator::RightAdjacent(&a.into())));
     assert!(!a.test(&TextSelectionOperator::RightAdjacent(&b.into())));
 }
+
+#[test]
+fn textselectionoperator_adjacent_false_1vs1() {
+    let a = TextSelection {
+        beginbyte: 0,
+        endbyte: 12,
+    };
+    let b = TextSelection {
+        beginbyte: 24,
+        endbyte: 48,
+    };
+    //these are all not adjacent
+    assert!(!a.test(&TextSelectionOperator::LeftAdjacent(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::LeftAdjacent(&a.into())));
+    assert!(!b.test(&TextSelectionOperator::RightAdjacent(&a.into())));
+    assert!(!a.test(&TextSelectionOperator::RightAdjacent(&b.into())));
+}
