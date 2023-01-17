@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use crate::annotation::AnnotationHandle;
 use crate::error::StamError;
 use crate::resources::TextResourceHandle;
+use crate::selector::Offset;
 use crate::types::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -416,6 +417,48 @@ impl TextSelection {
                 Some(self.beginbyte) == rightmost
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum OffsetOperator {
+    /// Offsets are equal
+    Equals(Offset),
+
+    /// Offset A that overlaps with offsets B (cf. textfabric's `&&`), commutative
+    Overlaps(Offset),
+
+    /// Offset B is embedded in a offset in A (cf. textfabric's `[[`)
+    Embeds(Offset),
+
+    /// Offset A is embedded in a offset in B (cf. textfabric's `[[`)
+    Embedded(Offset),
+
+    /// Offset A precedes offset B (come before) all offsets in B. There is no overlap (cf. textfabric's `<<`)
+    Precedes(Offset),
+
+    /// Offset A succeeds offset B (cf. textfabric's `>>`)
+    Succeeds(Offset),
+
+    // Offset A is immediately to the left of offset B
+    LeftAdjacent(Offset),
+
+    // Offset A is immediately to the right of offset B
+    RightAdjacent(Offset),
+}
+
+impl OffsetOperator {
+    pub fn offset(&self) -> &Offset {
+        match self {
+            Self::Equals(offset)
+            | Self::Overlaps(offset)
+            | Self::Embeds(offset)
+            | Self::Embedded(offset)
+            | Self::Precedes(offset)
+            | Self::Succeeds(offset)
+            | Self::LeftAdjacent(offset)
+            | Self::RightAdjacent(offset) => offset,
         }
     }
 }

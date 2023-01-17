@@ -13,7 +13,7 @@ use crate::annotationdataset::{
 };
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorIter, SelectorIterItem, SelectorKind};
-use crate::textselection::{TextRelationMap, TextSelection};
+use crate::textselection::{OffsetOperator, TextRelationMap, TextSelection, TextSelectionOperator};
 
 use crate::error::*;
 use crate::types::*;
@@ -624,14 +624,13 @@ impl AnnotationStore {
         )
     }
 
-    /*
-    //TODO: implement
     pub fn annotations_by_resource<'a>(
         &'a self,
         resource_handle: TextResourceHandle,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
+        //TODO: implement
+        panic!("annotations_by_resource() not implemented yet");
     }
-    */
 
     /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
@@ -655,6 +654,15 @@ impl AnnotationStore {
             .get_by_textselection(resource_handle, textselection)
     }
 
+    pub fn annotations_by_textselection_operator<'a>(
+        &'a self,
+        resource_handle: TextResourceHandle,
+        operator: &TextSelectionOperator,
+    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
+        //TODO: implement
+        panic!("annotations_by_textselection_operator() not implemented yet");
+    }
+
     /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
     pub fn annotations_by_offset<'a>(
         &'a self,
@@ -668,6 +676,24 @@ impl AnnotationStore {
         if let Ok(textselection) = resource.unwrap().text_selection(&offset) {
             self.textrelationmap
                 .get_by_textselection(resource_handle, &textselection)
+        } else {
+            None
+        }
+    }
+
+    /// Find all annotations that overlap with a particular offset.
+    pub fn annotations_by_offset_operator<'a>(
+        &'a self,
+        resource_handle: TextResourceHandle,
+        offset: &OffsetOperator,
+    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
+        let resource: Option<&TextResource> = self.get(resource_handle).ok();
+        if resource.is_none() {
+            return None;
+        }
+        if let Ok(textselection) = resource.unwrap().text_selection(&offset.offset()) {
+            //TODO: implement
+            panic!("annotations_by_offset_overlap() not implemented yet");
         } else {
             None
         }
