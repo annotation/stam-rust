@@ -797,13 +797,27 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
 #[test]
 fn annotations_by_offset() -> Result<(), StamError> {
     let store = setup_example_2()?;
-
-    //test by public ID
     let res_handle = store.resolve_resource_id("testres")?;
     let v = store
         .annotations_by_offset(res_handle, &Offset::simple(6, 11))
         .expect("offset should exist");
     let a_ref = store.resolve_annotation_id("A1")?;
     assert_eq!(v, &vec!(a_ref));
+    Ok(())
+}
+
+#[test]
+fn textselections_by_annotation() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let annotation: &Annotation = store.get_by_id("A1")?;
+    let reference_res_handle = store.resolve_resource_id("testres")?;
+    let mut count = 0;
+    for (res_handle, textselection) in store.textselections_by_annotation(annotation) {
+        count += 1;
+        assert_eq!(reference_res_handle, res_handle);
+        assert_eq!(textselection.beginbyte(), 6);
+        assert_eq!(textselection.endbyte(), 11);
+    }
+    assert_eq!(count, 1);
     Ok(())
 }

@@ -69,6 +69,8 @@ pub struct Configuration {
     pub dataset_annotation_map: bool,
     /// Enable/disable index for annotations that reference other annotations
     pub annotation_annotation_map: bool,
+    /// Generate IDs when missing
+    pub generate_ids: bool,
 }
 
 impl Default for Configuration {
@@ -78,6 +80,7 @@ impl Default for Configuration {
             resource_annotation_map: true,
             dataset_annotation_map: true,
             annotation_annotation_map: true,
+            generate_ids: true,
         }
     }
 }
