@@ -8,7 +8,17 @@ use crate::selector::Offset;
 use crate::types::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
-/// Corresponds to a slice of the text. The result of applying a [`crate::selector:Selector::TextSelector`].
+/// Corresponds to a slice of the text. This only contains minimal
+/// information; i.e. the begin byte end end byte in a UTF-8 encoded text.
+/// This is similar to `Offset`, which uses unicode points. [`Offset`] points at a resource but still requires
+/// some computation to actually retrieve the pointed bit. [`TextSelection`] is the Result
+/// after this computation is made.
+///
+/// The actual reference to the [`TextResource`] is not stored in this structured but should
+/// accompany it explicitly when needed
+///
+/// On the lowest-level, this struct is obtain by a call to [`crate::annotationstore::AnnotationStore::text_selection()`], which
+/// resolves a [`TextSelector`]  to a [`TextSelection`]. Such calls are often abstracted away by higher level methods such as [`crate::annotationstore::AnnotationStore::textselections_by_annotation()`].
 pub struct TextSelection {
     pub(crate) beginbyte: usize,
     pub(crate) endbyte: usize,
@@ -33,15 +43,17 @@ impl PartialOrd for TextSelection {
 }
 
 impl TextSelection {
+    /// Return the begin byte in a UTF-8 encoded piece of text
     pub fn beginbyte(&self) -> usize {
         self.beginbyte
     }
 
+    /// Return the end byte (non-inclusive) in a UTF-8 encoded piece of text
     pub fn endbyte(&self) -> usize {
         self.endbyte
     }
 
-    /// Resolves a cursor *relative to the text selection* to a utf8 byte position, the text of the TextSelection has to be explicitly passed
+    /// Resolves a [`Cursor`] *relative to the text selection* to a utf8 byte position, the text of the TextSelection has to be explicitly passed
     pub fn resolve_cursor(&self, slice_text: &str, cursor: &Cursor) -> Result<usize, StamError> {
         //TODO: implementation is not efficient on large text slices
         match *cursor {
@@ -81,7 +93,8 @@ impl TextSelection {
     }
 }
 
-/// Holds one or more TextSelection items. This structure is optimized to be quick when there is only one item (which is often).
+/// A TextSelectionSet holds one or more [`TextSelection`] items, in FIFO order. This structure is optimized to be
+/// quickest (no heap allocation) when there is only one TextSelection (which is often) in it.
 #[derive(Clone, Debug)]
 pub struct TextSelectionSet {
     head: TextSelection,
@@ -182,8 +195,12 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
     }
 }
 
-/// Maps TextResourceHandle => TextSelection => AnnotationHandle
-/// The text selection map is ordered
+/// This structure holds the primary reverse index for texts, pointing per text and per selected region in the text,
+/// to the annotations that reference it.
+////
+/// More formally, it maps [`TextResourceHandle`] => [`TextSelection`] => [`AnnotationHandle`]
+///
+/// The text selection map is ordered.
 pub struct TextRelationMap {
     //primary indices correspond to TextResourceHandle
     data: Vec<BTreeMap<TextSelection, Vec<AnnotationHandle>>>,
@@ -243,6 +260,17 @@ impl Extend<(TextResourceHandle, TextSelection, AnnotationHandle)> for TextRelat
     }
 }
 
+/// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection'] instances. It
+/// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
+/// [`TextSelection`] instances can be.
+///
+/// The implementation goes a bit further and acts on the basis of [`TextSelectionSet`] rather than
+/// `TextSelection`, allowing you to compare two sets, each containing possibly multiple
+/// TextSelections, at once.
+///
+/// This enum encapsulates both the operator as well the the object of the operation (a
+/// `TextSelectionSet`). As a whole, it can then be applied to another [`TextSelectionSet`] or
+/// [`TextSelection`] via its [`TextSelectionSet::test()`] method.
 #[derive(Debug, Clone)]
 pub enum TextSelectionOperator<'a> {
     /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
@@ -275,6 +303,8 @@ pub enum TextSelectionOperator<'a> {
 }
 
 impl TextSelectionSet {
+    /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
+    /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
     pub fn test(&self, operator: &TextSelectionOperator) -> bool {
         match operator {
             TextSelectionOperator::Equals(otherset) => {
@@ -347,6 +377,8 @@ impl TextSelectionSet {
 }
 
 impl TextSelection {
+    /// This methods is called to test whether a specific spatial relation (as expressed by the passed operator) holds between a [`TextSelection`] and another (or multiple) ([`TextSelectionSet`]).
+    /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
     pub fn test(&self, operator: &TextSelectionOperator) -> bool {
         match operator {
             TextSelectionOperator::Equals(otherset) => {
