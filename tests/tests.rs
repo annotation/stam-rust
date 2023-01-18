@@ -821,3 +821,16 @@ fn textselections_by_annotation() -> Result<(), StamError> {
     assert_eq!(count, 1);
     Ok(())
 }
+
+#[test]
+fn text_by_annotation() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let annotation: &Annotation = store.get_by_id("A1")?;
+    let mut count = 0;
+    for text in store.text_by_annotation(annotation) {
+        count += 1;
+        assert_eq!(text, "world");
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
