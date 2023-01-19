@@ -26,7 +26,7 @@ use crate::types::*;
 #[serde(try_from = "AnnotationStoreBuilder")]
 pub struct AnnotationStore {
     id: Option<String>,
-    configuration: Configuration,
+    config: Config,
     pub(crate) annotations: Store<Annotation>,
     pub(crate) annotationsets: Store<AnnotationDataSet>,
     pub(crate) resources: Store<TextResource>,
@@ -60,7 +60,7 @@ pub struct AnnotationStore {
 
 /// This holds the configuration for the annotationstore
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Configuration {
+pub struct Config {
     /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
     pub textrelationmap: bool,
     /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
@@ -69,23 +69,23 @@ pub struct Configuration {
     pub dataset_annotation_map: bool,
     /// Enable/disable index for annotations that reference other annotations
     pub annotation_annotation_map: bool,
-    /// Generate IDs when missing
-    pub generate_ids: bool,
+    /// Configuration for underlying stores
+    pub storeconfig: StoreConfig,
 }
 
-impl Default for Configuration {
+impl Default for Config {
     fn default() -> Self {
         Self {
             textrelationmap: true,
             resource_annotation_map: true,
             dataset_annotation_map: true,
             annotation_annotation_map: true,
-            generate_ids: true,
+            storeconfig: StoreConfig::default(),
         }
     }
 }
 
-impl Configuration {
+impl Config {
     pub fn new() -> Self {
         Self::default()
     }
@@ -103,7 +103,7 @@ pub struct AnnotationStoreBuilder {
     #[serde_as(as = "serde_with::OneOrMany<_>")]
     pub resources: Vec<TextResourceBuilder>,
     #[serde(skip)]
-    pub configuration: Configuration,
+    pub config: Config,
 }
 
 impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
@@ -165,6 +165,10 @@ impl StoreFor<TextResource> for AnnotationStore {
         self.resource_annotation_map.data.remove(handle.unwrap());
         Ok(())
     }
+
+    fn config(&self) -> &StoreConfig {
+        &self.config.storeconfig
+    }
 }
 
 //An AnnotationStore is a StoreFor Annotation
@@ -209,17 +213,17 @@ impl StoreFor<Annotation> for AnnotationStore {
         // first we handle the simple singular targets, and determine if we need to do more
         match annotation.target() {
             Selector::DataSetSelector(dataset_handle) => {
-                if self.configuration.dataset_annotation_map {
+                if self.config.dataset_annotation_map {
                     self.dataset_annotation_map.insert(*dataset_handle, handle);
                 }
             }
             Selector::ResourceSelector(res_handle) => {
-                if self.configuration.resource_annotation_map {
+                if self.config.resource_annotation_map {
                     self.resource_annotation_map.insert(*res_handle, handle);
                 }
             }
             Selector::AnnotationSelector(a_handle, offset) => {
-                if self.configuration.annotation_annotation_map {
+                if self.config.annotation_annotation_map {
                     if offset.is_some() {
                         multitarget = true;
                     } else {
@@ -228,7 +232,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                 }
             }
             Selector::TextSelector(res_handle, offset) => {
-                if self.configuration.textrelationmap {
+                if self.config.textrelationmap {
                     let resource: &TextResource = self.get(*res_handle)?;
                     let textselection = resource.text_selection(&offset)?;
                     self.textrelationmap
@@ -242,7 +246,7 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
-            if self.configuration.dataset_annotation_map {
+            if self.config.dataset_annotation_map {
                 let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = self
                     .annotationsets_by_annotation(annotation)
                     .map(|targetitem| {
@@ -258,7 +262,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                     .extend(target_datasets.into_iter());
             }
 
-            if self.configuration.annotation_annotation_map {
+            if self.config.annotation_annotation_map {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = self
                     .annotations_by_annotation(annotation, false, false)
                     .map(|targetitem| {
@@ -281,7 +285,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                 .resources_by_annotation(annotation)
                 .map(|targetitem| {
                     let res_handle = targetitem.handle().expect("resource must have a handle");
-                    if self.configuration.textrelationmap {
+                    if self.config.textrelationmap {
                         //process offset relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
                         match self
@@ -297,12 +301,12 @@ impl StoreFor<Annotation> for AnnotationStore {
                 })
                 .collect();
 
-            if self.configuration.resource_annotation_map {
+            if self.config.resource_annotation_map {
                 self.resource_annotation_map
                     .extend(target_resources.iter().map(|(x, y)| (*x, *y)).into_iter());
             }
 
-            if self.configuration.textrelationmap {
+            if self.config.textrelationmap {
                 self.textrelationmap
                     .extend(extend_textrelationmap.into_iter());
             }
@@ -342,6 +346,10 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         Ok(())
     }
+
+    fn config(&self) -> &StoreConfig {
+        &self.config.storeconfig
+    }
 }
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
@@ -373,6 +381,10 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
         self.dataset_annotation_map.data.remove(handle.unwrap());
         Ok(())
     }
+
+    fn config(&self) -> &StoreConfig {
+        &self.config.storeconfig
+    }
 }
 
 //impl<'a> Add<NewAnnotation<'a>,Annotation> for AnnotationStore
@@ -392,7 +404,7 @@ impl Default for AnnotationStore {
             resource_annotation_map: RelationMap::new(),
             annotation_annotation_map: RelationMap::new(),
             textrelationmap: TextRelationMap::new(),
-            configuration: Configuration::default(),
+            config: Config::default(),
         }
     }
 }
@@ -444,8 +456,8 @@ impl AnnotationStore {
 
     /// Sets a configuration for the annotation store. The configuration determines what
     /// reverse indices are built.
-    pub fn with_configuration(&mut self, configuration: Configuration) {
-        self.configuration = configuration;
+    pub fn with_configuration(&mut self, configuration: Config) {
+        self.config = configuration;
     }
 
     ///Builds a new annotation store from [`AnnotationStoreBuilder'].

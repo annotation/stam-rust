@@ -211,6 +211,19 @@ where
     }
 }
 
+//Configuration pertaining to a store
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct StoreConfig {
+    ///generate ids when missing
+    pub generate_ids: bool,
+}
+
+impl Default for StoreConfig {
+    fn default() -> Self {
+        Self { generate_ids: true }
+    }
+}
+
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
 pub trait Storable {
@@ -334,7 +347,7 @@ pub trait StoreFor<T: Storable> {
                 //                 v-- MAYBE TODO: optimise the id copy away
                 idmap.data.insert(id.to_string(), item.handle().unwrap())
             });
-        } else {
+        } else if self.config().generate_ids {
             item = item.generate_id(self.idmap_mut());
         }
 
@@ -582,6 +595,9 @@ pub trait StoreFor<T: Storable> {
             parent: self,
         }
     }
+
+    /// Return associated configuration
+    fn config(&self) -> &StoreConfig;
 }
 
 //  generic iterator implementations, these take care of skipping over deleted items (None)

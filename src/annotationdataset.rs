@@ -45,6 +45,9 @@ pub struct AnnotationDataSet {
 
     #[serde(skip)]
     key_data_map: RelationMap<DataKeyHandle, AnnotationDataHandle>,
+
+    #[serde(skip)]
+    config: StoreConfig,
 }
 
 #[serde_as]
@@ -169,6 +172,10 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         self.key_data_map.data.remove(handle.unwrap());
         Ok(())
     }
+
+    fn config(&self) -> &StoreConfig {
+        &self.config
+    }
 }
 
 impl StoreFor<AnnotationData> for AnnotationDataSet {
@@ -216,6 +223,10 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         self.key_data_map.remove(data.key, handle);
         Ok(())
     }
+
+    fn config(&self) -> &StoreConfig {
+        &self.config
+    }
 }
 
 impl Default for AnnotationDataSet {
@@ -228,6 +239,7 @@ impl Default for AnnotationDataSet {
             key_idmap: IdMap::new("K".to_string()),
             data_idmap: IdMap::new("D".to_string()),
             key_data_map: RelationMap::new(),
+            config: StoreConfig::default(),
         }
     }
 }
@@ -270,6 +282,11 @@ impl AnnotationDataSet {
         let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader)
             .map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
         Self::from_builder(builder)
+    }
+
+    pub fn with_config(mut self, config: StoreConfig) -> Self {
+        self.config = config;
+        self
     }
 
     /// Adds new [`AnnotationData`] to the dataset, this should be
