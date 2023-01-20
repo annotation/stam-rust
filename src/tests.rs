@@ -295,3 +295,35 @@ fn textselectionoperator_adjacent_false_1vs1() {
     assert!(!b.test(&TextSelectionOperator::RightAdjacent(&a.into())));
     assert!(!a.test(&TextSelectionOperator::RightAdjacent(&b.into())));
 }
+
+#[test]
+fn textselectionoperator_samebegin_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 12,
+        endbyte: 18,
+    };
+    assert!(a.test(&TextSelectionOperator::SameBegin(&b.into())));
+    assert!(b.test(&TextSelectionOperator::SameBegin(&a.into())));
+    assert!(!a.test(&TextSelectionOperator::SameEnd(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::SameEnd(&a.into())));
+}
+
+#[test]
+fn textselectionoperator_sameend_1vs1() {
+    let a = TextSelection {
+        beginbyte: 12,
+        endbyte: 24,
+    };
+    let b = TextSelection {
+        beginbyte: 17,
+        endbyte: 24,
+    };
+    assert!(a.test(&TextSelectionOperator::SameEnd(&b.into())));
+    assert!(b.test(&TextSelectionOperator::SameEnd(&a.into())));
+    assert!(!a.test(&TextSelectionOperator::SameBegin(&b.into())));
+    assert!(!b.test(&TextSelectionOperator::SameBegin(&a.into())));
+}
