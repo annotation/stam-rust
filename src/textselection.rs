@@ -299,6 +299,16 @@ pub enum TextSelectionOperator<'a> {
     //TODO: add mindistance,maxdistance argument
     RightAdjacent(&'a TextSelectionSet),
 
+    /// The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
+    SameBegin(&'a TextSelectionSet),
+
+    /// The rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `:=`)
+    SameEnd(&'a TextSelectionSet),
+
+    /// The leftmost TextSelection in A starts where the leftmost TextSelection in A starts  and
+    /// the rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `::`)
+    SameRange(&'a TextSelectionSet),
+
     Not(Box<TextSelectionOperator<'a>>),
 }
 
@@ -343,35 +353,44 @@ impl TextSelectionSet {
                 }
                 true
             }
-            TextSelectionOperator::LeftAdjacent(_) => {
-                //Find rightmost item in self
-                let mut rightmost: Option<&TextSelection> = None;
-                for item in self.iter() {
-                    if rightmost.is_none() || item.endbyte > rightmost.unwrap().endbyte {
-                        rightmost = Some(item);
-                    }
-                }
-                if rightmost.is_none() {
-                    false
-                } else {
-                    rightmost.unwrap().test(&operator)
-                }
-            }
-            TextSelectionOperator::RightAdjacent(_) => {
-                //Find leftmost item in self
-                let mut leftmost: Option<&TextSelection> = None;
-                for item in self.iter() {
-                    if leftmost.is_none() || item.beginbyte < leftmost.unwrap().beginbyte {
-                        leftmost = Some(item);
-                    }
-                }
-                if leftmost.is_none() {
-                    false
-                } else {
-                    leftmost.unwrap().test(&operator)
-                }
+            TextSelectionOperator::LeftAdjacent(_) => self.rightmost().test(&operator),
+            TextSelectionOperator::RightAdjacent(_) => self.leftmost().test(&operator),
+            TextSelectionOperator::SameBegin(_) => self.leftmost().test(&operator),
+            TextSelectionOperator::SameEnd(_) => self.rightmost().test(&operator),
+            TextSelectionOperator::SameRange(_) => {
+                self.leftmost().test(&operator) && self.rightmost().test(&operator)
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
+        }
+    }
+
+    /// Returns the left-most TextSelection (the one with the lowest start offset) in the set.
+    pub fn leftmost(&self) -> &TextSelection {
+        let mut leftmost: Option<&TextSelection> = None;
+        for item in self.iter() {
+            if leftmost.is_none() || item.beginbyte < leftmost.unwrap().beginbyte {
+                leftmost = Some(item);
+            }
+        }
+        if let Some(leftmost) = leftmost {
+            leftmost
+        } else {
+            panic!("There must always be a leftmost item");
+        }
+    }
+
+    /// Returns the right-most TextSelection (the one with the highest end offset) in the set.
+    pub fn rightmost(&self) -> &TextSelection {
+        let mut rightmost: Option<&TextSelection> = None;
+        for item in self.iter() {
+            if rightmost.is_none() || item.endbyte > rightmost.unwrap().endbyte {
+                rightmost = Some(item);
+            }
+        }
+        if let Some(rightmost) = rightmost {
+            rightmost
+        } else {
+            panic!("There must always be a rightmost item");
         }
     }
 }
@@ -448,6 +467,16 @@ impl TextSelection {
                 }
                 Some(self.beginbyte) == rightmost
             }
+            TextSelectionOperator::SameBegin(otherset) => {
+                self.beginbyte == otherset.leftmost().beginbyte()
+            }
+            TextSelectionOperator::SameEnd(otherset) => {
+                self.endbyte == otherset.rightmost().endbyte()
+            }
+            TextSelectionOperator::SameRange(otherset) => {
+                self.beginbyte == otherset.leftmost().beginbyte()
+                    && self.endbyte == otherset.rightmost().endbyte()
+            }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
@@ -478,6 +507,12 @@ pub enum OffsetOperator {
 
     // Offset A is immediately to the right of offset B
     RightAdjacent(Offset),
+
+    /// Offsets A and B have the same begin
+    SameBegin(Offset),
+
+    /// Offsets A and B have the same end
+    SameEnd(Offset),
 }
 
 impl OffsetOperator {
@@ -490,7 +525,9 @@ impl OffsetOperator {
             | Self::Precedes(offset)
             | Self::Succeeds(offset)
             | Self::LeftAdjacent(offset)
-            | Self::RightAdjacent(offset) => offset,
+            | Self::RightAdjacent(offset)
+            | Self::SameBegin(offset)
+            | Self::SameEnd(offset) => offset,
         }
     }
 }
