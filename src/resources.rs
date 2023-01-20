@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::error::StamError;
-use crate::selector::{Offset, Selector};
+use crate::selector::{ApplySelector, Offset, Selector, SelfSelector};
 use crate::textselection::TextSelection;
 use crate::types::*;
 
@@ -250,6 +250,34 @@ impl TextResource {
             Ok(Selector::TextSelector(handle, Offset { begin, end }))
         } else {
             Err(StamError::Unbound("TextResource::select_text()"))
+        }
+    }
+}
+
+impl ApplySelector<str> for TextResource {
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
+        match selector {
+            Selector::TextSelector(resource_handle, offset) => {
+                if self.handle() != Some(*resource_handle) {
+                    Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
+                } else {
+                    Ok(self.text_slice(offset)?)
+                }
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "TextResource::select() expected a TextSelector, got another",
+            )),
+        }
+    }
+}
+
+impl SelfSelector for TextResource {
+    /// Returns a selector to this resource
+    fn self_selector(&self) -> Result<Selector, StamError> {
+        if let Some(intid) = self.handle() {
+            Ok(Selector::ResourceSelector(intid))
+        } else {
+            Err(StamError::Unbound("TextResource::self_selector()"))
         }
     }
 }

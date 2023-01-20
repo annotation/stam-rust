@@ -513,6 +513,7 @@ pub enum OffsetOperator {
 
     /// Offsets A and B have the same end
     SameEnd(Offset),
+    //note: SameRange would be the same as Equals for this operator:
 }
 
 impl OffsetOperator {

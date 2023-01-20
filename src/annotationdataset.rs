@@ -10,6 +10,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDat
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
+use crate::selector::{Selector, SelfSelector};
 use crate::types::*;
 
 /// An `AnnotationDataSet` stores the keys [`DataKey`] and values
@@ -258,6 +259,17 @@ impl Serialize for AnnotationDataSet {
         let wrappedstore: WrappedStore<AnnotationData, Self> = self.wrappedstore();
         state.serialize_field("data", &wrappedstore)?;
         state.end()
+    }
+}
+
+impl SelfSelector for AnnotationDataSet {
+    /// Returns a selector to this resource
+    fn self_selector(&self) -> Result<Selector, StamError> {
+        if let Some(intid) = self.handle() {
+            Ok(Selector::DataSetSelector(intid))
+        } else {
+            Err(StamError::Unbound("AnnotationDataSet::self_selector()"))
+        }
     }
 }
 

@@ -5,14 +5,16 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::slice::Iter;
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
-use crate::annotationdata::AnnotationDataHandle;
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
+use crate::datakey::DataKey;
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
-use crate::selector::{Offset, Selector, SelectorIter, SelectorIterItem, SelectorKind};
+use crate::selector::{ApplySelector, Offset, Selector, SelectorIter, SelectorIterItem};
 use crate::textselection::{OffsetOperator, TextRelationMap, TextSelection, TextSelectionOperator};
 
 use crate::error::*;
@@ -45,6 +47,7 @@ pub struct AnnotationStore {
 
     // Note there is no AnnotationDataSet => DataKey => Annotation map, that relationship
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
+    //
     /// This is the reverse index for text, it maps TextResource => TextSelection => Annotation
     textrelationmap: TextRelationMap,
 
@@ -770,6 +773,42 @@ impl AnnotationStore {
             )),
         }
     }
+
+    /// Iterate over the data for the specified annotation, returning `(&DataKey, &AnnotationData, &AnnotationDataSet)` tuples
+    pub fn data_by_annotation<'a>(&'a self, annotation: &'a Annotation) -> AnnotationDataIter<'a> {
+        AnnotationDataIter {
+            store: self,
+            iter: annotation.data(),
+        }
+    }
+}
+
+pub struct AnnotationDataIter<'a> {
+    store: &'a AnnotationStore,
+    iter: Iter<'a, (AnnotationDataSetHandle, AnnotationDataHandle)>,
+}
+
+impl<'a> Iterator for AnnotationDataIter<'a> {
+    type Item = (&'a DataKey, &'a AnnotationData, &'a AnnotationDataSet);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.iter.next() {
+            Some((annotationset_handle, annotationdata_intid)) => {
+                let annotationset: &AnnotationDataSet = self
+                    .store
+                    .get(*annotationset_handle)
+                    .expect("Getting dataset for annotation");
+                let annotationdata: &AnnotationData = annotationset
+                    .get(*annotationdata_intid)
+                    .expect("Getting annotationdata for annotation");
+                let datakey: &DataKey = annotationset
+                    .get(annotationdata.key())
+                    .expect("Getting datakey for annotation");
+                Some((datakey, annotationdata, annotationset))
+            }
+            None => None,
+        }
+    }
 }
 
 pub struct TargetIter<'a, T>
@@ -875,6 +914,69 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
             }
         } else {
             None
+        }
+    }
+}
+
+impl ApplySelector<TextResource> for AnnotationStore {
+    /// Retrieve a reference to the resource ([`TextResource`]) the selector points to.
+    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a TextResource, StamError> {
+        match selector {
+            Selector::ResourceSelector(resource_handle) | Selector::TextSelector(resource_handle, .. ) => {
+                let resource: &TextResource = self.get(*resource_handle)?;
+                Ok(resource)
+            },
+            _ => {
+                Err(StamError::WrongSelectorType("Annotationstore::select() expected a ResourceSelector or TextSelector, got another"))
+            }
+        }
+    }
+}
+
+impl ApplySelector<str> for AnnotationStore {
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
+        match selector {
+            Selector::TextSelector { .. } => {
+                let resource: &TextResource = self.select(selector)?;
+                let text = resource.select(selector)?;
+                Ok(text)
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "AnnotationStore::select() expected a TextSelector, got another",
+            )),
+        }
+    }
+}
+
+impl ApplySelector<AnnotationDataSet> for AnnotationStore {
+    /// Retrieve a reference to the annotation data set ([`AnnotationDataSet`]) the selector points to.
+    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a AnnotationDataSet, StamError> {
+        match selector {
+            Selector::DataSetSelector(int_id) => {
+                let dataset: &AnnotationDataSet = self.get(*int_id)?;
+                Ok(dataset)
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "AnnotationStore::select() expected a DataSetSelector, got another",
+            )),
+        }
+    }
+}
+
+impl ApplySelector<Annotation> for AnnotationStore {
+    /// Retrieve a reference to the annotation ([`Annotation`]) the selector points to.
+    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
+    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a Annotation, StamError> {
+        match selector {
+            Selector::AnnotationSelector(annotation_handle, ..) => {
+                let annotation: &Annotation = self.get(*annotation_handle)?;
+                Ok(annotation)
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "AnnotationStore::select() expected an AnnotationSelector, got another",
+            )),
         }
     }
 }

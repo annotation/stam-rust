@@ -13,7 +13,7 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::resources::TextResourceHandle;
-use crate::selector::{Offset, Selector, SelectorBuilder, WrappedSelector};
+use crate::selector::{Offset, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
 use crate::types::*;
 
 /// `Annotation` represents a particular *instance of annotation* and is the central
@@ -385,44 +385,6 @@ impl<'a> Annotation {
     }
 }
 
-impl AnnotationStore {
-    /// Iterate over the data for the specified annotation, returning `(&DataKey, &AnnotationData, &AnnotationDataSet)` tuples
-    pub fn data<'a>(&'a self, annotation: &'a Annotation) -> AnnotationDataIter<'a> {
-        AnnotationDataIter {
-            store: self,
-            iter: annotation.data.iter(),
-        }
-    }
-}
-
-pub struct AnnotationDataIter<'a> {
-    store: &'a AnnotationStore,
-    iter: Iter<'a, (AnnotationDataSetHandle, AnnotationDataHandle)>,
-}
-
-impl<'a> Iterator for AnnotationDataIter<'a> {
-    type Item = (&'a DataKey, &'a AnnotationData, &'a AnnotationDataSet);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.iter.next() {
-            Some((annotationset_handle, annotationdata_intid)) => {
-                let annotationset: &AnnotationDataSet = self
-                    .store
-                    .get(*annotationset_handle)
-                    .expect("Getting dataset for annotation");
-                let annotationdata: &AnnotationData = annotationset
-                    .get(*annotationdata_intid)
-                    .expect("Getting annotationdata for annotation");
-                let datakey: &DataKey = annotationset
-                    .get(annotationdata.key())
-                    .expect("Getting datakey for annotation");
-                Some((datakey, annotationdata, annotationset))
-            }
-            None => None,
-        }
-    }
-}
-
 /// Helper structure for deserialisation
 #[serde_as]
 #[derive(Deserialize)]
@@ -440,6 +402,20 @@ impl From<AnnotationJson> for AnnotationBuilder {
             id: helper.id.into(),
             data: helper.data,
             target: WithAnnotationTarget::FromSelectorBuilder(helper.target),
+        }
+    }
+}
+
+impl SelfSelector for Annotation {
+    /// Returns a selector to this resource
+    fn self_selector(&self) -> Result<Selector, StamError> {
+        if let Some(handle) = self.handle() {
+            Ok(Selector::AnnotationSelector(
+                handle,
+                Some(Offset::default()),
+            ))
+        } else {
+            Err(StamError::Unbound("Annotation::self_selector()"))
         }
     }
 }

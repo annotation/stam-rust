@@ -4,7 +4,7 @@ use serde_with::serde_as;
 use std::ops::Deref;
 
 use crate::annotation::{Annotation, AnnotationHandle};
-use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
+use crate::annotationdataset::AnnotationDataSetHandle;
 use crate::annotationstore::AnnotationStore;
 use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
@@ -202,127 +202,11 @@ pub trait SelfSelector {
     fn self_selector(&self) -> Result<Selector, StamError>;
 }
 
-impl SelfSelector for TextResource {
-    /// Returns a selector to this resource
-    fn self_selector(&self) -> Result<Selector, StamError> {
-        if let Some(intid) = self.handle() {
-            Ok(Selector::ResourceSelector(intid))
-        } else {
-            Err(StamError::Unbound("TextResource::self_selector()"))
-        }
-    }
-}
-
-impl SelfSelector for AnnotationDataSet {
-    /// Returns a selector to this resource
-    fn self_selector(&self) -> Result<Selector, StamError> {
-        if let Some(intid) = self.handle() {
-            Ok(Selector::DataSetSelector(intid))
-        } else {
-            Err(StamError::Unbound("AnnotationDataSet::self_selector()"))
-        }
-    }
-}
-
-impl SelfSelector for Annotation {
-    /// Returns a selector to this resource
-    fn self_selector(&self) -> Result<Selector, StamError> {
-        if let Some(handle) = self.handle() {
-            Ok(Selector::AnnotationSelector(
-                handle,
-                Some(Offset::default()),
-            ))
-        } else {
-            Err(StamError::Unbound("Annotation::self_selector()"))
-        }
-    }
-}
-
 /// This trait is implemented by types to which a selector can be applied, returning as a result a reference to type T
 pub trait ApplySelector<T: ?Sized> {
     /// Apply a selector
     /// Raises a [`StamError::WrongSelectorType`] if the selector of the passed type does not apply to this resource
     fn select<'a>(&'a self, selector: &Selector) -> Result<&'a T, StamError>;
-}
-
-impl ApplySelector<TextResource> for AnnotationStore {
-    /// Retrieve a reference to the resource ([`TextResource`]) the selector points to.
-    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a TextResource, StamError> {
-        match selector {
-            Selector::ResourceSelector(resource_handle) | Selector::TextSelector(resource_handle, .. ) => {
-                let resource: &TextResource = self.get(*resource_handle)?;
-                Ok(resource)
-            },
-            _ => {
-                Err(StamError::WrongSelectorType("Annotationstore::select() expected a ResourceSelector or TextSelector, got another"))
-            }
-        }
-    }
-}
-
-impl ApplySelector<str> for TextResource {
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
-        match selector {
-            Selector::TextSelector(resource_handle, offset) => {
-                if self.handle() != Some(*resource_handle) {
-                    Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
-                } else {
-                    Ok(self.text_slice(offset)?)
-                }
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "TextResource::select() expected a TextSelector, got another",
-            )),
-        }
-    }
-}
-
-impl ApplySelector<str> for AnnotationStore {
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
-        match selector {
-            Selector::TextSelector { .. } => {
-                let resource: &TextResource = self.select(selector)?;
-                let text = resource.select(selector)?;
-                Ok(text)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "AnnotationStore::select() expected a TextSelector, got another",
-            )),
-        }
-    }
-}
-
-impl ApplySelector<AnnotationDataSet> for AnnotationStore {
-    /// Retrieve a reference to the annotation data set ([`AnnotationDataSet`]) the selector points to.
-    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a AnnotationDataSet, StamError> {
-        match selector {
-            Selector::DataSetSelector(int_id) => {
-                let dataset: &AnnotationDataSet = self.get(*int_id)?;
-                Ok(dataset)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "AnnotationStore::select() expected a DataSetSelector, got another",
-            )),
-        }
-    }
-}
-
-impl ApplySelector<Annotation> for AnnotationStore {
-    /// Retrieve a reference to the annotation ([`Annotation`]) the selector points to.
-    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a Annotation, StamError> {
-        match selector {
-            Selector::AnnotationSelector(annotation_handle, ..) => {
-                let annotation: &Annotation = self.get(*annotation_handle)?;
-                Ok(annotation)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "AnnotationStore::select() expected an AnnotationSelector, got another",
-            )),
-        }
-    }
 }
 
 /// This is a smart pointer that encapsulates both a selector and the annotationstore in which it can be resolved

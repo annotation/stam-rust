@@ -189,7 +189,7 @@ fn store_iter_data() -> Result<(), StamError> {
     let annotation: &Annotation = store.get_by_id("A1")?;
 
     let mut count = 0;
-    for (datakey, annotationdata, annotationset) in store.data(annotation) {
+    for (datakey, annotationdata, annotationset) in store.data_by_annotation(annotation) {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(datakey.id(), Some("pos"));
@@ -328,7 +328,7 @@ fn add_after_borrow() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     let annotation: &Annotation = store.get_by_id("A1".into())?;
     let mut count = 0;
-    for (_datakey, _annotationdata, _dataset) in store.data(annotation) {
+    for (_datakey, _annotationdata, _dataset) in store.data_by_annotation(annotation) {
         count += 1;
     }
     assert_eq!(count, 1);
@@ -499,7 +499,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
 
     assert_eq!(annotation.id(), Some("A2"));
     let mut count = 0;
-    for (datakey, annotationdata, dataset) in store.data(annotation) {
+    for (datakey, annotationdata, dataset) in store.data_by_annotation(annotation) {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(datakey.id(), Some("pos"));
@@ -718,7 +718,7 @@ fn loop_annotations() -> Result<(), StamError> {
     let store = setup_example_2()?;
     for annotation in store.annotations() {
         let id = annotation.id().unwrap_or("");
-        for (key, data, _dataset) in store.data(annotation) {
+        for (key, data, _dataset) in store.data_by_annotation(annotation) {
             // get the text to which this annotation refers (if any)
             let text: &str = match annotation.target().kind() {
                 stam::SelectorKind::TextSelector => store.select(annotation.target())?,
