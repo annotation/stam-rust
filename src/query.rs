@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
 use crate::annotation::AnnotationHandle;
 use crate::annotationdata::{AnnotationDataHandle, DataOperator};
 use crate::textselection::{TextRelationOperator, TextSelectionOperator};

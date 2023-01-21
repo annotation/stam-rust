@@ -50,7 +50,9 @@ impl TryFrom<isize> for Cursor {
 /// a [`Storable`] item in a [`Store`] by index. Types implementing this are lightweigt and do not borrow anything, they can be passed and copied freely.
 // To get an actual reference to the item from a handle type, call the `get()`` method on the store that holds it.
 pub trait Handle: Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Hash {
+    /// Create a new handle for an internal ID. You shouldn't need to use this as handles will always be generated for you by higher-level functions.
     fn new(intid: usize) -> Self;
+    /// Returns the internal index for this handle
     fn unwrap(&self) -> usize;
 }
 
@@ -501,12 +503,21 @@ pub trait StoreFor<T: Storable> {
 
     /// Iterate over the store
     fn iter<'a>(&'a self) -> StoreIter<'a, T> {
-        StoreIter(self.store().iter())
+        StoreIter {
+            iter: self.store().iter(),
+            count: 0,
+            len: self.store().len(),
+        }
     }
 
     /// Iterate over the store, mutably
     fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a, T> {
-        StoreIterMut(self.store_mut().iter_mut())
+        let len = self.store().len();
+        StoreIterMut {
+            iter: self.store_mut().iter_mut(),
+            count: 0,
+            len,
+        }
     }
 
     /// Get the item from the store if it already exists, if not, add it
@@ -603,33 +614,57 @@ pub trait StoreFor<T: Storable> {
 //  generic iterator implementations, these take care of skipping over deleted items (None)
 
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
-pub struct StoreIter<'a, T>(Iter<'a, Option<T>>);
+pub struct StoreIter<'a, T> {
+    iter: Iter<'a, Option<T>>,
+    count: usize,
+    len: usize,
+}
 
 impl<'a, T> Iterator for StoreIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.0.next() {
+        self.count += 1;
+        match self.iter.next() {
             Some(Some(item)) => Some(item),
             Some(None) => self.next(),
             None => None,
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let l = self.len - self.count;
+        (l, Some(l))
+    }
 }
 
-pub struct StoreIterMut<'a, T>(IterMut<'a, Option<T>>);
+impl<'a, T> ExactSizeIterator for StoreIter<'a, T> {}
+
+pub struct StoreIterMut<'a, T> {
+    iter: IterMut<'a, Option<T>>,
+    count: usize,
+    len: usize,
+}
 
 impl<'a, T> Iterator for StoreIterMut<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.0.next() {
+        self.count += 1;
+        match self.iter.next() {
             Some(Some(item)) => Some(item),
             Some(None) => self.next(),
             None => None,
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let l = self.len - self.count;
+        (l, Some(l))
+    }
 }
+
+impl<'a, T> ExactSizeIterator for StoreIterMut<'a, T> {}
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(untagged)]

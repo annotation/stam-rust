@@ -9,7 +9,7 @@ use crate::annotationdata::{
 };
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::datakey::{DataKey, DataKeyHandle};
+use crate::datakey::DataKeyHandle;
 use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::resources::TextResourceHandle;
