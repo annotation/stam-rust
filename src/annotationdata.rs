@@ -54,7 +54,7 @@ impl Storable for AnnotationData {
     }
 
     fn id(&self) -> Option<&str> {
-        self.id.as_ref().map(|x| &**x)
+        self.id.as_deref()
     }
 
     fn with_id(mut self, id: String) -> Self {

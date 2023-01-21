@@ -170,32 +170,6 @@ impl From<SelectorJson> for SelectorBuilder {
     }
 }
 
-impl<'a> AnnotationStore {
-    /// Builds a [`Selector`] based on its [`SelectorBuilder`], this will produce an error if the selected resource does not exist.
-    pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
-        match item {
-            SelectorBuilder::ResourceSelector(id) => {
-                let resource: &TextResource = self.get_by_anyid_or_err(&id)?;
-                Ok(Selector::ResourceSelector(resource.handle_or_err()?))
-            }
-            SelectorBuilder::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get_by_anyid_or_err(&res_id)?;
-                Ok(Selector::TextSelector(resource.handle_or_err()?, offset))
-            }
-            SelectorBuilder::AnnotationSelector(a_id, offset) => {
-                let annotation: &Annotation = self.get_by_anyid_or_err(&a_id)?;
-                Ok(Selector::AnnotationSelector(
-                    annotation.handle_or_err()?,
-                    offset,
-                ))
-            }
-            _ => {
-                panic!("not implemented yet")
-            }
-        }
-    }
-}
-
 /// This trait is implemented by types that can return a Selector to themselves
 pub trait SelfSelector {
     /// Returns a selector that points to this resouce
@@ -250,9 +224,9 @@ impl<'a> Serialize for WrappedSelector<'a> {
                     state.serialize_field("resource", &textresource.id())?;
                     state.end()
                 } else {
-                    return Err(serde::ser::Error::custom(
+                    Err(serde::ser::Error::custom(
                         "Unable to resolve resource for ResourceSelector during serialization",
-                    ));
+                    ))
                 }
             }
             Selector::TextSelector(res_handle, offset) => {
@@ -267,9 +241,9 @@ impl<'a> Serialize for WrappedSelector<'a> {
                     state.serialize_field("offset", offset)?;
                     state.end()
                 } else {
-                    return Err(serde::ser::Error::custom(
+                    Err(serde::ser::Error::custom(
                         "Unable to resolve resource for ResourceSelector during serialization",
-                    ));
+                    ))
                 }
             }
             _ => panic!("Serialiser for this selector not implemented yet"), //TODO

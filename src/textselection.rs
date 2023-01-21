@@ -324,7 +324,7 @@ impl TextSelectionSet {
                 }
                 //all of the items in this set must match with an item in the otherset
                 for item in self.iter() {
-                    if !item.test(&operator) {
+                    if !item.test(operator) {
                         return false;
                     }
                 }
@@ -333,7 +333,7 @@ impl TextSelectionSet {
             TextSelectionOperator::Overlaps(_) => {
                 //any of the items in this set must match with any item in the otherset
                 for item in self.iter() {
-                    if item.test(&operator) {
+                    if item.test(operator) {
                         return true;
                     }
                 }
@@ -347,18 +347,18 @@ impl TextSelectionSet {
             | TextSelectionOperator::Succeeds(_) => {
                 //all of the items in this set must be embedded by/precede/succeed any item in the other
                 for item in self.iter() {
-                    if !item.test(&operator) {
+                    if !item.test(operator) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::LeftAdjacent(_) => self.rightmost().test(&operator),
-            TextSelectionOperator::RightAdjacent(_) => self.leftmost().test(&operator),
-            TextSelectionOperator::SameBegin(_) => self.leftmost().test(&operator),
-            TextSelectionOperator::SameEnd(_) => self.rightmost().test(&operator),
+            TextSelectionOperator::LeftAdjacent(_) => self.rightmost().test(operator),
+            TextSelectionOperator::RightAdjacent(_) => self.leftmost().test(operator),
+            TextSelectionOperator::SameBegin(_) => self.leftmost().test(operator),
+            TextSelectionOperator::SameEnd(_) => self.rightmost().test(operator),
             TextSelectionOperator::SameRange(_) => {
-                self.leftmost().test(&operator) && self.rightmost().test(&operator)
+                self.leftmost().test(operator) && self.rightmost().test(operator)
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }

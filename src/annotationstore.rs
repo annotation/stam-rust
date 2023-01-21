@@ -14,7 +14,9 @@ use crate::annotationdataset::{
 };
 use crate::datakey::DataKey;
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
-use crate::selector::{ApplySelector, Offset, Selector, SelectorIter, SelectorIterItem};
+use crate::selector::{
+    ApplySelector, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
+};
 use crate::textselection::{
     TextRelationMap, TextRelationOperator, TextSelection, TextSelectionOperator,
 };
@@ -239,7 +241,7 @@ impl StoreFor<Annotation> for AnnotationStore {
             Selector::TextSelector(res_handle, offset) => {
                 if self.config.textrelationmap {
                     let resource: &TextResource = self.get(*res_handle)?;
-                    let textselection = resource.text_selection(&offset)?;
+                    let textselection = resource.text_selection(offset)?;
                     self.textrelationmap
                         .insert(*res_handle, textselection, handle);
                 }
@@ -506,7 +508,7 @@ impl AnnotationStore {
 
     /// Returns the ID of the annotation store (if any)
     pub fn id(&self) -> Option<&str> {
-        self.id.as_ref().map(|x| &**x)
+        self.id.as_deref()
     }
 
     /// Sets the ID of the annotation store in a builder pattern
@@ -527,19 +529,19 @@ impl AnnotationStore {
     /// Get an annotation handle from an ID.
     /// Shortcut wraps arround get_handle()
     pub fn resolve_annotation_id(&self, id: &str) -> Result<AnnotationHandle, StamError> {
-        <AnnotationStore as StoreFor<Annotation>>::resolve_id(&self, id)
+        <AnnotationStore as StoreFor<Annotation>>::resolve_id(self, id)
     }
 
     /// Get an annotation dataset handle from an ID.
     /// Shortcut wraps arround get_handle()
     pub fn resolve_dataset_id(&self, id: &str) -> Result<AnnotationDataSetHandle, StamError> {
-        <AnnotationStore as StoreFor<AnnotationDataSet>>::resolve_id(&self, id)
+        <AnnotationStore as StoreFor<AnnotationDataSet>>::resolve_id(self, id)
     }
 
     /// Get an annotation dataset handle from an ID.
     /// Shortcut wraps arround get_handle()
     pub fn resolve_resource_id(&self, id: &str) -> Result<TextResourceHandle, StamError> {
-        <AnnotationStore as StoreFor<TextResource>>::resolve_id(&self, id)
+        <AnnotationStore as StoreFor<TextResource>>::resolve_id(self, id)
     }
 
     /// Returns an iterator over all annotations in the store
@@ -644,8 +646,8 @@ impl AnnotationStore {
         )
     }
 
-    pub fn annotations_by_resource<'a>(
-        &'a self,
+    pub fn annotations_by_resource(
+        &self,
         resource_handle: TextResourceHandle,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
         //TODO: implement
@@ -655,27 +657,27 @@ impl AnnotationStore {
     /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
     /// point at a text in the resource, use [`iter_annotations_by_resource`] instead for those.
-    pub fn annotations_by_resource_metadata<'a>(
-        &'a self,
+    pub fn annotations_by_resource_metadata(
+        &self,
         resource_handle: TextResourceHandle,
-    ) -> Option<&'a Vec<AnnotationHandle>> {
+    ) -> Option<&Vec<AnnotationHandle>> {
         self.resource_annotation_map
             .data
             .get(resource_handle.unwrap())
     }
 
     /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
-    pub fn annotations_by_textselection<'a>(
-        &'a self,
+    pub fn annotations_by_textselection(
+        &self,
         resource_handle: TextResourceHandle,
         textselection: &TextSelection,
-    ) -> Option<&'a Vec<AnnotationHandle>> {
+    ) -> Option<&Vec<AnnotationHandle>> {
         self.textrelationmap
             .get_by_textselection(resource_handle, textselection)
     }
 
-    pub fn annotations_by_textselection_operator<'a>(
-        &'a self,
+    pub fn annotations_by_textselection_operator(
+        &self,
         resource_handle: TextResourceHandle,
         operator: &TextSelectionOperator,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
@@ -690,9 +692,7 @@ impl AnnotationStore {
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
         let resource: Option<&TextResource> = self.get(resource_handle).ok();
-        if resource.is_none() {
-            return None;
-        }
+        resource?;
         if let Ok(textselection) = resource.unwrap().text_selection(&offset) {
             self.textrelationmap
                 .get_by_textselection(resource_handle, &textselection)
@@ -702,15 +702,13 @@ impl AnnotationStore {
     }
 
     /// Find all annotations that overlap with a particular offset.
-    pub fn annotations_by_offset_operator<'a>(
-        &'a self,
+    pub fn annotations_by_offset_operator(
+        &self,
         resource_handle: TextResourceHandle,
         offset: &TextRelationOperator,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
         let resource: Option<&TextResource> = self.get(resource_handle).ok();
-        if resource.is_none() {
-            return None;
-        }
+        resource?;
         if let Ok(textselection) = resource.unwrap().text_selection(&offset.offset()) {
             //TODO: implement
             panic!("annotations_by_offset_overlap() not implemented yet");
@@ -721,10 +719,10 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
     /// Use [`iter_target_annotation`] instead if you are looking for the annotations that an annotation points at.
-    pub fn annotations_by_annotation_reverse<'a>(
-        &'a self,
+    pub fn annotations_by_annotation_reverse(
+        &self,
         annotation_handle: AnnotationHandle,
-    ) -> Option<&'a Vec<AnnotationHandle>> {
+    ) -> Option<&Vec<AnnotationHandle>> {
         self.annotation_annotation_map
             .data
             .get(annotation_handle.unwrap())
@@ -732,10 +730,10 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
-    pub fn annotations_by_annotationset_metadata<'a>(
-        &'a self,
+    pub fn annotations_by_annotationset_metadata(
+        &self,
         annotationset_handle: AnnotationDataSetHandle,
-    ) -> Option<&'a Vec<AnnotationHandle>> {
+    ) -> Option<&Vec<AnnotationHandle>> {
         self.dataset_annotation_map
             .data
             .get(annotationset_handle.unwrap())
@@ -781,6 +779,30 @@ impl AnnotationStore {
         AnnotationDataIter {
             store: self,
             iter: annotation.data(),
+        }
+    }
+
+    /// Builds a [`Selector`] based on its [`SelectorBuilder`], this will produce an error if the selected resource does not exist.
+    pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
+        match item {
+            SelectorBuilder::ResourceSelector(id) => {
+                let resource: &TextResource = self.get_by_anyid_or_err(&id)?;
+                Ok(Selector::ResourceSelector(resource.handle_or_err()?))
+            }
+            SelectorBuilder::TextSelector(res_id, offset) => {
+                let resource: &TextResource = self.get_by_anyid_or_err(&res_id)?;
+                Ok(Selector::TextSelector(resource.handle_or_err()?, offset))
+            }
+            SelectorBuilder::AnnotationSelector(a_id, offset) => {
+                let annotation: &Annotation = self.get_by_anyid_or_err(&a_id)?;
+                Ok(Selector::AnnotationSelector(
+                    annotation.handle_or_err()?,
+                    offset,
+                ))
+            }
+            _ => {
+                panic!("not implemented yet")
+            }
         }
     }
 }

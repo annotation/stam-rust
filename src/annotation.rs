@@ -55,7 +55,7 @@ impl Storable for Annotation {
     type HandleType = AnnotationHandle;
 
     fn id(&self) -> Option<&str> {
-        self.id.as_ref().map(|x| &**x)
+        self.id.as_deref()
     }
     fn handle(&self) -> Option<Self::HandleType> {
         self.intid
@@ -93,7 +93,7 @@ impl From<Selector> for WithAnnotationTarget {
 
 impl From<SelectorBuilder> for WithAnnotationTarget {
     fn from(other: SelectorBuilder) -> Self {
-        Self::FromSelectorBuilder(other.into())
+        Self::FromSelectorBuilder(other)
     }
 }
 
@@ -174,7 +174,6 @@ impl AnnotationBuilder {
             annotationset: dataset,
             key,
             value,
-            ..Default::default()
         })
     }
 
@@ -280,7 +279,7 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
     }
 }
 
-impl<'a> AnnotationStore {
+impl AnnotationStore {
     /// Builds and adds an annotation
     pub fn with_annotation(mut self, builder: AnnotationBuilder) -> Result<Self, StamError> {
         self.annotate(builder)?;
@@ -299,7 +298,7 @@ impl<'a> AnnotationStore {
             } else {
                 // this data referenced a dataset that does not exist yet, create it
                 let dataset_id: String = if let AnyId::Id(dataset_id) = dataitem.annotationset {
-                    dataset_id.into()
+                    dataset_id
                 } else {
                     // if no dataset was specified at all, we create one named 'default'
                     // the name is not prescribed by the STAM spec, the fact that we
@@ -345,7 +344,7 @@ impl<'a> AnnotationStore {
 
         // Has the caller set a public ID for this annotation?
         let public_id: Option<String> = match builder.id {
-            AnyId::Id(id) => Some(id.into()),
+            AnyId::Id(id) => Some(id),
             _ => None,
         };
 

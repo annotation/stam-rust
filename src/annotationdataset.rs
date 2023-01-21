@@ -101,7 +101,7 @@ impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
 
     fn id(&self) -> Option<&str> {
-        self.id.as_ref().map(|x| &**x)
+        self.id.as_deref()
     }
     fn with_id(mut self, id: String) -> Self {
         self.id = Some(id);
@@ -380,20 +380,20 @@ impl AnnotationDataSet {
 
     /// Get an annotation handle from an ID.
     pub fn resolve_data_id(&self, id: &str) -> Result<AnnotationDataHandle, StamError> {
-        <Self as StoreFor<AnnotationData>>::resolve_id(&self, id)
+        <Self as StoreFor<AnnotationData>>::resolve_id(self, id)
     }
 
     pub fn resolve_key_id(&self, id: &str) -> Result<DataKeyHandle, StamError> {
-        <Self as StoreFor<DataKey>>::resolve_id(&self, id)
+        <Self as StoreFor<DataKey>>::resolve_id(self, id)
     }
 
     ///Iteratest over all the data ([`AnnotationData`]) in this set, returns references
     pub fn data(&self) -> StoreIter<AnnotationData> {
-        <Self as StoreFor<AnnotationData>>::iter(&self)
+        <Self as StoreFor<AnnotationData>>::iter(self)
     }
 
     ///Iteratest over all the keys in this set, returns references
     pub fn keys(&self) -> StoreIter<DataKey> {
-        <Self as StoreFor<DataKey>>::iter(&self)
+        <Self as StoreFor<DataKey>>::iter(self)
     }
 }

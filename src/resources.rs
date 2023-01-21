@@ -114,7 +114,7 @@ impl TextResource {
     /// Instantiates a new completely empty TextResource
     pub fn new(id: String) -> Self {
         Self {
-            id: id,
+            id,
             intid: None,
             text: String::new(),
         }

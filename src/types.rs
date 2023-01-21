@@ -398,7 +398,7 @@ pub trait StoreFor<T: Storable> {
             Some(intid)
         } else if let Some(id) = item.id() {
             if let Some(idmap) = self.idmap() {
-                idmap.data.get(id).map(|x| *x)
+                idmap.data.get(id).copied() //note, only the handle is copied (=cheap)
             } else {
                 None
             }
@@ -459,9 +459,9 @@ pub trait StoreFor<T: Storable> {
         //remove item from idmap
         let item: &T = self.get(handle)?;
         let id: Option<String> = item.id().map(|x| x.to_string());
-        if id.is_some() {
+        if let Some(id) = id {
             if let Some(idmap) = self.idmap_mut() {
-                idmap.data.remove(id.unwrap().as_str());
+                idmap.data.remove(id.as_str());
             }
         }
 
@@ -634,6 +634,7 @@ impl<'a, T> Iterator for StoreIter<'a, T> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let l = self.len - self.count;
+        //the lower-bound may be an overestimate (if there are deleted items)
         (l, Some(l))
     }
 }
@@ -658,6 +659,7 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let l = self.len - self.count;
+        //the lower-bound may be an overestimate (if there are deleted items)
         (l, Some(l))
     }
 }
@@ -692,31 +694,19 @@ where
     HandleType: Handle,
 {
     pub fn is_handle(&self) -> bool {
-        match self {
-            Self::Handle(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Handle(_))
     }
 
     pub fn is_id(&self) -> bool {
-        match self {
-            Self::Id(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Id(_))
     }
 
     pub fn is_none(&self) -> bool {
-        match self {
-            Self::None => true,
-            _ => false,
-        }
+        matches!(self, Self::None)
     }
 
     pub fn is_some(&self) -> bool {
-        match self {
-            Self::None => false,
-            _ => true,
-        }
+        !matches!(self, Self::None)
     }
 
     // raises an ID error
@@ -898,7 +888,7 @@ where
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        return self.item;
+        self.item
     }
 }
 
