@@ -638,8 +638,6 @@ impl<'a, T> Iterator for StoreIter<'a, T> {
     }
 }
 
-impl<'a, T> ExactSizeIterator for StoreIter<'a, T> {}
-
 pub struct StoreIterMut<'a, T> {
     iter: IterMut<'a, Option<T>>,
     count: usize,
@@ -663,8 +661,6 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
         (l, Some(l))
     }
 }
-
-impl<'a, T> ExactSizeIterator for StoreIterMut<'a, T> {}
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(untagged)]
