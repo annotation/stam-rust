@@ -800,29 +800,6 @@ impl AnnotationStore {
         }
     }
 
-    /// Count annotations by key
-    pub fn count_annotations_by_key(
-        &self,
-        annotationset_handle: AnnotationDataSetHandle,
-        datakey_handle: DataKeyHandle,
-    ) -> usize {
-        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
-        if let Some(dataset) = dataset {
-            if let Some(data) = dataset.data_by_key(datakey_handle) {
-                data.iter()
-                    .map(|dataitem| {
-                        self.dataset_data_annotation_map
-                            .count(annotationset_handle, *dataitem)
-                    })
-                    .sum()
-            } else {
-                0
-            }
-        } else {
-            0
-        }
-    }
-
     /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use [`iter_text_selection`] instead for those.
     ///
     /// If multiple AnnotationSelectors are involved, they can be passed as subselectors

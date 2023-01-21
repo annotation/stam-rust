@@ -68,13 +68,12 @@ pub enum AnnotationConstraint<'a, 'store> {
 }
 
 impl<'a, 'store> AnnotationConstraint<'a, 'store> {
-    /// Returns the number of annotations this constraint will return, None if unknown/unbounded
+    /// Returns the number of annotations this constraint will return, None if unknown/unbounded or too costly to compute
     pub fn result_size(&'a self, store: &'store AnnotationStore) -> Option<usize> {
         match self {
             Self::Id(_) => Some(1),
             Self::InSelectionSet(set) => Some(set.len()),
-            //Self::Key(annotationset_handle, datakey_handle) => {}
-            _ => panic!("not implemented yet!"), // TODO
+            _ => None,
         }
     }
 
