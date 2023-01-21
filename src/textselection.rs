@@ -482,8 +482,16 @@ impl TextSelection {
     }
 }
 
+/// The TextRelationOperator, simply put, allows comparison of two text regions, specified by their offset. It
+/// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
+/// [`TextSelection`] instances (the realisation once an [`Offset`] is resolved) can be.
+///
+/// This enum encapsulates both the operator as well the the object of the operation (another
+/// `Offset`).
+///
+/// To apply it in e.g. a query, it is first converted to a [`TextSelectionOperator`].
 #[derive(Debug, Clone)]
-pub enum OffsetOperator {
+pub enum TextRelationOperator {
     /// Offsets are equal
     Equals(Offset),
 
@@ -516,7 +524,7 @@ pub enum OffsetOperator {
     //note: SameRange would be the same as Equals for this operator:
 }
 
-impl OffsetOperator {
+impl TextRelationOperator {
     pub fn offset(&self) -> &Offset {
         match self {
             Self::Equals(offset)

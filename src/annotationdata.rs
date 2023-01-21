@@ -216,3 +216,25 @@ impl From<AnnotationDataJson> for AnnotationDataBuilder {
         }
     }
 }
+
+pub enum DataOperator<'a> {
+    Equals(&'a AnnotationData),
+    GreaterThan(&'a AnnotationData),
+    GreaterThanOrEqual(&'a AnnotationData),
+    LessThan(&'a AnnotationData),
+    LessThanOrEqual(&'a AnnotationData),
+    Key(&'a DataKey),
+    DataSet(&'a AnnotationDataSet),
+    Not(Box<DataOperator<'a>>),
+}
+
+impl AnnotationData {
+    pub fn test(&self, operator: &DataOperator) -> bool {
+        match operator {
+            DataOperator::Equals(other) => {
+                self.intid == other.intid && self.part_of_set == other.part_of_set
+            }
+            _ => panic!("data operator not implemented yet"),
+        }
+    }
+}

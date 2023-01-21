@@ -15,7 +15,9 @@ use crate::annotationdataset::{
 use crate::datakey::DataKey;
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{ApplySelector, Offset, Selector, SelectorIter, SelectorIterItem};
-use crate::textselection::{OffsetOperator, TextRelationMap, TextSelection, TextSelectionOperator};
+use crate::textselection::{
+    TextRelationMap, TextRelationOperator, TextSelection, TextSelectionOperator,
+};
 
 use crate::error::*;
 use crate::types::*;
@@ -703,7 +705,7 @@ impl AnnotationStore {
     pub fn annotations_by_offset_operator<'a>(
         &'a self,
         resource_handle: TextResourceHandle,
-        offset: &OffsetOperator,
+        offset: &TextRelationOperator,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
         let resource: Option<&TextResource> = self.get(resource_handle).ok();
         if resource.is_none() {
