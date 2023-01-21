@@ -146,6 +146,14 @@ where
             }
         }
     }
+
+    pub fn get(&self, x: A) -> Option<&Vec<B>> {
+        self.data.get(x.unwrap())
+    }
+
+    pub fn count(&self, x: A) -> usize {
+        self.data.get(x.unwrap()).map(|v| v.len()).unwrap_or(0)
+    }
 }
 
 impl<A, B> Extend<(A, B)> for RelationMap<A, B>
@@ -194,6 +202,22 @@ where
             self.data.resize_with(x.unwrap() + 1, Default::default);
         }
         self.data[x.unwrap()].insert(y, z);
+    }
+
+    pub fn get(&self, x: A, y: B) -> Option<&Vec<C>> {
+        if let Some(v) = self.data.get(x.unwrap()) {
+            v.get(y)
+        } else {
+            None
+        }
+    }
+
+    pub fn count(&self, x: A, y: B) -> usize {
+        if let Some(v) = self.data.get(x.unwrap()) {
+            v.get(y).map(|v| v.len()).unwrap_or(0)
+        } else {
+            0
+        }
     }
 }
 

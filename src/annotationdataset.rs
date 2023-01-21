@@ -387,13 +387,18 @@ impl AnnotationDataSet {
         <Self as StoreFor<DataKey>>::resolve_id(self, id)
     }
 
-    ///Iteratest over all the data ([`AnnotationData`]) in this set, returns references
+    ///Iterates over all the data ([`AnnotationData`]) in this set, returns references
     pub fn data(&self) -> StoreIter<AnnotationData> {
         <Self as StoreFor<AnnotationData>>::iter(self)
     }
 
-    ///Iteratest over all the keys in this set, returns references
+    ///Iterates over all the keys in this set, returns references
     pub fn keys(&self) -> StoreIter<DataKey> {
         <Self as StoreFor<DataKey>>::iter(self)
+    }
+
+    /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
+    pub fn data_by_key(&self, key_handle: DataKeyHandle) -> Option<&Vec<AnnotationDataHandle>> {
+        self.key_data_map.get(key_handle)
     }
 }

@@ -12,7 +12,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
-use crate::datakey::DataKey;
+use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{
     ApplySelector, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
@@ -646,12 +646,23 @@ impl AnnotationStore {
         )
     }
 
+    /// Returns all annotations that reference any text selection in the resource.
+    /// Use [`annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
     pub fn annotations_by_resource(
         &self,
         resource_handle: TextResourceHandle,
-    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
-        //TODO: implement
-        panic!("annotations_by_resource() not implemented yet");
+    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
+        if let Some(textselection_annotationmap) =
+            self.textrelationmap.get_by_resource(resource_handle)
+        {
+            Some(Box::new(
+                textselection_annotationmap
+                    .values()
+                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
+            ))
+        } else {
+            None
+        }
     }
 
     /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
@@ -661,9 +672,7 @@ impl AnnotationStore {
         &self,
         resource_handle: TextResourceHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
-        self.resource_annotation_map
-            .data
-            .get(resource_handle.unwrap())
+        self.resource_annotation_map.get(resource_handle)
     }
 
     /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
@@ -723,9 +732,29 @@ impl AnnotationStore {
         &self,
         annotation_handle: AnnotationHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
-        self.annotation_annotation_map
+        self.annotation_annotation_map.get(annotation_handle)
+    }
+
+    /// Returns all annotations that reference any keys/data in an annotationset
+    /// Use [`annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
+    pub fn annotations_by_annotationset(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
+        if let Some(data_annotationmap) = self
+            .dataset_data_annotation_map
             .data
-            .get(annotation_handle.unwrap())
+            .get(annotationset_handle.unwrap())
+        {
+            Some(Box::new(
+                data_annotationmap
+                    .data
+                    .iter()
+                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
+            ))
+        } else {
+            None
+        }
     }
 
     /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
@@ -734,9 +763,64 @@ impl AnnotationStore {
         &self,
         annotationset_handle: AnnotationDataSetHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
-        self.dataset_annotation_map
-            .data
-            .get(annotationset_handle.unwrap())
+        self.dataset_annotation_map.get(annotationset_handle)
+    }
+
+    /// Find all annotations reference by data. This is a lookup in the reverse index and return a reference.
+    pub fn annotations_by_data(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+        data_handle: AnnotationDataHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.dataset_data_annotation_map
+            .get(annotationset_handle, data_handle)
+    }
+
+    /// Find all annotations referenced by key
+    pub fn annotations_by_key(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+        datakey_handle: DataKeyHandle,
+    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
+        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
+        if let Some(dataset) = dataset {
+            if let Some(data) = dataset.data_by_key(datakey_handle) {
+                Some(Box::new(
+                    data.iter()
+                        .filter_map(move |dataitem| {
+                            self.annotations_by_data(annotationset_handle, *dataitem)
+                        })
+                        .flat_map(|v| v.iter().copied()), //(only the handles are copied)
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Count annotations by key
+    pub fn count_annotations_by_key(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+        datakey_handle: DataKeyHandle,
+    ) -> usize {
+        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
+        if let Some(dataset) = dataset {
+            if let Some(data) = dataset.data_by_key(datakey_handle) {
+                data.iter()
+                    .map(|dataitem| {
+                        self.dataset_data_annotation_map
+                            .count(annotationset_handle, *dataitem)
+                    })
+                    .sum()
+            } else {
+                0
+            }
+        } else {
+            0
+        }
     }
 
     /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use [`iter_text_selection`] instead for those.
