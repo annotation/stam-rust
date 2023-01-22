@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::slice::Iter;
 
 use crate::annotation::AnnotationHandle;
 use crate::error::StamError;
@@ -93,105 +94,53 @@ impl TextSelection {
     }
 }
 
-/// A TextSelectionSet holds one or more [`TextSelection`] items, in FIFO order. This structure is optimized to be
-/// quickest (no heap allocation) when there is only one TextSelection (which is often) in it.
+/// A TextSelectionSet holds one or more [`TextSelection`] items
+/// It may also optionally carry the TextResourceHandle and AnnotationHandle associated to reference the source of the TextSelection
 #[derive(Clone, Debug)]
 pub struct TextSelectionSet {
-    head: TextSelection,
-    tail: Option<Box<TextSelectionSet>>,
+    data: Vec<(
+        TextSelection,
+        Option<TextResourceHandle>,
+        Option<AnnotationHandle>,
+    )>,
+    sorted: bool, //TODO implement
 }
 
 impl From<TextSelection> for TextSelectionSet {
     fn from(other: TextSelection) -> Self {
-        Self {
-            head: other,
-            tail: None,
-        }
-    }
-}
-
-impl TextSelectionSet {
-    pub fn new(textselection: TextSelection) -> Self {
-        Self {
-            head: textselection,
-            tail: None,
-        }
-    }
-
-    pub fn push(self, textselection: TextSelection) -> Self {
-        Self {
-            head: textselection,
-            tail: Some(Box::new(self)),
-        }
-    }
-
-    pub fn pop(self) -> (TextSelection, Option<Self>) {
-        if let Some(tail) = self.tail {
-            (
-                self.head,
-                Some(Self {
-                    head: tail.head,
-                    tail: tail.tail,
-                }),
-            )
-        } else {
-            (self.head, None)
-        }
-    }
-
-    pub fn head(&self) -> &TextSelection {
-        &self.head
-    }
-
-    pub fn tail(&self) -> Option<&Box<TextSelectionSet>> {
-        self.tail.as_ref()
-    }
-
-    pub fn iter<'a>(&'a self) -> TextSelectionSetIter<'a> {
-        TextSelectionSetIter {
-            set: Some(self),
-            next: None,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        let mut count = 0;
-        let mut tail = self.tail();
-        loop {
-            if tail.is_some() {
-                count += 1;
-                tail = tail.unwrap().tail();
-            } else {
-                break;
-            }
-        }
-        count
+        Self::new(other, None, None)
     }
 }
 
 pub struct TextSelectionSetIter<'a> {
-    set: Option<&'a TextSelectionSet>,
-    next: Option<Box<TextSelectionSetIter<'a>>>,
+    iter: Iter<
+        'a,
+        (
+            TextSelection,
+            Option<TextResourceHandle>,
+            Option<AnnotationHandle>,
+        ),
+    >,
+    count: usize,
+    len: usize,
 }
 
 impl<'a> Iterator for TextSelectionSetIter<'a> {
-    type Item = &'a TextSelection;
+    type Item = &'a (
+        TextSelection,
+        Option<TextResourceHandle>,
+        Option<AnnotationHandle>,
+    );
+
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next.is_some() {
-            self.next.as_mut().unwrap().next()
-        } else if let Some(set) = self.set {
-            if let Some(tail) = set.tail() {
-                self.next = Some(Box::new(TextSelectionSetIter {
-                    set: Some(tail.as_ref()),
-                    next: None,
-                }));
-            }
-            let head = set.head();
-            self.set = None;
-            Some(head)
-        } else {
-            None
-        }
+        self.count += 1;
+        self.iter.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let l = self.len - self.count;
+        //the lower-bound may be an overestimate (if there are deleted items)
+        (l, Some(l))
     }
 }
 
@@ -276,121 +225,268 @@ pub enum TextSelectionOperator<'a> {
     /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
     Equals(&'a TextSelectionSet),
 
-    /// A TextSelections in A that overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
+    /// All items in both sets must cover the exact same TextSelection
+    EqualsAll(&'a TextSelectionSet),
+
+    /// Each TextSelections in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
     Overlaps(&'a TextSelectionSet),
+
+    /// Each TextSelections in A overlaps with all TextSelection in B (cf. textfabric's `&&`), commutative
+    OverlapsAll(&'a TextSelectionSet),
 
     /// All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
     Embeds(&'a TextSelectionSet),
 
+    /// All TextSelections in B are embedded by all TextSelection in A (cf. textfabric's `[[`)
+    EmbedsAll(&'a TextSelectionSet),
+
     /// All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
     Embedded(&'a TextSelectionSet),
 
-    /// All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
+    /// All TextSelections in A are embedded by all TextSelection in B (cf. textfabric's `]]`)
+    EmbeddedAll(&'a TextSelectionSet),
+
+    /// Each TextSelections in A precedes (comes before) a textselection in B
     Precedes(&'a TextSelectionSet),
 
-    /// All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
+    /// All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
+    PrecedesAll(&'a TextSelectionSet),
+
+    /// Each TextSeleciton In A succeeds (comes after) a textselection in B
     Succeeds(&'a TextSelectionSet),
+
+    /// All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
+    SucceedsAll(&'a TextSelectionSet),
+
+    /// Each TextSelection in A is ends where at least one TextSelection in B begins.
+    LeftAdjacent(&'a TextSelectionSet),
 
     /// The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
     //TODO: add mindistance,maxdistance arguments
-    LeftAdjacent(&'a TextSelectionSet),
+    LeftAdjacentAll(&'a TextSelectionSet),
+
+    /// Each TextSelection in A is begis where at least one TextSelection in A ends.
+    RightAdjacent(&'a TextSelectionSet),
 
     /// The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
     //TODO: add mindistance,maxdistance argument
-    RightAdjacent(&'a TextSelectionSet),
+    RightAdjacentAll(&'a TextSelectionSet),
 
-    /// The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
+    /// Each TextSelection in A starts where a TextSelection in B starts
     SameBegin(&'a TextSelectionSet),
 
-    /// The rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `:=`)
+    /// The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
+    SameBeginAll(&'a TextSelectionSet),
+
+    /// Each TextSelection in A ends where a TextSelection in B ends
     SameEnd(&'a TextSelectionSet),
+
+    /// The rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `:=`)
+    SameEndAll(&'a TextSelectionSet),
+
+    /// Each TextSelection in A is in B as well, this is similar to Equals but allows
+    /// for set B having unmatched items
+    InSet(&'a TextSelectionSet),
 
     /// The leftmost TextSelection in A starts where the leftmost TextSelection in A starts  and
     /// the rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `::`)
-    SameRange(&'a TextSelectionSet),
+    SameRangeAll(&'a TextSelectionSet),
 
     Not(Box<TextSelectionOperator<'a>>),
 }
 
 impl TextSelectionSet {
+    pub fn new(
+        textselection: TextSelection,
+        resource: Option<TextResourceHandle>,
+        annotation: Option<AnnotationHandle>,
+    ) -> Self {
+        Self {
+            data: vec![(textselection, resource, annotation)],
+            sorted: false,
+        }
+    }
+
+    pub fn insert(
+        &mut self,
+        textselection: TextSelection,
+        resource: Option<TextResourceHandle>,
+        annotation: Option<AnnotationHandle>,
+    ) {
+        let elem = (textselection, resource, annotation);
+        if self.sorted {
+            //once sorted, we respect the order
+            match self.data.binary_search(&elem) {
+                Ok(pos) => {} //element already exists
+                Err(pos) => self.data.insert(pos, elem),
+            };
+        } else {
+            self.data.push(elem);
+        }
+    }
+
+    /// Iterate over the store
+    pub fn iter<'a>(&'a self) -> TextSelectionSetIter<'a> {
+        TextSelectionSetIter {
+            iter: self.data.iter(),
+            count: 0,
+            len: self.data.len(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
     /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
     pub fn test(&self, operator: &TextSelectionOperator) -> bool {
+        if self.is_empty() {
+            return false;
+        }
         match operator {
             TextSelectionOperator::Equals(otherset) => {
                 if self.len() != otherset.len() {
                     //each item must have a counterpart so the sets must be equal length
                     return false;
                 }
-                //all of the items in this set must match with an item in the otherset
-                for item in self.iter() {
+                //ALL of the items in this set must match with ANY item in the otherset
+                for (item, _, _) in self.iter() {
                     if !item.test(operator) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::Overlaps(_) => {
-                //any of the items in this set must match with any item in the otherset
-                for item in self.iter() {
-                    if item.test(operator) {
-                        return true;
+            TextSelectionOperator::Overlaps(_)
+            | TextSelectionOperator::Embeds(_)
+            | TextSelectionOperator::Embedded(_)
+            | TextSelectionOperator::Precedes(_)
+            | TextSelectionOperator::Succeeds(_)
+            | TextSelectionOperator::LeftAdjacent(_)
+            | TextSelectionOperator::RightAdjacent(_)
+            | TextSelectionOperator::SameBegin(_)
+            | TextSelectionOperator::SameEnd(_)
+            | TextSelectionOperator::InSet(_) => {
+                // ALL of the items in this set must match with ANY item in the otherset
+                // This is a weaker form of Equals (could have also been called SameRange)
+                for (item, _, _) in self.iter() {
+                    if !item.test(operator) {
+                        return false;
                     }
                 }
-                false
+                true
+            }
+            TextSelectionOperator::OverlapsAll(_)
+            | TextSelectionOperator::EmbedsAll(_)
+            | TextSelectionOperator::EmbeddedAll(_)
+            | TextSelectionOperator::EqualsAll(_) => {
+                //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
+                for (item, _, _) in self.iter() {
+                    if !item.test(operator) {
+                        return false;
+                    }
+                }
+                true
             }
             TextSelectionOperator::Embeds(otherset) => {
                 otherset.test(&TextSelectionOperator::Embedded(self))
             }
-            TextSelectionOperator::Embedded(_)
-            | TextSelectionOperator::Precedes(_)
-            | TextSelectionOperator::Succeeds(_) => {
-                //all of the items in this set must be embedded by/precede/succeed any item in the other
-                for item in self.iter() {
-                    if !item.test(operator) {
-                        return false;
-                    }
-                }
-                true
+            //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
+            TextSelectionOperator::LeftAdjacentAll(_) | TextSelectionOperator::PrecedesAll(_) => {
+                self.rightmost().unwrap().test(operator)
             }
-            TextSelectionOperator::LeftAdjacent(_) => self.rightmost().test(operator),
-            TextSelectionOperator::RightAdjacent(_) => self.leftmost().test(operator),
-            TextSelectionOperator::SameBegin(_) => self.leftmost().test(operator),
-            TextSelectionOperator::SameEnd(_) => self.rightmost().test(operator),
-            TextSelectionOperator::SameRange(_) => {
-                self.leftmost().test(operator) && self.rightmost().test(operator)
+            TextSelectionOperator::RightAdjacentAll(_) | TextSelectionOperator::SucceedsAll(_) => {
+                self.leftmost().unwrap().test(operator)
+            }
+            TextSelectionOperator::SameBeginAll(_) => self.leftmost().unwrap().test(operator),
+            TextSelectionOperator::SameEndAll(_) => self.rightmost().unwrap().test(operator),
+            TextSelectionOperator::SameRangeAll(_) => {
+                self.leftmost().unwrap().test(operator) && self.rightmost().unwrap().test(operator)
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
 
-    /// Returns the left-most TextSelection (the one with the lowest start offset) in the set.
-    pub fn leftmost(&self) -> &TextSelection {
-        let mut leftmost: Option<&TextSelection> = None;
-        for item in self.iter() {
-            if leftmost.is_none() || item.beginbyte < leftmost.unwrap().beginbyte {
-                leftmost = Some(item);
+    /// Intersect this set (A) with another (B). Modifies this set so only the elements
+    /// present in both are left after the operation.
+    pub fn intersect_mut(&mut self, other: &TextSelectionSet) {
+        self.test_intersect_mut(&TextSelectionOperator::InSet(other))
+    }
+
+    /// Intersect this set (A) with another (B) using a specific test operator (which also includes set B). Modifies this set so only the elements
+    /// present in both are left after the operation.
+    pub fn test_intersect_mut(&mut self, operator: &TextSelectionOperator) {
+        self.data.retain(|(item, _, _)| item.test(operator));
+    }
+
+    /// Intersect this set (A) with another (B) and returns the new intersection set.
+    pub fn intersect(&mut self, other: &TextSelectionSet) -> Self {
+        self.test_intersect(&TextSelectionOperator::InSet(other))
+    }
+
+    /// Intersect this set (A) with another (B) using a specific operator (which also includes set B) and returns the new intersection set.
+    pub fn test_intersect(&mut self, operator: &TextSelectionOperator) -> Self {
+        let mut intersection = Self {
+            data: vec![],
+            sorted: self.sorted,
+        };
+        for (item, resource, annotation) in self.iter() {
+            if item.test(operator) {
+                intersection.insert(*item, *resource, *annotation);
             }
         }
-        if let Some(leftmost) = leftmost {
-            leftmost
+        intersection
+    }
+
+    /// Returns the left-most TextSelection (the one with the lowest start offset) in the set.
+    pub fn leftmost(&self) -> Option<&TextSelection> {
+        if self.is_empty() {
+            None
         } else {
-            panic!("There must always be a leftmost item");
+            if self.sorted {
+                self.data.get(0).map(|(item, _, _)| item)
+            } else {
+                let mut leftmost: Option<&TextSelection> = None;
+                for (item, _, _) in self.iter() {
+                    if leftmost.is_none() || item.beginbyte < leftmost.unwrap().beginbyte {
+                        leftmost = Some(item);
+                    }
+                }
+                leftmost
+            }
         }
     }
 
     /// Returns the right-most TextSelection (the one with the highest end offset) in the set.
-    pub fn rightmost(&self) -> &TextSelection {
-        let mut rightmost: Option<&TextSelection> = None;
-        for item in self.iter() {
-            if rightmost.is_none() || item.endbyte > rightmost.unwrap().endbyte {
-                rightmost = Some(item);
+    pub fn rightmost(&self) -> Option<&TextSelection> {
+        if self.is_empty() {
+            None
+        } else {
+            if self.sorted {
+                self.data.get(self.data.len() - 1).map(|(item, _, _)| item)
+            } else {
+                let mut rightmost: Option<&TextSelection> = None;
+                for (item, _, _) in self.iter() {
+                    if rightmost.is_none() || item.endbyte > rightmost.unwrap().endbyte {
+                        rightmost = Some(item);
+                    }
+                }
+                rightmost
             }
         }
-        if let Some(rightmost) = rightmost {
-            rightmost
-        } else {
-            panic!("There must always be a rightmost item");
+    }
+
+    /// Sorts the TextSelections in this set in  canonical text order. This needs to be done only once.
+    /// Once the set is sorted, future inserts will retain the order (and therefore be slower)
+    pub fn sort(&mut self) {
+        if !self.sorted {
+            self.data.sort_unstable();
+            self.sorted = true;
         }
     }
 }
@@ -402,15 +498,28 @@ impl TextSelection {
         match operator {
             TextSelectionOperator::Equals(otherset) => {
                 //item must be equal to ANY of the items in the other set
-                for other in otherset.iter() {
+                for (other, _, _) in otherset.iter() {
                     if self == other {
                         return true;
                     }
                 }
                 false
             }
+            TextSelectionOperator::EqualsAll(otherset) => {
+                //item must be equal to ALL of the items in the other set
+                if otherset.is_empty() {
+                    return false;
+                }
+                for (other, _, _) in otherset.iter() {
+                    if self == other {
+                        return false;
+                    }
+                }
+                true
+            }
             TextSelectionOperator::Overlaps(otherset) => {
-                for other in otherset.iter() {
+                //item must be equal overlap with any of the items in the other set
+                for (other, _, _) in otherset.iter() {
                     if (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
                         || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte)
                         || (other.beginbyte <= self.beginbyte && other.endbyte >= self.endbyte)
@@ -421,20 +530,77 @@ impl TextSelection {
                 }
                 false
             }
-            TextSelectionOperator::Embeds(otherset) => otherset.test(
-                &TextSelectionOperator::Embedded(&TextSelectionSet::new(*self)),
-            ),
+            TextSelectionOperator::OverlapsAll(otherset) => {
+                //item must be equal overlap with all of the items in the other set
+                if otherset.is_empty() {
+                    return false;
+                }
+                for (other, _, _) in otherset.iter() {
+                    if !((other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
+                        || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte)
+                        || (other.beginbyte <= self.beginbyte && other.endbyte >= self.endbyte)
+                        || (self.beginbyte <= other.beginbyte && self.endbyte >= other.endbyte))
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
+            TextSelectionOperator::Embeds(otherset) => {
+                // TextSelection embeds an item in other set
+                for (other, _, _) in otherset.iter() {
+                    if other.beginbyte >= self.beginbyte && other.endbyte <= self.endbyte {
+                        return true;
+                    }
+                }
+                false
+            }
+            TextSelectionOperator::EmbedsAll(otherset) => {
+                // TextSelection embeds all items in other
+                if otherset.is_empty() {
+                    return false;
+                }
+                for (other, _, _) in otherset.iter() {
+                    if !(other.beginbyte >= self.beginbyte && other.endbyte <= self.endbyte) {
+                        return false;
+                    }
+                }
+                true
+            }
             TextSelectionOperator::Embedded(otherset) => {
-                // all in A is embedded in B
-                for other in otherset.iter() {
+                // TextSelection is embedded by an item in B
+                for (other, _, _) in otherset.iter() {
                     if self.beginbyte >= other.beginbyte && self.endbyte <= other.endbyte {
                         return true;
                     }
                 }
                 false
             }
+            TextSelectionOperator::EmbeddedAll(otherset) => {
+                // each item in A is embedded by all items in B
+                if otherset.is_empty() {
+                    return false;
+                }
+                for (other, _, _) in otherset.iter() {
+                    if !(self.beginbyte >= other.beginbyte && self.endbyte <= other.endbyte) {
+                        return false;
+                    }
+                }
+                true
+            }
             TextSelectionOperator::Precedes(otherset) => {
-                for other in otherset.iter() {
+                for (other, _, _) in otherset.iter() {
+                    if self.endbyte <= other.beginbyte {
+                        return true;
+                    }
+                }
+                false
+            }
+            TextSelectionOperator::PrecedesAll(otherset) => {
+                if otherset.is_empty() {
+                    return false;
+                }
+                for (other, _, _) in otherset.iter() {
                     if self.endbyte > other.beginbyte {
                         return false;
                     }
@@ -442,7 +608,18 @@ impl TextSelection {
                 true
             }
             TextSelectionOperator::Succeeds(otherset) => {
-                for other in otherset.iter() {
+                for (other, _, _) in otherset.iter() {
+                    if self.beginbyte >= other.endbyte {
+                        return true;
+                    }
+                }
+                false
+            }
+            TextSelectionOperator::SucceedsAll(otherset) => {
+                if otherset.is_empty() {
+                    return false;
+                }
+                for (other, _, _) in otherset.iter() {
                     if self.beginbyte < other.endbyte {
                         return false;
                     }
@@ -450,8 +627,19 @@ impl TextSelection {
                 true
             }
             TextSelectionOperator::LeftAdjacent(otherset) => {
+                for (other, _, _) in otherset.iter() {
+                    if self.endbyte == other.beginbyte {
+                        return true;
+                    }
+                }
+                false
+            }
+            TextSelectionOperator::LeftAdjacentAll(otherset) => {
+                if otherset.is_empty() {
+                    return false;
+                }
                 let mut leftmost = None;
-                for other in otherset.iter() {
+                for (other, _, _) in otherset.iter() {
                     if leftmost.is_none() || other.beginbyte < leftmost.unwrap() {
                         leftmost = Some(other.beginbyte);
                     }
@@ -459,8 +647,19 @@ impl TextSelection {
                 Some(self.endbyte) == leftmost
             }
             TextSelectionOperator::RightAdjacent(otherset) => {
+                for (other, _, _) in otherset.iter() {
+                    if other.endbyte == self.beginbyte {
+                        return true;
+                    }
+                }
+                false
+            }
+            TextSelectionOperator::RightAdjacentAll(otherset) => {
+                if otherset.is_empty() {
+                    return false;
+                }
                 let mut rightmost = None;
-                for other in otherset.iter() {
+                for (other, _, _) in otherset.iter() {
                     if rightmost.is_none() || other.endbyte > rightmost.unwrap() {
                         rightmost = Some(other.endbyte);
                     }
@@ -468,16 +667,75 @@ impl TextSelection {
                 Some(self.beginbyte) == rightmost
             }
             TextSelectionOperator::SameBegin(otherset) => {
-                self.beginbyte == otherset.leftmost().beginbyte()
+                for (other, _, _) in otherset.iter() {
+                    if self.beginbyte == other.beginbyte {
+                        return true;
+                    }
+                }
+                false
+            }
+            TextSelectionOperator::SameBeginAll(otherset) => {
+                if otherset.is_empty() {
+                    return false;
+                }
+                self.beginbyte == otherset.leftmost().unwrap().beginbyte()
             }
             TextSelectionOperator::SameEnd(otherset) => {
-                self.endbyte == otherset.rightmost().endbyte()
+                for (other, _, _) in otherset.iter() {
+                    if self.endbyte == other.endbyte {
+                        return true;
+                    }
+                }
+                false
             }
-            TextSelectionOperator::SameRange(otherset) => {
-                self.beginbyte == otherset.leftmost().beginbyte()
-                    && self.endbyte == otherset.rightmost().endbyte()
+            TextSelectionOperator::SameEndAll(otherset) => {
+                if otherset.is_empty() {
+                    return false;
+                }
+                self.endbyte == otherset.rightmost().unwrap().endbyte()
+            }
+            TextSelectionOperator::SameRangeAll(otherset) => {
+                if otherset.is_empty() {
+                    return false;
+                }
+                self.beginbyte == otherset.leftmost().unwrap().beginbyte()
+                    && self.endbyte == otherset.rightmost().unwrap().endbyte()
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
+        }
+    }
+}
+
+impl Extend<TextSelection> for TextSelectionSet {
+    fn extend<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<Item = TextSelection>,
+    {
+        for x in iter {
+            self.insert(x, None, None);
+        }
+    }
+}
+
+impl
+    Extend<(
+        TextSelection,
+        Option<TextResourceHandle>,
+        Option<AnnotationHandle>,
+    )> for TextSelectionSet
+{
+    fn extend<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<
+            Item = (
+                TextSelection,
+                Option<TextResourceHandle>,
+                Option<AnnotationHandle>,
+            ),
+        >,
+    {
+        for (textselection, resource, annotation) in iter {
+            self.insert(textselection, resource, annotation);
         }
     }
 }
