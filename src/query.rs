@@ -35,25 +35,38 @@ impl<'store> AnnotationSelectionSet<'store> {
     }
 }
 
-/// Determines a conditional test to filter annotations
-/*
 pub enum AnnotationConstraintBuilder<'a> {
     Id(&'a str),
+
+    //
     AnnotationSet(&'a str),
-    Data(&'a DataOperator<'a>),
-    Key(&'a str),
-    InSelectionSet(&'a AnnotationSelectionSet),
+
+    ///Annotation must have this associated data
+    Data {
+        dataset: &'a str,
+        key: &'a str,
+        operator: &'a str,
+        data: &'a str,
+    },
+
+    ///Annotation must have this key (regardless of value)
+    Key {
+        dataset: &'a str,
+        key: &'a str
+    },
+    InSelectionSet(&'a str),
     Resource(&'a str),
     Text(&'a str),
-    TextRelation(&'a str, TextRelationOperator),
+    TextRelation(&'a str),
     TargetResource(TextResourceHandle),
+    /*
     References(&'a AnnotationSelectionSet),
     ReferencedBy(&'a AnnotationSelectionSet),
     And(Vec<AnnotationConstraintBuilder<'a>>),
     Or(Vec<AnnotationConstraintBuilder<'a>>),
     Not(Box<AnnotationConstraintBuilder<'a>>),
+    */
 }
-*/
 
 /// This is the realized/processed form of an [`AnnotationFilter`]
 pub enum AnnotationConstraint<'a, 'store> {
@@ -72,15 +85,15 @@ impl<'a, 'store> AnnotationConstraint<'a, 'store> {
     pub fn result_size(&'a self, store: &'store AnnotationStore) -> Option<usize> {
         match self {
             Self::Id(_) => Some(1),
-            Self::InSelectionSet(set) => Some(set.len()),
-            _ => None,
+            Self::InSelectionSet(set) => Some(set.len()),da            _ => None,
         }
     }
 
     pub fn cost(&'a self) -> usize {
         match self {
             Self::Id(_) => 1,
-            Self::InSelectionSet(set) => 1,
+            Self::InSelectionSet(_) => 1,
+            Self::Data(_, _) => 1,
             _ => panic!("not implemented yet!"), // TODO
         }
     }
