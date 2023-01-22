@@ -37,7 +37,7 @@ impl Serialize for DataKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DataKeyHandle(u16);
 impl Handle for DataKeyHandle {
     fn new(intid: usize) -> Self {

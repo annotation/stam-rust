@@ -40,7 +40,7 @@ pub struct Annotation {
     intid: Option<AnnotationHandle>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnotationHandle(u32);
 impl Handle for AnnotationHandle {
     fn new(intid: usize) -> Self {

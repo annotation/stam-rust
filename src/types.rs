@@ -49,7 +49,9 @@ impl TryFrom<isize> for Cursor {
 /// The handle trait is implemented on various handle types. They have in common that refer to the internal id
 /// a [`Storable`] item in a [`Store`] by index. Types implementing this are lightweigt and do not borrow anything, they can be passed and copied freely.
 // To get an actual reference to the item from a handle type, call the `get()`` method on the store that holds it.
-pub trait Handle: Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Hash {
+pub trait Handle:
+    Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Ord + Hash
+{
     /// Create a new handle for an internal ID. You shouldn't need to use this as handles will always be generated for you by higher-level functions.
     fn new(intid: usize) -> Self;
     /// Returns the internal index for this handle

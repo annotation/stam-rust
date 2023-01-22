@@ -35,7 +35,7 @@ pub struct AnnotationData {
     pub(crate) part_of_set: Option<AnnotationDataSetHandle>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnotationDataHandle(u32);
 impl Handle for AnnotationDataHandle {
     fn new(intid: usize) -> Self {

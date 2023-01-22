@@ -496,7 +496,7 @@ impl TextSelection {
     /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
     pub fn test(&self, operator: &TextSelectionOperator) -> bool {
         match operator {
-            TextSelectionOperator::Equals(otherset) => {
+            TextSelectionOperator::Equals(otherset) | TextSelectionOperator::InSet(otherset) => {
                 //item must be equal to ANY of the items in the other set
                 for (other, _, _) in otherset.iter() {
                     if self == other {

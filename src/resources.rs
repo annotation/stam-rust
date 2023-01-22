@@ -67,7 +67,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TextResourceHandle(u32);
 impl Handle for TextResourceHandle {
     fn new(intid: usize) -> Self {

@@ -86,7 +86,7 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct AnnotationDataSetHandle(u16);
 impl Handle for AnnotationDataSetHandle {
     fn new(intid: usize) -> Self {
