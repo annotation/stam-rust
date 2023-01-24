@@ -18,7 +18,7 @@ use crate::selector::{
     ApplySelector, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
 };
 use crate::textselection::{
-    TextRelationMap, TextRelationOperator, TextSelection, TextSelectionOperator,
+    TextRelationMap, TextSelection, TextSelectionOperator, TextSelectionOperatorKind,
 };
 
 use crate::error::*;
@@ -714,11 +714,12 @@ impl AnnotationStore {
     pub fn annotations_by_offset_operator(
         &self,
         resource_handle: TextResourceHandle,
-        offset: &TextRelationOperator,
+        operator: TextSelectionOperatorKind,
+        offset: &Offset,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
         let resource: Option<&TextResource> = self.get(resource_handle).ok();
         resource?;
-        if let Ok(textselection) = resource.unwrap().text_selection(&offset.offset()) {
+        if let Ok(textselection) = resource.unwrap().text_selection(offset) {
             //TODO: implement
             panic!("annotations_by_offset_overlap() not implemented yet");
         } else {

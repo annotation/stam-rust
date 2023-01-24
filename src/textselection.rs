@@ -299,6 +299,33 @@ pub enum TextSelectionOperator<'a> {
     Not(Box<TextSelectionOperator<'a>>),
 }
 
+#[derive(Debug, Clone)]
+pub enum TextSelectionOperatorKind {
+    Equals,
+    EqualsAll,
+    Overlaps,
+    OverlapsAll,
+    Embeds,
+    EmbedsAll,
+    Embedded,
+    EmbeddedAll,
+    Precedes,
+    PrecedesAll,
+    Succeeds,
+    SucceedsAll,
+    LeftAdjacent,
+    LeftAdjacentAll,
+    RightAdjacent,
+    RightAdjacentAll,
+    SameBegin,
+    SameBeginAll,
+    SameEnd,
+    SameEndAll,
+    InSet,
+    SameRangeAll,
+    Not,
+}
+
 impl TextSelectionSet {
     pub fn new(
         textselection: TextSelection,
@@ -744,61 +771,32 @@ impl
     }
 }
 
-/// The TextRelationOperator, simply put, allows comparison of two text regions, specified by their offset. It
-/// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
-/// [`TextSelection`] instances (the realisation once an [`Offset`] is resolved) can be.
-///
-/// This enum encapsulates both the operator as well the the object of the operation (another
-/// `Offset`).
-///
-/// To apply it in e.g. a query, it is first converted to a [`TextSelectionOperator`].
-#[derive(Debug, Clone)]
-pub enum TextRelationOperator {
-    /// Offsets are equal
-    Equals(Offset),
-
-    /// Offset A that overlaps with offsets B (cf. textfabric's `&&`), commutative
-    Overlaps(Offset),
-
-    /// Offset B is embedded in a offset in A (cf. textfabric's `[[`)
-    Embeds(Offset),
-
-    /// Offset A is embedded in a offset in B (cf. textfabric's `[[`)
-    Embedded(Offset),
-
-    /// Offset A precedes offset B (come before) all offsets in B. There is no overlap (cf. textfabric's `<<`)
-    Precedes(Offset),
-
-    /// Offset A succeeds offset B (cf. textfabric's `>>`)
-    Succeeds(Offset),
-
-    // Offset A is immediately to the left of offset B
-    LeftAdjacent(Offset),
-
-    // Offset A is immediately to the right of offset B
-    RightAdjacent(Offset),
-
-    /// Offsets A and B have the same begin
-    SameBegin(Offset),
-
-    /// Offsets A and B have the same end
-    SameEnd(Offset),
-    //note: SameRange would be the same as Equals for this operator:
-}
-
-impl TextRelationOperator {
-    pub fn offset(&self) -> &Offset {
+impl<'a> TextSelectionOperator<'a> {
+    pub fn kind(&self) -> TextSelectionOperatorKind {
         match self {
-            Self::Equals(offset)
-            | Self::Overlaps(offset)
-            | Self::Embeds(offset)
-            | Self::Embedded(offset)
-            | Self::Precedes(offset)
-            | Self::Succeeds(offset)
-            | Self::LeftAdjacent(offset)
-            | Self::RightAdjacent(offset)
-            | Self::SameBegin(offset)
-            | Self::SameEnd(offset) => offset,
+            Self::Equals(_) => TextSelectionOperatorKind::Equals,
+            Self::EqualsAll(_) => TextSelectionOperatorKind::EqualsAll,
+            Self::Overlaps(_) => TextSelectionOperatorKind::Overlaps,
+            Self::OverlapsAll(_) => TextSelectionOperatorKind::OverlapsAll,
+            Self::Embeds(_) => TextSelectionOperatorKind::Embeds,
+            Self::EmbedsAll(_) => TextSelectionOperatorKind::EmbedsAll,
+            Self::Embedded(_) => TextSelectionOperatorKind::Embedded,
+            Self::EmbeddedAll(_) => TextSelectionOperatorKind::EmbeddedAll,
+            Self::Precedes(_) => TextSelectionOperatorKind::Precedes,
+            Self::PrecedesAll(_) => TextSelectionOperatorKind::PrecedesAll,
+            Self::Succeeds(_) => TextSelectionOperatorKind::Succeeds,
+            Self::SucceedsAll(_) => TextSelectionOperatorKind::SucceedsAll,
+            Self::LeftAdjacent(_) => TextSelectionOperatorKind::LeftAdjacent,
+            Self::LeftAdjacentAll(_) => TextSelectionOperatorKind::LeftAdjacentAll,
+            Self::RightAdjacent(_) => TextSelectionOperatorKind::RightAdjacent,
+            Self::RightAdjacentAll(_) => TextSelectionOperatorKind::RightAdjacentAll,
+            Self::SameBegin(_) => TextSelectionOperatorKind::SameBegin,
+            Self::SameBeginAll(_) => TextSelectionOperatorKind::SameBeginAll,
+            Self::SameEnd(_) => TextSelectionOperatorKind::SameEnd,
+            Self::SameEndAll(_) => TextSelectionOperatorKind::SameEndAll,
+            Self::SameRangeAll(_) => TextSelectionOperatorKind::SameRangeAll,
+            Self::InSet(_) => TextSelectionOperatorKind::InSet,
+            Self::Not(_) => TextSelectionOperatorKind::Not,
         }
     }
 }
