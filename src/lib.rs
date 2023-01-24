@@ -1,5 +1,6 @@
 extern crate chrono;
 extern crate serde;
+extern crate smallvec;
 
 pub mod annotation;
 pub mod annotationdata;

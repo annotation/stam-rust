@@ -800,6 +800,10 @@ impl AnnotationStore {
         }
     }
 
+    pub fn search(&self) {
+        //TODO: implement
+    }
+
     /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use [`iter_text_selection`] instead for those.
     ///
     /// If multiple AnnotationSelectors are involved, they can be passed as subselectors

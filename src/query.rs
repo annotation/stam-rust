@@ -38,7 +38,7 @@ impl<'store> AnnotationSelectionSet<'store> {
 pub enum AnnotationConstraintBuilder<'a> {
     Id(&'a str),
 
-    //
+    /// Annotation must reference 
     AnnotationSet(&'a str),
 
     ///Annotation must have this associated data
@@ -54,7 +54,10 @@ pub enum AnnotationConstraintBuilder<'a> {
         dataset: &'a str,
         key: &'a str
     },
+
+    /// Annotation must be in this selection set 
     InSelectionSet(&'a str),
+
     Resource(&'a str),
     Text(&'a str),
     TextRelation(&'a str),

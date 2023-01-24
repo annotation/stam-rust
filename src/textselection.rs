@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::slice::Iter;
 
+use smallvec::{smallvec, SmallVec};
+
 use crate::annotation::AnnotationHandle;
 use crate::error::StamError;
 use crate::resources::TextResourceHandle;
@@ -98,11 +100,13 @@ impl TextSelection {
 /// It may also optionally carry the TextResourceHandle and AnnotationHandle associated to reference the source of the TextSelection
 #[derive(Clone, Debug)]
 pub struct TextSelectionSet {
-    data: Vec<(
-        TextSelection,
-        Option<TextResourceHandle>,
-        Option<AnnotationHandle>,
-    )>,
+    data: SmallVec<
+        [(
+            TextSelection,
+            Option<TextResourceHandle>,
+            Option<AnnotationHandle>,
+        ); 8],
+    >,
     sorted: bool, //TODO implement
 }
 
@@ -302,7 +306,7 @@ impl TextSelectionSet {
         annotation: Option<AnnotationHandle>,
     ) -> Self {
         Self {
-            data: vec![(textselection, resource, annotation)],
+            data: smallvec![(textselection, resource, annotation)],
             sorted: false,
         }
     }
@@ -432,7 +436,7 @@ impl TextSelectionSet {
     /// Intersect this set (A) with another (B) using a specific operator (which also includes set B) and returns the new intersection set.
     pub fn test_intersect(&mut self, operator: &TextSelectionOperator) -> Self {
         let mut intersection = Self {
-            data: vec![],
+            data: smallvec![],
             sorted: self.sorted,
         };
         for (item, resource, annotation) in self.iter() {
