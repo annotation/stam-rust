@@ -75,8 +75,28 @@ pub enum Selector {
     /// Refers to an [`AnnotationDataSet`] as owned by an AnnotationStore
     /// Annotations using this selector can be considered metadata.
     DataSetSelector(AnnotationDataSetHandle),
-    /// Combines selectors
+
+    /// A selector that combines selectors, where the annotation applies to each target
+    /// individually.  without any relation between the different targets. Leaving one out or
+    /// adding one MUST NOT affect the interpretation of any of the others nor of the whole. This
+    /// is a way to express multiple annotations as one, a more condensed representation. This
+    /// selector SHOULD be used sparingly in your modelling, as it is generally RECOMMENDED to
+    /// simply use multiple [`Annotation'] instances instead. In STAM, even with multiple annotations, you
+    /// benefit from the fact that multiple annotations may share the same [`AnnotationData`], and can
+    /// therefore easily retrieve all annotations that share particular data.
     MultiSelector(Vec<Selector>),
+
+    /// A selector that consists of multiple other selectors, used to select more complex targets
+    /// that transcend the idea of a single simple selection. This MUST be interpreted as the
+    /// annotation applying equally to the conjunction as a whole, its parts being inter-dependent
+    /// and for any of them it goes that they MUST NOT be omitted for the annotation to make sense.
+    /// The interpretation of the whole relies on all its parts. Note that the order of the
+    /// selectors is not significant (use a [`Self::DirectionalSelector`] instead if they are). When there is
+    /// no dependency relation between the selectors, you MUST simply use multiple [`Annotation`] instances or a
+    /// [`Self::MultiSelector`] instead. When grouping things into a set, do use this [`Self::CompositeSelector'], as the
+    /// set as a whole is considered a composite entity.
+    CompositeSelector(Vec<Selector>),
+
     /// Combines selectors and expresseds a direction between two or more selectors in the exact order specified (from -> to)
     DirectionalSelector(Vec<Selector>),
 }
@@ -89,12 +109,14 @@ impl Selector {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// See [`Selector`], this is a simplified variant that carries only the type, not the target.
 pub enum SelectorKind {
     ResourceSelector,
     AnnotationSelector,
     TextSelector,
     DataSetSelector,
     MultiSelector,
+    CompositeSelector,
     DirectionalSelector,
 }
 
@@ -106,6 +128,7 @@ impl From<&Selector> for SelectorKind {
             Selector::TextSelector(_, _) => Self::TextSelector,
             Selector::DataSetSelector(_) => Self::DataSetSelector,
             Selector::MultiSelector(_) => Self::MultiSelector,
+            Selector::CompositeSelector(_) => Self::CompositeSelector,
             Selector::DirectionalSelector(_) => Self::DirectionalSelector,
         }
     }
@@ -125,6 +148,7 @@ pub enum SelectorBuilder {
     TextSelector(AnyId<TextResourceHandle>, Offset),
     DataSetSelector(AnyId<AnnotationDataSetHandle>),
     MultiSelector(Vec<SelectorBuilder>),
+    CompositeSelector(Vec<SelectorBuilder>),
     DirectionalSelector(Vec<SelectorBuilder>),
 }
 
@@ -148,6 +172,7 @@ enum SelectorJson {
         dataset: AnyId<AnnotationDataSetHandle>,
     },
     MultiSelector(Vec<SelectorBuilder>),
+    CompositeSelector(Vec<SelectorBuilder>),
     DirectionalSelector(Vec<SelectorBuilder>),
 }
 
@@ -165,6 +190,7 @@ impl From<SelectorJson> for SelectorBuilder {
             } => Self::AnnotationSelector(a, o),
             SelectorJson::DataSetSelector { dataset: s } => Self::DataSetSelector(s),
             SelectorJson::MultiSelector(v) => Self::MultiSelector(v),
+            SelectorJson::CompositeSelector(v) => Self::CompositeSelector(v),
             SelectorJson::DirectionalSelector(v) => Self::DirectionalSelector(v),
         }
     }
@@ -343,7 +369,9 @@ impl<'a> Iterator for SelectorIter<'a> {
                             });
                         }
                     }
-                    Selector::MultiSelector(v) | Selector::DirectionalSelector(v) => {
+                    Selector::MultiSelector(v)
+                    | Selector::CompositeSelector(v)
+                    | Selector::DirectionalSelector(v) => {
                         leaf = false;
                         for subselector in v.iter() {
                             self.subiterstack.push(SelectorIter {
