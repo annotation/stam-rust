@@ -19,6 +19,67 @@ pub enum DataValue {
     List(Vec<DataValue>),
 }
 
+pub enum DataOperator<'a> {
+    Null,
+    Equals(&'a str),
+    EqualsInt(isize),
+    EqualsFloat(f64),
+    True,
+    False,
+    GreaterThan(isize),
+    GreaterThanOrEqual(isize),
+    GreaterThanFloat(f64),
+    GreaterThanOrEqualFloat(f64),
+    LessThan(isize),
+    LessThanOrEqual(isize),
+    LessThanFloat(f64),
+    LessThanOrEqualFloat(f64),
+    HasElement(&'a str),
+    HasElementInt(isize),
+    HasElementFloat(f64),
+    Not(Box<DataOperator<'a>>),
+    And(Vec<DataOperator<'a>>),
+    Or(Vec<DataOperator<'a>>),
+}
+
+impl<'a> DataValue {
+    pub fn test(&self, operator: &DataOperator<'a>) -> bool {
+        match (self, operator) {
+            (Self::Null, DataOperator::Null) => true,
+            (Self::Bool(true), DataOperator::True) => true,
+            (Self::Bool(false), DataOperator::False) => true,
+            (Self::String(s), DataOperator::Equals(s2)) => s.as_str() == s,
+            (Self::Int(n), DataOperator::EqualsInt(n2)) => *n == *n2,
+            (Self::Int(n), DataOperator::GreaterThan(n2)) => *n > *n2,
+            (Self::Int(n), DataOperator::GreaterThanOrEqual(n2)) => *n >= *n2,
+            (Self::Int(n), DataOperator::LessThan(n2)) => *n < *n2,
+            (Self::Int(n), DataOperator::LessThanOrEqual(n2)) => *n <= *n2,
+            (Self::Float(n), DataOperator::EqualsFloat(n2)) => *n == *n2,
+            (Self::Float(n), DataOperator::GreaterThanFloat(n2)) => *n > *n2,
+            (Self::Float(n), DataOperator::GreaterThanOrEqualFloat(n2)) => *n >= *n2,
+            (Self::Float(n), DataOperator::LessThanFloat(n2)) => *n < *n2,
+            (Self::Float(n), DataOperator::LessThanOrEqualFloat(n2)) => *n <= *n2,
+            (Self::List(v), DataOperator::HasElement(s)) => {
+                v.iter().any(|e| e.test(&DataOperator::Equals(s)))
+            }
+            (Self::List(v), DataOperator::HasElementInt(n)) => {
+                v.iter().any(|e| e.test(&DataOperator::EqualsInt(*n)))
+            }
+            (Self::List(v), DataOperator::HasElementFloat(f)) => {
+                v.iter().any(|e| e.test(&DataOperator::EqualsFloat(*f)))
+            }
+            (value, DataOperator::Not(operator)) => !value.test(operator),
+            (value, DataOperator::And(operators)) => {
+                operators.iter().all(|operator| value.test(operator))
+            }
+            (value, DataOperator::Or(operators)) => {
+                operators.iter().any(|operator| value.test(operator))
+            }
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display for DataValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
