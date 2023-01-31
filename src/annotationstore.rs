@@ -870,6 +870,24 @@ impl AnnotationStore {
             }
         }
     }
+
+    /// Shortcut method to get an annotation by any id
+    pub fn annotation(&self, annotation: &AnyId<AnnotationHandle>) -> Option<&Annotation> {
+        self.get_by_anyid(annotation)
+    }
+
+    /// Shortcut method to get an annotationset by any id
+    pub fn annotationset(
+        &self,
+        annotationset: &AnyId<AnnotationDataSetHandle>,
+    ) -> Option<&AnnotationDataSet> {
+        self.get_by_anyid(annotationset)
+    }
+
+    /// Shortcut method to get an resource by any id
+    pub fn resource(&self, resource: &AnyId<TextResourceHandle>) -> Option<&TextResource> {
+        self.get_by_anyid(resource)
+    }
 }
 
 pub struct AnnotationDataIter<'a> {

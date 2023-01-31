@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -400,5 +400,33 @@ impl AnnotationDataSet {
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
     pub fn data_by_key(&self, key_handle: DataKeyHandle) -> Option<&Vec<AnnotationDataHandle>> {
         self.key_data_map.get(key_handle)
+    }
+
+    /// Sets the ID of the dataset in a builder pattern
+    pub fn with_id(mut self, id: String) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    /// Writes a dataset to a STAM JSON file, with appropriate formatting
+    pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
+        let f = File::create(filename)
+            .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
+        let writer = BufWriter::new(f);
+        serde_json::to_writer_pretty(writer, &self).map_err(|e| {
+            StamError::SerializationError(format!("Writing dataset to file: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// Writes a dataset to a STAM JSON file, without any indentation
+    pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
+        let f = File::create(filename)
+            .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
+        let writer = BufWriter::new(f);
+        serde_json::to_writer(writer, &self).map_err(|e| {
+            StamError::SerializationError(format!("Writing dataset to file: {}", e))
+        })?;
+        Ok(())
     }
 }
