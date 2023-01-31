@@ -22,6 +22,7 @@ fn stam(py: Python<'_>, m: &PyModule) -> PyResult<()> {
 }
 
 #[pyclass(dict, name = "AnnotationStore")]
+/// The AnnotationStore
 pub struct PyAnnotationStore {
     store: Arc<RwLock<AnnotationStore>>,
 }
@@ -65,17 +66,14 @@ impl PyAnnotationStore {
     }
 
     #[getter]
-    /// This returns a new copy of the ID, owned by Python
-    fn id(&self) -> Option<String> {
-        self.store.read().unwrap().id().map(|x| x.to_owned())
+    /// Returns the public ID (by value, aka a copy)
+    fn id(&self) -> PyResult<Option<String>> {
+        self.map(|store| Ok(store.id().map(|x| x.to_owned())))
     }
 
+    /// Saves the annotation store to file using STAM JSON
     fn to_file(&self, filename: &str) -> PyResult<()> {
-        self.store
-            .read()
-            .unwrap()
-            .to_file(filename)
-            .map_err(|err| PyStamError::new_err(format!("{}", err)))
+        self.map(|store| store.to_file(filename))
     }
 
     fn annotationset(&self, key: &PyAny) -> PyResult<PyAnnotationDataSet> {
@@ -103,6 +101,22 @@ impl PyAnnotationStore {
     }
 }
 
+impl PyAnnotationStore {
+    /// Map function to act on the actual unlderyling store, helps reduce boilerplate
+    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&AnnotationStore) -> Result<T, StamError>,
+    {
+        if let Ok(store) = self.store.read() {
+            f(&store).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Unable to obtain store (should never happen)",
+            ))
+        }
+    }
+}
+
 #[pyclass(dict, name = "AnnotationDataSet")]
 pub struct PyAnnotationDataSet {
     handle: AnnotationDataSetHandle,
@@ -112,7 +126,7 @@ pub struct PyAnnotationDataSet {
 #[pymethods]
 impl PyAnnotationDataSet {
     #[getter]
-    /// This returns a new copy of the ID, owned by Python
+    /// Returns the public ID (by value, aka a copy)
     fn id(&self) -> PyResult<Option<String>> {
         self.map(|annotationset| Ok(annotationset.id().map(|x| x.to_owned())))
     }
@@ -123,6 +137,7 @@ impl PyAnnotationDataSet {
 }
 
 impl PyAnnotationDataSet {
+    /// Map function to act on the actual unlderyling store, helps reduce boilerplate
     fn map<T, F>(&self, f: F) -> Result<T, PyErr>
     where
         F: FnOnce(&AnnotationDataSet) -> Result<T, StamError>,
