@@ -76,6 +76,7 @@ impl PyAnnotationStore {
         self.map(|store| store.to_file(filename))
     }
 
+    /// Returns an AnnotationDataSet
     fn annotationset(&self, key: &PyAny) -> PyResult<PyAnnotationDataSet> {
         if let Ok(key) = key.extract() {
             let handle = AnnotationDataSetHandle::new(key);
@@ -127,10 +128,21 @@ pub struct PyAnnotationDataSet {
 impl PyAnnotationDataSet {
     #[getter]
     /// Returns the public ID (by value, aka a copy)
+    /// Don't use this for ID comparisons, use has_id() instead
     fn id(&self) -> PyResult<Option<String>> {
         self.map(|annotationset| Ok(annotationset.id().map(|x| x.to_owned())))
     }
 
+    /// Tests the ID of the dataset
+    fn has_id(&self, other: &str) -> PyResult<bool> {
+        self.map(|annotationset| Ok(annotationset.id() == Some(other)))
+    }
+
+    fn __eq__(&self, other: &PyAnnotationDataSet) -> PyResult<bool> {
+        Ok(self.handle == other.handle)
+    }
+
+    /// Save the annotation dataset to a STAM JSON file
     fn to_file(&self, filename: &str) -> PyResult<()> {
         self.map(|annotationset| annotationset.to_file(filename))
     }
@@ -147,6 +159,53 @@ impl PyAnnotationDataSet {
                 .annotationset(&self.handle.into())
                 .ok_or_else(|| PyRuntimeError::new_err("Failed to resolved annotationset"))?;
             f(annotationset).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Unable to obtain store (should never happen)",
+            ))
+        }
+    }
+}
+
+#[pyclass(dict, name = "DataKey")]
+pub struct PyDataKey {
+    set: AnnotationDataSetHandle,
+    handle: DataKeyHandle,
+    store: Arc<RwLock<AnnotationStore>>,
+}
+
+#[pymethods]
+impl PyDataKey {
+    #[getter]
+    /// Returns the public ID (by value, aka a copy)
+    /// Don't use this for ID comparisons, use has_id() instead
+    fn id(&self) -> PyResult<Option<String>> {
+        self.map(|datakey| Ok(datakey.id().map(|x| x.to_owned())))
+    }
+
+    /// Tests the ID of the dataset
+    fn has_id(&self, other: &str) -> PyResult<bool> {
+        self.map(|datakey| Ok(datakey.id() == Some(other)))
+    }
+
+    fn __eq__(&self, other: &PyDataKey) -> PyResult<bool> {
+        Ok(self.handle == other.handle)
+    }
+}
+
+impl PyDataKey {
+    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&DataKey) -> Result<T, StamError>,
+    {
+        if let Ok(store) = self.store.read() {
+            let annotationset: &AnnotationDataSet = store
+                .annotationset(&self.set.into())
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolved annotationset"))?;
+            let datakey: &DataKey = annotationset
+                .key(&self.handle.into())
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolved annotationset"))?;
+            f(datakey).map_err(|err| PyStamError::new_err(format!("{}", err)))
         } else {
             Err(PyRuntimeError::new_err(
                 "Unable to obtain store (should never happen)",

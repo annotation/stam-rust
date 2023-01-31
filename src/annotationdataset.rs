@@ -397,6 +397,11 @@ impl AnnotationDataSet {
         <Self as StoreFor<DataKey>>::iter(self)
     }
 
+    /// Shortcut method to get an resource by any id
+    pub fn key(&self, resource: &AnyId<DataKeyHandle>) -> Option<&DataKey> {
+        self.get_by_anyid(resource)
+    }
+
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
     pub fn data_by_key(&self, key_handle: DataKeyHandle) -> Option<&Vec<AnnotationDataHandle>> {
         self.key_data_map.get(key_handle)
