@@ -1,0 +1,41 @@
+[package]
+name = "stam-python"
+version = "0.0.1"
+edition = "2021"
+authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
+description = "STAM is a library for dealing with standoff annotations on text"
+documentation = "https://docs.rs/stam"
+homepage = "https://github.com/annotation/stam"
+include = ["src/**/*","tests/**/*", "LICENSE", "README.md"]
+license = "GPL-3.0"
+readme = "README.md"
+repository = "https://github.com/annotation/stam-rust"
+keywords = [ "text-processing", "annotation", "linguistics", "standoff", "nlp"]
+
+[lib]
+name = "analiticcl"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.13.2"
+#stam = "0.1.1"
+
+#compile against version in same repo: (doesn't work when building with maturin for pypi)
+[dependencies.stam]
+version = "*"
+path ="../../"
+
+[features]
+default = ["pyo3/extension-module"]
+
+[target.x86_64-apple-darwin]
+rustflags = [
+  "-C", "link-arg=-undefined",
+  "-C", "link-arg=dynamic_lookup",
+]
+
+[target.aarch64-apple-darwin]
+rustflags = [
+  "-C", "link-arg=-undefined",
+  "-C", "link-arg=dynamic_lookup",
+]
