@@ -398,8 +398,13 @@ impl AnnotationDataSet {
     }
 
     /// Shortcut method to get an resource by any id
-    pub fn key(&self, resource: &AnyId<DataKeyHandle>) -> Option<&DataKey> {
-        self.get_by_anyid(resource)
+    pub fn key(&self, id: &AnyId<DataKeyHandle>) -> Option<&DataKey> {
+        self.get_by_anyid(id)
+    }
+
+    /// Shortcut method to get a single annotation data instance resource by any id
+    pub fn annotationdata(&self, id: &AnyId<AnnotationDataHandle>) -> Option<&AnnotationData> {
+        self.get_by_anyid(id)
     }
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
