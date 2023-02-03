@@ -130,10 +130,9 @@ impl PyAnnotationStore {
     }
 
     fn add_dataset(&mut self, id: String) -> PyResult<PyAnnotationDataSet> {
-        //TODO: implement
         let store_clone = self.store.clone();
         self.map_mut(|store| {
-            let mut annotationset = AnnotationDataSet::new().with_id(id);
+            let annotationset = AnnotationDataSet::new().with_id(id);
             let handle = store.insert(annotationset)?;
             Ok(PyAnnotationDataSet {
                 handle,
