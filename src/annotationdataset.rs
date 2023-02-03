@@ -439,4 +439,14 @@ impl AnnotationDataSet {
         })?;
         Ok(())
     }
+
+    //Returns the number of keys in the store (deletions are not substracted)
+    pub fn keys_len(&self) -> usize {
+        self.keys.len()
+    }
+
+    //Returns the number of data items in the store (deletions are not substracted)
+    pub fn data_len(&self) -> usize {
+        self.data.len()
+    }
 }

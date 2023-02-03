@@ -102,6 +102,24 @@ impl PyAnnotationDataSet {
                 })
         })
     }
+
+    /// Returns a generator over all keys in this store
+    fn keys(&self) -> PyResult<PyDataKeyIter> {
+        Ok(PyDataKeyIter {
+            handle: self.handle,
+            store: self.store.clone(),
+            index: 0,
+        })
+    }
+
+    /// Returns a generator over all data in this store
+    fn __iter__(&self) -> PyResult<PyAnnotationDataIter> {
+        Ok(PyAnnotationDataIter {
+            handle: self.handle,
+            store: self.store.clone(),
+            index: 0,
+        })
+    }
 }
 
 impl PyAnnotationDataSet {
@@ -136,6 +154,122 @@ impl PyAnnotationDataSet {
             Err(PyRuntimeError::new_err(
                 "Can't get exclusive lock to write to store",
             ))
+        }
+    }
+}
+
+#[pyclass(name = "DataKeyIter")]
+struct PyDataKeyIter {
+    pub(crate) handle: AnnotationDataSetHandle,
+    pub(crate) store: Arc<RwLock<AnnotationStore>>,
+    pub(crate) index: usize,
+}
+
+#[pymethods]
+impl PyDataKeyIter {
+    fn __iter__(pyself: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        pyself
+    }
+
+    fn __next__(mut pyself: PyRefMut<'_, Self>) -> Option<PyDataKey> {
+        pyself.index += 1; //increment first (prevent exclusive mutability issues)
+        let result = pyself.map(|dataset| {
+            let datakey_handle = DataKeyHandle::new(pyself.index - 1);
+            if <AnnotationDataSet as StoreFor<libstam::DataKey>>::has(dataset, datakey_handle) {
+                //index is one ahead, prevents exclusive lock issues
+                Some(PyDataKey {
+                    set: pyself.handle,
+                    handle: datakey_handle,
+                    store: pyself.store.clone(),
+                })
+            } else {
+                None
+            }
+        });
+        if result.is_some() {
+            result
+        } else {
+            if pyself.index >= pyself.map(|dataset| Some(dataset.keys_len())).unwrap() {
+                None
+            } else {
+                Self::__next__(pyself)
+            }
+        }
+    }
+}
+
+impl PyDataKeyIter {
+    /// Map function to act on the actual underlyingtore, helps reduce boilerplate
+    fn map<T, F>(&self, f: F) -> Option<T>
+    where
+        F: FnOnce(&AnnotationDataSet) -> Option<T>,
+    {
+        if let Ok(store) = self.store.read() {
+            if let Some(annotationset) = store.annotationset(&self.handle.into()) {
+                f(annotationset)
+            } else {
+                None
+            }
+        } else {
+            None //should never happen
+        }
+    }
+}
+
+#[pyclass(name = "AnnotationDataIter")]
+struct PyAnnotationDataIter {
+    pub(crate) handle: AnnotationDataSetHandle,
+    pub(crate) store: Arc<RwLock<AnnotationStore>>,
+    pub(crate) index: usize,
+}
+
+#[pymethods]
+impl PyAnnotationDataIter {
+    fn __iter__(pyself: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        pyself
+    }
+
+    fn __next__(mut pyself: PyRefMut<'_, Self>) -> Option<PyAnnotationData> {
+        pyself.index += 1; //increment first (prevent exclusive mutability issues)
+        let result = pyself.map(|dataset| {
+            let data_handle = AnnotationDataHandle::new(pyself.index - 1);
+            if <AnnotationDataSet as StoreFor<libstam::AnnotationData>>::has(dataset, data_handle) {
+                //index is one ahead, prevents exclusive lock issues
+                Some(PyAnnotationData {
+                    set: pyself.handle,
+                    handle: data_handle,
+                    store: pyself.store.clone(),
+                })
+            } else {
+                None
+            }
+        });
+        if result.is_some() {
+            result
+        } else {
+            if pyself.index >= pyself.map(|dataset| Some(dataset.keys_len())).unwrap() {
+                None
+            } else {
+                Self::__next__(pyself)
+            }
+        }
+    }
+}
+
+impl PyAnnotationDataIter {
+    /// Map function to act on the actual underlyingtore, helps reduce boilerplate
+    fn map<T, F>(&self, f: F) -> Option<T>
+    where
+        F: FnOnce(&AnnotationDataSet) -> Option<T>,
+    {
+        if let Ok(store) = self.store.read() {
+            if let Some(annotationset) = store.annotationset(&self.handle.into()) {
+                f(annotationset)
+            } else {
+                None
+            }
+        } else {
+            None //should never happen
         }
     }
 }

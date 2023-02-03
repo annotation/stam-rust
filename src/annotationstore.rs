@@ -559,6 +559,51 @@ impl AnnotationStore {
         self.iter()
     }
 
+    // Low-level shortcut function to get an annotation by index
+    pub fn annotation_by_index(&self, index: usize) -> Option<&Annotation> {
+        let annotation: Result<&Annotation, _> = self.get(AnnotationHandle::new(index));
+        if let Ok(annotation) = annotation {
+            Some(annotation)
+        } else {
+            None
+        }
+    }
+
+    // Low-level shortcut function to get an annotation data set by index
+    pub fn annotationset_by_index(&self, index: usize) -> Option<&AnnotationDataSet> {
+        let dataset: Result<&AnnotationDataSet, _> = self.get(AnnotationDataSetHandle::new(index));
+        if let Ok(dataset) = dataset {
+            Some(dataset)
+        } else {
+            None
+        }
+    }
+
+    // Low-level shortcut function to get a resource by index
+    pub fn resource_by_index(&self, index: usize) -> Option<&TextResource> {
+        let resource: Result<&TextResource, _> = self.get(TextResourceHandle::new(index));
+        if let Ok(resource) = resource {
+            Some(resource)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the number of annotations in the store (deletions are not substracted)
+    pub fn annotations_len(&self) -> usize {
+        self.annotations.len()
+    }
+
+    /// Returns the number of resources  in the store (deletions are not substracted)
+    pub fn resources_len(&self) -> usize {
+        self.resources.len()
+    }
+
+    /// Returns the number of datasets in the store (deletions are not substracted)
+    pub fn annotationsets_len(&self) -> usize {
+        self.annotationsets.len()
+    }
+
     /// Returns the resource the annotation points to
     /// Returns a WrongSelectorType error if the annotation does not point at any resource.
     pub fn resource_for<'a>(
