@@ -2,7 +2,6 @@ extern crate stam as libstam;
 
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
-use pyo3::ffi::{PyLong_GetInfo, PyLong_Type, Py_None};
 use pyo3::prelude::*;
 use pyo3::types::*;
 use std::ops::FnOnce;
@@ -20,7 +19,10 @@ fn stam(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyAnnotationStore>()?;
     m.add_class::<PyAnnotationDataSet>()?;
     m.add_class::<PyAnnotationData>()?;
+    m.add_class::<PyAnnotation>()?;
     m.add_class::<PyDataKey>()?;
+    m.add_class::<PyDataValue>()?;
+    m.add_class::<PyTextResource>()?;
     Ok(())
 }
 
@@ -103,6 +105,24 @@ impl PyAnnotationStore {
             ))
         }
     }
+
+    #[args(kwargs = "**")]
+    fn add_resource(&self) -> PyResult<PyTextResource> {
+        //TODO: implement
+        panic!("not implemented yet");
+    }
+
+    #[args(kwargs = "**")]
+    fn add_dataset(&self) -> PyResult<PyAnnotationDataSet> {
+        //TODO: implement
+        panic!("not implemented yet");
+    }
+
+    #[args(kwargs = "**")]
+    fn add_annotation(&self) -> PyResult<PyAnnotation> {
+        //TODO: implement
+        panic!("not implemented yet");
+    }
 }
 
 impl PyAnnotationStore {
@@ -116,6 +136,19 @@ impl PyAnnotationStore {
         } else {
             Err(PyRuntimeError::new_err(
                 "Unable to obtain store (should never happen)",
+            ))
+        }
+    }
+
+    fn map_mut<T, F>(&mut self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&mut AnnotationStore) -> Result<T, StamError>,
+    {
+        if let Ok(mut store) = self.store.write() {
+            f(&mut store).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "unable to obtain exclusive lock for writing to store",
             ))
         }
     }
@@ -431,15 +464,281 @@ impl PyAnnotationData {
         if let Ok(store) = self.store.read() {
             let annotationset: &AnnotationDataSet = store
                 .annotationset(&self.set.into())
-                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolved annotationset"))?;
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolve annotationset"))?;
             let data: &AnnotationData = annotationset
                 .annotationdata(&self.handle.into())
-                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolved annotationset"))?;
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolve annotationset"))?;
             f(data).map_err(|err| PyStamError::new_err(format!("{}", err)))
         } else {
             Err(PyRuntimeError::new_err(
                 "Unable to obtain store (should never happen)",
             ))
+        }
+    }
+}
+
+#[pyclass(dict, name = "TextResource")]
+pub struct PyTextResource {
+    handle: TextResourceHandle,
+    store: Arc<RwLock<AnnotationStore>>,
+}
+
+#[pymethods]
+impl PyTextResource {
+    #[getter]
+    /// Returns the public ID (by value, aka a copy)
+    /// Don't use this for ID comparisons, use has_id() instead
+    fn id(&self) -> PyResult<Option<String>> {
+        self.map(|res| Ok(res.id().map(|x| x.to_owned())))
+    }
+
+    /// Tests the ID of the dataset
+    fn has_id(&self, other: &str) -> PyResult<bool> {
+        self.map(|res| Ok(res.id() == Some(other)))
+    }
+
+    /// Tests whether two datasets are equal
+    fn __eq__(&self, other: &PyTextResource) -> PyResult<bool> {
+        Ok(self.handle == other.handle)
+    }
+}
+
+impl PyTextResource {
+    /// Map function to act on the actual underlying store, helps reduce boilerplate
+    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&TextResource) -> Result<T, StamError>,
+    {
+        if let Ok(store) = self.store.read() {
+            let resource: &TextResource = store
+                .resource(&self.handle.into())
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolve textresource"))?;
+            f(resource).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Unable to obtain store (should never happen)",
+            ))
+        }
+    }
+}
+
+#[pyclass(dict, name = "Annotation")]
+pub struct PyAnnotation {
+    handle: AnnotationHandle,
+    store: Arc<RwLock<AnnotationStore>>,
+}
+
+#[pymethods]
+impl PyAnnotation {
+    #[getter]
+    /// Returns the public ID (by value, aka a copy)
+    /// Don't use this for ID comparisons, use has_id() instead
+    fn id(&self) -> PyResult<Option<String>> {
+        self.map(|res| Ok(res.id().map(|x| x.to_owned())))
+    }
+
+    /// Tests the ID of the dataset
+    fn has_id(&self, other: &str) -> PyResult<bool> {
+        self.map(|res| Ok(res.id() == Some(other)))
+    }
+
+    /// Tests whether two datasets are equal
+    fn __eq__(&self, other: &PyAnnotation) -> PyResult<bool> {
+        Ok(self.handle == other.handle)
+    }
+}
+
+impl PyAnnotation {
+    /// Map function to act on the actual underlying store, helps reduce boilerplate
+    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&Annotation) -> Result<T, StamError>,
+    {
+        if let Ok(store) = self.store.read() {
+            let annotation: &Annotation = store
+                .annotation(&self.handle.into())
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolve textresource"))?;
+            f(annotation).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Unable to obtain store (should never happen)",
+            ))
+        }
+    }
+
+    /// Map function to act on the actual underlying store, helps reduce boilerplate
+    fn map_mut<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&mut Annotation) -> Result<T, StamError>,
+    {
+        if let Ok(mut store) = self.store.write() {
+            let annotation: &mut Annotation = store
+                .annotation_mut(&self.handle.into())
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolve textresource"))?;
+            f(annotation).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Unable to obtain store (should never happen)",
+            ))
+        }
+    }
+}
+
+#[pyclass(dict, name = "SelectorKind")]
+pub struct PySelectorKind {
+    kind: SelectorKind,
+}
+
+#[pymethods]
+impl PySelectorKind {
+    #[classattr]
+    const RESOURCESELECTOR: PySelectorKind = PySelectorKind {
+        kind: SelectorKind::ResourceSelector,
+    };
+    #[classattr]
+    const ANNOTATIONSELECTOR: PySelectorKind = PySelectorKind {
+        kind: SelectorKind::AnnotationSelector,
+    };
+    #[classattr]
+    const TEXTSELECTOR: PySelectorKind = PySelectorKind {
+        kind: SelectorKind::TextSelector,
+    };
+    #[classattr]
+    const DATASETSELECTOR: PySelectorKind = PySelectorKind {
+        kind: SelectorKind::DataSetSelector,
+    };
+    #[classattr]
+    const MULTISELECTOR: PySelectorKind = PySelectorKind {
+        kind: SelectorKind::MultiSelector,
+    };
+    #[classattr]
+    const COMPOSITESELECTOR: PySelectorKind = PySelectorKind {
+        kind: SelectorKind::CompositeSelector,
+    };
+    #[classattr]
+    const DIRECTIONALSELECTOR: PySelectorKind = PySelectorKind {
+        kind: SelectorKind::DirectionalSelector,
+    };
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+#[pyclass(dict, name = "Selector")]
+pub struct PySelector {
+    selector: Selector,
+}
+
+#[pymethods]
+impl PySelector {
+    #[new]
+    fn new(
+        kind: &PySelectorKind,
+        resource: Option<&PyTextResource>,
+        dataset: Option<&PyAnnotationDataSet>,
+    ) -> PyResult<Self> {
+        match kind.kind {
+            SelectorKind::ResourceSelector => {
+                if let Some(resource) = resource {
+                    Ok(PySelector {
+                        selector: Selector::ResourceSelector(resource.handle),
+                    })
+                } else {
+                    Err(PyValueError::new_err("'resource' keyword argument must be specified for ResourceSelector and point to a TextResource instance"))
+                }
+            }
+            SelectorKind::AnnotationSelector => {
+                panic!("Not implemented yet");
+            }
+            SelectorKind::TextSelector => {
+                panic!("Not implemented yet");
+            }
+            SelectorKind::DataSetSelector => {
+                if let Some(dataset) = dataset {
+                    Ok(PySelector {
+                        selector: Selector::DataSetSelector(dataset.handle),
+                    })
+                } else {
+                    Err(PyValueError::new_err("'dataset' keyword argument must be specified for DataSetSelector and point to an AnnotationDataSet instance"))
+                }
+            }
+            SelectorKind::MultiSelector => {
+                panic!("Not implemented yet");
+            }
+            SelectorKind::CompositeSelector => {
+                panic!("Not implemented yet");
+            }
+            SelectorKind::DirectionalSelector => {
+                panic!("Not implemented yet");
+            }
+        }
+    }
+
+    /// Returns the selector kind, use is_kind() instead if you want to test
+    fn kind(&self) -> PySelectorKind {
+        PySelectorKind {
+            kind: self.selector.kind(),
+        }
+    }
+
+    fn is_kind(&self, kind: &PySelectorKind) -> bool {
+        self.selector.kind() == kind.kind
+    }
+
+    /// Quicker test for specified selector kind
+    fn is_resourceselector(&self) -> bool {
+        match self.selector {
+            Selector::ResourceSelector(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Quicker test for specified selector kind
+    fn is_textselector(&self) -> bool {
+        match self.selector {
+            Selector::TextSelector(_, _) => true,
+            _ => false,
+        }
+    }
+
+    /// Quicker test for specified selector kind
+    fn is_annotationselector(&self) -> bool {
+        match self.selector {
+            Selector::AnnotationSelector(_, _) => true,
+            _ => false,
+        }
+    }
+
+    /// Quicker test for specified selector kind
+    fn is_datasetselector(&self) -> bool {
+        match self.selector {
+            Selector::DataSetSelector(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Quicker test for specified selector kind
+    fn is_multiselector(&self) -> bool {
+        match self.selector {
+            Selector::MultiSelector(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Quicker test for specified selector kind
+    fn is_directionalselector(&self) -> bool {
+        match self.selector {
+            Selector::DirectionalSelector(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Quicker test for specified selector kind
+    fn is_compositeselector(&self) -> bool {
+        match self.selector {
+            Selector::CompositeSelector(_) => true,
+            _ => false,
         }
     }
 }

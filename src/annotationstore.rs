@@ -896,6 +896,14 @@ impl AnnotationStore {
     ) -> Option<&mut AnnotationDataSet> {
         self.get_mut_by_anyid(annotationset)
     }
+
+    /// Shortcut method to get an annotation by any id
+    pub fn annotation_mut(
+        &mut self,
+        annotation: &AnyId<AnnotationHandle>,
+    ) -> Option<&mut Annotation> {
+        self.get_mut_by_anyid(annotation)
+    }
 }
 
 pub struct AnnotationDataIter<'a> {

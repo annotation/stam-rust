@@ -111,13 +111,13 @@ impl Selector {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// See [`Selector`], this is a simplified variant that carries only the type, not the target.
 pub enum SelectorKind {
-    ResourceSelector,
-    AnnotationSelector,
-    TextSelector,
-    DataSetSelector,
-    MultiSelector,
-    CompositeSelector,
-    DirectionalSelector,
+    ResourceSelector = 1,
+    AnnotationSelector = 2,
+    TextSelector = 3,
+    DataSetSelector = 4,
+    MultiSelector = 5,
+    CompositeSelector = 6,
+    DirectionalSelector = 7,
 }
 
 impl From<&Selector> for SelectorKind {
