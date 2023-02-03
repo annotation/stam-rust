@@ -10,9 +10,9 @@ use crate::error::PyStamError;
 use libstam::*;
 
 #[pyclass(dict, name = "Annotation")]
-pub struct PyAnnotation {
-    handle: AnnotationHandle,
-    store: Arc<RwLock<AnnotationStore>>,
+pub(crate) struct PyAnnotation {
+    pub(crate) handle: AnnotationHandle,
+    pub(crate) store: Arc<RwLock<AnnotationStore>>,
 }
 
 #[pymethods]

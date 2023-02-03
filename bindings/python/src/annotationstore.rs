@@ -67,44 +67,48 @@ impl PyAnnotationStore {
         self.map(|store| store.to_file(filename))
     }
 
-    /// Returns an AnnotationDataSet
-    fn annotationset(&self, key: &PyAny) -> PyResult<PyAnnotationDataSet> {
-        if let Ok(key) = key.extract() {
-            let handle = AnnotationDataSetHandle::new(key);
-            if <AnnotationStore as StoreFor<AnnotationDataSet>>::has(
-                &self.store.read().unwrap(),
-                handle,
-            ) {
-                Ok(PyAnnotationDataSet {
+    /// Returns an AnnotationDataSet by ID
+    fn annotationset(&self, id: &str) -> PyResult<PyAnnotationDataSet> {
+        self.map(|store| {
+            store
+                .resolve_dataset_id(id)
+                .map(|handle| PyAnnotationDataSet {
                     handle,
                     store: self.store.clone(),
                 })
-            } else {
-                Err(PyIndexError::new_err(
-                    "Annotation set with specified handle does not exist",
-                ))
-            }
-            // } else if let Ok(key) = key.extract() {
-        } else {
-            Err(PyValueError::new_err(
-                "Key must be a string (public id) or integer (internal handle)",
-            ))
-        }
+        })
     }
 
-    #[args(kwargs = "**")]
+    /// Returns an Annotation by ID
+    fn annotation(&self, id: &str) -> PyResult<PyAnnotation> {
+        self.map(|store| {
+            store.resolve_annotation_id(id).map(|handle| PyAnnotation {
+                handle,
+                store: self.store.clone(),
+            })
+        })
+    }
+
+    /// Returns a TextResource by ID
+    fn resource(&self, id: &str) -> PyResult<PyTextResource> {
+        self.map(|store| {
+            store.resolve_resource_id(id).map(|handle| PyTextResource {
+                handle,
+                store: self.store.clone(),
+            })
+        })
+    }
+
     fn add_resource(&self) -> PyResult<PyTextResource> {
         //TODO: implement
         panic!("not implemented yet");
     }
 
-    #[args(kwargs = "**")]
     fn add_dataset(&self) -> PyResult<PyAnnotationDataSet> {
         //TODO: implement
         panic!("not implemented yet");
     }
 
-    #[args(kwargs = "**")]
     fn add_annotation(&self) -> PyResult<PyAnnotation> {
         //TODO: implement
         panic!("not implemented yet");
