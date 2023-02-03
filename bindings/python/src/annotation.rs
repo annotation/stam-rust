@@ -6,6 +6,7 @@ use pyo3::types::*;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
+use crate::annotationdata::PyAnnotationData;
 use crate::error::PyStamError;
 use libstam::*;
 
@@ -21,17 +22,73 @@ impl PyAnnotation {
     /// Returns the public ID (by value, aka a copy)
     /// Don't use this for ID comparisons, use has_id() instead
     fn id(&self) -> PyResult<Option<String>> {
-        self.map(|res| Ok(res.id().map(|x| x.to_owned())))
+        self.map(|annotation| Ok(annotation.id().map(|x| x.to_owned())))
     }
 
     /// Tests the ID of the dataset
     fn has_id(&self, other: &str) -> PyResult<bool> {
-        self.map(|res| Ok(res.id() == Some(other)))
+        self.map(|annotation| Ok(annotation.id() == Some(other)))
     }
 
     /// Tests whether two datasets are equal
     fn __eq__(&self, other: &PyAnnotation) -> PyResult<bool> {
         Ok(self.handle == other.handle)
+    }
+
+    /// Returns a generator over all data in this annotation
+    fn __iter__(&self) -> PyResult<PyDataIter> {
+        Ok(PyDataIter {
+            handle: self.handle,
+            store: self.store.clone(),
+            index: 0,
+        })
+    }
+}
+
+#[pyclass(name = "DataIter")]
+struct PyDataIter {
+    pub(crate) handle: AnnotationHandle,
+    pub(crate) store: Arc<RwLock<AnnotationStore>>,
+    pub(crate) index: usize,
+}
+
+#[pymethods]
+impl PyDataIter {
+    fn __iter__(pyself: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        pyself
+    }
+
+    fn __next__(mut pyself: PyRefMut<'_, Self>) -> Option<PyAnnotationData> {
+        pyself.index += 1; //increment first (prevent exclusive mutability issues)
+        pyself.map(|annotation| {
+            if let Some((set, handle)) = annotation.data_by_index(pyself.index - 1) {
+                //index is one ahead, prevents exclusive lock issues
+                Some(PyAnnotationData {
+                    set: *set,
+                    handle: *handle,
+                    store: pyself.store.clone(),
+                })
+            } else {
+                None
+            }
+        })
+    }
+}
+
+impl PyDataIter {
+    fn map<T, F>(&self, f: F) -> Option<T>
+    where
+        F: FnOnce(&Annotation) -> Option<T>,
+    {
+        if let Ok(store) = self.store.read() {
+            if let Some(annotation) = store.annotation(&self.handle.into()) {
+                f(annotation)
+            } else {
+                None
+            }
+        } else {
+            None //should never happen here
+        }
     }
 }
 

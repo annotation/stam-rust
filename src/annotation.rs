@@ -378,6 +378,19 @@ impl<'a> Annotation {
         self.data.iter()
     }
 
+    /// Returns data at specified index
+    pub fn data_by_index(
+        &self,
+        index: usize,
+    ) -> Option<&(AnnotationDataSetHandle, AnnotationDataHandle)> {
+        self.data.get(index)
+    }
+
+    /// Returns the number of annotation data items
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
     /// Returns a reference to the selector that selects the target of this annotation
     pub fn target(&self) -> &Selector {
         &self.target
