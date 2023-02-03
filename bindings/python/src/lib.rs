@@ -184,7 +184,11 @@ impl PyAnnotationDataSet {
         value: &'py PyAny,
         id: Option<&str>,
     ) -> PyResult<PyAnnotationData> {
-        let datakey = self.add_key(key)?;
+        let datakey = if let Ok(datakey) = self.key(key) {
+            datakey
+        } else {
+            self.add_key(key)?
+        };
         self.map_mut(|annotationset| {
             let value = py_into_datavalue(value)?;
             let datakey = AnnotationData::new(id.map(|x| x.to_string()), datakey.handle, value);
@@ -349,10 +353,47 @@ fn datavalue_into_py<'py>(datavalue: &DataValue, py: Python<'py>) -> Result<&'py
             let pylist = PyList::empty(py);
             for item in v.iter() {
                 let pyvalue = datavalue_into_py(item, py)?;
-                pylist.append(pyvalue);
+                pylist.append(pyvalue).expect("adding value to list");
             }
             Ok(pylist)
         }
+    }
+}
+
+#[pyclass(dict, name = "DataValue")]
+pub struct PyDataValue {
+    value: DataValue,
+}
+
+#[pymethods]
+impl PyDataValue {
+    // Get the actual value
+    fn get<'py>(&self, py: Python<'py>) -> PyResult<&'py PyAny> {
+        datavalue_into_py(&self.value, py).map_err(|err| PyStamError::new_err(format!("{}", err)))
+    }
+
+    #[new]
+    fn new<'py>(value: &PyAny) -> PyResult<Self> {
+        Ok(PyDataValue {
+            value: py_into_datavalue(value)
+                .map_err(|err| PyStamError::new_err(format!("{}", err)))?,
+        })
+    }
+
+    fn __eq__(&self, other: &PyDataValue) -> bool {
+        self.value == other.value
+    }
+}
+
+impl PyDataValue {
+    fn new_cloned(value: &DataValue) -> Result<Self, StamError> {
+        Ok(PyDataValue {
+            value: value.clone(),
+        })
+    }
+
+    fn test(&self, other: &DataValue) -> bool {
+        self.value == *other
     }
 }
 
@@ -371,8 +412,14 @@ impl PyAnnotationData {
 
     /// Returns the value (makes a copy)
     /// In comparisons, use test_value() instead
-    fn value<'py>(&self, py: Python<'py>) -> PyResult<&'py PyAny> {
-        self.map(|annotationdata| datavalue_into_py(annotationdata.value(), py))
+    fn value(&self) -> PyResult<PyDataValue> {
+        self.map(|annotationdata| PyDataValue::new_cloned(annotationdata.value()))
+    }
+
+    /// Tests whether the value equals another
+    /// This is more efficient than calling [`value()`] and doing the comparison yourself
+    fn test_value<'py>(&self, reference: &'py PyDataValue) -> PyResult<bool> {
+        self.map(|annotationdata| Ok(reference.test(&annotationdata.value())))
     }
 }
 
