@@ -99,14 +99,47 @@ impl PyAnnotationStore {
         })
     }
 
-    fn add_resource(&self) -> PyResult<PyTextResource> {
-        //TODO: implement
-        panic!("not implemented yet");
+    fn add_resource(
+        &mut self,
+        filename: Option<&str>,
+        text: Option<String>,
+        id: Option<&str>,
+    ) -> PyResult<PyTextResource> {
+        if id.is_none() && filename.is_none() {
+            return Err(PyRuntimeError::new_err(
+                "Incomplete, set either id or filename",
+            ));
+        }
+        if filename.is_some() && text.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "Set either filename or text keyword arguments, but not both",
+            ));
+        }
+        let store_clone = self.store.clone();
+        self.map_mut(|store| {
+            let mut resource = TextResource::new(id.unwrap_or(filename.unwrap()).to_string());
+            if let Some(text) = text {
+                resource = resource.with_string(text);
+            }
+            let handle = store.insert(resource)?;
+            Ok(PyTextResource {
+                handle,
+                store: store_clone,
+            })
+        })
     }
 
-    fn add_dataset(&self) -> PyResult<PyAnnotationDataSet> {
+    fn add_dataset(&mut self, id: String) -> PyResult<PyAnnotationDataSet> {
         //TODO: implement
-        panic!("not implemented yet");
+        let store_clone = self.store.clone();
+        self.map_mut(|store| {
+            let mut annotationset = AnnotationDataSet::new().with_id(id);
+            let handle = store.insert(annotationset)?;
+            Ok(PyAnnotationDataSet {
+                handle,
+                store: store_clone,
+            })
+        })
     }
 
     fn add_annotation(&self) -> PyResult<PyAnnotation> {
