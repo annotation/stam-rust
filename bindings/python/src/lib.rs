@@ -18,6 +18,9 @@ fn stam(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // ... other elements added to module ...
     m.add("StamError", py.get_type::<PyStamError>())?;
     m.add_class::<PyAnnotationStore>()?;
+    m.add_class::<PyAnnotationDataSet>()?;
+    m.add_class::<PyAnnotationData>()?;
+    m.add_class::<PyDataKey>()?;
     Ok(())
 }
 
@@ -138,6 +141,7 @@ impl PyAnnotationDataSet {
         self.map(|annotationset| Ok(annotationset.id() == Some(other)))
     }
 
+    /// Tests whether two datasets are equal
     fn __eq__(&self, other: &PyAnnotationDataSet) -> PyResult<bool> {
         Ok(self.handle == other.handle)
     }
@@ -160,6 +164,39 @@ impl PyAnnotationDataSet {
         })
     }
 
+    /// Create a new DataKey and adds it to the dataset
+    fn add_key(&self, key: &str) -> PyResult<PyDataKey> {
+        self.map_mut(|annotationset| {
+            let datakey = DataKey::new(key.to_string());
+            let handle = annotationset.insert(datakey)?;
+            Ok(PyDataKey {
+                set: self.handle,
+                handle,
+                store: self.store.clone(),
+            })
+        })
+    }
+
+    /// Create a new AnnotationData instance and adds it to the dataset
+    fn add_data<'py>(
+        &self,
+        key: &str,
+        value: &'py PyAny,
+        id: Option<&str>,
+    ) -> PyResult<PyAnnotationData> {
+        let datakey = self.add_key(key)?;
+        self.map_mut(|annotationset| {
+            let value = py_into_datavalue(value)?;
+            let datakey = AnnotationData::new(id.map(|x| x.to_string()), datakey.handle, value);
+            let handle = annotationset.insert(datakey)?;
+            Ok(PyAnnotationData {
+                set: self.handle,
+                handle,
+                store: self.store.clone(),
+            })
+        })
+    }
+
     /// Get a AnnotationData instance by id, raises an exception if not found
     fn annotationdata(&self, data_id: &str) -> PyResult<PyAnnotationData> {
         self.map(|annotationset| {
@@ -175,7 +212,7 @@ impl PyAnnotationDataSet {
 }
 
 impl PyAnnotationDataSet {
-    /// Map function to act on the actual unlderyling store, helps reduce boilerplate
+    /// Map function to act on the actual underlyingtore, helps reduce boilerplate
     fn map<T, F>(&self, f: F) -> Result<T, PyErr>
     where
         F: FnOnce(&AnnotationDataSet) -> Result<T, StamError>,
@@ -188,6 +225,23 @@ impl PyAnnotationDataSet {
         } else {
             Err(PyRuntimeError::new_err(
                 "Unable to obtain store (should never happen)",
+            ))
+        }
+    }
+
+    /// Map function to act on the actual underlying store mutably, helps reduce boilerplate
+    fn map_mut<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&mut AnnotationDataSet) -> Result<T, StamError>,
+    {
+        if let Ok(mut store) = self.store.write() {
+            let annotationset: &mut AnnotationDataSet = store
+                .annotationset_mut(&self.handle.into())
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolved annotationset"))?;
+            f(annotationset).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Can't get exclusive lock to write to store",
             ))
         }
     }
@@ -251,6 +305,33 @@ pub struct PyAnnotationData {
     set: AnnotationDataSetHandle,
     handle: AnnotationDataHandle,
     store: Arc<RwLock<AnnotationStore>>,
+}
+
+fn py_into_datavalue<'py>(value: &'py PyAny) -> Result<DataValue, StamError> {
+    if let Ok(value) = value.extract() {
+        Ok(DataValue::String(value))
+    } else if let Ok(value) = value.extract() {
+        Ok(DataValue::Int(value))
+    } else if let Ok(value) = value.extract() {
+        Ok(DataValue::Float(value))
+    } else if let Ok(value) = value.extract() {
+        Ok(DataValue::Bool(value))
+    } else if let Ok(None) = value.extract::<Option<bool>>() {
+        Ok(DataValue::Null)
+    } else {
+        if let Ok(true) = value.is_instance_of::<PyList>() {
+            let value: &PyList = value.downcast().unwrap();
+            let mut list: Vec<DataValue> = Vec::new();
+            for item in value {
+                let pyitem = py_into_datavalue(item)?;
+                list.push(pyitem);
+            }
+            return Ok(DataValue::List(list));
+        }
+        Err(StamError::OtherError(
+            "Can't convert supplied Python object to a DataValue",
+        ))
+    }
 }
 
 fn datavalue_into_py<'py>(datavalue: &DataValue, py: Python<'py>) -> Result<&'py PyAny, StamError> {

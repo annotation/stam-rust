@@ -888,6 +888,14 @@ impl AnnotationStore {
     pub fn resource(&self, resource: &AnyId<TextResourceHandle>) -> Option<&TextResource> {
         self.get_by_anyid(resource)
     }
+
+    /// Shortcut method to get an annotationset (mutable) by any id
+    pub fn annotationset_mut(
+        &mut self,
+        annotationset: &AnyId<AnnotationDataSetHandle>,
+    ) -> Option<&mut AnnotationDataSet> {
+        self.get_mut_by_anyid(annotationset)
+    }
 }
 
 pub struct AnnotationDataIter<'a> {

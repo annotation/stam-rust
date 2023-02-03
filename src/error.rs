@@ -66,6 +66,9 @@ pub enum StamError {
 
     /// This error is raised when the information supplied during build is incomplete
     IncompleteError(&'static str),
+
+    /// Category for other errors, try to use this sparingly
+    OtherError(&'static str),
 }
 
 impl From<&StamError> for String {
@@ -133,6 +136,9 @@ impl From<&StamError> for String {
             ),
             StamError::IncompleteError(contextmsg) => {
                 format!("IncompleteError: Not enough data to build ({})", contextmsg)
+            }
+            StamError::OtherError(contextmsg) => {
+                format!("OtherError: {}", contextmsg)
             }
         }
     }
