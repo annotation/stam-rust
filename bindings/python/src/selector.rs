@@ -6,9 +6,10 @@ use pyo3::types::*;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
+use crate::annotation::PyAnnotation;
 use crate::annotationdataset::PyAnnotationDataSet;
 use crate::error::PyStamError;
-use crate::resources::PyTextResource;
+use crate::resources::{PyOffset, PyTextResource};
 use libstam::*;
 
 #[pyclass(dict, name = "SelectorKind")]
@@ -70,8 +71,11 @@ impl PySelector {
     #[new]
     fn new(
         kind: &PySelectorKind,
-        resource: Option<&PyTextResource>,
-        dataset: Option<&PyAnnotationDataSet>,
+        resource: Option<PyRef<PyTextResource>>,
+        annotation: Option<PyRef<PyAnnotation>>,
+        dataset: Option<PyRef<PyAnnotationDataSet>>,
+        offset: Option<PyRef<PyOffset>>,
+        subselectors: Vec<PyRef<PySelector>>,
     ) -> PyResult<Self> {
         match kind.kind {
             SelectorKind::ResourceSelector => {
@@ -84,10 +88,38 @@ impl PySelector {
                 }
             }
             SelectorKind::AnnotationSelector => {
-                panic!("Not implemented yet");
+                if let Some(annotation) = annotation {
+                    if let Some(offset) = offset {
+                        Ok(PySelector {
+                            selector: Selector::AnnotationSelector(
+                                annotation.handle,
+                                Some(offset.offset.clone()),
+                            ),
+                        })
+                    } else {
+                        Ok(PySelector {
+                            selector: Selector::AnnotationSelector(annotation.handle, None),
+                        })
+                    }
+                } else {
+                    Err(PyValueError::new_err("'annotation' keyword argument must be specified for AnnotationSelector and point to a annotation instance"))
+                }
             }
             SelectorKind::TextSelector => {
-                panic!("Not implemented yet");
+                if let Some(resource) = resource {
+                    if let Some(offset) = offset {
+                        Ok(PySelector {
+                            selector: Selector::TextSelector(
+                                resource.handle,
+                                offset.offset.clone(),
+                            ),
+                        })
+                    } else {
+                        Err(PyValueError::new_err("'offset' keyword argument must be specified for TextSelector and point to a Offset instance"))
+                    }
+                } else {
+                    Err(PyValueError::new_err("'resource' keyword argument must be specified for TextSelector and point to a TextResource instance"))
+                }
             }
             SelectorKind::DataSetSelector => {
                 if let Some(dataset) = dataset {
@@ -99,13 +131,46 @@ impl PySelector {
                 }
             }
             SelectorKind::MultiSelector => {
-                panic!("Not implemented yet");
+                if subselectors.is_empty() {
+                    Err(PyValueError::new_err("'subselectors' keyword argument must be specified for MultiSelector and point to a list of Selector instances"))
+                } else {
+                    Ok(PySelector {
+                        selector: Selector::MultiSelector(
+                            subselectors
+                                .into_iter()
+                                .map(|sel| sel.selector.clone())
+                                .collect(),
+                        ),
+                    })
+                }
             }
             SelectorKind::CompositeSelector => {
-                panic!("Not implemented yet");
+                if subselectors.is_empty() {
+                    Err(PyValueError::new_err("'subselectors' keyword argument must be specified for CompositeSelector and point to a list of Selector instances"))
+                } else {
+                    Ok(PySelector {
+                        selector: Selector::CompositeSelector(
+                            subselectors
+                                .into_iter()
+                                .map(|sel| sel.selector.clone())
+                                .collect(),
+                        ),
+                    })
+                }
             }
             SelectorKind::DirectionalSelector => {
-                panic!("Not implemented yet");
+                if subselectors.is_empty() {
+                    Err(PyValueError::new_err("'subselectors' keyword argument must be specified for DirectionalSelector and point to a list of Selector instances"))
+                } else {
+                    Ok(PySelector {
+                        selector: Selector::DirectionalSelector(
+                            subselectors
+                                .into_iter()
+                                .map(|sel| sel.selector.clone())
+                                .collect(),
+                        ),
+                    })
+                }
             }
         }
     }
