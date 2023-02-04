@@ -50,7 +50,7 @@ impl PyTextResource {
 
     /// Returns a TextSelection instance referring to the specified offset
     fn text_selection(&self, offset: &PyOffset) -> PyResult<PyTextSelection> {
-        self.map(|res| Ok(self.wrap_textselection(res.text_selection(offset.into())?)))
+        self.map(|res| Ok(self.wrap_textselection(res.text_selection(&offset.offset)?)))
     }
 }
 
