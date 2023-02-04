@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::annotationdata::PyAnnotationData;
 use crate::error::PyStamError;
+use crate::selector::PySelector;
 use libstam::*;
 
 #[pyclass(dict, name = "Annotation")]
@@ -42,6 +43,12 @@ impl PyAnnotation {
             store: self.store.clone(),
             index: 0,
         })
+    }
+
+    /// Returns a Selector (DataSetSelector) pointing to this Annotation
+    /// If the annotation references any text, so will this
+    fn selector(&self) -> PyResult<PySelector> {
+        self.map(|set| set.selector().map(|sel| sel.into()))
     }
 }
 

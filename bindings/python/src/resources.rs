@@ -7,6 +7,7 @@ use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
 use crate::error::PyStamError;
+use crate::selector::PySelector;
 use libstam::*;
 
 #[pyclass(dict, name = "TextResource")]
@@ -51,6 +52,11 @@ impl PyTextResource {
     /// Returns a TextSelection instance referring to the specified offset
     fn text_selection(&self, offset: &PyOffset) -> PyResult<PyTextSelection> {
         self.map(|res| Ok(self.wrap_textselection(res.text_selection(&offset.offset)?)))
+    }
+
+    /// Returns a Selector (ResourceSelector) pointing to this TextResource
+    fn selector(&self) -> PyResult<PySelector> {
+        self.map(|res| res.selector().map(|sel| sel.into()))
     }
 }
 
@@ -145,7 +151,7 @@ impl PyCursor {
 
 #[pyclass(dict, name = "Offset", frozen, freelist = 64)]
 pub(crate) struct PyOffset {
-    offset: Offset,
+    pub(crate) offset: Offset,
 }
 
 #[pymethods]
