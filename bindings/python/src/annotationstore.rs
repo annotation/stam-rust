@@ -99,6 +99,7 @@ impl PyAnnotationStore {
         })
     }
 
+    /// Create a new TextResource and adds it to the store
     fn add_resource(
         &mut self,
         filename: Option<&str>,
@@ -129,6 +130,7 @@ impl PyAnnotationStore {
         })
     }
 
+    /// Create a new AnnotationDataSet and adds it to the store
     fn add_dataset(&mut self, id: String) -> PyResult<PyAnnotationDataSet> {
         let store_clone = self.store.clone();
         self.map_mut(|store| {

@@ -33,6 +33,29 @@ impl PyTextResource {
     fn __eq__(&self, other: &PyTextResource) -> PyResult<bool> {
         Ok(self.handle == other.handle)
     }
+
+    /// Returns the full text of the resource (by value, aka a copy)
+    fn __str__<'py>(&self, py: Python<'py>) -> PyResult<&'py PyString> {
+        self.map(|resource| Ok(PyString::new(py, resource.text())))
+    }
+
+    /// Returns the text slice at the specified offset, or of the text as a whole if omitted
+    fn text<'py>(&self, offset: Option<&PyOffset>, py: Python<'py>) -> PyResult<&'py PyString> {
+        if let Some(offset) = offset {
+            self.map(|res| Ok(PyString::new(py, res.text_slice(&offset.offset)?)))
+        } else {
+            self.__str__(py)
+        }
+    }
+
+    /// Resolves a text selection to the actual underlying text
+    fn text_of<'py>(
+        &self,
+        textselection: PyTextSelection,
+        py: Python<'py>,
+    ) -> PyResult<&'py PyString> {
+        self.map(|res| Ok(PyString::new(py, res.text_of(&(textselection.into())))))
+    }
 }
 
 impl PyTextResource {
@@ -51,5 +74,128 @@ impl PyTextResource {
                 "Unable to obtain store (should never happen)",
             ))
         }
+    }
+}
+
+#[pyclass(dict, name = "Cursor", frozen, freelist = 64)]
+#[derive(Clone)]
+pub(crate) struct PyCursor {
+    cursor: Cursor,
+}
+
+#[pymethods]
+impl PyCursor {
+    #[new]
+    fn new(index: isize, endaligned: Option<bool>) -> PyResult<Self> {
+        if endaligned.unwrap_or(false) {
+            if index <= 0 {
+                Ok(Self {
+                    cursor: Cursor::EndAligned(index),
+                })
+            } else {
+                Err(PyValueError::new_err(
+                    "End aligned cursor should be 0 or negative",
+                ))
+            }
+        } else {
+            if index >= 0 {
+                Ok(Self {
+                    cursor: Cursor::BeginAligned(index as usize),
+                })
+            } else {
+                Err(PyValueError::new_err(
+                    "Begin aligned cursor should be 0 or positive",
+                ))
+            }
+        }
+    }
+
+    /// Tests if this is a begin-aligned cursor
+    fn is_beginaligned(&self) -> bool {
+        match self.cursor {
+            Cursor::BeginAligned(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Tests if this is an end-aligned cursor
+    fn is_endaligned(&self) -> bool {
+        match self.cursor {
+            Cursor::EndAligned(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns the actual cursor value
+    fn value(&self) -> isize {
+        match self.cursor {
+            Cursor::BeginAligned(v) => v as isize,
+            Cursor::EndAligned(v) => v,
+        }
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.cursor == other.cursor
+    }
+}
+
+#[pyclass(dict, name = "Offset", frozen, freelist = 64)]
+pub(crate) struct PyOffset {
+    offset: Offset,
+}
+
+#[pymethods]
+impl PyOffset {
+    #[new]
+    fn new(begin: PyCursor, end: PyCursor) -> Self {
+        Self {
+            offset: Offset {
+                begin: begin.cursor,
+                end: end.cursor,
+            },
+        }
+    }
+
+    #[staticmethod]
+    /// Creates a simple offset with begin aligned cursors
+    /// This is typically faster than using the normal constructor
+    fn simple(begin: usize, end: usize) -> Self {
+        Self {
+            offset: Offset::simple(begin, end),
+        }
+    }
+
+    /// Return the begin cursor
+    fn begin(&self) -> PyCursor {
+        PyCursor {
+            cursor: self.offset.begin,
+        }
+    }
+
+    /// Return the end cursor
+    fn end(&self) -> PyCursor {
+        PyCursor {
+            cursor: self.offset.end,
+        }
+    }
+}
+
+#[pyclass(dict, name = "TextSelection", frozen, freelist = 64)]
+#[derive(Clone)]
+pub(crate) struct PyTextSelection {
+    textselection: TextSelection,
+}
+
+impl From<TextSelection> for PyTextSelection {
+    fn from(other: TextSelection) -> Self {
+        Self {
+            textselection: other,
+        }
+    }
+}
+
+impl From<PyTextSelection> for TextSelection {
+    fn from(other: PyTextSelection) -> Self {
+        other.textselection
     }
 }
