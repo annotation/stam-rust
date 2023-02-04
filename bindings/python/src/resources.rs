@@ -47,15 +47,6 @@ impl PyTextResource {
             self.__str__(py)
         }
     }
-
-    /// Resolves a text selection to the actual underlying text
-    fn text_of<'py>(
-        &self,
-        textselection: PyTextSelection,
-        py: Python<'py>,
-    ) -> PyResult<&'py PyString> {
-        self.map(|res| Ok(PyString::new(py, res.text_of(&(textselection.into())))))
-    }
 }
 
 impl PyTextResource {
@@ -73,6 +64,14 @@ impl PyTextResource {
             Err(PyRuntimeError::new_err(
                 "Unable to obtain store (should never happen)",
             ))
+        }
+    }
+
+    fn wrap_textselection(&self, textselection: TextSelection) -> PyTextSelection {
+        PyTextSelection {
+            textselection,
+            handle: self.handle,
+            store: self.store.clone(),
         }
     }
 }
@@ -183,13 +182,53 @@ impl PyOffset {
 #[pyclass(dict, name = "TextSelection", frozen, freelist = 64)]
 #[derive(Clone)]
 pub(crate) struct PyTextSelection {
-    textselection: TextSelection,
+    pub(crate) textselection: TextSelection,
+    pub(crate) handle: TextResourceHandle,
+    pub(crate) store: Arc<RwLock<AnnotationStore>>,
 }
 
-impl From<TextSelection> for PyTextSelection {
-    fn from(other: TextSelection) -> Self {
-        Self {
-            textselection: other,
+#[pymethods]
+impl PyTextSelection {
+    /// Resolves a text selection to the actual underlying text
+    fn __str__<'py>(&self, py: Python<'py>) -> PyResult<&'py PyString> {
+        self.map(|res| Ok(PyString::new(py, res.text_of(&(self.textselection.into())))))
+    }
+
+    fn __eq__(&self, other: &PyTextSelection) -> bool {
+        self.handle == other.handle && self.textselection == other.textselection
+    }
+
+    fn __gt__(&self, other: &PyTextSelection) -> bool {
+        self.textselection > other.textselection
+    }
+
+    fn __gte__(&self, other: &PyTextSelection) -> bool {
+        self.textselection >= other.textselection
+    }
+
+    fn __lt__(&self, other: &PyTextSelection) -> bool {
+        self.textselection < other.textselection
+    }
+
+    fn __lte__(&self, other: &PyTextSelection) -> bool {
+        self.textselection <= other.textselection
+    }
+}
+
+impl PyTextSelection {
+    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&TextResource) -> Result<T, StamError>,
+    {
+        if let Ok(store) = self.store.read() {
+            let resource: &TextResource = store
+                .resource(&self.handle.into())
+                .ok_or_else(|| PyRuntimeError::new_err("Failed to resolve textresource"))?;
+            f(resource).map_err(|err| PyStamError::new_err(format!("{}", err)))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Unable to obtain store (should never happen)",
+            ))
         }
     }
 }
