@@ -76,7 +76,7 @@ impl PyAnnotationStore {
                 .resolve_dataset_id(id)
                 .map(|handle| PyAnnotationDataSet {
                     handle,
-                    store: self.store.clone(),
+                    store: self.store.clone(), //just a smart pointer clone, not the whole store
                 })
         })
     }
@@ -86,7 +86,7 @@ impl PyAnnotationStore {
         self.map(|store| {
             store.resolve_annotation_id(id).map(|handle| PyAnnotation {
                 handle,
-                store: self.store.clone(),
+                store: self.store.clone(), //just a smart pointer clone, not the whole store
             })
         })
     }
@@ -96,7 +96,7 @@ impl PyAnnotationStore {
         self.map(|store| {
             store.resolve_resource_id(id).map(|handle| PyTextResource {
                 handle,
-                store: self.store.clone(),
+                store: self.store.clone(), //just a smart pointer clone, not the whole store
             })
         })
     }
@@ -118,7 +118,7 @@ impl PyAnnotationStore {
                 "Set either filename or text keyword arguments, but not both",
             ));
         }
-        let store_clone = self.store.clone();
+        let store_clone = self.store.clone(); //just a smart pointer clone, not the whole store
         self.map_mut(|store| {
             let mut resource = TextResource::new(
                 id.unwrap_or_else(|| filename.expect("filename"))
@@ -148,7 +148,7 @@ impl PyAnnotationStore {
         })
     }
 
-    /// Adds an annotation
+    /// Adds an annotation. Returns an Annotation instance pointing to the added annotation.
     fn annotate(
         &mut self,
         target: PySelector,
@@ -163,7 +163,7 @@ impl PyAnnotationStore {
         for databuilder in data.iter() {
             builder = builder.with_data_builder(databuilder.builder.clone()); //MAYBE TODO: I don't like needing an extra clone here, but it can't move out of the PyRef
         }
-        let store_clone = self.store.clone();
+        let store_clone = self.store.clone(); //just a smart pointer clone, not the whole store
         self.map_mut(|store| {
             Ok(PyAnnotation {
                 handle: store.annotate(builder)?,
