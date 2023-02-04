@@ -7,6 +7,7 @@ use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
 use crate::annotation::PyAnnotation;
+use crate::annotationdata::PyAnnotationDataBuilder;
 use crate::annotationdataset::PyAnnotationDataSet;
 use crate::error::PyStamError;
 use crate::resources::{PyTextResource, PyTextSelection};
@@ -147,9 +148,28 @@ impl PyAnnotationStore {
         })
     }
 
-    fn add_annotation(&self) -> PyResult<PyAnnotation> {
-        //TODO: implement
-        panic!("not implemented yet");
+    /// Adds an annotation
+    fn annotate(
+        &mut self,
+        target: PySelector,
+        data: Vec<PyRef<PyAnnotationDataBuilder>>,
+        id: Option<String>,
+    ) -> PyResult<PyAnnotation> {
+        let mut builder = AnnotationBuilder::new();
+        if let Some(id) = id {
+            builder = builder.with_id(id);
+        }
+        builder = builder.with_selector(target.selector);
+        for databuilder in data.iter() {
+            builder = builder.with_data_builder(databuilder.builder.clone()); //MAYBE TODO: I don't like needing an extra clone here, but it can't move out of the PyRef
+        }
+        let store_clone = self.store.clone();
+        self.map_mut(|store| {
+            Ok(PyAnnotation {
+                handle: store.annotate(builder)?,
+                store: store_clone,
+            })
+        })
     }
 
     /// Returns a generator over all annotations in this store

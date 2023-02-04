@@ -79,7 +79,7 @@ pub struct AnnotationBuilder {
 }
 
 #[derive(Debug)]
-enum WithAnnotationTarget {
+pub enum WithAnnotationTarget {
     Unset,
     FromSelector(Selector),
     FromSelectorBuilder(SelectorBuilder),

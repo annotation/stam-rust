@@ -12,6 +12,7 @@ use crate::resources::PyTextResource;
 use libstam::*;
 
 #[pyclass(dict, name = "SelectorKind")]
+#[derive(Clone)]
 pub struct PySelectorKind {
     kind: SelectorKind,
 }
@@ -53,6 +54,7 @@ impl PySelectorKind {
 }
 
 #[pyclass(dict, name = "Selector")]
+#[derive(Clone)]
 pub(crate) struct PySelector {
     pub(crate) selector: Selector,
 }

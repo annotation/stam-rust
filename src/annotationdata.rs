@@ -173,7 +173,7 @@ impl<'a> WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
 
 /// This is the build recipe for `AnnotationData`. It contains public IDs or handles that will be resolved.
 /// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] methods.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "AnnotationData")]
 #[serde(from = "AnnotationDataJson")]
 pub struct AnnotationDataBuilder {

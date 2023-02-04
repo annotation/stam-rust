@@ -122,6 +122,7 @@ pub(crate) fn datavalue_into_py<'py>(
 }
 
 #[pyclass(dict, name = "DataValue")]
+#[derive(Clone)]
 pub(crate) struct PyDataValue {
     pub(crate) value: DataValue,
 }
@@ -223,5 +224,64 @@ impl PyAnnotationData {
                 "Unable to obtain store (should never happen)",
             ))
         }
+    }
+}
+
+#[pyclass(dict, name = "AnnotationDataBuilder")]
+pub(crate) struct PyAnnotationDataBuilder {
+    pub(crate) builder: AnnotationDataBuilder,
+}
+
+impl From<PyAnnotationDataBuilder> for AnnotationDataBuilder {
+    fn from(other: PyAnnotationDataBuilder) -> Self {
+        other.builder
+    }
+}
+
+#[pymethods]
+impl PyAnnotationDataBuilder {
+    #[new]
+    /// Holds a build recipe to build AnnotationData.
+    /// It is typically passed to the annotate() function of the AnnotationStore.
+    ///
+    /// If you already have existing AnnotationData or DataKey objects, then consider
+    /// using the `link()` respectively `link_key()` static methods instead, as those will be quicker.
+    fn new(
+        annotationset: String,
+        key: String,
+        value: PyDataValue,
+        id: Option<String>,
+    ) -> PyResult<Self> {
+        let mut builder = AnnotationDataBuilder::default();
+        if let Some(id) = id {
+            builder.id = AnyId::Id(id);
+        }
+        builder.annotationset = AnyId::Id(annotationset);
+        builder.key = AnyId::Id(key);
+        builder.value = value.value;
+        Ok(PyAnnotationDataBuilder { builder })
+    }
+
+    #[staticmethod]
+    /// If you already have an existing AnnotationData you want to use, then
+    /// using this method is much quicker than using the normal constructor
+    fn link(reference: &PyAnnotationData) -> PyResult<Self> {
+        let mut builder = AnnotationDataBuilder::default();
+        builder.id = AnyId::Handle(reference.handle);
+        Ok(PyAnnotationDataBuilder { builder })
+    }
+
+    #[staticmethod]
+    /// If you already have an existing PyDataKey you want to use, then
+    /// using this method is much quicker than using the normal constructor
+    fn link_key(key: &PyDataKey, value: PyDataValue, id: Option<String>) -> PyResult<Self> {
+        let mut builder = AnnotationDataBuilder::default();
+        builder.annotationset = AnyId::Handle(key.set);
+        builder.key = AnyId::Handle(key.handle);
+        if let Some(id) = id {
+            builder.id = AnyId::Id(id);
+        }
+        builder.value = value.value;
+        Ok(PyAnnotationDataBuilder { builder })
     }
 }
