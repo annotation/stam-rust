@@ -203,6 +203,10 @@ impl PyTextSelection {
         self.handle == other.handle && self.textselection == other.textselection
     }
 
+    fn __ne__(&self, other: &PyTextSelection) -> bool {
+        self.handle != other.handle || self.textselection != other.textselection
+    }
+
     fn __gt__(&self, other: &PyTextSelection) -> bool {
         self.textselection > other.textselection
     }

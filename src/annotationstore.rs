@@ -1110,6 +1110,25 @@ impl ApplySelector<str> for AnnotationStore {
                 let text = resource.select(selector)?;
                 Ok(text)
             }
+            Selector::AnnotationSelector { .. } => {
+                let annotation: &Annotation = self.select(selector)?;
+                let mut result: Option<&'a str> = None;
+                let mut multi = false;
+                for (resourcehandle, textselection) in self.textselections_by_annotation(annotation)
+                {
+                    let resource: &TextResource = self.get(resourcehandle)?;
+                    if result.is_some() {
+                        multi = true;
+                        break;
+                    }
+                    result = Some(resource.text_of(&textselection))
+                }
+                if multi {
+                    Err(StamError::WrongSelectorTarget("Annotation references multi texts fragment, can't capture in a single &str. Use textselections_by_annotations() instead"))
+                } else {
+                    Ok(result.unwrap())
+                }
+            }
             _ => Err(StamError::WrongSelectorType(
                 "AnnotationStore::select() expected a TextSelector, got another",
             )),

@@ -9,7 +9,8 @@ use std::sync::{Arc, RwLock};
 use crate::annotation::PyAnnotation;
 use crate::annotationdataset::PyAnnotationDataSet;
 use crate::error::PyStamError;
-use crate::resources::PyTextResource;
+use crate::resources::{PyTextResource, PyTextSelection};
+use crate::selector::PySelector;
 use libstam::*;
 
 #[pyclass(dict, name = "AnnotationStore")]
@@ -170,6 +171,59 @@ impl PyAnnotationStore {
             store: self.store.clone(),
             index: 0,
         })
+    }
+
+    /// Applies a selector to the annotation store and returns the target
+    fn select<'py>(&self, selector: &PySelector, py: Python<'py>) -> PyResult<&'py PyAny> {
+        match &selector.selector {
+            Selector::ResourceSelector(handle) => Ok(Py::new(
+                py,
+                PyTextResource {
+                    handle: *handle,
+                    store: self.store.clone(),
+                },
+            )?
+            .into_ref(py)),
+            Selector::DataSetSelector(handle) => Ok(Py::new(
+                py,
+                PyAnnotationDataSet {
+                    handle: *handle,
+                    store: self.store.clone(),
+                },
+            )?
+            .into_ref(py)),
+            Selector::TextSelector(handle, offset) => self.map(|store| {
+                let resource: &TextResource = store.get(*handle)?;
+                let textselection = resource.text_selection(offset)?;
+                let pytextselection: &'py PyAny = Py::new(
+                    py,
+                    PyTextSelection {
+                        handle: *handle,
+                        textselection,
+                        store: self.store.clone(),
+                    },
+                )
+                .expect("creating PyTextSelection")
+                .into_ref(py);
+                Ok(pytextselection)
+            }),
+            Selector::AnnotationSelector(handle, None) => Ok(Py::new(
+                py,
+                PyAnnotation {
+                    handle: *handle,
+                    store: self.store.clone(),
+                },
+            )?
+            .into_ref(py)),
+            Selector::AnnotationSelector(handle, offset) => Ok(Py::new(
+                py,
+                PyAnnotation {
+                    handle: *handle,
+                    store: self.store.clone(),
+                },
+            )?
+            .into_ref(py)),
+        }
     }
 }
 

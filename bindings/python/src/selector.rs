@@ -53,8 +53,8 @@ impl PySelectorKind {
 }
 
 #[pyclass(dict, name = "Selector")]
-pub struct PySelector {
-    selector: Selector,
+pub(crate) struct PySelector {
+    pub(crate) selector: Selector,
 }
 
 #[pymethods]
