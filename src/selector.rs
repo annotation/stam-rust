@@ -198,8 +198,8 @@ impl From<SelectorJson> for SelectorBuilder {
 
 /// This trait is implemented by types that can return a Selector to themselves
 pub trait SelfSelector {
-    /// Returns a selector that points to this resouce
-    fn self_selector(&self) -> Result<Selector, StamError>;
+    /// Returns a selector that points to this resource
+    fn selector(&self) -> Result<Selector, StamError>;
 }
 
 /*

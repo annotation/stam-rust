@@ -420,7 +420,7 @@ impl From<AnnotationJson> for AnnotationBuilder {
 
 impl SelfSelector for Annotation {
     /// Returns a selector to this resource
-    fn self_selector(&self) -> Result<Selector, StamError> {
+    fn selector(&self) -> Result<Selector, StamError> {
         if let Some(handle) = self.handle() {
             Ok(Selector::AnnotationSelector(
                 handle,

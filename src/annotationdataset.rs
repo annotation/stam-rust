@@ -264,7 +264,7 @@ impl Serialize for AnnotationDataSet {
 
 impl SelfSelector for AnnotationDataSet {
     /// Returns a selector to this resource
-    fn self_selector(&self) -> Result<Selector, StamError> {
+    fn selector(&self) -> Result<Selector, StamError> {
         if let Some(intid) = self.handle() {
             Ok(Selector::DataSetSelector(intid))
         } else {
