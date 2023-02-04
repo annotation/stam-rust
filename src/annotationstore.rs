@@ -14,9 +14,7 @@ use crate::annotationdataset::{
 };
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
-use crate::selector::{
-    ApplySelector, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
-};
+use crate::selector::{Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem};
 use crate::textselection::{
     TextRelationMap, TextRelationOperator, TextSelection, TextSelectionOperator,
 };
@@ -1086,10 +1084,11 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
     }
 }
 
-impl ApplySelector<TextResource> for AnnotationStore {
+/*
+impl<'a> ApplySelector<'a, &'a TextResource> for AnnotationStore {
     /// Retrieve a reference to the resource ([`TextResource`]) the selector points to.
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a TextResource, StamError> {
+    fn select(&'a self, selector: &Selector) -> Result<&'a TextResource, StamError> {
         match selector {
             Selector::ResourceSelector(resource_handle) | Selector::TextSelector(resource_handle, .. ) => {
                 let resource: &TextResource = self.get(*resource_handle)?;
@@ -1102,8 +1101,40 @@ impl ApplySelector<TextResource> for AnnotationStore {
     }
 }
 
-impl ApplySelector<str> for AnnotationStore {
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
+impl<'a> ApplySelector<'a, TextSelection> for AnnotationStore {
+    fn select(&'a self, selector: &Selector) -> Result<TextSelection, StamError> {
+        match selector {
+            Selector::TextSelector(_, offset) => {
+                let resource: &TextResource = self.select(selector)?;
+                let textselection = resource.text_selection(offset)?;
+                Ok(textselection)
+            }
+            Selector::AnnotationSelector(_, offset) => {
+                let annotation: &Annotation = self.select(selector)?;
+                let mut result: Option<TextSelection> = None;
+                let mut multi = false;
+                for (_, textselection) in self.textselections_by_annotation(annotation) {
+                    if result.is_some() {
+                        multi = true;
+                        break;
+                    }
+                    result = Some(textselection)
+                }
+                if multi {
+                    Err(StamError::WrongSelectorTarget("Annotation references multi texts fragment, can't capture in a single &str. Use textselections_by_annotations() instead"))
+                } else {
+                    Ok(result.unwrap())
+                }
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "AnnotationStore::select() expected a TextSelector, got another",
+            )),
+        }
+    }
+}
+
+impl<'a> ApplySelector<'a, &'a str> for AnnotationStore {
+    fn select(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
         match selector {
             Selector::TextSelector { .. } => {
                 let resource: &TextResource = self.select(selector)?;
@@ -1136,10 +1167,10 @@ impl ApplySelector<str> for AnnotationStore {
     }
 }
 
-impl ApplySelector<AnnotationDataSet> for AnnotationStore {
+impl<'a> ApplySelector<'a, &'a AnnotationDataSet> for AnnotationStore {
     /// Retrieve a reference to the annotation data set ([`AnnotationDataSet`]) the selector points to.
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a AnnotationDataSet, StamError> {
+    fn select(&'a self, selector: &Selector) -> Result<&'a AnnotationDataSet, StamError> {
         match selector {
             Selector::DataSetSelector(int_id) => {
                 let dataset: &AnnotationDataSet = self.get(*int_id)?;
@@ -1152,10 +1183,10 @@ impl ApplySelector<AnnotationDataSet> for AnnotationStore {
     }
 }
 
-impl ApplySelector<Annotation> for AnnotationStore {
+impl<'a> ApplySelector<'a, &'a Annotation> for AnnotationStore {
     /// Retrieve a reference to the annotation ([`Annotation`]) the selector points to.
     /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a Annotation, StamError> {
+    fn select(&'a self, selector: &Selector) -> Result<&'a Annotation, StamError> {
         match selector {
             Selector::AnnotationSelector(annotation_handle, ..) => {
                 let annotation: &Annotation = self.get(*annotation_handle)?;
@@ -1167,3 +1198,4 @@ impl ApplySelector<Annotation> for AnnotationStore {
         }
     }
 }
+*/

@@ -269,10 +269,8 @@ fn store_get_text_selection() -> Result<(), StamError> {
 fn text_selector() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let annotation: &Annotation = store.get_by_id("A1")?;
-    let resource: &TextResource = store.select(&annotation.target())?;
-    let text: &str = resource.select(&annotation.target())?;
-    assert_eq!(text, "world");
-    let text: &str = store.select(&annotation.target())?; //shortcut form of the two previous steps combined in one
+    let resource: &TextResource = &store.resources_by_annotation(annotation).next().unwrap();
+    let text: &str = store.text_by_annotation(annotation).next().unwrap();
     assert_eq!(text, "world");
     Ok(())
 }
@@ -720,10 +718,7 @@ fn loop_annotations() -> Result<(), StamError> {
         let id = annotation.id().unwrap_or("");
         for (key, data, _dataset) in store.data_by_annotation(annotation) {
             // get the text to which this annotation refers (if any)
-            let text: &str = match annotation.target().kind() {
-                stam::SelectorKind::TextSelector => store.select(annotation.target())?,
-                _ => "",
-            };
+            let text: &str = store.text_by_annotation(annotation).next().unwrap();
             print!("{}\t{}\t{}\t{}", id, key.id().unwrap(), data.value(), text);
         }
     }

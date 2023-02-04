@@ -202,12 +202,14 @@ pub trait SelfSelector {
     fn self_selector(&self) -> Result<Selector, StamError>;
 }
 
+/*
 /// This trait is implemented by types to which a selector can be applied, returning as a result a reference to type T
-pub trait ApplySelector<T: ?Sized> {
+pub trait ApplySelector<'a, T> {
     /// Apply a selector
     /// Raises a [`StamError::WrongSelectorType`] if the selector of the passed type does not apply to this resource
-    fn select<'a>(&'a self, selector: &Selector) -> Result<&'a T, StamError>;
+    fn select(&'a self, selector: &Selector) -> Result<T, StamError>;
 }
+*/
 
 /// This is a smart pointer that encapsulates both a selector and the annotationstore in which it can be resolved
 pub struct WrappedSelector<'a> {
