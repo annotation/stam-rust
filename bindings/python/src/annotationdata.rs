@@ -182,6 +182,27 @@ impl PyAnnotationData {
     fn test_value<'py>(&self, reference: &'py PyDataValue) -> PyResult<bool> {
         self.map(|annotationdata| Ok(reference.test(&annotationdata.value())))
     }
+
+    /// Returns the public ID (by value, aka a copy)
+    /// Don't use this for ID comparisons, use has_id() instead
+    fn id(&self) -> PyResult<Option<String>> {
+        self.map(|annotationdata| Ok(annotationdata.id().map(|x| x.to_owned())))
+    }
+
+    /// Returns the public ID (by value, aka a copy)
+    /// Use this sparingly
+    fn __str__(&self) -> PyResult<Option<String>> {
+        self.map(|annotationdata| Ok(annotationdata.id().map(|x| x.to_owned())))
+    }
+
+    /// Tests the ID of the dataset
+    fn has_id(&self, other: &str) -> PyResult<bool> {
+        self.map(|annotationdata| Ok(annotationdata.id() == Some(other)))
+    }
+
+    fn __eq__(&self, other: &PyAnnotationData) -> PyResult<bool> {
+        Ok(self.handle == other.handle)
+    }
 }
 
 impl PyAnnotationData {

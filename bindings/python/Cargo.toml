@@ -13,7 +13,7 @@ repository = "https://github.com/annotation/stam-rust"
 keywords = [ "text-processing", "annotation", "linguistics", "standoff", "nlp"]
 
 [lib]
-name = "analiticcl"
+name = "stam"
 crate-type = ["cdylib"]
 
 [dependencies]
