@@ -57,6 +57,12 @@ pub(crate) struct PySelector {
     pub(crate) selector: Selector,
 }
 
+impl From<Selector> for PySelector {
+    fn from(selector: Selector) -> Self {
+        Self { selector }
+    }
+}
+
 #[pymethods]
 impl PySelector {
     #[new]

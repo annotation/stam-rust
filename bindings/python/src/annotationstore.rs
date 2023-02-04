@@ -173,7 +173,9 @@ impl PyAnnotationStore {
         })
     }
 
-    /// Applies a selector to the annotation store and returns the target
+    /// Applies a selector to the annotation store and returns the target(s)
+    /// May return a multitude of types depending on the selector, returns
+    /// a list if multiple targets were found (internally consumes an iterator).
     fn select<'py>(&self, selector: &PySelector, py: Python<'py>) -> PyResult<&'py PyAny> {
         match &selector.selector {
             Selector::ResourceSelector(handle) => Ok(Py::new(
@@ -215,14 +217,60 @@ impl PyAnnotationStore {
                 },
             )?
             .into_ref(py)),
-            Selector::AnnotationSelector(handle, offset) => Ok(Py::new(
-                py,
-                PyAnnotation {
-                    handle: *handle,
-                    store: self.store.clone(),
-                },
-            )?
-            .into_ref(py)),
+            Selector::AnnotationSelector(handle, _offset) => {
+                self.map(|store| {
+                    let annotation: &Annotation = store.get(*handle)?;
+                    let result = PyList::empty(py); //TODO: I want a tuple rather than a list but didn't succeed
+                    let textselections = PyList::empty(py);
+                    for (resource, textselection) in store.textselections_by_annotation(annotation)
+                    {
+                        textselections
+                            .append(
+                                Py::new(
+                                    py,
+                                    PyTextSelection {
+                                        handle: resource,
+                                        textselection,
+                                        store: self.store.clone(),
+                                    },
+                                )
+                                .unwrap()
+                                .into_ref(py),
+                            )
+                            .expect("adding textselection");
+                    }
+                    let pyannotation: &PyAny = Py::new(
+                        py,
+                        PyAnnotation {
+                            handle: *handle,
+                            store: self.store.clone(),
+                        },
+                    )
+                    .unwrap()
+                    .into_ref(py);
+                    let textselections: &PyAny = textselections.into();
+                    result.append(pyannotation).expect("adding to result"); //TODO: should go into tuple rather than list
+                    result.append(textselections).expect("adding to result");
+                    let result: &PyAny = result.into();
+                    Ok(result)
+                })
+            }
+            Selector::MultiSelector(v)
+            | Selector::CompositeSelector(v)
+            | Selector::DirectionalSelector(v) => {
+                let result = PyList::empty(py);
+                for subselector in v.iter() {
+                    let subresult: &PyAny = self.select(
+                        &PySelector {
+                            selector: subselector.clone(),
+                        },
+                        py,
+                    )?;
+                    result.append(subresult)?;
+                }
+                let result: &PyAny = result.into();
+                Ok(result)
+            }
         }
     }
 }
