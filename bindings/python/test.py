@@ -8,10 +8,13 @@ import stam.stam
 class Test1(unittest.TestCase):
     def setUp(self):
         self.store = stam.AnnotationStore(id="test")
-        self.store.add_resource(id="testres", text="Hello world")
+        resource = self.store.add_resource(id="testres", text="Hello world")
         dataset = self.store.add_annotationset(id="testdataset")
         dataset.add_key("pos")
-        dataset.add_data("pos","noun","D1")
+        data = dataset.add_data("pos","noun","D1")
+        self.store.annotate(id="A1", 
+                            target=stam.Selector(kind=stam.SelectorKind.TEXTSELECTOR, offset=stam.Offset.simple(6,11), resource=resource),
+                            data=[stam.AnnotationDataBuilder.link(data)])
 
     def test_sanity_1(self):
         self.assertIsInstance( self.store, stam.AnnotationStore)

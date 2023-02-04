@@ -268,6 +268,7 @@ impl PyAnnotationDataBuilder {
     fn link(reference: &PyAnnotationData) -> PyResult<Self> {
         let mut builder = AnnotationDataBuilder::default();
         builder.id = AnyId::Handle(reference.handle);
+        builder.annotationset = AnyId::Handle(reference.set);
         Ok(PyAnnotationDataBuilder { builder })
     }
 

@@ -69,6 +69,7 @@ impl From<Selector> for PySelector {
 #[pymethods]
 impl PySelector {
     #[new]
+    #[pyo3(signature = (kind, resource=None, annotation=None, dataset=None, offset=None, subselectors=Vec::new()))]
     fn new(
         kind: &PySelectorKind,
         resource: Option<PyRef<PyTextResource>>,
