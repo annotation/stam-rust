@@ -2,6 +2,7 @@ extern crate stam as libstam;
 
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::pyclass::CompareOp;
 use pyo3::types::*;
 use std::fmt::Display;
 use std::ops::FnOnce;
@@ -37,8 +38,13 @@ impl PyDataKey {
         self.map(|datakey| Ok(datakey.id() == Some(other)))
     }
 
-    fn __eq__(&self, other: &PyDataKey) -> PyResult<bool> {
-        Ok(self.handle == other.handle)
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.handle == other.handle).into_py(py),
+            CompareOp::Ne => (self.handle != other.handle).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 }
 
@@ -150,8 +156,13 @@ impl PyDataValue {
         })
     }
 
-    fn __eq__(&self, other: &PyDataValue) -> bool {
-        self.value == other.value
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.value == other.value).into_py(py),
+            CompareOp::Ne => (self.value != other.value).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 
     fn __str__(&self) -> String {
@@ -255,8 +266,13 @@ impl PyAnnotationData {
         self.map(|annotationdata| Ok(annotationdata.id() == Some(other)))
     }
 
-    fn __eq__(&self, other: &PyAnnotationData) -> PyResult<bool> {
-        Ok(self.handle == other.handle)
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.handle == other.handle).into_py(py),
+            CompareOp::Ne => (self.handle != other.handle).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 }
 

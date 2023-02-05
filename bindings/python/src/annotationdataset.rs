@@ -2,6 +2,7 @@ extern crate stam as libstam;
 
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::pyclass::CompareOp;
 use pyo3::types::*;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
@@ -31,9 +32,13 @@ impl PyAnnotationDataSet {
         self.map(|annotationset| Ok(annotationset.id() == Some(other)))
     }
 
-    /// Tests whether two datasets are equal
-    fn __eq__(&self, other: &PyAnnotationDataSet) -> PyResult<bool> {
-        Ok(self.handle == other.handle)
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.handle == other.handle).into_py(py),
+            CompareOp::Ne => (self.handle != other.handle).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 
     /// Save the annotation dataset to a STAM JSON file

@@ -2,6 +2,7 @@ extern crate stam as libstam;
 
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::pyclass::CompareOp;
 use pyo3::types::*;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
@@ -49,8 +50,13 @@ impl PySelectorKind {
         kind: SelectorKind::DirectionalSelector,
     };
 
-    fn __eq__(&self, other: &Self) -> bool {
-        self.kind == other.kind
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.kind == other.kind).into_py(py),
+            CompareOp::Ne => (self.kind != other.kind).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 }
 
@@ -331,6 +337,15 @@ impl PySelector {
         match self.selector {
             Selector::CompositeSelector(_) => true,
             _ => false,
+        }
+    }
+
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.selector == other.selector).into_py(py),
+            CompareOp::Ne => (self.selector != other.selector).into_py(py),
+            _ => py.NotImplemented(),
         }
     }
 }

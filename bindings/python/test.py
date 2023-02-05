@@ -34,7 +34,7 @@ class Test1(unittest.TestCase):
         self.assertIsInstance( dataset, AnnotationDataSet)
         key = dataset.key("pos")
         self.assertIsInstance( key, DataKey)
-        self.assertTrue(str(key), "pos")
+        self.assertEqual(str(key), "pos")
         data = dataset.annotationdata("D1")
         self.assertIsInstance( data, AnnotationData)
         self.assertTrue(data.has_id("D1"))
@@ -71,8 +71,20 @@ class Test1(unittest.TestCase):
             count += 1
             self.assertEqual(text, "world")
         self.assertEqual(count,1)
+
+        #shortcut, will concatenate multiple text slices if needed
         self.assertEqual(str(annotation), "world")
             
+    def test_annotation_textselections(self):
+        """Get the textselections of an annotation"""
+        annotation = self.store.annotation("A1")
+        count = 0
+        for textselection in annotation.textselections():
+            count += 1
+            self.assertEqual(str(textselection), "world")
+            self.assertEqual(textselection.resource(), self.store.resource("testres"))
+        self.assertEqual(count,1)
+
 
 class Test2(unittest.TestCase):
     def setUp(self):
@@ -100,7 +112,7 @@ class Test2(unittest.TestCase):
         self.assertIsInstance( dataset, AnnotationDataSet)
         key = dataset.key("pos")
         self.assertIsInstance( key, DataKey)
-        self.assertTrue(str(key), "pos")
+        self.assertEqual(str(key), "pos")
         data = dataset.annotationdata("D1")
         self.assertIsInstance( data, AnnotationData)
         self.assertTrue(data.has_id("D1"))

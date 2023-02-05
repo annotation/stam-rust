@@ -2,6 +2,7 @@ extern crate stam as libstam;
 
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::pyclass::CompareOp;
 use pyo3::types::*;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
@@ -30,9 +31,13 @@ impl PyTextResource {
         self.map(|res| Ok(res.id() == Some(other)))
     }
 
-    /// Tests whether two datasets are equal
-    fn __eq__(&self, other: &PyTextResource) -> PyResult<bool> {
-        Ok(self.handle == other.handle)
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.handle == other.handle).into_py(py),
+            CompareOp::Ne => (self.handle != other.handle).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 
     /// Returns the full text of the resource (by value, aka a copy)
@@ -144,8 +149,13 @@ impl PyCursor {
         }
     }
 
-    fn __eq__(&self, other: &Self) -> bool {
-        self.cursor == other.cursor
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.cursor == other.cursor).into_py(py),
+            CompareOp::Ne => (self.cursor != other.cursor).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 }
 
@@ -205,28 +215,28 @@ impl PyTextSelection {
         self.map(|res| Ok(PyString::new(py, res.text_of(&(self.textselection.into())))))
     }
 
-    fn __eq__(&self, other: &PyTextSelection) -> bool {
-        self.handle == other.handle && self.textselection == other.textselection
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.handle == other.handle
+                && self.textselection == other.textselection)
+                .into_py(py),
+            CompareOp::Ne => (self.handle != other.handle
+                || self.textselection != other.textselection)
+                .into_py(py),
+            CompareOp::Lt => (self.textselection < other.textselection).into_py(py),
+            CompareOp::Le => (self.textselection <= other.textselection).into_py(py),
+            CompareOp::Gt => (self.textselection > other.textselection).into_py(py),
+            CompareOp::Ge => (self.textselection >= other.textselection).into_py(py),
+        }
     }
 
-    fn __ne__(&self, other: &PyTextSelection) -> bool {
-        self.handle != other.handle || self.textselection != other.textselection
-    }
-
-    fn __gt__(&self, other: &PyTextSelection) -> bool {
-        self.textselection > other.textselection
-    }
-
-    fn __gte__(&self, other: &PyTextSelection) -> bool {
-        self.textselection >= other.textselection
-    }
-
-    fn __lt__(&self, other: &PyTextSelection) -> bool {
-        self.textselection < other.textselection
-    }
-
-    fn __lte__(&self, other: &PyTextSelection) -> bool {
-        self.textselection <= other.textselection
+    /// Returns the resource this textselections points at
+    fn resource(&self) -> PyResult<PyTextResource> {
+        Ok(PyTextResource {
+            handle: self.handle,
+            store: self.store.clone(),
+        })
     }
 }
 

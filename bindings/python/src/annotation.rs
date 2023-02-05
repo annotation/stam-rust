@@ -2,6 +2,7 @@ extern crate stam as libstam;
 
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::pyclass::CompareOp;
 use pyo3::types::*;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
@@ -9,6 +10,7 @@ use std::sync::{Arc, RwLock};
 use crate::annotationdata::PyAnnotationData;
 use crate::annotationstore::MapStore;
 use crate::error::PyStamError;
+use crate::resources::PyTextSelection;
 use crate::selector::PySelector;
 use libstam::*;
 
@@ -32,9 +34,13 @@ impl PyAnnotation {
         self.map(|annotation| Ok(annotation.id() == Some(other)))
     }
 
-    /// Tests whether two datasets are equal
-    fn __eq__(&self, other: &PyAnnotation) -> PyResult<bool> {
-        Ok(self.handle == other.handle)
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.handle == other.handle).into_py(py),
+            CompareOp::Ne => (self.handle != other.handle).into_py(py),
+            _ => py.NotImplemented(),
+        }
     }
 
     /// Returns a generator over all data in this annotation
@@ -61,6 +67,53 @@ impl PyAnnotation {
         self.map_store(|store| {
             let annotation: &Annotation = store.get(self.handle)?;
             let elements: Vec<&str> = store.text_by_annotation(annotation).collect();
+            Ok(PyTuple::new(py, elements))
+        })
+    }
+
+    /// Returns the textselections of the annotation.
+    /// Note that this will always return a tuple (even it if only contains a single element),
+    /// as an annotation may reference multiple text selections.
+    fn textselections<'py>(&self, py: Python<'py>) -> PyResult<&'py PyTuple> {
+        self.map_store(|store| {
+            let annotation: &Annotation = store.get(self.handle)?;
+            let elements: Vec<Py<PyTextSelection>> = store
+                .textselections_by_annotation(annotation)
+                .map(|(reshandle, textselection)| {
+                    Py::new(
+                        py,
+                        PyTextSelection {
+                            textselection,
+                            handle: reshandle,
+                            store: self.store.clone(),
+                        },
+                    )
+                    .expect("textselection to pytextselection")
+                })
+                .collect();
+            Ok(PyTuple::new(py, elements))
+        })
+    }
+
+    /// Returns the annotations this annotation refers to (i.e. using an AnnotationSelector)
+    /// They will be returned in a tuple.
+    #[pyo3(signature = (recursive=false))]
+    fn annotations<'py>(&self, recursive: bool, py: Python<'py>) -> PyResult<&'py PyTuple> {
+        self.map_store(|store| {
+            let annotation: &Annotation = store.get(self.handle)?;
+            let elements: Vec<Py<PyAnnotation>> = store
+                .annotations_by_annotation(annotation, recursive, false)
+                .map(|targetitem| {
+                    Py::new(
+                        py,
+                        PyAnnotation {
+                            handle: targetitem.handle().expect("must have handle"),
+                            store: self.store.clone(),
+                        },
+                    )
+                    .expect("Annotation.annotations() wrapping PyAnnotation")
+                })
+                .collect();
             Ok(PyTuple::new(py, elements))
         })
     }
