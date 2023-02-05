@@ -2,7 +2,7 @@
 
 import unittest
 
-from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, SelectorKind, TextResource, DataKey, DataValue, AnnotationDataSet
+from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, TextResource, DataKey, DataValue, AnnotationDataSet
 
 
 class Test1(unittest.TestCase):
@@ -13,7 +13,7 @@ class Test1(unittest.TestCase):
         dataset.add_key("pos")
         data = dataset.add_data("pos","noun","D1")
         self.store.annotate(id="A1", 
-                            target=Selector(kind=SelectorKind.TEXTSELECTOR, offset=Offset.simple(6,11), resource=resource),
+                            target=Selector.Text(resource, Offset.simple(6,11)),
                             data=[AnnotationDataBuilder.link(data)])
 
     def test_sanity_1(self):

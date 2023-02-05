@@ -12,7 +12,7 @@ use crate::error::PyStamError;
 use crate::resources::{PyOffset, PyTextResource};
 use libstam::*;
 
-#[pyclass(dict, name = "SelectorKind")]
+#[pyclass(name = "SelectorKind")]
 #[derive(Clone)]
 pub struct PySelectorKind {
     kind: SelectorKind,
@@ -54,7 +54,7 @@ impl PySelectorKind {
     }
 }
 
-#[pyclass(dict, name = "Selector")]
+#[pyclass(name = "Selector")]
 #[derive(Clone)]
 pub(crate) struct PySelector {
     pub(crate) selector: Selector,
@@ -174,6 +174,103 @@ impl PySelector {
                 }
             }
         }
+    }
+
+    #[staticmethod]
+    #[allow(non_snake_case)]
+    fn Text(resource: PyRef<PyTextResource>, offset: PyRef<PyOffset>) -> PyResult<Self> {
+        PySelector::new(
+            &PySelectorKind::TEXTSELECTOR,
+            Some(resource),
+            None,
+            None,
+            Some(offset),
+            Vec::new(),
+        )
+    }
+
+    #[staticmethod]
+    #[allow(non_snake_case)]
+    /// Shortcut static method to construct a AnnotationSelector
+    fn Annotation(annotation: PyRef<PyAnnotation>, offset: PyRef<PyOffset>) -> PyResult<Self> {
+        PySelector::new(
+            &PySelectorKind::ANNOTATIONSELECTOR,
+            None,
+            Some(annotation),
+            None,
+            Some(offset),
+            Vec::new(),
+        )
+    }
+
+    #[staticmethod]
+    #[allow(non_snake_case)]
+    /// Shortcut static method to construct a ResourceSelector
+    fn Resource(resource: PyRef<PyTextResource>) -> PyResult<Self> {
+        PySelector::new(
+            &PySelectorKind::RESOURCESELECTOR,
+            Some(resource),
+            None,
+            None,
+            None,
+            Vec::new(),
+        )
+    }
+
+    #[staticmethod]
+    #[allow(non_snake_case)]
+    /// Shortcut static method to construct a DataSetSelector
+    fn DataSet(annotationset: PyRef<PyAnnotationDataSet>) -> PyResult<Self> {
+        PySelector::new(
+            &PySelectorKind::DATASETSELECTOR,
+            None,
+            None,
+            Some(annotationset),
+            None,
+            Vec::new(),
+        )
+    }
+
+    #[staticmethod]
+    #[allow(non_snake_case)]
+    /// Shortcut static method to construct a MultiSelector
+    fn Multi(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
+        PySelector::new(
+            &PySelectorKind::MULTISELECTOR,
+            None,
+            None,
+            None,
+            None,
+            subselectors,
+        )
+    }
+
+    #[staticmethod]
+    #[allow(non_snake_case)]
+    /// Shortcut static method to construct a CompositeSelector
+    fn Composite(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
+        PySelector::new(
+            &PySelectorKind::COMPOSITESELECTOR,
+            None,
+            None,
+            None,
+            None,
+            subselectors,
+        )
+    }
+
+    #[staticmethod]
+    #[allow(non_snake_case)]
+    /// Shortcut static method to construct a DirectionalSelector
+    fn Directional(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
+        PySelector::new(
+            &PySelectorKind::DIRECTIONALSELECTOR,
+            None,
+            None,
+            None,
+            None,
+            subselectors,
+        )
     }
 
     /// Returns the selector kind, use is_kind() instead if you want to test
