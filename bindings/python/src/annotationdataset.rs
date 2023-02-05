@@ -67,6 +67,16 @@ impl PyAnnotationDataSet {
         })
     }
 
+    /// Returns the number of keys in the set (not substracting deletions)
+    fn keys_len(&self) -> PyResult<usize> {
+        self.map(|store| Ok(store.keys_len()))
+    }
+
+    /// Returns the number of annotations in the set (not substracting deletions)
+    fn data_len(&self) -> PyResult<usize> {
+        self.map(|store| Ok(store.data_len()))
+    }
+
     /// Create a new AnnotationData instance and adds it to the dataset
     fn add_data<'py>(
         &self,
