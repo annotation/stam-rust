@@ -39,6 +39,16 @@ impl PyAnnotationStore {
                                 };
                             }
                         }
+                        "string" => {
+                            if let Ok(Some(value)) = value.extract() {
+                                return match AnnotationStore::from_str(value) {
+                                    Ok(store) => Ok(PyAnnotationStore {
+                                        store: Arc::new(RwLock::new(store)),
+                                    }),
+                                    Err(err) => Err(PyStamError::new_err(format!("{}", err))),
+                                };
+                            }
+                        }
                         "id" => {
                             if let Ok(Some(value)) = value.extract() {
                                 return Ok(PyAnnotationStore {
@@ -67,6 +77,11 @@ impl PyAnnotationStore {
     /// Saves the annotation store to file using STAM JSON
     fn to_file(&self, filename: &str) -> PyResult<()> {
         self.map(|store| store.to_file(filename))
+    }
+
+    /// Returns the annotation store to one big STAM JSON string
+    fn to_string(&self) -> PyResult<String> {
+        self.map(|store| store.to_string())
     }
 
     /// Returns an AnnotationDataSet by ID

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from os import environ
+import os.path
 import unittest
 
 from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, TextResource, DataKey, DataValue, AnnotationDataSet, Annotation
@@ -7,6 +9,7 @@ from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBui
 
 class Test1(unittest.TestCase):
     def setUp(self):
+        """Create some data from scratch"""
         self.store = AnnotationStore(id="test")
         resource = self.store.add_resource(id="testres", text="Hello world")
         dataset = self.store.add_annotationset(id="testdataset")
@@ -97,6 +100,7 @@ class Test1(unittest.TestCase):
             self.assertTrue(annotationdata.has_id("D1"))
             self.assertTrue(annotationdata.key().has_id("pos")) #this is the most performant in comparisons, it doesn't make a copy of the key
             self.assertEqual(str(annotationdata.key()), "pos") #force a string
+            self.assertEqual(annotationdata.annotationset(), annotationset)
 
             self.assertEqual(annotationdata.value().get(), "noun")
             self.assertTrue(annotationdata.test_value(DataValue("noun"))) #this is the most performant in comparisons, it doesn't make a copy of the value
@@ -112,11 +116,14 @@ class Test1(unittest.TestCase):
             #we can test in loop body because we only have one:
             self.assertIsInstance(key, DataKey)
             self.assertTrue(key.has_id("pos")) #this is the most performant in comparisons, it doesn't make a copy of the key
+            self.assertEqual(key.annotationset(), annotationset)
         self.assertEqual(count,1)
 
 
 class Test2(unittest.TestCase):
     def setUp(self):
+        """Create some data from scratch"""
+        #this is the very same data as in Test1, but constructed more implicitly via annotate()
         self.store = AnnotationStore(id="test")
         resource = self.store.add_resource(id="testres", text="Hello world")
         self.store.annotate(id="A1", 
@@ -145,6 +152,106 @@ class Test2(unittest.TestCase):
         data = dataset.annotationdata("D1")
         self.assertIsInstance( data, AnnotationData)
         self.assertTrue(data.has_id("D1"))
+
+    def test_serialisation_file(self):
+        TMPDIR = environ.get('TMPDIR', "/tmp")
+        filename = os.path.join(TMPDIR, "testoutput.stam.json")
+        #doesn't test the actual output!
+        self.store.to_file(filename)
+
+    def test_serialisation_string(self):
+        self.assertTrue(self.store.to_string()) #doesn't test the actual output!
+ 
+EXAMPLE3JSON = """{
+    "@type": "AnnotationStore",
+    "annotationsets": {
+        "@type": "AnnotationDataSet",
+        "@id": "testdataset",
+        "keys": [
+            {
+              "@type": "DataKey",
+              "@id": "pos"
+            }
+        ],
+        "data": [
+            {
+                "@type": "AnnotationData",
+                "@id": "D1",
+                "key": "pos",
+                "value": {
+                    "@type": "String",
+                    "value": "noun"
+                }
+            }
+        ]
+    },
+    "resources": [{
+        "@id": "testres",
+        "text": "Hello world"
+    }],
+    "annotations": [{
+        "@type": "Annotation",
+        "@id": "A1",
+        "target": {
+            "@type": "TextSelector",
+            "resource": "testres",
+            "offset": {
+                "begin": {
+                    "@type": "BeginAlignedCursor",
+                    "value": 6
+                },
+                "end": {
+                    "@type": "BeginAlignedCursor",
+                    "value": 11
+                }
+            }
+        },
+        "data": [{
+            "@type": "AnnotationData",
+            "@id": "D1",
+            "set": "testdataset"
+        }]
+    }]
+}"""
+
+def common_sanity(self): 
+    self.assertIsInstance( self.store, AnnotationStore)
+    self.assertEqual(self.store.annotations_len(), 1)
+    self.assertEqual(self.store.annotationsets_len(), 1)
+    self.assertEqual(self.store.resources_len(), 1)
+
+    resource = self.store.resource("testres")
+    self.assertIsInstance( resource, TextResource)
+    self.assertEqual(resource.id, "testres")
+    self.assertTrue(resource.has_id("testres")) #quicker than the above (no copy)
+
+    dataset = self.store.annotationset("testdataset")
+    self.assertIsInstance( dataset, AnnotationDataSet)
+    key = dataset.key("pos")
+    self.assertIsInstance( key, DataKey)
+    self.assertEqual(str(key), "pos")
+    data = dataset.annotationdata("D1")
+    self.assertIsInstance( data, AnnotationData)
+    self.assertTrue(data.has_id("D1"))
+
+class Test3a(unittest.TestCase):
+    def test_parse_file(self):
+        TMPDIR = environ.get('TMPDIR', "/tmp")
+        filename = os.path.join(TMPDIR, "test.stam.json")
+        with open(filename, 'w',encoding='utf-8') as f:
+            f.write(EXAMPLE3JSON)
+        self.store = AnnotationStore(file=filename)
+
+        #test all sanity
+        common_sanity(self)
+
+
+class Test3b(unittest.TestCase):
+    def test_parse_file(self):
+        self.store = AnnotationStore(string=EXAMPLE3JSON)
+
+        #test all sanity
+        common_sanity(self)
 
 if __name__ == "__main__":
     unittest.main()

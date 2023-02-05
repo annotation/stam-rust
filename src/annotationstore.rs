@@ -482,6 +482,14 @@ impl AnnotationStore {
         Self::from_builder(builder)
     }
 
+    /// Loads an AnnotationStore from a STAM JSON string
+    /// The string must contain a single object which has "@type": "AnnotationStore"
+    pub fn from_str(string: &str) -> Result<Self, StamError> {
+        let builder: AnnotationStoreBuilder = serde_json::from_str(string)
+            .map_err(|e| StamError::JsonError(e, "Reading annotationstore from file"))?;
+        Self::from_builder(builder)
+    }
+
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
         let f = File::create(filename)
@@ -502,6 +510,20 @@ impl AnnotationStore {
             StamError::SerializationError(format!("Writing annotationstore to file: {}", e))
         })?;
         Ok(())
+    }
+
+    /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting
+    pub fn to_string(&self) -> Result<String, StamError> {
+        serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing annotationstore to string: {}", e))
+        })
+    }
+
+    /// Writes an AnnotationStore to one big STAM JSON string, without any indentation
+    pub fn to_string_compact(&self) -> Result<String, StamError> {
+        serde_json::to_string(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing annotationstore to string: {}", e))
+        })
     }
 
     /// Returns the ID of the annotation store (if any)
