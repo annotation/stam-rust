@@ -1,6 +1,7 @@
 target
 bindings/python/target
 bindings/python/build
+env/
 *~
 BRAINSTORM*
 Cargo.lock
