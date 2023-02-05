@@ -10,7 +10,7 @@ use crate::error::PyStamError;
 use crate::selector::PySelector;
 use libstam::*;
 
-#[pyclass(dict, name = "TextResource")]
+#[pyclass(name = "TextResource")]
 pub(crate) struct PyTextResource {
     pub(crate) handle: TextResourceHandle,
     pub(crate) store: Arc<RwLock<AnnotationStore>>,
@@ -87,7 +87,7 @@ impl PyTextResource {
     }
 }
 
-#[pyclass(dict, name = "Cursor", frozen, freelist = 64)]
+#[pyclass(name = "Cursor", frozen, freelist = 64)]
 #[derive(Clone)]
 pub(crate) struct PyCursor {
     cursor: Cursor,
@@ -149,7 +149,7 @@ impl PyCursor {
     }
 }
 
-#[pyclass(dict, name = "Offset", frozen, freelist = 64)]
+#[pyclass(name = "Offset", frozen, freelist = 64)]
 pub(crate) struct PyOffset {
     pub(crate) offset: Offset,
 }
@@ -190,7 +190,7 @@ impl PyOffset {
     }
 }
 
-#[pyclass(dict, name = "TextSelection", frozen, freelist = 64)]
+#[pyclass(name = "TextSelection", frozen, freelist = 64)]
 #[derive(Clone)]
 pub(crate) struct PyTextSelection {
     pub(crate) textselection: TextSelection,

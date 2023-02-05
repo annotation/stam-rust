@@ -9,7 +9,7 @@ use std::sync::{Arc, RwLock};
 use crate::error::PyStamError;
 use libstam::*;
 
-#[pyclass(dict, name = "DataKey")]
+#[pyclass(name = "DataKey")]
 pub(crate) struct PyDataKey {
     pub(crate) set: AnnotationDataSetHandle,
     pub(crate) handle: DataKeyHandle,
@@ -62,7 +62,7 @@ impl PyDataKey {
     }
 }
 
-#[pyclass(dict, name = "AnnotationData")]
+#[pyclass(name = "AnnotationData")]
 pub(crate) struct PyAnnotationData {
     pub(crate) set: AnnotationDataSetHandle,
     pub(crate) handle: AnnotationDataHandle,
@@ -121,7 +121,7 @@ pub(crate) fn datavalue_into_py<'py>(
     }
 }
 
-#[pyclass(dict, name = "DataValue")]
+#[pyclass(name = "DataValue")]
 #[derive(Clone)]
 pub(crate) struct PyDataValue {
     pub(crate) value: DataValue,
@@ -269,7 +269,7 @@ impl PyAnnotationData {
     }
 }
 
-#[pyclass(dict, name = "AnnotationDataBuilder")]
+#[pyclass(name = "AnnotationDataBuilder")]
 pub(crate) struct PyAnnotationDataBuilder {
     pub(crate) builder: AnnotationDataBuilder,
 }

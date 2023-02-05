@@ -11,7 +11,7 @@ use crate::error::PyStamError;
 use crate::selector::PySelector;
 use libstam::*;
 
-#[pyclass(dict, name = "Annotation")]
+#[pyclass(name = "Annotation")]
 pub(crate) struct PyAnnotation {
     pub(crate) handle: AnnotationHandle,
     pub(crate) store: Arc<RwLock<AnnotationStore>>,

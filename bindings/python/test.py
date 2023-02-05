@@ -39,6 +39,9 @@ class Test1(unittest.TestCase):
         self.assertIsInstance( data, AnnotationData)
         self.assertTrue(data.has_id("D1"))
 
+    def iter_data(self):
+        annotation = self.store.annotation("A1")
+
 class Test2(unittest.TestCase):
     def setUp(self):
         self.store = AnnotationStore(id="test")
