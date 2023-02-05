@@ -39,8 +39,17 @@ class Test1(unittest.TestCase):
         self.assertIsInstance( data, AnnotationData)
         self.assertTrue(data.has_id("D1"))
 
-    def iter_data(self):
+    def test_iter_data(self):
         annotation = self.store.annotation("A1")
+        count = 0
+        for annotationdata in annotation:
+            count += 1
+            #we can test in loop body because we only have one:
+            self.assertTrue(annotationdata.has_id("D1"))
+            self.assertTrue(annotationdata.key().has_id("pos"))
+            self.assertEqual(annotationdata.value().get(), "noun")
+        self.assertEqual(count,1)
+            
 
 class Test2(unittest.TestCase):
     def setUp(self):
