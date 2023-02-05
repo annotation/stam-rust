@@ -196,6 +196,21 @@ impl PyAnnotationStore {
         })
     }
 
+    /// Returns the number of annotations in the store (not substracting deletions)
+    fn annotations_len(&self) -> PyResult<usize> {
+        self.map(|store| Ok(store.annotations_len()))
+    }
+
+    /// Returns the number of resources in the store (not substracting deletions)
+    fn resources_len(&self) -> PyResult<usize> {
+        self.map(|store| Ok(store.resources_len()))
+    }
+
+    /// Returns the number of annotation data sets in the store (not substracting deletions)
+    fn annotationsets_len(&self) -> PyResult<usize> {
+        self.map(|store| Ok(store.annotationsets_len()))
+    }
+
     /// Applies a selector to the annotation store and returns the target(s)
     /// May return a multitude of types depending on the selector, returns
     /// a list if multiple targets were found (internally consumes an iterator).

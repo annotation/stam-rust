@@ -19,6 +19,9 @@ class Test1(unittest.TestCase):
     def test_sanity_1(self):
         self.assertIsInstance( self.store, AnnotationStore)
         self.assertEqual(self.store.id, "test")
+        self.assertEqual(self.store.annotations_len(), 1)
+        self.assertEqual(self.store.annotationsets_len(), 1)
+        self.assertEqual(self.store.resources_len(), 1)
 
     def test_sanity_2(self):
         resource = self.store.resource("testres")
@@ -47,6 +50,9 @@ class Test2(unittest.TestCase):
     def test_sanity_1(self):
         self.assertIsInstance( self.store, AnnotationStore)
         self.assertEqual(self.store.id, "test")
+        self.assertEqual(self.store.annotations_len(), 1)
+        self.assertEqual(self.store.annotationsets_len(), 1)
+        self.assertEqual(self.store.resources_len(), 1)
 
     def test_sanity_2(self):
         resource = self.store.resource("testres")
