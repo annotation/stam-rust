@@ -313,13 +313,16 @@ impl PyAnnotationStore {
     }
 }
 
-impl PyAnnotationStore {
-    /// Map function to act on the actual unlderyling store, helps reduce boilerplate
-    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+pub(crate) trait MapStore {
+    fn get_store(&self) -> &Arc<RwLock<AnnotationStore>>;
+    fn get_store_mut(&mut self) -> &mut Arc<RwLock<AnnotationStore>>;
+
+    /// Map function only on the store
+    fn map_store<T, F>(&self, f: F) -> Result<T, PyErr>
     where
         F: FnOnce(&AnnotationStore) -> Result<T, StamError>,
     {
-        if let Ok(store) = self.store.read() {
+        if let Ok(store) = self.get_store().read() {
             f(&store).map_err(|err| PyStamError::new_err(format!("{}", err)))
         } else {
             Err(PyRuntimeError::new_err(
@@ -328,17 +331,43 @@ impl PyAnnotationStore {
         }
     }
 
-    fn map_mut<T, F>(&mut self, f: F) -> Result<T, PyErr>
+    fn map_store_mut<T, F>(&mut self, f: F) -> Result<T, PyErr>
     where
         F: FnOnce(&mut AnnotationStore) -> Result<T, StamError>,
     {
-        if let Ok(mut store) = self.store.write() {
+        if let Ok(mut store) = self.get_store_mut().write() {
             f(&mut store).map_err(|err| PyStamError::new_err(format!("{}", err)))
         } else {
             Err(PyRuntimeError::new_err(
                 "unable to obtain exclusive lock for writing to store",
             ))
         }
+    }
+}
+
+impl MapStore for PyAnnotationStore {
+    fn get_store(&self) -> &Arc<RwLock<AnnotationStore>> {
+        &self.store
+    }
+    fn get_store_mut(&mut self) -> &mut Arc<RwLock<AnnotationStore>> {
+        &mut self.store
+    }
+}
+
+impl PyAnnotationStore {
+    /// Map function to act on the actual unlderyling store, helps reduce boilerplate
+    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&AnnotationStore) -> Result<T, StamError>,
+    {
+        self.map_store(f)
+    }
+
+    fn map_mut<T, F>(&mut self, f: F) -> Result<T, PyErr>
+    where
+        F: FnOnce(&mut AnnotationStore) -> Result<T, StamError>,
+    {
+        self.map_store_mut(f)
     }
 }
 

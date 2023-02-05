@@ -209,7 +209,7 @@ fn store_iter_data() -> Result<(), StamError> {
 }
 
 #[test]
-fn store_get_text() -> Result<(), StamError> {
+fn resource_text() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let resource: &TextResource = store.get_by_id("testres")?;
     let text = resource.text();

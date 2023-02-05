@@ -2,7 +2,7 @@
 
 import unittest
 
-from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, TextResource, DataKey, DataValue, AnnotationDataSet
+from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, TextResource, DataKey, DataValue, AnnotationDataSet, Annotation
 
 
 class Test1(unittest.TestCase):
@@ -40,15 +40,38 @@ class Test1(unittest.TestCase):
         self.assertTrue(data.has_id("D1"))
 
     def test_iter_data(self):
+        """Iterates over the data in an annotation"""
         annotation = self.store.annotation("A1")
+        self.assertIsInstance(annotation, Annotation)
         count = 0
         for annotationdata in annotation:
             count += 1
             #we can test in loop body because we only have one:
+            self.assertIsInstance(annotationdata, AnnotationData)
             self.assertTrue(annotationdata.has_id("D1"))
-            self.assertTrue(annotationdata.key().has_id("pos"))
+            self.assertTrue(annotationdata.key().has_id("pos")) #this is the most performant in comparisons, it doesn't make a copy of the key
+            self.assertEqual(str(annotationdata.key()), "pos") #force a string
+
             self.assertEqual(annotationdata.value().get(), "noun")
+            self.assertTrue(annotationdata.test_value(DataValue("noun"))) #this is the most performant in comparisons, it doesn't make a copy of the value
+            self.assertEqual(str(annotationdata.value()), "noun") #force a string
         self.assertEqual(count,1)
+
+    def test_resource_text(self):
+        """Get the text of an entire resource"""
+        resource = self.store.resource("testres")
+        self.assertIsInstance(resource, TextResource)
+        self.assertEqual(str(resource), "Hello world")
+
+    def test_annotation_text(self):
+        """Get the text of an annotation"""
+        annotation = self.store.annotation("A1")
+        count = 0
+        for text in annotation.text():
+            count += 1
+            self.assertEqual(text, "world")
+        self.assertEqual(count,1)
+        self.assertEqual(str(annotation), "world")
             
 
 class Test2(unittest.TestCase):

@@ -3,6 +3,7 @@ extern crate stam as libstam;
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::*;
+use std::fmt::Display;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
@@ -122,9 +123,16 @@ pub(crate) fn datavalue_into_py<'py>(
 }
 
 #[pyclass(name = "DataValue")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+/// Encapsulates a value and its type. Held by `AnnotationData`. This type is not a reference but holds the actual value.
 pub(crate) struct PyDataValue {
     pub(crate) value: DataValue,
+}
+
+impl std::fmt::Display for PyDataValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
 }
 
 #[pymethods]
@@ -144,6 +152,10 @@ impl PyDataValue {
 
     fn __eq__(&self, other: &PyDataValue) -> bool {
         self.value == other.value
+    }
+
+    fn __str__(&self) -> String {
+        self.to_string()
     }
 }
 

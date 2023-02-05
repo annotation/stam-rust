@@ -61,6 +61,9 @@ pub enum StamError {
     /// Annotation has no target
     NoTarget(&'static str),
 
+    /// Annotation has no text
+    NoText(&'static str),
+
     /// Called when removal of an item is requested but it is still being referenced.
     InUse(&'static str),
 
@@ -129,6 +132,9 @@ impl From<&StamError> for String {
             ),
             StamError::NoTarget(contextmsg) => {
                 format!("NoTarget: Annotation has no target ({})", contextmsg)
+            }
+            StamError::NoText(contextmsg) => {
+                format!("NoText: Annotation has no text ({})", contextmsg)
             }
             StamError::InUse(contextmsg) => format!(
                 "InUse: Item can't be removed because it is being referenced ({})",

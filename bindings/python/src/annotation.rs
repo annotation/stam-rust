@@ -7,6 +7,7 @@ use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
 use crate::annotationdata::PyAnnotationData;
+use crate::annotationstore::MapStore;
 use crate::error::PyStamError;
 use crate::selector::PySelector;
 use libstam::*;
@@ -45,10 +46,37 @@ impl PyAnnotation {
         })
     }
 
-    /// Returns a Selector (DataSetSelector) pointing to this Annotation
+    /// Returns a Selector (AnnotationSelector) pointing to this Annotation
     /// If the annotation references any text, so will this
     fn selector(&self) -> PyResult<PySelector> {
-        self.map(|set| set.selector().map(|sel| sel.into()))
+        self.map(|annotation| annotation.selector().map(|sel| sel.into()))
+    }
+
+    /// Returns the text of the annotation.
+    /// Note that this will always return a tuple (even it if only contains a single element),
+    /// as an annotation may reference multiple texts.
+    ///
+    /// If you are sure an annotation only reference a single contingent text slice or are okay with slices being concatenated, then you can use `str()` instead.
+    fn text<'py>(&self, py: Python<'py>) -> PyResult<&'py PyTuple> {
+        self.map_store(|store| {
+            let annotation: &Annotation = store.get(self.handle)?;
+            let elements: Vec<&str> = store.text_by_annotation(annotation).collect();
+            Ok(PyTuple::new(py, elements))
+        })
+    }
+
+    /// Returns the text of the annotation.
+    /// If the annotation references multiple text slices, they will be concatenated with a space as a delimiter,
+    /// but note that in reality the different parts may be non-contingent!
+    ///
+    /// Use `text()` instead to retrieve a tuple
+    fn __str__(&self) -> PyResult<String> {
+        self.map_store(|store| {
+            let annotation: &Annotation = store.get(self.handle)?;
+            let elements: Vec<&str> = store.text_by_annotation(annotation).collect();
+            let result: String = elements.join(" ");
+            Ok(result)
+        })
     }
 }
 
@@ -96,6 +124,15 @@ impl PyDataIter {
         } else {
             None //should never happen here
         }
+    }
+}
+
+impl MapStore for PyAnnotation {
+    fn get_store(&self) -> &Arc<RwLock<AnnotationStore>> {
+        &self.store
+    }
+    fn get_store_mut(&mut self) -> &mut Arc<RwLock<AnnotationStore>> {
+        &mut self.store
     }
 }
 
