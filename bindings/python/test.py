@@ -49,6 +49,7 @@ class Test1(unittest.TestCase):
             #we can test in loop body because we only have one:
             self.assertIsInstance(annotationdata, AnnotationData)
             self.assertTrue(annotationdata.has_id("D1"))
+            self.assertTrue(annotationdata.annotationset().has_id("testdataset"))
             self.assertTrue(annotationdata.key().has_id("pos")) #this is the most performant in comparisons, it doesn't make a copy of the key
             self.assertEqual(str(annotationdata.key()), "pos") #force a string
 
@@ -83,6 +84,34 @@ class Test1(unittest.TestCase):
             count += 1
             self.assertEqual(str(textselection), "world")
             self.assertEqual(textselection.resource(), self.store.resource("testres"))
+        self.assertEqual(count,1)
+
+    def test_annotationset_iter(self):
+        """Iterate over all data in an annotationset"""
+        annotationset = self.store.annotationset("testdataset")
+        count = 0
+        for annotationdata in annotationset:
+            count += 1
+            #we can test in loop body because we only have one:
+            self.assertIsInstance(annotationdata, AnnotationData)
+            self.assertTrue(annotationdata.has_id("D1"))
+            self.assertTrue(annotationdata.key().has_id("pos")) #this is the most performant in comparisons, it doesn't make a copy of the key
+            self.assertEqual(str(annotationdata.key()), "pos") #force a string
+
+            self.assertEqual(annotationdata.value().get(), "noun")
+            self.assertTrue(annotationdata.test_value(DataValue("noun"))) #this is the most performant in comparisons, it doesn't make a copy of the value
+            self.assertEqual(str(annotationdata.value()), "noun") #force a string
+        self.assertEqual(count,1)
+
+    def test_annotationset_iter_keys(self):
+        """Iterate over all keys in an annotationset"""
+        annotationset = self.store.annotationset("testdataset")
+        count = 0
+        for key in annotationset.keys():
+            count += 1
+            #we can test in loop body because we only have one:
+            self.assertIsInstance(key, DataKey)
+            self.assertTrue(key.has_id("pos")) #this is the most performant in comparisons, it doesn't make a copy of the key
         self.assertEqual(count,1)
 
 

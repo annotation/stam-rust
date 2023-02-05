@@ -8,9 +8,10 @@ use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
 use crate::annotationdata::PyAnnotationData;
+use crate::annotationdataset::PyAnnotationDataSet;
 use crate::annotationstore::MapStore;
 use crate::error::PyStamError;
-use crate::resources::PyTextSelection;
+use crate::resources::{PyTextResource, PyTextSelection};
 use crate::selector::PySelector;
 use libstam::*;
 
@@ -71,6 +72,20 @@ impl PyAnnotation {
         })
     }
 
+    /// Returns the text of the annotation.
+    /// If the annotation references multiple text slices, they will be concatenated with a space as a delimiter,
+    /// but note that in reality the different parts may be non-contingent!
+    ///
+    /// Use `text()` instead to retrieve a tuple
+    fn __str__(&self) -> PyResult<String> {
+        self.map_store(|store| {
+            let annotation: &Annotation = store.get(self.handle)?;
+            let elements: Vec<&str> = store.text_by_annotation(annotation).collect();
+            let result: String = elements.join(" ");
+            Ok(result)
+        })
+    }
+
     /// Returns the textselections of the annotation.
     /// Note that this will always return a tuple (even it if only contains a single element),
     /// as an annotation may reference multiple text selections.
@@ -118,17 +133,47 @@ impl PyAnnotation {
         })
     }
 
-    /// Returns the text of the annotation.
-    /// If the annotation references multiple text slices, they will be concatenated with a space as a delimiter,
-    /// but note that in reality the different parts may be non-contingent!
-    ///
-    /// Use `text()` instead to retrieve a tuple
-    fn __str__(&self) -> PyResult<String> {
+    /// Returns the resources this annotation refers to
+    /// They will be returned in a tuple.
+    fn resources<'py>(&self, py: Python<'py>) -> PyResult<&'py PyTuple> {
         self.map_store(|store| {
             let annotation: &Annotation = store.get(self.handle)?;
-            let elements: Vec<&str> = store.text_by_annotation(annotation).collect();
-            let result: String = elements.join(" ");
-            Ok(result)
+            let elements: Vec<Py<PyTextResource>> = store
+                .resources_by_annotation(annotation)
+                .map(|targetitem| {
+                    Py::new(
+                        py,
+                        PyTextResource {
+                            handle: targetitem.handle().expect("must have handle"),
+                            store: self.store.clone(),
+                        },
+                    )
+                    .expect("Annotation.annotations() wrapping PyAnnotation")
+                })
+                .collect();
+            Ok(PyTuple::new(py, elements))
+        })
+    }
+
+    /// Returns the resources this annotation refers to
+    /// They will be returned in a tuple.
+    fn annotationsets<'py>(&self, py: Python<'py>) -> PyResult<&'py PyTuple> {
+        self.map_store(|store| {
+            let annotation: &Annotation = store.get(self.handle)?;
+            let elements: Vec<Py<PyAnnotationDataSet>> = store
+                .annotationsets_by_annotation(annotation)
+                .map(|targetitem| {
+                    Py::new(
+                        py,
+                        PyAnnotationDataSet {
+                            handle: targetitem.handle().expect("must have handle"),
+                            store: self.store.clone(),
+                        },
+                    )
+                    .expect("Annotation.annotations() wrapping PyAnnotation")
+                })
+                .collect();
+            Ok(PyTuple::new(py, elements))
         })
     }
 }

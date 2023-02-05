@@ -8,6 +8,7 @@ use std::fmt::Display;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
+use crate::annotationdataset::PyAnnotationDataSet;
 use crate::error::PyStamError;
 use libstam::*;
 
@@ -45,6 +46,14 @@ impl PyDataKey {
             CompareOp::Ne => (self.handle != other.handle).into_py(py),
             _ => py.NotImplemented(),
         }
+    }
+
+    /// Returns the AnnotationDataSet this key is part of
+    fn annotationset(&self) -> PyResult<PyAnnotationDataSet> {
+        Ok(PyAnnotationDataSet {
+            handle: self.set,
+            store: self.store.clone(),
+        })
     }
 }
 
@@ -273,6 +282,14 @@ impl PyAnnotationData {
             CompareOp::Ne => (self.handle != other.handle).into_py(py),
             _ => py.NotImplemented(),
         }
+    }
+
+    /// Returns the AnnotationDataSet this data is part of
+    fn annotationset(&self) -> PyResult<PyAnnotationDataSet> {
+        Ok(PyAnnotationDataSet {
+            handle: self.set,
+            store: self.store.clone(),
+        })
     }
 }
 
