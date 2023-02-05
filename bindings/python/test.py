@@ -208,7 +208,7 @@ class Test1(unittest.TestCase):
         self.assertTrue(annotationdata.has_id("D1"))
 
     def test_find_data_from_key(self):
-        """Find annotationdata by value"""
+        """Find annotationdata by value, when key already known"""
         annotationset = self.store.annotationset("testdataset")
         datakey = annotationset.key("pos")
         annotationdata = datakey.find_data("noun")
@@ -216,7 +216,7 @@ class Test1(unittest.TestCase):
         self.assertTrue(annotationdata.has_id("D1"))
 
     def test_find_data_missing(self):
-        """Find annotationdata by value"""
+        """Find annotationdata by value, test mismatches"""
         annotationset = self.store.annotationset("testdataset")
         annotationdata = annotationset.find_data("pos","non-existent")
         self.assertEqual(annotationdata, None)
