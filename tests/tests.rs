@@ -829,3 +829,14 @@ fn text_by_annotation() -> Result<(), StamError> {
     assert_eq!(count, 1);
     Ok(())
 }
+
+#[test]
+fn find_data() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let annotationset: &AnnotationDataSet = store.get_by_id("testdataset")?;
+    let annotationdata: Option<&AnnotationData> =
+        annotationset.find_data(AnyId::Id("pos".into()), &DataValue::String("noun".into()));
+    assert!(annotationdata.is_some());
+    assert_eq!(annotationdata.unwrap().id(), Some("D1"));
+    Ok(())
+}
