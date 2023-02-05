@@ -8,6 +8,7 @@ use std::fmt::Display;
 use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
+use crate::annotation::PyAnnotation;
 use crate::annotationdataset::PyAnnotationDataSet;
 use crate::annotationstore::MapStore;
 use crate::error::PyStamError;
@@ -57,7 +58,7 @@ impl PyDataKey {
         })
     }
 
-    /// Returns the AnnotationData instances this key refers to.
+    /// Returns the AnnotationData instances that use this key.
     /// This is a lookup in the reverse index.
     /// The results will be returned in a tuple.
     fn annotationdata<'py>(&self, py: Python<'py>) -> PyResult<&'py PyTuple> {
@@ -326,6 +327,39 @@ impl PyAnnotationData {
             handle: self.set,
             store: self.store.clone(),
         })
+    }
+
+    /// Returns the Annotation instances that use this data
+    /// This is a lookup in the reverse index.
+    /// The results will be returned in a tuple.
+    fn annotations<'py>(&self, py: Python<'py>) -> PyResult<&'py PyTuple> {
+        self.map_store(|store| {
+            let elements: Vec<Py<PyAnnotation>> = store
+                .annotations_by_data(self.set, self.handle)
+                .unwrap_or(&Vec::new())
+                .iter()
+                .map(|handle| {
+                    Py::new(
+                        py,
+                        PyAnnotation {
+                            handle: *handle,
+                            store: self.store.clone(),
+                        },
+                    )
+                    .expect("AnnotationData.annotations() wrapping PyAnnotation")
+                })
+                .collect();
+            Ok(PyTuple::new(py, elements))
+        })
+    }
+}
+
+impl MapStore for PyAnnotationData {
+    fn get_store(&self) -> &Arc<RwLock<AnnotationStore>> {
+        &self.store
+    }
+    fn get_store_mut(&mut self) -> &mut Arc<RwLock<AnnotationStore>> {
+        &mut self.store
     }
 }
 

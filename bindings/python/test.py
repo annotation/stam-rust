@@ -186,6 +186,17 @@ class Test1(unittest.TestCase):
             self.assertTrue(annotationdata.test_value(DataValue("noun"))) #this is the most performant in comparisons, it doesn't make a copy of the value
             self.assertEqual(str(annotationdata.value()), "noun") #force a string
         self.assertEqual(count,1)
+
+    def test_annotations_by_data(self):
+        annotationset = self.store.annotationset("testdataset")
+        data = annotationset.annotationdata("D1")
+        count = 0
+        for annotation in data.annotations():
+            count += 1
+            #we can test in loop body because we only have one:
+            self.assertIsInstance(annotation, Annotation)
+            self.assertTrue(annotation.has_id("A1"))
+        self.assertEqual(count,1)
             
 
 
