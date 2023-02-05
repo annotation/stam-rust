@@ -9,6 +9,7 @@ use std::ops::FnOnce;
 use std::sync::{Arc, RwLock};
 
 use crate::annotationdataset::PyAnnotationDataSet;
+use crate::annotationstore::MapStore;
 use crate::error::PyStamError;
 use libstam::*;
 
@@ -54,6 +55,41 @@ impl PyDataKey {
             handle: self.set,
             store: self.store.clone(),
         })
+    }
+
+    /// Returns the AnnotationData instances this key refers to.
+    /// This is a lookup in the reverse index.
+    /// The results will be returned in a tuple.
+    fn annotationdata<'py>(&self, py: Python<'py>) -> PyResult<&'py PyTuple> {
+        self.map_store(|store| {
+            let annotationset: &AnnotationDataSet = store.get(self.set)?;
+            let elements: Vec<Py<PyAnnotationData>> = annotationset
+                .data_by_key(self.handle)
+                .unwrap_or(&Vec::new())
+                .iter()
+                .map(|handle| {
+                    Py::new(
+                        py,
+                        PyAnnotationData {
+                            handle: *handle,
+                            set: self.set,
+                            store: self.store.clone(),
+                        },
+                    )
+                    .expect("Annotation.annotations() wrapping PyAnnotation")
+                })
+                .collect();
+            Ok(PyTuple::new(py, elements))
+        })
+    }
+}
+
+impl MapStore for PyDataKey {
+    fn get_store(&self) -> &Arc<RwLock<AnnotationStore>> {
+        &self.store
+    }
+    fn get_store_mut(&mut self) -> &mut Arc<RwLock<AnnotationStore>> {
+        &mut self.store
     }
 }
 

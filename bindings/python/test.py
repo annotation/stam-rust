@@ -169,6 +169,26 @@ class Test1(unittest.TestCase):
             self.assertEqual(key.annotationset(), annotationset)
         self.assertEqual(count,1)
 
+    def test_annotationset_iter_data_by_key(self):
+        annotationset = self.store.annotationset("testdataset")
+        key = annotationset.key("pos")
+        count = 0
+        for annotationdata in key.annotationdata():
+            count += 1
+            #we can test in loop body because we only have one:
+            self.assertIsInstance(annotationdata, AnnotationData)
+            self.assertTrue(annotationdata.has_id("D1"))
+            self.assertTrue(annotationdata.key(),key) #this is the most performant in comparisons, it doesn't make a copy of the key
+            self.assertEqual(str(annotationdata.key()), "pos") #force a string
+            self.assertEqual(annotationdata.annotationset(), annotationset)
+
+            self.assertEqual(annotationdata.value().get(), "noun")
+            self.assertTrue(annotationdata.test_value(DataValue("noun"))) #this is the most performant in comparisons, it doesn't make a copy of the value
+            self.assertEqual(str(annotationdata.value()), "noun") #force a string
+        self.assertEqual(count,1)
+            
+
+
 
 class Test2(unittest.TestCase):
     def setUp(self):
