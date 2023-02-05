@@ -159,6 +159,48 @@ impl PyDataValue {
     }
 }
 
+//not sure if we really need these from implementations here
+
+impl From<&str> for PyDataValue {
+    fn from(other: &str) -> Self {
+        PyDataValue {
+            value: other.into(),
+        }
+    }
+}
+
+impl From<String> for PyDataValue {
+    fn from(other: String) -> Self {
+        PyDataValue {
+            value: other.into(),
+        }
+    }
+}
+
+impl From<usize> for PyDataValue {
+    fn from(other: usize) -> Self {
+        PyDataValue {
+            value: other.into(),
+        }
+    }
+}
+
+impl From<isize> for PyDataValue {
+    fn from(other: isize) -> Self {
+        PyDataValue {
+            value: other.into(),
+        }
+    }
+}
+
+impl From<f64> for PyDataValue {
+    fn from(other: f64) -> Self {
+        PyDataValue {
+            value: other.into(),
+        }
+    }
+}
+
 #[pymethods]
 impl PyAnnotationData {
     /// Returns a DataKey instance
@@ -249,7 +291,7 @@ impl PyAnnotationDataBuilder {
     fn new(
         annotationset: String,
         key: String,
-        value: PyDataValue,
+        value: &PyAny,
         id: Option<String>,
     ) -> PyResult<Self> {
         let mut builder = AnnotationDataBuilder::default();
@@ -258,7 +300,8 @@ impl PyAnnotationDataBuilder {
         }
         builder.annotationset = AnyId::Id(annotationset);
         builder.key = AnyId::Id(key);
-        builder.value = value.value;
+        builder.value =
+            py_into_datavalue(value).map_err(|err| PyStamError::new_err(format!("{}", err)))?;
         Ok(PyAnnotationDataBuilder { builder })
     }
 
@@ -275,14 +318,15 @@ impl PyAnnotationDataBuilder {
     #[staticmethod]
     /// If you already have an existing PyDataKey you want to use, then
     /// using this method is much quicker than using the normal constructor
-    fn link_key(key: &PyDataKey, value: PyDataValue, id: Option<String>) -> PyResult<Self> {
+    fn link_key(key: &PyDataKey, value: &PyAny, id: Option<String>) -> PyResult<Self> {
         let mut builder = AnnotationDataBuilder::default();
         builder.annotationset = AnyId::Handle(key.set);
         builder.key = AnyId::Handle(key.handle);
         if let Some(id) = id {
             builder.id = AnyId::Id(id);
         }
-        builder.value = value.value;
+        builder.value =
+            py_into_datavalue(value).map_err(|err| PyStamError::new_err(format!("{}", err)))?;
         Ok(PyAnnotationDataBuilder { builder })
     }
 }

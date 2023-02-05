@@ -36,6 +36,34 @@ class Test1(unittest.TestCase):
         self.assertIsInstance( data, AnnotationData)
         self.assertTrue(data.has_id("D1"))
 
+class Test2(unittest.TestCase):
+    def setUp(self):
+        self.store = AnnotationStore(id="test")
+        resource = self.store.add_resource(id="testres", text="Hello world")
+        self.store.annotate(id="A1", 
+                            target=Selector.text(resource, Offset.simple(6,11)),
+                            data=[AnnotationDataBuilder(id="D1", key="pos", value="noun", annotationset="testdataset")])
+
+    def test_sanity_1(self):
+        self.assertIsInstance( self.store, AnnotationStore)
+        self.assertEqual(self.store.id, "test")
+
+    def test_sanity_2(self):
+        resource = self.store.resource("testres")
+        self.assertIsInstance( resource, TextResource)
+        self.assertEqual(resource.id, "testres")
+        self.assertTrue(resource.has_id("testres")) #quicker than the above (no copy)
+
+    def test_sanity_3(self):
+        dataset = self.store.annotationset("testdataset")
+        self.assertIsInstance( dataset, AnnotationDataSet)
+        key = dataset.key("pos")
+        self.assertIsInstance( key, DataKey)
+        self.assertTrue(str(key), "pos")
+        data = dataset.annotationdata("D1")
+        self.assertIsInstance( data, AnnotationData)
+        self.assertTrue(data.has_id("D1"))
+
 if __name__ == "__main__":
     unittest.main()
 
