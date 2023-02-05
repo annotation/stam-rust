@@ -185,6 +185,18 @@ impl PyOffset {
         }
     }
 
+    #[staticmethod]
+    /// Creates a offset that references the whole text
+    /// This is typically faster than using the normal constructor
+    fn whole() -> Self {
+        Self {
+            offset: Offset {
+                begin: Cursor::BeginAligned(0),
+                end: Cursor::EndAligned(0),
+            },
+        }
+    }
+
     /// Return the begin cursor
     fn begin(&self) -> PyCursor {
         PyCursor {
@@ -196,6 +208,19 @@ impl PyOffset {
     fn end(&self) -> PyCursor {
         PyCursor {
             cursor: self.offset.end,
+        }
+    }
+
+    fn __richcmp__(&self, other: PyRef<Self>, op: CompareOp) -> Py<PyAny> {
+        let py = other.py();
+        match op {
+            CompareOp::Eq => (self.offset.begin == other.offset.begin
+                && self.offset.end == other.offset.end)
+                .into_py(py),
+            CompareOp::Ne => (self.offset.begin != other.offset.begin
+                || self.offset.end != other.offset.end)
+                .into_py(py),
+            _ => py.NotImplemented(),
         }
     }
 }

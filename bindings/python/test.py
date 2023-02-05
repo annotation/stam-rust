@@ -4,8 +4,37 @@ from os import environ
 import os.path
 import unittest
 
-from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, TextResource, DataKey, DataValue, AnnotationDataSet, Annotation
+from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, TextResource, DataKey, DataValue, AnnotationDataSet, Annotation, StamError, TextSelection, Cursor
 
+
+class Test0(unittest.TestCase):
+    def test_sanity_no_constructors(self):
+        """Most stam types are references and can't be instantiated directly ('No constructor defined')"""
+        with self.assertRaises(TypeError):
+            Annotation()
+        with self.assertRaises(TypeError):
+            AnnotationDataSet()
+        with self.assertRaises(TypeError):
+            AnnotationData()
+        with self.assertRaises(TypeError):
+            TextResource()
+        with self.assertRaises(TypeError):
+            DataKey()
+        with self.assertRaises(TypeError):
+            TextSelection()
+
+    def test_offset(self):
+        offset = Offset.simple(0,5)
+        self.assertEqual( offset.begin(), Cursor(0))
+        self.assertEqual( offset.end(), Cursor(5))
+
+    def test_offset_endaligned(self):
+        offset = Offset(Cursor(0) , Cursor(0, endaligned=True) )
+        self.assertEqual( offset.begin(), Cursor(0))
+        self.assertEqual( offset.end(), Cursor(0, endaligned=True)) 
+
+        offset2 = Offset.whole() #shortcut
+        self.assertEqual( offset, offset2)
 
 class Test1(unittest.TestCase):
     def setUp(self):
@@ -42,6 +71,15 @@ class Test1(unittest.TestCase):
         self.assertIsInstance( data, AnnotationData)
         self.assertTrue(data.has_id("D1"))
 
+    def test_sanity_4_id_error(self):
+        """Exceptions should be raised if IDs don't exist"""
+        with self.assertRaises(StamError):
+            self.store.annotationset("non-existent-id")
+        with self.assertRaises(StamError):
+            self.store.annotation("non-existent-id")
+        with self.assertRaises(StamError):
+            self.store.resource("non-existent-id")
+
     def test_iter_data(self):
         """Iterates over the data in an annotation"""
         annotation = self.store.annotation("A1")
@@ -66,6 +104,18 @@ class Test1(unittest.TestCase):
         resource = self.store.resource("testres")
         self.assertIsInstance(resource, TextResource)
         self.assertEqual(str(resource), "Hello world")
+
+    def test_resource_text_slice(self):
+        """Get the text of a slice of a resource"""
+        resource = self.store.resource("testres")
+        text = resource.text(Offset.simple(0,5))
+        self.assertEqual( text, "Hello")
+
+    def test_resource_text_slice_outofbounds(self):
+        """Get the text of a slice of a resource"""
+        resource = self.store.resource("testres")
+        with self.assertRaises(StamError):
+            resource.text(Offset.simple(0,999))
 
     def test_annotation_text(self):
         """Get the text of an annotation"""
