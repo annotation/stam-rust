@@ -199,6 +199,32 @@ class Test1(unittest.TestCase):
             self.assertIsInstance(annotation, Annotation)
             self.assertTrue(annotation.has_id("A1"))
         self.assertEqual(count,1)
+
+    def test_find_data(self):
+        """Find annotationdata by value"""
+        annotationset = self.store.annotationset("testdataset")
+        annotationdata = annotationset.find_data("pos","noun")
+        self.assertIsInstance(annotationdata, AnnotationData)
+        self.assertTrue(annotationdata.has_id("D1"))
+
+    def test_find_data_from_key(self):
+        """Find annotationdata by value"""
+        annotationset = self.store.annotationset("testdataset")
+        datakey = annotationset.key("pos")
+        annotationdata = datakey.find_data("noun")
+        self.assertIsInstance(annotationdata, AnnotationData)
+        self.assertTrue(annotationdata.has_id("D1"))
+
+    def test_find_data_missing(self):
+        """Find annotationdata by value"""
+        annotationset = self.store.annotationset("testdataset")
+        annotationdata = annotationset.find_data("pos","non-existent")
+        self.assertEqual(annotationdata, None)
+
+        annotationdata = annotationset.find_data("non-existent","non-existent")
+        self.assertEqual(annotationdata, None)
+
+
             
 
 

@@ -141,11 +141,30 @@ impl PyAnnotationDataSet {
     fn selector(&self) -> PyResult<PySelector> {
         self.map(|set| set.selector().map(|sel| sel.into()))
     }
+
+    /// Find annotation data by key and value
+    /// Returns an AnnotationData instance if found, None otherwise
+    fn find_data(&self, key: &str, value: &PyAny) -> PyResult<Option<PyAnnotationData>> {
+        self.map(|set| {
+            let value = py_into_datavalue(value)?;
+            if let Some(annotationdata) = set.find_data(AnyId::Id(key.to_string()), &value) {
+                Ok(Some(PyAnnotationData {
+                    handle: annotationdata
+                        .handle()
+                        .expect("annotationdata must be bound"),
+                    set: self.handle,
+                    store: self.store.clone(),
+                }))
+            } else {
+                Ok(None)
+            }
+        })
+    }
 }
 
 impl PyAnnotationDataSet {
     /// Map function to act on the actual underlyingtore, helps reduce boilerplate
-    fn map<T, F>(&self, f: F) -> Result<T, PyErr>
+    pub(crate) fn map<T, F>(&self, f: F) -> Result<T, PyErr>
     where
         F: FnOnce(&AnnotationDataSet) -> Result<T, StamError>,
     {
@@ -162,7 +181,7 @@ impl PyAnnotationDataSet {
     }
 
     /// Map function to act on the actual underlying store mutably, helps reduce boilerplate
-    fn map_mut<T, F>(&self, f: F) -> Result<T, PyErr>
+    pub(crate) fn map_mut<T, F>(&self, f: F) -> Result<T, PyErr>
     where
         F: FnOnce(&mut AnnotationDataSet) -> Result<T, StamError>,
     {
