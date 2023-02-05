@@ -13,7 +13,7 @@ class Test1(unittest.TestCase):
         dataset.add_key("pos")
         data = dataset.add_data("pos","noun","D1")
         self.store.annotate(id="A1", 
-                            target=Selector.Text(resource, Offset.simple(6,11)),
+                            target=Selector.text(resource, Offset.simple(6,11)),
                             data=[AnnotationDataBuilder.link(data)])
 
     def test_sanity_1(self):

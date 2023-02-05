@@ -177,8 +177,8 @@ impl PySelector {
     }
 
     #[staticmethod]
-    #[allow(non_snake_case)]
-    fn Text(resource: PyRef<PyTextResource>, offset: PyRef<PyOffset>) -> PyResult<Self> {
+    /// Shortcut static method to construct a TextSelector
+    fn text(resource: PyRef<PyTextResource>, offset: PyRef<PyOffset>) -> PyResult<Self> {
         PySelector::new(
             &PySelectorKind::TEXTSELECTOR,
             Some(resource),
@@ -190,9 +190,8 @@ impl PySelector {
     }
 
     #[staticmethod]
-    #[allow(non_snake_case)]
     /// Shortcut static method to construct a AnnotationSelector
-    fn Annotation(annotation: PyRef<PyAnnotation>, offset: PyRef<PyOffset>) -> PyResult<Self> {
+    fn annotation(annotation: PyRef<PyAnnotation>, offset: PyRef<PyOffset>) -> PyResult<Self> {
         PySelector::new(
             &PySelectorKind::ANNOTATIONSELECTOR,
             None,
@@ -204,9 +203,8 @@ impl PySelector {
     }
 
     #[staticmethod]
-    #[allow(non_snake_case)]
     /// Shortcut static method to construct a ResourceSelector
-    fn Resource(resource: PyRef<PyTextResource>) -> PyResult<Self> {
+    fn resource(resource: PyRef<PyTextResource>) -> PyResult<Self> {
         PySelector::new(
             &PySelectorKind::RESOURCESELECTOR,
             Some(resource),
@@ -218,9 +216,8 @@ impl PySelector {
     }
 
     #[staticmethod]
-    #[allow(non_snake_case)]
     /// Shortcut static method to construct a DataSetSelector
-    fn DataSet(annotationset: PyRef<PyAnnotationDataSet>) -> PyResult<Self> {
+    fn dataset(annotationset: PyRef<PyAnnotationDataSet>) -> PyResult<Self> {
         PySelector::new(
             &PySelectorKind::DATASETSELECTOR,
             None,
@@ -232,9 +229,8 @@ impl PySelector {
     }
 
     #[staticmethod]
-    #[allow(non_snake_case)]
     /// Shortcut static method to construct a MultiSelector
-    fn Multi(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
+    fn multi(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
         PySelector::new(
             &PySelectorKind::MULTISELECTOR,
             None,
@@ -246,9 +242,8 @@ impl PySelector {
     }
 
     #[staticmethod]
-    #[allow(non_snake_case)]
     /// Shortcut static method to construct a CompositeSelector
-    fn Composite(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
+    fn composite(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
         PySelector::new(
             &PySelectorKind::COMPOSITESELECTOR,
             None,
@@ -260,9 +255,8 @@ impl PySelector {
     }
 
     #[staticmethod]
-    #[allow(non_snake_case)]
     /// Shortcut static method to construct a DirectionalSelector
-    fn Directional(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
+    fn directional(subselectors: Vec<PyRef<PySelector>>) -> PyResult<Self> {
         PySelector::new(
             &PySelectorKind::DIRECTIONALSELECTOR,
             None,
