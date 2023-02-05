@@ -170,6 +170,7 @@ class Test1(unittest.TestCase):
         self.assertEqual(count,1)
 
     def test_annotationset_iter_data_by_key(self):
+        """finds all annotation data that has key 'pos'"""
         annotationset = self.store.annotationset("testdataset")
         key = annotationset.key("pos")
         count = 0
@@ -188,6 +189,7 @@ class Test1(unittest.TestCase):
         self.assertEqual(count,1)
 
     def test_annotations_by_data(self):
+        """finds all annotations that have pos -> noun"""
         annotationset = self.store.annotationset("testdataset")
         data = annotationset.annotationdata("D1")
         count = 0

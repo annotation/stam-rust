@@ -313,11 +313,40 @@ impl AnnotationDataSet {
         Ok(self)
     }
 
+    /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
+    pub fn find_data(
+        &self,
+        key: AnyId<DataKeyHandle>,
+        value: &DataValue,
+    ) -> Option<&AnnotationData> {
+        if key.is_none() {
+            None
+        } else {
+            let datakey: Option<&DataKey> = self.get_by_anyid(&key);
+            if let Some(datakey) = datakey {
+                let datakey_handle = datakey.handle().expect("key must be bound at this point");
+                if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
+                    for intid in dataitems.iter() {
+                        //MAYBE TODO: this may get slow if there is a key with a lot of data values
+                        let data: &AnnotationData = self.get(*intid).expect("getting item");
+                        if data.value() == value {
+                            // Data with this exact key and value already exists, return it:
+                            return Some(data);
+                        }
+                    }
+                }
+                None
+            } else {
+                None
+            }
+        }
+    }
+
     /// Adds new [`AnnotationData`] to the dataset. Use [`Self.with_data()`] instead if you are using a regular builder pattern.
     /// If the data already exists, this returns a handle to the existing data and inserts nothing new.
     /// If the data is new, it returns a handle to the new data.
     ///
-    /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
+    /// Note: if you don't want to set an ID (first argument), you can just pass AnyId::None or "".into()
     pub fn insert_data(
         &mut self,
         id: AnyId<AnnotationDataHandle>,
@@ -352,15 +381,8 @@ impl AnnotationDataSet {
 
         if !newkey && id.is_none() && safety {
             // there is a chance that this key and value combination already occurs, check it
-            if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
-                for intid in dataitems.iter() {
-                    //MAYBE TODO: this may get slow if there is a key with a lot of data values
-                    let data: &AnnotationData = self.get(*intid).expect("getting item");
-                    if data.value() == &value {
-                        // Data with this exact key and value already exists, return it:
-                        return Ok(data.handle().expect("item must have intid if in store"));
-                    }
-                }
+            if let Some(data) = self.find_data(AnyId::Handle(datakey_handle), &value) {
+                return Ok(data.handle().expect("item must have intid if in store"));
             }
         }
 
