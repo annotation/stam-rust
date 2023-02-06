@@ -1,5 +1,3 @@
-extern crate stam as libstam;
-
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::*;
@@ -12,7 +10,7 @@ use crate::annotationdataset::PyAnnotationDataSet;
 use crate::error::PyStamError;
 use crate::resources::{PyTextResource, PyTextSelection};
 use crate::selector::PySelector;
-use libstam::*;
+use stam::*;
 
 #[pyclass(dict, name = "AnnotationStore")]
 /// The AnnotationStore

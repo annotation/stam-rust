@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::error::PyStamError;
 use crate::selector::PySelector;
-use libstam::*;
+use stam::*;
 
 #[pyclass(name = "TextResource")]
 pub(crate) struct PyTextResource {

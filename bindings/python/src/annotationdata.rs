@@ -1,5 +1,3 @@
-extern crate stam as libstam;
-
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::pyclass::CompareOp;
@@ -12,7 +10,7 @@ use crate::annotation::PyAnnotation;
 use crate::annotationdataset::PyAnnotationDataSet;
 use crate::annotationstore::MapStore;
 use crate::error::PyStamError;
-use libstam::*;
+use stam::*;
 
 #[pyclass(name = "DataKey")]
 pub(crate) struct PyDataKey {

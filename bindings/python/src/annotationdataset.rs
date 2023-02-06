@@ -1,5 +1,3 @@
-extern crate stam as libstam;
-
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::pyclass::CompareOp;
@@ -10,7 +8,7 @@ use std::sync::{Arc, RwLock};
 use crate::annotationdata::{py_into_datavalue, PyAnnotationData, PyDataKey, PyDataValue};
 use crate::error::PyStamError;
 use crate::selector::PySelector;
-use libstam::*;
+use stam::*;
 
 #[pyclass(dict, name = "AnnotationDataSet")]
 pub(crate) struct PyAnnotationDataSet {
@@ -215,7 +213,7 @@ impl PyDataKeyIter {
         pyself.index += 1; //increment first (prevent exclusive mutability issues)
         let result = pyself.map(|dataset| {
             let datakey_handle = DataKeyHandle::new(pyself.index - 1);
-            if <AnnotationDataSet as StoreFor<libstam::DataKey>>::has(dataset, datakey_handle) {
+            if <AnnotationDataSet as StoreFor<DataKey>>::has(dataset, datakey_handle) {
                 //index is one ahead, prevents exclusive lock issues
                 Some(PyDataKey {
                     set: pyself.handle,
@@ -273,7 +271,7 @@ impl PyAnnotationDataIter {
         pyself.index += 1; //increment first (prevent exclusive mutability issues)
         let result = pyself.map(|dataset| {
             let data_handle = AnnotationDataHandle::new(pyself.index - 1);
-            if <AnnotationDataSet as StoreFor<libstam::AnnotationData>>::has(dataset, data_handle) {
+            if <AnnotationDataSet as StoreFor<AnnotationData>>::has(dataset, data_handle) {
                 //index is one ahead, prevents exclusive lock issues
                 Some(PyAnnotationData {
                     set: pyself.handle,

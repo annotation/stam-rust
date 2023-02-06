@@ -1,5 +1,3 @@
-extern crate stam as libstam;
-
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::pyclass::CompareOp;
@@ -11,7 +9,7 @@ use crate::annotation::PyAnnotation;
 use crate::annotationdataset::PyAnnotationDataSet;
 use crate::error::PyStamError;
 use crate::resources::{PyOffset, PyTextResource};
-use libstam::*;
+use stam::*;
 
 #[pyclass(name = "SelectorKind")]
 #[derive(Clone)]

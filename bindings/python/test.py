@@ -4,6 +4,7 @@ from os import environ
 import os.path
 import unittest
 
+#    v-- a single stam should work just as well but for some reason my linter (pyright) stumbles over it
 from stam.stam import AnnotationStore, Offset, AnnotationData, AnnotationDataBuilder, Selector, TextResource, DataKey, DataValue, AnnotationDataSet, Annotation, StamError, TextSelection, Cursor
 
 
