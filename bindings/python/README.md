@@ -120,9 +120,8 @@ so-called handles). In the Rust API, methods for search are mostly implemented o
 `AnnotationStore` or `AnnotationDataSet`, reflecting the underlying ownership model more strictly.
 In the Python API, they are implemented on the types themselves. Here's a comparison of some common methods:
 
-+----------------------------------+-----------------------------------------------------+
 | Python API                       | Rust API                                            |
-+----------------------------------+-----------------------------------------------------+
+|--------------------------------  | --------------------------------------------------- |
 | `Annotation.annotations()`       | `AnnotationStore::annotations_by_annotation()`      |
 | `Annotation.resources()`         | `AnnotationStore::resources_by_annotation()`        |
 | `Annotation.textselections()`    | `AnnotationStore::textselections_by_annotation()`   |
@@ -132,7 +131,6 @@ In the Python API, they are implemented on the types themselves. Here's a compar
 | `DataKey.data()`                 | `AnnotationDataSet::data_by_key()`                  |
 | `DataKey.annotationset()`        | n/a                                                 |
 | `AnnotationData.annotationset()` | n/a                                                 |
-+--------------------------------+-------------------------------------------------------+
 
 The Rust methods will return iterators, references or handles whenever they
 can, moreover it will do so safely. The Python API is often forced to make a
