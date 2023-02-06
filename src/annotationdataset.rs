@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
+use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -88,6 +89,7 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct AnnotationDataSetHandle(u16);
+#[sealed]
 impl Handle for AnnotationDataSetHandle {
     fn new(intid: usize) -> Self {
         Self(intid as u16)
@@ -97,6 +99,7 @@ impl Handle for AnnotationDataSetHandle {
     }
 }
 
+#[sealed]
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
 
@@ -134,6 +137,7 @@ impl Storable for AnnotationDataSet {
     }
 }
 
+#[sealed]
 impl StoreFor<DataKey> for AnnotationDataSet {
     fn store(&self) -> &Store<DataKey> {
         &self.keys
@@ -179,6 +183,7 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     }
 }
 
+#[sealed]
 impl StoreFor<AnnotationData> for AnnotationDataSet {
     fn store(&self) -> &Store<AnnotationData> {
         &self.data

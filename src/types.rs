@@ -1,3 +1,4 @@
+use sealed::sealed;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -49,6 +50,8 @@ impl TryFrom<isize> for Cursor {
 /// The handle trait is implemented on various handle types. They have in common that refer to the internal id
 /// a [`Storable`] item in a [`Store`] by index. Types implementing this are lightweigt and do not borrow anything, they can be passed and copied freely.
 // To get an actual reference to the item from a handle type, call the `get()`` method on the store that holds it.
+/// This is a sealed trait, not implementable outside this crate.
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait Handle:
     Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Ord + Hash
 {
@@ -254,6 +257,7 @@ impl Default for StoreConfig {
 
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait Storable {
     type HandleType: Handle;
     /// Retrieve the internal (numeric) id. For any type T uses in StoreFor<T>, this may be None only in the initial
@@ -333,6 +337,8 @@ pub trait Storable {
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
+/// It is a sealed trait, not implementable outside this crate.
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait StoreFor<T: Storable> {
     /// Get a reference to the entire store for the associated type
     fn store(&self) -> &Store<T>;

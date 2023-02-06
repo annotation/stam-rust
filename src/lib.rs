@@ -1,4 +1,5 @@
 extern crate chrono;
+extern crate sealed;
 extern crate serde;
 extern crate smallvec;
 

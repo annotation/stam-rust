@@ -1,3 +1,4 @@
+use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -138,6 +139,7 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
 }
 
 //An AnnotationStore is a StoreFor TextResource
+#[sealed]
 impl StoreFor<TextResource> for AnnotationStore {
     /// Get a reference to the entire store for the associated type
     fn store(&self) -> &Store<TextResource> {
@@ -177,6 +179,7 @@ impl StoreFor<TextResource> for AnnotationStore {
 }
 
 //An AnnotationStore is a StoreFor Annotation
+#[sealed]
 impl StoreFor<Annotation> for AnnotationStore {
     fn store(&self) -> &Store<Annotation> {
         &self.annotations
@@ -358,6 +361,7 @@ impl StoreFor<Annotation> for AnnotationStore {
 }
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
+#[sealed]
 impl StoreFor<AnnotationDataSet> for AnnotationStore {
     fn store(&self) -> &Store<AnnotationDataSet> {
         &self.annotationsets

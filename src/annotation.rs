@@ -1,5 +1,6 @@
 use std::slice::Iter;
 
+use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -42,6 +43,7 @@ pub struct Annotation {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnotationHandle(u32);
+#[sealed]
 impl Handle for AnnotationHandle {
     fn new(intid: usize) -> Self {
         Self(intid as u32)
@@ -51,6 +53,7 @@ impl Handle for AnnotationHandle {
     }
 }
 
+#[sealed]
 impl Storable for Annotation {
     type HandleType = AnnotationHandle;
 

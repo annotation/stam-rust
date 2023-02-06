@@ -1,4 +1,5 @@
 //use Chrono::DateTime;
+use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 //use serde_json::Result;
@@ -37,6 +38,7 @@ pub struct AnnotationData {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnotationDataHandle(u32);
+#[sealed]
 impl Handle for AnnotationDataHandle {
     fn new(intid: usize) -> Self {
         Self(intid as u32)
@@ -46,6 +48,7 @@ impl Handle for AnnotationDataHandle {
     }
 }
 
+#[sealed]
 impl Storable for AnnotationData {
     type HandleType = AnnotationDataHandle;
 

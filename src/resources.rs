@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 
+use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -69,6 +70,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TextResourceHandle(u32);
+#[sealed]
 impl Handle for TextResourceHandle {
     fn new(intid: usize) -> Self {
         Self(intid as u32)
@@ -78,6 +80,7 @@ impl Handle for TextResourceHandle {
     }
 }
 
+#[sealed]
 impl Storable for TextResource {
     type HandleType = TextResourceHandle;
 
