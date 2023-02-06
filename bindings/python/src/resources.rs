@@ -65,12 +65,12 @@ impl PyTextResource {
     }
 
     /// Iterates over all known textselections in this resource
-    fn textselections(self) -> PyTextSelectionIter {}
+    //fn textselections(self) -> PyTextSelectionIter {}
 
     /// Shortcut for textselections()
-    fn __iter__(self) -> PyTextSelectionIter {
-        self.textselections()
-    }
+    //fn __iter__(self) -> PyTextSelectionIter {
+    //    self.textselections()
+    //}
 }
 
 impl PyTextResource {
