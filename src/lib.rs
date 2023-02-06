@@ -1,8 +1,3 @@
-extern crate chrono;
-extern crate sealed;
-extern crate serde;
-extern crate smallvec;
-
 mod annotation;
 mod annotationdata;
 mod annotationdataset;
@@ -27,7 +22,7 @@ pub use datavalue::DataValue;
 pub use error::StamError;
 pub use resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 pub use selector::{
-    Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind,
+    Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };
 pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;

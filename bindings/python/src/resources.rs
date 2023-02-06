@@ -1,5 +1,3 @@
-extern crate stam as libstam;
-
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::pyclass::CompareOp;
@@ -64,10 +62,10 @@ impl PyTextResource {
         self.map(|res| res.selector().map(|sel| sel.into()))
     }
 
-    /// Iterates over all known textselections in this resource
+    // Iterates over all known textselections in this resource
     //fn textselections(self) -> PyTextSelectionIter {}
 
-    /// Shortcut for textselections()
+    // Shortcut for textselections()
     //fn __iter__(self) -> PyTextSelectionIter {
     //    self.textselections()
     //}

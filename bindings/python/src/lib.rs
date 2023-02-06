@@ -1,9 +1,5 @@
-extern crate stam as libstam;
-
 use pyo3::prelude::*;
 use pyo3::types::*;
-
-use libstam::*;
 
 mod annotation;
 mod annotationdata;
