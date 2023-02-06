@@ -8,7 +8,9 @@ This is the primary software library for working with the data model. It is curr
 
 ## Installation
 
-``$ cargo install stam``
+Add `stam` to your project's `Cargo.toml`:
+
+``$ cargo add stam``
 
 ## Usage
 
