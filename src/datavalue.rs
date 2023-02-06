@@ -48,7 +48,7 @@ impl<'a> DataValue {
             (Self::Null, DataOperator::Null) => true,
             (Self::Bool(true), DataOperator::True) => true,
             (Self::Bool(false), DataOperator::False) => true,
-            (Self::String(s), DataOperator::Equals(s2)) => s.as_str() == s,
+            (Self::String(s), DataOperator::Equals(s2)) => &s.as_str() == s2,
             (Self::Int(n), DataOperator::EqualsInt(n2)) => *n == *n2,
             (Self::Int(n), DataOperator::GreaterThan(n2)) => *n > *n2,
             (Self::Int(n), DataOperator::GreaterThanOrEqual(n2)) => *n >= *n2,

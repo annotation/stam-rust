@@ -321,7 +321,7 @@ impl TextSelectionSet {
         if self.sorted {
             //once sorted, we respect the order
             match self.data.binary_search(&elem) {
-                Ok(pos) => {} //element already exists
+                Ok(_) => {} //element already exists
                 Err(pos) => self.data.insert(pos, elem),
             };
         } else {
@@ -396,9 +396,6 @@ impl TextSelectionSet {
                     }
                 }
                 true
-            }
-            TextSelectionOperator::Embeds(otherset) => {
-                otherset.test(&TextSelectionOperator::Embedded(self))
             }
             //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
             TextSelectionOperator::LeftAdjacentAll(_) | TextSelectionOperator::PrecedesAll(_) => {

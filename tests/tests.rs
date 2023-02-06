@@ -269,7 +269,7 @@ fn store_get_text_selection() -> Result<(), StamError> {
 fn text_selector() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let annotation: &Annotation = store.get_by_id("A1")?;
-    let resource: &TextResource = &store.resources_by_annotation(annotation).next().unwrap();
+    let _resource: &TextResource = &store.resources_by_annotation(annotation).next().unwrap();
     let text: &str = store.text_by_annotation(annotation).next().unwrap();
     assert_eq!(text, "world");
     Ok(())

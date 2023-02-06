@@ -347,7 +347,7 @@ impl<'a> Iterator for SelectorIter<'a> {
             if let Some(selector) = self.selector {
                 let mut leaf = true;
                 match selector {
-                    Selector::AnnotationSelector(a_handle, offset) => {
+                    Selector::AnnotationSelector(a_handle, _offset) => {
                         if self.recurse_annotation {
                             leaf = false;
                             let annotation: &Annotation = self
