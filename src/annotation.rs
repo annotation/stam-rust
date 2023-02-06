@@ -145,7 +145,7 @@ impl AnnotationBuilder {
     }
 
     /// Associate data with the annotation.
-    /// If you provide a public key ID that does not exist yet, it ([`DataKey`] will be created).
+    /// If you provide a public key ID that does not exist yet, it's ([`crate::DataKey`] will be created).
     ///
     /// You may use this (and similar methods) multiple times.
     /// Do note that multiple data associated with the same annotation is considered *inter-dependent*,

@@ -17,11 +17,11 @@ use crate::types::*;
 /// some computation to actually retrieve the pointed bit. [`TextSelection`] is the Result
 /// after this computation is made.
 ///
-/// The actual reference to the [`TextResource`] is not stored in this structured but should
+/// The actual reference to the [`crate::TextResource`] is not stored in this structured but should
 /// accompany it explicitly when needed
 ///
 /// On the lowest-level, this struct is obtain by a call to [`crate::annotationstore::AnnotationStore::text_selection()`], which
-/// resolves a [`TextSelector`]  to a [`TextSelection`]. Such calls are often abstracted away by higher level methods such as [`crate::annotationstore::AnnotationStore::textselections_by_annotation()`].
+/// resolves a [`crate::Selector::TextSelector`]  to a [`TextSelection`]. Such calls are often abstracted away by higher level methods such as [`crate::annotationstore::AnnotationStore::textselections_by_annotation()`].
 pub struct TextSelection {
     pub(crate) beginbyte: usize,
     pub(crate) endbyte: usize,

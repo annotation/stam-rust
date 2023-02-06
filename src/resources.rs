@@ -203,7 +203,7 @@ impl TextResource {
     }
 
     /// Returns the text for a give [`TextSelection`]. Make sure the [`TextSelection`] applies to this resource, there are no further checks here.
-    /// Use [`text_slice()`] for a safer method if you want to explicitly specify an offset.
+    /// Use [`Self.text_slice()`] for a safer method if you want to explicitly specify an offset.
     pub fn text_of(&self, selection: &TextSelection) -> &str {
         &self.text()[selection.beginbyte()..selection.endbyte()]
     }

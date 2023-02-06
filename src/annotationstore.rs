@@ -736,7 +736,7 @@ impl AnnotationStore {
 
     /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
-    /// point at a text in the resource, use [`iter_annotations_by_resource`] instead for those.
+    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
     pub fn annotations_by_resource_metadata(
         &self,
         resource_handle: TextResourceHandle,
@@ -796,7 +796,7 @@ impl AnnotationStore {
     }
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
-    /// Use [`iter_target_annotation`] instead if you are looking for the annotations that an annotation points at.
+    /// Use [`Self.annotations_by_annotation()`] instead if you are looking for the annotations that an annotation points at.
     pub fn annotations_by_annotation_reverse(
         &self,
         annotation_handle: AnnotationHandle,
@@ -873,10 +873,10 @@ impl AnnotationStore {
         //TODO: implement
     }
 
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use [`iter_text_selection`] instead for those.
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`] instead for those.
     ///
     /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
-    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`iter_text_selection`]
+    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
     pub fn text_selection(
         &self,
         selector: &Selector,

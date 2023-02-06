@@ -68,11 +68,11 @@ pub enum Selector {
     /// Refers to a [`TextResource`] as a whole (as opposed to a text fragment inside it), as owned by an AnnotationStore.
     /// Annotations using this selector can be considered metadata of a text
     ResourceSelector(TextResourceHandle),
-    /// Refers to an Annotation (as owned by the AnnotationStore) and optionally a *relative* text selection offset in it
+    /// Refers to an [`Annotation`] (as owned by the AnnotationStore) and optionally a *relative* text selection offset in it
     AnnotationSelector(AnnotationHandle, Option<Offset>),
-    /// Refers to the TextResource (as owned by the AnnotationStore) an an offset in it
+    /// Refers to the [`TextResource`] (as owned by the AnnotationStore) an an offset in it
     TextSelector(TextResourceHandle, Offset),
-    /// Refers to an [`AnnotationDataSet`] as owned by an AnnotationStore
+    /// Refers to an [`crate::AnnotationDataSet`] as owned by an [`AnnotationStore']
     /// Annotations using this selector can be considered metadata.
     DataSetSelector(AnnotationDataSetHandle),
 
