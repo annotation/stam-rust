@@ -1,13 +1,13 @@
 [package]
 name = "stam"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
 description = "STAM is a library for dealing with standoff annotations on text"
 documentation = "https://docs.rs/stam"
 homepage = "https://github.com/annotation/stam"
 include = ["src/**/*","tests/**/*", "LICENSE", "README.md"]
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 readme = "README.md"
 repository = "https://github.com/annotation/stam-rust"
 keywords = [ "text-processing", "annotation", "linguistics", "standoff", "nlp"]
