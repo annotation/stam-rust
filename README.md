@@ -2,7 +2,7 @@
 
 # STAM Library
 
-[STAM](https:/github.com/annotation/stam) is a data model for stand-off text annotation and described in detail [here](https://github.com/annotation/stam). This is a sofware library to work with the model, written in Rust.
+[STAM](https:/github.com/annotation/stam) is a data model for stand-off text annotation and described in detail [here](https://github.com/annotation/stam). This is a software library to work with the model, written in Rust.
 
 This is the primary software library for working with the data model. It is currently in a preliminary stage. We aim to implement the full model and most extensions.
 
