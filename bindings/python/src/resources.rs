@@ -63,6 +63,14 @@ impl PyTextResource {
     fn selector(&self) -> PyResult<PySelector> {
         self.map(|res| res.selector().map(|sel| sel.into()))
     }
+
+    /// Iterates over all known textselections in this resource
+    fn textselections(self) -> PyTextSelectionIter {}
+
+    /// Shortcut for textselections()
+    fn __iter__(self) -> PyTextSelectionIter {
+        self.textselections()
+    }
 }
 
 impl PyTextResource {

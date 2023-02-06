@@ -2,28 +2,33 @@ extern crate chrono;
 extern crate serde;
 extern crate smallvec;
 
-pub mod annotation;
-pub mod annotationdata;
-pub mod annotationdataset;
-pub mod annotationstore;
-pub mod datakey;
-pub mod datavalue;
-pub mod error;
-pub mod resources;
-pub mod selector;
-pub mod textselection;
-pub mod types;
+mod annotation;
+mod annotationdata;
+mod annotationdataset;
+mod annotationstore;
+mod datakey;
+mod datavalue;
+mod error;
+mod resources;
+mod selector;
+mod textselection;
+mod types;
 
-pub use annotation::*;
-pub use annotationdata::*;
-pub use annotationdataset::*;
-pub use annotationstore::*;
-pub use datakey::*;
-pub use datavalue::*;
-pub use error::*;
-pub use resources::*;
-pub use selector::*;
-pub use textselection::*;
+// Our internal crate structure is not very relevant to the outside world,
+// expose all structs and traits in the root namespace, and be explicit about it:
+
+pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
+pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
+pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle};
+pub use annotationstore::{AnnotationStore, AnnotationStoreBuilder};
+pub use datakey::{DataKey, DataKeyHandle};
+pub use datavalue::DataValue;
+pub use error::StamError;
+pub use resources::{TextResource, TextResourceBuilder, TextResourceHandle};
+pub use selector::{
+    Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind,
+};
+pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;
 
 mod tests;
