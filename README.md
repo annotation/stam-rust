@@ -126,7 +126,11 @@ You can serialize the entire annotation store (including all sets and annotation
 store.to_file("example.stam.json")?;
 ```
 
+
 ## API Reference Documentation
 
 See [here](https://docs.rs/stam)
 
+## Python binding
+
+This library comes with binding for Python, see [here](https://github.com/annotation/stam-rust/tree/master/bindings/python)
