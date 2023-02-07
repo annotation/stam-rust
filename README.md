@@ -135,4 +135,4 @@ See [here](https://docs.rs/stam)
 
 ## Python binding
 
-This library comes with binding for Python, see [here](https://github.com/annotation/stam-rust/tree/master/bindings/python)
+This library comes with a binding for Python, see [here](https://github.com/annotation/stam-python)
