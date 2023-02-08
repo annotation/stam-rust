@@ -2,6 +2,7 @@ use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use smallvec::SmallVec;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::marker::PhantomData;
@@ -17,7 +18,8 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem};
 use crate::textselection::{
-    PositionIndex, TextRelationMap, TextRelationOperator, TextSelection, TextSelectionOperator,
+    PositionIndex, TextRelationMap, TextRelationOperator, TextSelection, TextSelectionHandle,
+    TextSelectionOperator,
 };
 
 use crate::error::*;
@@ -218,6 +220,9 @@ impl StoreFor<Annotation> for AnnotationStore {
         }
 
         let mut multitarget = false;
+        let mut extend_textrelationmap: SmallVec<
+            [(TextResourceHandle, TextSelectionHandle, AnnotationHandle); 1],
+        > = SmallVec::new();
         // first we handle the simple singular targets, and determine if we need to do more
         match annotation.target() {
             Selector::DataSetSelector(dataset_handle) => {
@@ -241,10 +246,18 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
             Selector::TextSelector(res_handle, offset) => {
                 if self.config.textrelationmap {
-                    let resource: &TextResource = self.get(*res_handle)?;
+                    // note: a normal self.get() doesn't cut it here because of the borrow checker
+                    //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
+                    let resource = self
+                        .resources
+                        .get_mut(res_handle.unwrap())
+                        .unwrap()
+                        .as_ref()
+                        .unwrap();
                     let textselection = resource.textselection(offset)?;
-                    self.textrelationmap
-                        .insert(*res_handle, textselection, handle);
+                    let textselection_handle: TextSelectionHandle =
+                        resource.insert(textselection)?;
+                    extend_textrelationmap.push((*res_handle, textselection_handle, handle));
                 }
             }
             _ => {
@@ -284,11 +297,6 @@ impl StoreFor<Annotation> for AnnotationStore {
                     .extend(target_annotations.into_iter());
             }
 
-            let mut extend_textrelationmap: Vec<(
-                TextResourceHandle,
-                TextSelection,
-                AnnotationHandle,
-            )> = Vec::new();
             let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = self
                 .resources_by_annotation(annotation)
                 .map(|targetitem| {
@@ -300,7 +308,22 @@ impl StoreFor<Annotation> for AnnotationStore {
                             .textselection(targetitem.selector(), Some(targetitem.ancestors()))
                         {
                             Ok(textselection) => {
-                                extend_textrelationmap.push((res_handle, textselection, handle))
+                                // note: a normal self.get() doesn't cut it here because of the borrow checker
+                                //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
+                                let resource = self
+                                    .resources
+                                    .get_mut(res_handle.unwrap())
+                                    .unwrap()
+                                    .as_ref()
+                                    .unwrap();
+                                let textselection_handle: TextSelectionHandle = resource
+                                    .insert(textselection)
+                                    .expect("insertion should succeed");
+                                extend_textrelationmap.push((
+                                    res_handle,
+                                    textselection_handle,
+                                    handle,
+                                ))
                             }
                             Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
                         }

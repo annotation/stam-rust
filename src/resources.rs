@@ -7,9 +7,11 @@ use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use smallvec::{smallvec, SmallVec};
 
 use crate::error::StamError;
 use crate::selector::{Offset, Selector, SelfSelector};
+use crate::textselection::PositionIndexItem;
 use crate::textselection::{PositionIndex, TextSelection, TextSelectionHandle};
 use crate::types::*;
 
@@ -360,6 +362,36 @@ impl StoreFor<TextSelection> for TextResource {
 
     fn config(&self) -> &StoreConfig {
         &self.config
+    }
+
+    fn inserted(&mut self, handle: TextSelectionHandle) -> Result<(), StamError> {
+        //called after a TextSelection gets inserted into this Store
+        //update the PositionIndex
+        let textselection: &TextSelection = self.get(handle)?;
+        let begin = textselection.begin();
+        let end = textselection.end();
+        let beginbyte = self.utf8byte(begin)?; //MAYBE TODO: move this inside closure? (not done now because it violates borrow checker)
+        let endbyte = self.utf8byte(end)?;
+
+        self.positionindex
+            .0
+            .entry(begin)
+            .and_modify(|positem| positem.end.push(handle))
+            .or_insert_with(|| PositionIndexItem {
+                bytepos: beginbyte,
+                begin: smallvec!(handle),
+                end: smallvec!(),
+            });
+        self.positionindex
+            .0
+            .entry(end)
+            .and_modify(|positem| positem.begin.push(handle))
+            .or_insert_with(|| PositionIndexItem {
+                bytepos: endbyte,
+                begin: smallvec!(),
+                end: smallvec!(handle),
+            });
+        Ok(())
     }
 }
 
