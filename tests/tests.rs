@@ -42,6 +42,7 @@ fn sanity_check() -> Result<(), StamError> {
     //get by directly by id
     let resource: &TextResource = store.get_by_id("testres")?;
     assert_eq!(resource.id(), Some("testres"));
+    assert_eq!(resource.textlen(), 11);
     Ok(())
 }
 
@@ -225,28 +226,34 @@ fn store_get_text_slice() -> Result<(), StamError> {
         Cursor::BeginAligned(0),
         Cursor::BeginAligned(5),
     ))?;
-    assert_eq!(text, "Hello");
+    assert_eq!(text, "Hello", "testing slice 0:5 (1)");
     let text = resource.text_slice(&Offset::simple(0, 5))?; //same as above, shorthand
-    assert_eq!(text, "Hello");
+    assert_eq!(text, "Hello", "testing slice 0:5 (2)");
     let text = resource.text_slice(&Offset::simple(6, 11))?;
-    assert_eq!(text, "world");
+    assert_eq!(text, "world", "testing slice 6:11");
     let text = resource.text_slice(&Offset::new(Cursor::EndAligned(-5), Cursor::EndAligned(0)))?;
-    assert_eq!(text, "world");
+    assert_eq!(text, "world", "testing slice -5:-0");
     let text = resource.text_slice(&Offset::new(Cursor::EndAligned(-11), Cursor::EndAligned(0)))?;
-    assert_eq!(text, "Hello world");
+    assert_eq!(text, "Hello world", "testing slice -11:-0");
     let text = resource.text_slice(&Offset::new(
         Cursor::EndAligned(-11),
         Cursor::EndAligned(-6),
     ))?;
-    assert_eq!(text, "Hello");
+    assert_eq!(text, "Hello", "testing slice -11:-6");
     //these should produce an InvalidOffset error (begin >= end)
-    assert!(resource.text_slice(&Offset::simple(11, 7)).is_err());
-    assert!(resource
-        .text_slice(&Offset::new(
-            Cursor::EndAligned(-9),
-            Cursor::EndAligned(-11)
-        ))
-        .is_err());
+    assert!(
+        resource.text_slice(&Offset::simple(11, 7)).is_err(),
+        "testing invalid slice 11:7"
+    );
+    assert!(
+        resource
+            .text_slice(&Offset::new(
+                Cursor::EndAligned(-9),
+                Cursor::EndAligned(-11)
+            ))
+            .is_err(),
+        "testing invalid end aligned slice -9:-11"
+    );
     Ok(())
 }
 
@@ -254,14 +261,23 @@ fn store_get_text_slice() -> Result<(), StamError> {
 fn store_get_text_selection() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let resource: &TextResource = store.get_by_id("testres")?;
-    let textselection = resource.text_selection(&Offset::new(
+    let textselection = resource.textselection(&Offset::new(
         Cursor::BeginAligned(0),
         Cursor::BeginAligned(5),
     ))?;
-    //note that textselection uses utf-8 bytes, they correspond with the unicode endpoints in this example , but this is often not the case
-    assert_eq!(textselection.beginbyte(), 0);
-    assert_eq!(textselection.endbyte(), 5);
-    assert_eq!(resource.text_of(&textselection), "Hello");
+    assert_eq!(textselection.begin(), 0, "testing begin offset");
+    assert_eq!(textselection.end(), 5, "testing end offset");
+    assert_eq!(
+        resource.utf8byte(textselection.begin())?,
+        0,
+        "testing utf-8 begin byte"
+    ); //bytes and unicode point happen to correspond in this simple, example, but this is not necessarily the case
+    assert_eq!(
+        resource.utf8byte(textselection.end())?,
+        5,
+        "testing utf-8 end byte"
+    );
+    assert_eq!(resource.text_of(&textselection).unwrap(), "Hello");
     Ok(())
 }
 
@@ -732,7 +748,7 @@ fn textselection() -> Result<(), StamError> {
     for (resourcehandle, textselection) in store.textselections_by_annotation(&sentence) {
         let resource: &TextResource = store.get(resourcehandle)?;
         assert_eq!(
-            resource.text_of(&textselection),
+            resource.text_of(&textselection).unwrap(),
             "I am only passionately curious."
         )
     }
@@ -765,7 +781,7 @@ fn textselection_relative() -> Result<(), StamError> {
     let word: &Annotation = store.get_by_id("sentence2word2")?;
     for (resourcehandle, textselection) in store.textselections_by_annotation(&word) {
         let resource: &TextResource = store.get(resourcehandle)?;
-        assert_eq!(resource.text_of(&textselection), "am")
+        assert_eq!(resource.text_of(&textselection).unwrap(), "am")
     }
     Ok(())
 }
@@ -784,7 +800,12 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
     let word: &Annotation = store.get_by_id("sentence2lastword")?;
     for (resourcehandle, textselection) in store.textselections_by_annotation(&word) {
         let resource: &TextResource = store.get(resourcehandle)?;
-        assert_eq!(resource.text_of(&textselection), "curious")
+        eprintln!(
+            "Textselection: {:?}, textlen: {}",
+            textselection,
+            resource.textlen()
+        );
+        assert_eq!(resource.text_of(&textselection)?, "curious")
     }
     Ok(())
 }
@@ -810,8 +831,8 @@ fn textselections_by_annotation() -> Result<(), StamError> {
     for (res_handle, textselection) in store.textselections_by_annotation(annotation) {
         count += 1;
         assert_eq!(reference_res_handle, res_handle);
-        assert_eq!(textselection.beginbyte(), 6);
-        assert_eq!(textselection.endbyte(), 11);
+        assert_eq!(textselection.begin(), 6);
+        assert_eq!(textselection.end(), 11);
     }
     assert_eq!(count, 1);
     Ok(())

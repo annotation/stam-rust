@@ -133,12 +133,14 @@ fn serialize_offset() {
 #[test]
 fn textselectionoperator_equals_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     assert!(a.test(&TextSelectionOperator::Equals(&b.into())));
     assert!(a.test(&TextSelectionOperator::Overlaps(&b.into())));
@@ -147,12 +149,14 @@ fn textselectionoperator_equals_1vs1() {
 #[test]
 fn textselectionoperator_equals_false_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 11,
-        endbyte: 25,
+        intid: None,
+        begin: 11,
+        end: 25,
     };
     //not equal
     assert!(!a.test(&TextSelectionOperator::Equals(&b.into())));
@@ -161,12 +165,14 @@ fn textselectionoperator_equals_false_1vs1() {
 #[test]
 fn textselectionoperator_overlaps1_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 11,
-        endbyte: 25,
+        intid: None,
+        begin: 11,
+        end: 25,
     };
     //overlaps
     assert!(a.test(&TextSelectionOperator::Overlaps(&b.into())));
@@ -176,12 +182,14 @@ fn textselectionoperator_overlaps1_1vs1() {
 #[test]
 fn textselectionoperator_overlaps2_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 18,
-        endbyte: 32,
+        intid: None,
+        begin: 18,
+        end: 32,
     };
     assert!(a.test(&TextSelectionOperator::Overlaps(&b.into())));
     assert!(b.test(&TextSelectionOperator::Overlaps(&a.into())));
@@ -190,12 +198,14 @@ fn textselectionoperator_overlaps2_1vs1() {
 #[test]
 fn textselectionoperator_overlaps_false_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 24,
-        endbyte: 48,
+        intid: None,
+        begin: 24,
+        end: 48,
     };
     assert!(!a.test(&TextSelectionOperator::Overlaps(&b.into())));
     assert!(!b.test(&TextSelectionOperator::Overlaps(&a.into())));
@@ -204,12 +214,14 @@ fn textselectionoperator_overlaps_false_1vs1() {
 #[test]
 fn textselectionoperator_embed_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 11,
-        endbyte: 25,
+        intid: None,
+        begin: 11,
+        end: 25,
     };
     assert!(a.test(&TextSelectionOperator::Embedded(&b.into())));
     assert!(!b.test(&TextSelectionOperator::Embedded(&a.into())));
@@ -219,12 +231,14 @@ fn textselectionoperator_embed_1vs1() {
 #[test]
 fn textselectionoperator_embed_false_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 18,
-        endbyte: 32,
+        intid: None,
+        begin: 18,
+        end: 32,
     };
     //overlap is not embedding
     assert!(!a.test(&TextSelectionOperator::Embedded(&b.into())));
@@ -234,12 +248,14 @@ fn textselectionoperator_embed_false_1vs1() {
 #[test]
 fn textselectionoperator_precedes_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 24,
-        endbyte: 48,
+        intid: None,
+        begin: 24,
+        end: 48,
     };
     assert!(a.test(&TextSelectionOperator::Precedes(&b.into())));
     assert!(!b.test(&TextSelectionOperator::Precedes(&a.into())));
@@ -250,12 +266,14 @@ fn textselectionoperator_precedes_1vs1() {
 #[test]
 fn textselectionoperator_precedes2_1vs1() {
     let a = TextSelection {
-        beginbyte: 0,
-        endbyte: 12,
+        intid: None,
+        begin: 0,
+        end: 12,
     };
     let b = TextSelection {
-        beginbyte: 24,
-        endbyte: 48,
+        intid: None,
+        begin: 24,
+        end: 48,
     };
     assert!(a.test(&TextSelectionOperator::Precedes(&b.into())));
     assert!(!b.test(&TextSelectionOperator::Precedes(&a.into())));
@@ -266,12 +284,14 @@ fn textselectionoperator_precedes2_1vs1() {
 #[test]
 fn textselectionoperator_adjacent_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 24,
-        endbyte: 48,
+        intid: None,
+        begin: 24,
+        end: 48,
     };
     assert!(a.test(&TextSelectionOperator::LeftAdjacent(&b.into())));
     assert!(!b.test(&TextSelectionOperator::LeftAdjacent(&a.into())));
@@ -282,12 +302,14 @@ fn textselectionoperator_adjacent_1vs1() {
 #[test]
 fn textselectionoperator_adjacent_false_1vs1() {
     let a = TextSelection {
-        beginbyte: 0,
-        endbyte: 12,
+        intid: None,
+        begin: 0,
+        end: 12,
     };
     let b = TextSelection {
-        beginbyte: 24,
-        endbyte: 48,
+        intid: None,
+        begin: 24,
+        end: 48,
     };
     //these are all not adjacent
     assert!(!a.test(&TextSelectionOperator::LeftAdjacent(&b.into())));
@@ -299,12 +321,14 @@ fn textselectionoperator_adjacent_false_1vs1() {
 #[test]
 fn textselectionoperator_samebegin_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 12,
-        endbyte: 18,
+        intid: None,
+        begin: 12,
+        end: 18,
     };
     assert!(a.test(&TextSelectionOperator::SameBegin(&b.into())));
     assert!(b.test(&TextSelectionOperator::SameBegin(&a.into())));
@@ -315,15 +339,41 @@ fn textselectionoperator_samebegin_1vs1() {
 #[test]
 fn textselectionoperator_sameend_1vs1() {
     let a = TextSelection {
-        beginbyte: 12,
-        endbyte: 24,
+        intid: None,
+        begin: 12,
+        end: 24,
     };
     let b = TextSelection {
-        beginbyte: 17,
-        endbyte: 24,
+        intid: None,
+        begin: 17,
+        end: 24,
     };
     assert!(a.test(&TextSelectionOperator::SameEnd(&b.into())));
     assert!(b.test(&TextSelectionOperator::SameEnd(&a.into())));
     assert!(!a.test(&TextSelectionOperator::SameBegin(&b.into())));
     assert!(!b.test(&TextSelectionOperator::SameBegin(&a.into())));
+}
+
+#[test]
+fn unicode2utf8() {
+    let resource = TextResource::new("testres".into()).with_string("Hallå världen".into());
+    assert_eq!(resource.utf8byte(0).unwrap(), 0); //H
+    assert_eq!(resource.utf8byte(1).unwrap(), 1); //a
+    assert_eq!(resource.utf8byte(2).unwrap(), 2); //l
+    assert_eq!(resource.utf8byte(3).unwrap(), 3); //l
+    assert_eq!(resource.utf8byte(4).unwrap(), 4); //å
+    assert_eq!(resource.utf8byte(5).unwrap(), 6); //
+    assert_eq!(resource.utf8byte(6).unwrap(), 7); //v
+    assert_eq!(resource.utf8byte(7).unwrap(), 8); //ä
+    assert_eq!(resource.utf8byte(8).unwrap(), 10); //r
+    assert_eq!(resource.utf8byte(9).unwrap(), 11); //l
+    assert_eq!(resource.utf8byte(10).unwrap(), 12); //d
+    assert_eq!(resource.utf8byte(11).unwrap(), 13); //e
+    assert_eq!(resource.utf8byte(12).unwrap(), 14); //n
+    assert_eq!(
+        resource
+            .utf8byte(13)
+            .expect("non-inclusive end must exist too"),
+        15
+    );
 }

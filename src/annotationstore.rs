@@ -17,7 +17,7 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem};
 use crate::textselection::{
-    TextRelationMap, TextRelationOperator, TextSelection, TextSelectionOperator,
+    PositionIndex, TextRelationMap, TextRelationOperator, TextSelection, TextSelectionOperator,
 };
 
 use crate::error::*;
@@ -242,7 +242,7 @@ impl StoreFor<Annotation> for AnnotationStore {
             Selector::TextSelector(res_handle, offset) => {
                 if self.config.textrelationmap {
                     let resource: &TextResource = self.get(*res_handle)?;
-                    let textselection = resource.text_selection(offset)?;
+                    let textselection = resource.textselection(offset)?;
                     self.textrelationmap
                         .insert(*res_handle, textselection, handle);
                 }
@@ -297,7 +297,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                         //process offset relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
                         match self
-                            .text_selection(targetitem.selector(), Some(targetitem.ancestors()))
+                            .textselection(targetitem.selector(), Some(targetitem.ancestors()))
                         {
                             Ok(textselection) => {
                                 extend_textrelationmap.push((res_handle, textselection, handle))
@@ -694,7 +694,7 @@ impl AnnotationStore {
         Box::new(self.resources_by_annotation(annotation).map(|targetitem| {
             //process offset relative offset
             let res_handle = targetitem.handle().expect("resource must have a handle");
-            match self.text_selection(targetitem.selector(), Some(targetitem.ancestors())) {
+            match self.textselection(targetitem.selector(), Some(targetitem.ancestors())) {
                 Ok(textselection) => (res_handle, textselection),
                 Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
             }
@@ -710,7 +710,9 @@ impl AnnotationStore {
             self.textselections_by_annotation(annotation)
                 .map(|(reshandle, selection)| {
                     let resource: &TextResource = self.get(reshandle).expect("resource must exist");
-                    resource.text_of(&selection)
+                    resource
+                        .text_of(&selection)
+                        .expect("selection must be valid")
                 }),
         )
     }
@@ -771,7 +773,7 @@ impl AnnotationStore {
     ) -> Option<&'a Vec<AnnotationHandle>> {
         let resource: Option<&TextResource> = self.get(resource_handle).ok();
         resource?;
-        if let Ok(textselection) = resource.unwrap().text_selection(&offset) {
+        if let Ok(textselection) = resource.unwrap().textselection(&offset) {
             self.textrelationmap
                 .get_by_textselection(resource_handle, &textselection)
         } else {
@@ -787,7 +789,7 @@ impl AnnotationStore {
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
         let resource: Option<&TextResource> = self.get(resource_handle).ok();
         resource?;
-        if let Ok(textselection) = resource.unwrap().text_selection(&offset.offset()) {
+        if let Ok(textselection) = resource.unwrap().textselection(&offset.offset()) {
             //TODO: implement
             panic!("annotations_by_offset_overlap() not implemented yet");
         } else {
@@ -869,15 +871,11 @@ impl AnnotationStore {
         }
     }
 
-    pub fn search(&self) {
-        //TODO: implement
-    }
-
     /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`] instead for those.
     ///
     /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
     /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
-    pub fn text_selection(
+    pub fn textselection(
         &self,
         selector: &Selector,
         subselectors: Option<&Vec<&Selector>>,
@@ -885,17 +883,17 @@ impl AnnotationStore {
         match selector {
             Selector::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get(*res_id)?;
-                let mut textselection = resource.text_selection(offset)?;
+                let mut textselection = resource.textselection(offset)?;
                 if let Some(subselectors) = subselectors {
                     for selector in subselectors.iter() {
-                        if let Selector::AnnotationSelector(_a_id, Some(offset)) = selector {
+                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
                             //each annotation selector selects a subslice of the previous textselection
-                            let text = resource.text_of(&textselection);
+                            let begin = textselection.absolute_cursor(&suboffset.begin)?;
+                            let end = textselection.absolute_cursor(&suboffset.end)?;
                             textselection = TextSelection {
-                                beginbyte: textselection.beginbyte
-                                    + textselection.resolve_cursor(text, &offset.begin)?,
-                                endbyte: textselection.beginbyte
-                                    + textselection.resolve_cursor(text, &offset.end)?,
+                                intid: None,
+                                begin,
+                                end,
                             };
                         }
                     }

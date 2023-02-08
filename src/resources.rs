@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
+use std::ops::Bound::{Excluded, Included};
 
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
@@ -9,7 +10,7 @@ use serde_with::serde_as;
 
 use crate::error::StamError;
 use crate::selector::{Offset, Selector, SelfSelector};
-use crate::textselection::TextSelection;
+use crate::textselection::{PositionIndex, TextSelection, TextSelectionHandle};
 use crate::types::*;
 
 /// This holds the textual resource to be annotated. It holds the full text in memory.
@@ -29,6 +30,19 @@ pub struct TextResource {
 
     /// The internal numeric identifier for the resource (may only be None upon creation when not bound yet)
     intid: Option<TextResourceHandle>,
+
+    /// Length of the text in unicode points
+    #[serde(skip)]
+    textlen: usize,
+
+    #[serde(skip)]
+    textselections: Store<TextSelection>,
+
+    #[serde(skip)]
+    positionindex: PositionIndex,
+
+    #[serde(skip)]
+    config: StoreConfig,
 }
 
 #[serde_as]
@@ -46,6 +60,11 @@ impl TryFrom<TextResourceBuilder> for TextResource {
     type Error = StamError;
 
     fn try_from(builder: TextResourceBuilder) -> Result<Self, StamError> {
+        let textlen = if let Some(text) = &builder.text {
+            text.chars().count()
+        } else {
+            0
+        };
         let mut text = Self {
             intid: None,
             id: if let Some(id) = builder.id {
@@ -60,6 +79,10 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             } else {
                 String::new()
             },
+            textlen,
+            positionindex: PositionIndex::default(),
+            textselections: Store::default(),
+            config: StoreConfig::default(),
         };
         if let Some(filename) = builder.include.as_ref() {
             text = text.with_file(filename)?;
@@ -120,6 +143,10 @@ impl TextResource {
             id,
             intid: None,
             text: String::new(),
+            textlen: 0,
+            positionindex: PositionIndex::default(),
+            textselections: Store::default(),
+            config: StoreConfig::default(),
         }
     }
 
@@ -145,6 +172,10 @@ impl TextResource {
                 id: filename.to_string(),
                 text: String::new(),
                 intid: None, //unbounded for now, will be assigned when added to a AnnotationStore
+                textlen: 0,
+                positionindex: PositionIndex::default(),
+                textselections: Store::default(),
+                config: StoreConfig::default(),
             }
             .with_file(filename)?)
         }
@@ -162,21 +193,34 @@ impl TextResource {
                 return Err(StamError::IOError(err, "TextResource::from_file"));
             }
         }
+        self.textlen = self.text.chars().count();
         Ok(self)
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely
     pub fn with_string(mut self, text: String) -> Self {
         self.text = text;
+        self.textlen = self.text.chars().count();
         self
+    }
+
+    /// Returns the length of the text in unicode points
+    /// For bytes, use `self.text().len()` instead.
+    pub fn textlen(&self) -> usize {
+        self.textlen
     }
 
     /// Create a new TextResource from string, kept in memory entirely
     pub fn from_string(id: String, text: String) -> Self {
+        let textlen = text.chars().count();
         TextResource {
             id,
             text,
             intid: None,
+            textlen,
+            positionindex: PositionIndex::default(),
+            textselections: Store::default(),
+            config: StoreConfig::default(),
         }
     }
 
@@ -186,74 +230,136 @@ impl TextResource {
     }
 
     /// Returns a text selection to a slice of the text as specified by the offset
-    pub fn text_selection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
-        let beginbyte = self.resolve_cursor(&offset.begin)?;
-        let endbyte = self.resolve_cursor(&offset.end)?;
-        if endbyte > beginbyte {
-            Ok(TextSelection { beginbyte, endbyte })
+    pub fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
+        let begin = self.absolute_cursor(&offset.begin)?;
+        let end = self.absolute_cursor(&offset.end)?;
+        if end > begin {
+            Ok(TextSelection {
+                intid: None,
+                begin,
+                end,
+            })
         } else {
-            Err(StamError::InvalidOffset(offset.begin, offset.end, ""))
+            Err(StamError::InvalidOffset(
+                offset.begin,
+                offset.end,
+                "End must be greater than begin",
+            ))
         }
     }
 
     /// Returns a reference to a slice of the text as specified by the offset
     pub fn text_slice(&self, offset: &Offset) -> Result<&str, StamError> {
-        let textselection = self.text_selection(offset)?;
-        Ok(self.text_of(&textselection))
+        let textselection = self.textselection(offset)?;
+        self.text_of(&textselection)
     }
 
     /// Returns the text for a give [`TextSelection`]. Make sure the [`TextSelection`] applies to this resource, there are no further checks here.
     /// Use [`Self.text_slice()`] for a safer method if you want to explicitly specify an offset.
-    pub fn text_of(&self, selection: &TextSelection) -> &str {
-        &self.text()[selection.beginbyte()..selection.endbyte()]
+    pub fn text_of(&self, selection: &TextSelection) -> Result<&str, StamError> {
+        let beginbyte = self.utf8byte(selection.begin)?;
+        let endbyte = self.utf8byte(selection.end)?;
+        Ok(&self.text()[beginbyte..endbyte])
     }
 
-    /// Resolves a cursor to a utf8 byte position on the text
-    pub fn resolve_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
-        //TODO: implementation is not efficient enough (O(n) with n in the order of text size), implement a pre-computed 'milestone' mechanism
+    /// Resolves a cursor to an absolute position (by definition begin aligned)
+    pub fn absolute_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
         match *cursor {
-            Cursor::BeginAligned(cursor) => {
-                let mut prevcharindex = 0;
-                for (charindex, (byteindex, _)) in self.text().char_indices().enumerate() {
-                    if cursor == charindex {
-                        return Ok(byteindex);
-                    } else if cursor < charindex {
-                        break;
-                    }
-                    prevcharindex = charindex;
+            Cursor::BeginAligned(cursor) => Ok(cursor),
+            Cursor::EndAligned(cursor) => {
+                if cursor.abs() as usize > self.textlen {
+                    Err(StamError::CursorOutOfBounds(
+                        Cursor::EndAligned(cursor),
+                        "TextResource::absolute_cursor(): end aligned cursor ends up before the beginning",
+                    ))
+                } else {
+                    Ok(self.textlen - cursor.abs() as usize)
                 }
-                //is the cursor at the very end? (non-inclusive)
-                if cursor == prevcharindex + 1 {
+            }
+        }
+    }
+
+    /// Resolves an absolute cursor (by definition begin aligned) to UTF-8 byteposition
+    /// If you have a Cursor instance, pass it through [`Self.absolute_cursor()`] first.
+    pub fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
+        if let Some(posindexitem) = self.positionindex.0.get(&abscursor) {
+            //exact position is in the position index, return the byte
+            Ok(posindexitem.bytepos)
+        } else {
+            // Get the item previous to abscursor usin a double ended range iterator
+            if let Some((before_pos, posindexitem)) = self
+                .positionindex
+                .0
+                .range((Included(&0), Excluded(&abscursor)))
+                .next_back()
+            {
+                let before_bytepos = posindexitem.bytepos;
+                let textslice = &self.text[before_bytepos..];
+                if self.textlen == abscursor {
+                    //non-inclusive end is also a valid point to return
+                    return Ok(before_bytepos + textslice.len());
+                }
+                // now we just count characters and keep track of the bytes they take,
+                // if everything went well, we have only a minimum amount to count
+                for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
+                    if before_pos + charpos == abscursor {
+                        return Ok(before_bytepos + bytepos);
+                    }
+                }
+            } else {
+                //fallback, position index has no useful entries, search from 0
+                if self.textlen == abscursor {
+                    //non-inclusive end is also a valid point to return
                     return Ok(self.text().len());
                 }
-            }
-            Cursor::EndAligned(0) => return Ok(self.text().len()),
-            Cursor::EndAligned(cursor) => {
-                let mut iter = self.text().char_indices();
-                let mut endcharindex: isize = 0;
-                while let Some((byteindex, _)) = iter.next_back() {
-                    endcharindex -= 1;
-                    if cursor == endcharindex {
-                        return Ok(byteindex);
-                    } else if cursor > endcharindex {
-                        break;
+                for (charpos, (bytepos, _)) in self.text().char_indices().enumerate() {
+                    if charpos == abscursor {
+                        return Ok(bytepos);
                     }
                 }
             }
-        };
-        Err(StamError::CursorOutOfBounds(
-            *cursor,
-            "TextResource::resolve_cursor()",
-        ))
+            Err(StamError::CursorOutOfBounds(
+                Cursor::BeginAligned(abscursor),
+                "TextResource::utf8byte()",
+            ))
+        }
     }
 
-    /// Returns a text selector the the specified offsed in this resource
+    /// Returns a text selector with the specified offset in this resource
     pub fn text_selector(&self, begin: Cursor, end: Cursor) -> Result<Selector, StamError> {
         if let Some(handle) = self.handle() {
             Ok(Selector::TextSelector(handle, Offset { begin, end }))
         } else {
             Err(StamError::Unbound("TextResource::select_text()"))
         }
+    }
+}
+
+//An TextResource is a StoreFor TextSelection
+#[sealed]
+impl StoreFor<TextSelection> for TextResource {
+    /// Get a reference to the entire store for the associated type
+    fn store(&self) -> &Store<TextSelection> {
+        &self.textselections
+    }
+    /// Get a mutable reference to the entire store for the associated type
+    fn store_mut(&mut self) -> &mut Store<TextSelection> {
+        &mut self.textselections
+    }
+    /// Get a reference to the id map for the associated type, mapping global ids to internal ids
+    fn idmap(&self) -> Option<&IdMap<TextSelectionHandle>> {
+        None
+    }
+    /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<TextSelectionHandle>> {
+        None
+    }
+    fn introspect_type(&self) -> &'static str {
+        "TextSelection in TextResource"
+    }
+
+    fn config(&self) -> &StoreConfig {
+        &self.config
     }
 }
 

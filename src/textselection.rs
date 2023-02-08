@@ -1,5 +1,7 @@
+use sealed::sealed;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::hash::{Hash, Hasher};
 use std::slice::Iter;
 
 use smallvec::{smallvec, SmallVec};
@@ -12,29 +14,65 @@ use crate::types::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 /// Corresponds to a slice of the text. This only contains minimal
-/// information; i.e. the begin byte end end byte in a UTF-8 encoded text.
-/// This is similar to `Offset`, which uses unicode points. [`Offset`] points at a resource but still requires
-/// some computation to actually retrieve the pointed bit. [`TextSelection`] is the Result
-/// after this computation is made.
+/// information; i.e. the begin offset and end offset.
+////
+/// This is similar to `Offset`, but that one uses cursors which may
+/// be relative. TextSelection specified an offset in more absolute terms.
 ///
-/// The actual reference to the [`crate::TextResource`] is not stored in this structured but should
+/// The actual reference to the [`crate::TextResource`] is not stored in this structure but should
 /// accompany it explicitly when needed
 ///
 /// On the lowest-level, this struct is obtain by a call to [`crate::annotationstore::AnnotationStore::text_selection()`], which
 /// resolves a [`crate::Selector::TextSelector`]  to a [`TextSelection`]. Such calls are often abstracted away by higher level methods such as [`crate::annotationstore::AnnotationStore::textselections_by_annotation()`].
 pub struct TextSelection {
-    pub(crate) beginbyte: usize,
-    pub(crate) endbyte: usize,
+    pub(crate) intid: Option<TextSelectionHandle>,
+    pub(crate) begin: usize,
+    pub(crate) end: usize,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord)]
+pub struct TextSelectionHandle(u32);
+
+#[sealed]
+impl Handle for TextSelectionHandle {
+    fn new(intid: usize) -> Self {
+        Self(intid as u32)
+    }
+    fn unwrap(&self) -> usize {
+        self.0 as usize
+    }
+}
+
+#[sealed]
+impl Storable for TextSelection {
+    type HandleType = TextSelectionHandle;
+
+    fn id(&self) -> Option<&str> {
+        None
+    }
+    fn handle(&self) -> Option<TextSelectionHandle> {
+        self.intid
+    }
+    fn set_handle(&mut self, handle: TextSelectionHandle) {
+        self.intid = Some(handle);
+    }
+}
+
+impl Hash for TextSelection {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let h = (self.begin, self.end);
+        h.hash(state);
+    }
 }
 
 impl Ord for TextSelection {
     // this  determines the canonical ordering for text selections (applied offsets)
     fn cmp(&self, other: &Self) -> Ordering {
-        let ord = self.beginbyte.cmp(&other.beginbyte);
+        let ord = self.begin.cmp(&other.begin);
         if ord != Ordering::Equal {
             ord
         } else {
-            self.endbyte.cmp(&other.endbyte)
+            self.end.cmp(&other.end)
         }
     }
 }
@@ -46,53 +84,78 @@ impl PartialOrd for TextSelection {
 }
 
 impl TextSelection {
-    /// Return the begin byte in a UTF-8 encoded piece of text
-    pub fn beginbyte(&self) -> usize {
-        self.beginbyte
+    /// Return the begin position (unicode points)
+    pub fn begin(&self) -> usize {
+        self.begin
     }
 
-    /// Return the end byte (non-inclusive) in a UTF-8 encoded piece of text
-    pub fn endbyte(&self) -> usize {
-        self.endbyte
+    /// Return the end position (non-inclusive) in unicode points
+    pub fn end(&self) -> usize {
+        self.end
     }
 
-    /// Resolves a [`Cursor`] *relative to the text selection* to a utf8 byte position, the text of the TextSelection has to be explicitly passed
-    pub fn resolve_cursor(&self, slice_text: &str, cursor: &Cursor) -> Result<usize, StamError> {
-        //TODO: implementation is not efficient on large text slices
+    /// Resolves a cursor that is formulated **relative to this text selection** to an absolute position (by definition begin aligned)
+    pub fn absolute_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
+        let length = self.end() - self.begin();
         match *cursor {
-            Cursor::BeginAligned(cursor) => {
-                let mut prevcharindex = 0;
-                for (charindex, (byteindex, _)) in slice_text.char_indices().enumerate() {
-                    if cursor == charindex {
-                        return Ok(byteindex);
-                    } else if cursor < charindex {
-                        break;
-                    }
-                    prevcharindex = charindex;
-                }
-                //is the cursor at the very end? (non-inclusive)
-                if cursor == prevcharindex + 1 {
-                    return Ok(slice_text.len());
-                }
-            }
-            Cursor::EndAligned(0) => return Ok(slice_text.len()),
+            Cursor::BeginAligned(cursor) => Ok(self.begin + cursor),
             Cursor::EndAligned(cursor) => {
-                let mut iter = slice_text.char_indices();
-                let mut endcharindex: isize = 0;
-                while let Some((byteindex, _)) = iter.next_back() {
-                    endcharindex -= 1;
-                    if cursor == endcharindex {
-                        return Ok(byteindex);
-                    } else if cursor > endcharindex {
-                        break;
-                    }
+                if cursor.abs() as usize > length {
+                    Err(StamError::CursorOutOfBounds(
+                        Cursor::EndAligned(cursor),
+                        "TextResource::absolute_cursor(): end aligned cursor ends up before the beginning",
+                    ))
+                } else {
+                    Ok(self.begin + (length - cursor.abs() as usize))
                 }
             }
-        };
-        Err(StamError::CursorOutOfBounds(
-            *cursor,
-            "TextSelection::resolve_cursor()",
-        ))
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PositionIndex(pub(crate) BTreeMap<usize, PositionIndexItem>);
+
+impl Default for PositionIndex {
+    fn default() -> Self {
+        Self(BTreeMap::new())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PositionIndexItem {
+    /// Position in bytes (UTF-8 encoded)
+    pub(crate) bytepos: usize,
+    /// Lists all text selections that start here
+    pub(crate) begin: SmallVec<[TextSelectionHandle; 1]>, //heap allocation only needed when there are more than one
+    /// Lists all text selections that end here (non-inclusive)
+    pub(crate) end: SmallVec<[TextSelectionHandle; 1]>, //heap allocation only needed when there are more than one
+}
+
+impl Hash for PositionIndexItem {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.bytepos.hash(state);
+    }
+}
+
+impl PartialEq<PositionIndexItem> for PositionIndexItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytepos == other.bytepos
+    }
+}
+
+impl Eq for PositionIndexItem {}
+
+impl PartialOrd for PositionIndexItem {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.bytepos.cmp(&other.bytepos))
+    }
+}
+
+impl Ord for PositionIndexItem {
+    // this  determines the canonical ordering for text selections (applied offsets)
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.bytepos.cmp(&other.bytepos)
     }
 }
 
@@ -454,7 +517,7 @@ impl TextSelectionSet {
             } else {
                 let mut leftmost: Option<&TextSelection> = None;
                 for (item, _, _) in self.iter() {
-                    if leftmost.is_none() || item.beginbyte < leftmost.unwrap().beginbyte {
+                    if leftmost.is_none() || item.begin < leftmost.unwrap().begin {
                         leftmost = Some(item);
                     }
                 }
@@ -473,7 +536,7 @@ impl TextSelectionSet {
             } else {
                 let mut rightmost: Option<&TextSelection> = None;
                 for (item, _, _) in self.iter() {
-                    if rightmost.is_none() || item.endbyte > rightmost.unwrap().endbyte {
+                    if rightmost.is_none() || item.end > rightmost.unwrap().end {
                         rightmost = Some(item);
                     }
                 }
@@ -521,10 +584,10 @@ impl TextSelection {
             TextSelectionOperator::Overlaps(otherset) => {
                 //item must be equal overlap with any of the items in the other set
                 for (other, _, _) in otherset.iter() {
-                    if (other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
-                        || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte)
-                        || (other.beginbyte <= self.beginbyte && other.endbyte >= self.endbyte)
-                        || (self.beginbyte <= other.beginbyte && self.endbyte >= other.endbyte)
+                    if (other.begin >= self.begin && other.begin < self.end)
+                        || (other.end > self.begin && other.end <= self.end)
+                        || (other.begin <= self.begin && other.end >= self.end)
+                        || (self.begin <= other.begin && self.end >= other.end)
                     {
                         return true;
                     }
@@ -537,10 +600,10 @@ impl TextSelection {
                     return false;
                 }
                 for (other, _, _) in otherset.iter() {
-                    if !((other.beginbyte >= self.beginbyte && other.beginbyte < self.endbyte)
-                        || (other.endbyte > self.beginbyte && other.endbyte <= self.endbyte)
-                        || (other.beginbyte <= self.beginbyte && other.endbyte >= self.endbyte)
-                        || (self.beginbyte <= other.beginbyte && self.endbyte >= other.endbyte))
+                    if !((other.begin >= self.begin && other.begin < self.end)
+                        || (other.end > self.begin && other.end <= self.end)
+                        || (other.begin <= self.begin && other.end >= self.end)
+                        || (self.begin <= other.begin && self.end >= other.end))
                     {
                         return false;
                     }
@@ -550,7 +613,7 @@ impl TextSelection {
             TextSelectionOperator::Embeds(otherset) => {
                 // TextSelection embeds an item in other set
                 for (other, _, _) in otherset.iter() {
-                    if other.beginbyte >= self.beginbyte && other.endbyte <= self.endbyte {
+                    if other.begin >= self.begin && other.end <= self.end {
                         return true;
                     }
                 }
@@ -562,7 +625,7 @@ impl TextSelection {
                     return false;
                 }
                 for (other, _, _) in otherset.iter() {
-                    if !(other.beginbyte >= self.beginbyte && other.endbyte <= self.endbyte) {
+                    if !(other.begin >= self.begin && other.end <= self.end) {
                         return false;
                     }
                 }
@@ -571,7 +634,7 @@ impl TextSelection {
             TextSelectionOperator::Embedded(otherset) => {
                 // TextSelection is embedded by an item in B
                 for (other, _, _) in otherset.iter() {
-                    if self.beginbyte >= other.beginbyte && self.endbyte <= other.endbyte {
+                    if self.begin >= other.begin && self.end <= other.end {
                         return true;
                     }
                 }
@@ -583,7 +646,7 @@ impl TextSelection {
                     return false;
                 }
                 for (other, _, _) in otherset.iter() {
-                    if !(self.beginbyte >= other.beginbyte && self.endbyte <= other.endbyte) {
+                    if !(self.begin >= other.begin && self.end <= other.end) {
                         return false;
                     }
                 }
@@ -591,7 +654,7 @@ impl TextSelection {
             }
             TextSelectionOperator::Precedes(otherset) => {
                 for (other, _, _) in otherset.iter() {
-                    if self.endbyte <= other.beginbyte {
+                    if self.end <= other.begin {
                         return true;
                     }
                 }
@@ -602,7 +665,7 @@ impl TextSelection {
                     return false;
                 }
                 for (other, _, _) in otherset.iter() {
-                    if self.endbyte > other.beginbyte {
+                    if self.end > other.begin {
                         return false;
                     }
                 }
@@ -610,7 +673,7 @@ impl TextSelection {
             }
             TextSelectionOperator::Succeeds(otherset) => {
                 for (other, _, _) in otherset.iter() {
-                    if self.beginbyte >= other.endbyte {
+                    if self.begin >= other.end {
                         return true;
                     }
                 }
@@ -621,7 +684,7 @@ impl TextSelection {
                     return false;
                 }
                 for (other, _, _) in otherset.iter() {
-                    if self.beginbyte < other.endbyte {
+                    if self.begin < other.end {
                         return false;
                     }
                 }
@@ -629,7 +692,7 @@ impl TextSelection {
             }
             TextSelectionOperator::LeftAdjacent(otherset) => {
                 for (other, _, _) in otherset.iter() {
-                    if self.endbyte == other.beginbyte {
+                    if self.end == other.begin {
                         return true;
                     }
                 }
@@ -641,15 +704,15 @@ impl TextSelection {
                 }
                 let mut leftmost = None;
                 for (other, _, _) in otherset.iter() {
-                    if leftmost.is_none() || other.beginbyte < leftmost.unwrap() {
-                        leftmost = Some(other.beginbyte);
+                    if leftmost.is_none() || other.begin < leftmost.unwrap() {
+                        leftmost = Some(other.begin);
                     }
                 }
-                Some(self.endbyte) == leftmost
+                Some(self.end) == leftmost
             }
             TextSelectionOperator::RightAdjacent(otherset) => {
                 for (other, _, _) in otherset.iter() {
-                    if other.endbyte == self.beginbyte {
+                    if other.end == self.begin {
                         return true;
                     }
                 }
@@ -661,15 +724,15 @@ impl TextSelection {
                 }
                 let mut rightmost = None;
                 for (other, _, _) in otherset.iter() {
-                    if rightmost.is_none() || other.endbyte > rightmost.unwrap() {
-                        rightmost = Some(other.endbyte);
+                    if rightmost.is_none() || other.end > rightmost.unwrap() {
+                        rightmost = Some(other.end);
                     }
                 }
-                Some(self.beginbyte) == rightmost
+                Some(self.begin) == rightmost
             }
             TextSelectionOperator::SameBegin(otherset) => {
                 for (other, _, _) in otherset.iter() {
-                    if self.beginbyte == other.beginbyte {
+                    if self.begin == other.begin {
                         return true;
                     }
                 }
@@ -679,11 +742,11 @@ impl TextSelection {
                 if otherset.is_empty() {
                     return false;
                 }
-                self.beginbyte == otherset.leftmost().unwrap().beginbyte()
+                self.begin == otherset.leftmost().unwrap().begin()
             }
             TextSelectionOperator::SameEnd(otherset) => {
                 for (other, _, _) in otherset.iter() {
-                    if self.endbyte == other.endbyte {
+                    if self.end == other.end {
                         return true;
                     }
                 }
@@ -693,14 +756,14 @@ impl TextSelection {
                 if otherset.is_empty() {
                     return false;
                 }
-                self.endbyte == otherset.rightmost().unwrap().endbyte()
+                self.end == otherset.rightmost().unwrap().end()
             }
             TextSelectionOperator::SameRangeAll(otherset) => {
                 if otherset.is_empty() {
                     return false;
                 }
-                self.beginbyte == otherset.leftmost().unwrap().beginbyte()
-                    && self.endbyte == otherset.rightmost().unwrap().endbyte()
+                self.begin == otherset.leftmost().unwrap().begin()
+                    && self.end == otherset.rightmost().unwrap().end()
             }
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
