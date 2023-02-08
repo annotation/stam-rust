@@ -231,33 +231,71 @@ impl TextResource {
         self.text.as_str()
     }
 
-    /// Returns a text selection to a slice of the text as specified by the offset
+    /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
+    /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
+    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
+    ///
+    /// Use [`find_textselection()`] instead if you want to limit to existing text selections only.
     pub fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
-        let begin = self.absolute_cursor(&offset.begin)?;
-        let end = self.absolute_cursor(&offset.end)?;
-        if end > begin {
-            Ok(TextSelection {
-                intid: None,
-                begin,
-                end,
-            })
-        } else {
-            Err(StamError::InvalidOffset(
-                offset.begin,
-                offset.end,
-                "End must be greater than begin",
-            ))
+        match self.find_textselection(offset) {
+            Ok(Some(handle)) => {
+                //existing textselection
+                let textselection: &TextSelection = self.get(handle)?; //shouldn't fail here anymore
+                Ok(textselection.clone()) //clone is relatively cheap
+            }
+            Ok(None) => {
+                //create a new one
+                let begin = self.absolute_cursor(&offset.begin)?; //this can't fail because it would have already in find_selection()
+                let end = self.absolute_cursor(&offset.end)?;
+                if end > begin {
+                    Ok(TextSelection {
+                        intid: None,
+                        begin,
+                        end,
+                    })
+                } else {
+                    Err(StamError::InvalidOffset(
+                        offset.begin,
+                        offset.end,
+                        "End must be greater than begin",
+                    ))
+                }
+            }
+            Err(err) => Err(err), //an error occured, propagate
         }
     }
 
-    /// Returns a reference to a slice of the text as specified by the offset
+    /// Finds an **existing** text selection**, as specified by the offset. Returns a handle.
+    /// by the offset. Use the higher-level method [`Self.textselection()`] instead if you
+    /// in most circumstances.
+    pub fn find_textselection(
+        &self,
+        offset: &Offset,
+    ) -> Result<Option<TextSelectionHandle>, StamError> {
+        if let (begin, end) = (
+            self.absolute_cursor(&offset.begin)?,
+            self.absolute_cursor(&offset.end)?,
+        ) {
+            if let Some(beginitem) = self.positionindex.0.get(&begin) {
+                for (end2, handle) in beginitem.end.iter() {
+                    if *end2 == end {
+                        return Ok(Some(*handle));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Returns a string reference to a slice of text as specified by the offset
+    /// This is a higher-level variant of [`Self.text_of()`].
     pub fn text_slice(&self, offset: &Offset) -> Result<&str, StamError> {
         let textselection = self.textselection(offset)?;
         self.text_of(&textselection)
     }
 
-    /// Returns the text for a give [`TextSelection`]. Make sure the [`TextSelection`] applies to this resource, there are no further checks here.
-    /// Use [`Self.text_slice()`] for a safer method if you want to explicitly specify an offset.
+    /// Returns the text for a given [`TextSelection`]. Make sure the [`TextSelection`] applies to this resource, there are no further checks here.
+    /// Use [`Self.text_slice()`] for a higher-level method that takes an offset.
     pub fn text_of(&self, selection: &TextSelection) -> Result<&str, StamError> {
         let beginbyte = self.utf8byte(selection.begin)?;
         let endbyte = self.utf8byte(selection.end)?;
@@ -376,20 +414,20 @@ impl StoreFor<TextSelection> for TextResource {
         self.positionindex
             .0
             .entry(begin)
-            .and_modify(|positem| positem.end.push(handle))
+            .and_modify(|positem| positem.end.push((end, handle)))
             .or_insert_with(|| PositionIndexItem {
                 bytepos: beginbyte,
-                begin: smallvec!(handle),
-                end: smallvec!(),
+                end: smallvec!((end, handle)),
+                begin: smallvec!(),
             });
         self.positionindex
             .0
             .entry(end)
-            .and_modify(|positem| positem.begin.push(handle))
+            .and_modify(|positem| positem.begin.push((begin, handle)))
             .or_insert_with(|| PositionIndexItem {
                 bytepos: endbyte,
-                begin: smallvec!(),
-                end: smallvec!(handle),
+                begin: smallvec!((begin, handle)),
+                end: smallvec!(),
             });
         Ok(())
     }

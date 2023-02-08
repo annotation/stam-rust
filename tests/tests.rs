@@ -811,12 +811,30 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
 }
 
 #[test]
+fn existing_textselection() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let resource: &TextResource = store
+        .resource(&AnyId::Id("testres".into()))
+        .expect("test: resource must exist");
+    let textselection = resource.textselection(&Offset::simple(6, 11))?;
+
+    assert_eq!(textselection.begin(), 6);
+    assert_eq!(textselection.end(), 11);
+    assert!(
+        textselection.handle().is_some(),
+        "testing whether TextSelection has a handle"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn annotations_by_offset() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let res_handle = store.resolve_resource_id("testres")?;
     let v = store
         .annotations_by_offset(res_handle, &Offset::simple(6, 11))
-        .expect("offset should exist");
+        .expect("test: offset should exist");
     let a_ref = store.resolve_annotation_id("A1")?;
     assert_eq!(v, &vec!(a_ref));
     Ok(())

@@ -390,8 +390,8 @@ pub trait StoreFor<T: Storable> {
 
         self.inserted(handle)?;
 
-        //sanity check to ensure no item can determine its own internal id that does not correspond with what's allocated
-        assert_eq!(handle, T::HandleType::new(self.store().len() - 1));
+        assert_eq!(handle, T::HandleType::new(self.store().len() - 1), "sanity check to ensure no item can determine its own internal id that does not correspond with what's allocated
+");
 
         Ok(handle)
     }

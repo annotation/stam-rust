@@ -18,8 +18,7 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem};
 use crate::textselection::{
-    PositionIndex, TextRelationMap, TextRelationOperator, TextSelection, TextSelectionHandle,
-    TextSelectionOperator,
+    PositionIndex, TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };
 
 use crate::error::*;
@@ -54,7 +53,7 @@ pub struct AnnotationStore {
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
     //
     /// This is the reverse index for text, it maps TextResource => TextSelection => Annotation
-    textrelationmap: TextRelationMap,
+    textrelationmap: TripleRelationMap<TextResourceHandle, TextSelectionHandle, AnnotationHandle>,
 
     /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
     resource_annotation_map: RelationMap<TextResourceHandle, AnnotationHandle>,
@@ -220,9 +219,6 @@ impl StoreFor<Annotation> for AnnotationStore {
         }
 
         let mut multitarget = false;
-        let mut extend_textrelationmap: SmallVec<
-            [(TextResourceHandle, TextSelectionHandle, AnnotationHandle); 1],
-        > = SmallVec::new();
         // first we handle the simple singular targets, and determine if we need to do more
         match annotation.target() {
             Selector::DataSetSelector(dataset_handle) => {
@@ -248,16 +244,23 @@ impl StoreFor<Annotation> for AnnotationStore {
                 if self.config.textrelationmap {
                     // note: a normal self.get() doesn't cut it here because of the borrow checker
                     //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
-                    let resource = self
+                    let resource: &mut TextResource = self
                         .resources
                         .get_mut(res_handle.unwrap())
                         .unwrap()
-                        .as_ref()
+                        .as_mut()
                         .unwrap();
                     let textselection = resource.textselection(offset)?;
                     let textselection_handle: TextSelectionHandle =
-                        resource.insert(textselection)?;
-                    extend_textrelationmap.push((*res_handle, textselection_handle, handle));
+                        if let Some(textselection_handle) = textselection.handle() {
+                            //already exists
+                            textselection_handle
+                        } else {
+                            //new, insert... (it's important never to insert the same one twice!)
+                            resource.insert(textselection)?
+                        };
+                    self.textrelationmap
+                        .insert(*res_handle, textselection_handle, handle);
                 }
             }
             _ => {
@@ -265,6 +268,9 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
         }
 
+        let mut extend_textrelationmap: SmallVec<
+            [(TextResourceHandle, TextSelection, AnnotationHandle); 1],
+        > = SmallVec::new();
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
             if self.config.dataset_annotation_map {
@@ -302,7 +308,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                 .map(|targetitem| {
                     let res_handle = targetitem.handle().expect("resource must have a handle");
                     if self.config.textrelationmap {
-                        //process offset relative offset (note that this essentially duplicates 'iter_target_textselection` but
+                        //process relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
                         match self
                             .textselection(targetitem.selector(), Some(targetitem.ancestors()))
@@ -310,20 +316,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                             Ok(textselection) => {
                                 // note: a normal self.get() doesn't cut it here because of the borrow checker
                                 //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
-                                let resource = self
-                                    .resources
-                                    .get_mut(res_handle.unwrap())
-                                    .unwrap()
-                                    .as_ref()
-                                    .unwrap();
-                                let textselection_handle: TextSelectionHandle = resource
-                                    .insert(textselection)
-                                    .expect("insertion should succeed");
-                                extend_textrelationmap.push((
-                                    res_handle,
-                                    textselection_handle,
-                                    handle,
-                                ))
+                                extend_textrelationmap.push((res_handle, textselection, handle))
                             }
                             Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
                         }
@@ -338,8 +331,30 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
 
             if self.config.textrelationmap {
-                self.textrelationmap
-                    .extend(extend_textrelationmap.into_iter());
+                self.textrelationmap.extend(
+                    extend_textrelationmap
+                        .iter()
+                        .map(|(res_handle, textselection, handle)| {
+                            let resource: &mut TextResource = self
+                                .resources
+                                .get_mut(res_handle.unwrap())
+                                .unwrap()
+                                .as_mut()
+                                .unwrap();
+                            let textselection_handle: TextSelectionHandle =
+                                if let Some(textselection_handle) = textselection.handle() {
+                                    //already exists
+                                    textselection_handle
+                                } else {
+                                    //new, insert... (it's important never to insert the same one twice!)
+                                    resource
+                                        .insert(*textselection)
+                                        .expect("insertion should succeed")
+                                };
+                            (*res_handle, textselection_handle, *handle)
+                        })
+                        .into_iter(),
+                );
             }
         }
 
@@ -435,7 +450,7 @@ impl Default for AnnotationStore {
             dataset_annotation_map: RelationMap::new(),
             resource_annotation_map: RelationMap::new(),
             annotation_annotation_map: RelationMap::new(),
-            textrelationmap: TextRelationMap::new(),
+            textrelationmap: TripleRelationMap::new(),
             config: Config::default(),
         }
     }
@@ -747,11 +762,12 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
         if let Some(textselection_annotationmap) =
-            self.textrelationmap.get_by_resource(resource_handle)
+            self.textrelationmap.data.get(resource_handle.unwrap())
         {
             Some(Box::new(
                 textselection_annotationmap
-                    .values()
+                    .data
+                    .iter()
                     .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
             ))
         } else {
@@ -775,8 +791,23 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         textselection: &TextSelection,
     ) -> Option<&Vec<AnnotationHandle>> {
+        if let Some(handle) = textselection.handle() {
+            //existing textselection
+            self.textrelationmap.get(resource_handle, handle)
+        } else {
+            //we can just cast a TextSelection into an offset and see if it exists as existing textselection
+            self.annotations_by_offset(resource_handle, &textselection.into())
+        }
+    }
+
+    /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
+    pub fn annotations_by_textselection_handle(
+        &self,
+        resource_handle: TextResourceHandle,
+        textselection_handle: TextSelectionHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
         self.textrelationmap
-            .get_by_textselection(resource_handle, textselection)
+            .get(resource_handle, textselection_handle)
     }
 
     pub fn annotations_by_textselection_operator(
@@ -794,14 +825,16 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
-        let resource: Option<&TextResource> = self.get(resource_handle).ok();
-        resource?;
-        if let Ok(textselection) = resource.unwrap().textselection(&offset) {
-            self.textrelationmap
-                .get_by_textselection(resource_handle, &textselection)
-        } else {
-            None
-        }
+        if let Some(resource) = self.resource(&AnyId::Handle(resource_handle)) {
+            if let Ok(textselection) = resource.textselection(&offset) {
+                if let Some(textselection_handle) = textselection.handle() {
+                    return self
+                        .textrelationmap
+                        .get(resource_handle, textselection_handle);
+                }
+            }
+        };
+        None
     }
 
     /// Find all annotations that overlap with a particular offset.

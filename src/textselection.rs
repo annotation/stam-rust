@@ -33,6 +33,15 @@ pub struct TextSelection {
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord)]
 pub struct TextSelectionHandle(u32);
 
+impl From<&TextSelection> for Offset {
+    fn from(textselection: &TextSelection) -> Offset {
+        Offset {
+            begin: Cursor::BeginAligned(textselection.begin),
+            end: Cursor::BeginAligned(textselection.end),
+        }
+    }
+}
+
 #[sealed]
 impl Handle for TextSelectionHandle {
     fn new(intid: usize) -> Self {
@@ -127,9 +136,9 @@ pub struct PositionIndexItem {
     /// Position in bytes (UTF-8 encoded)
     pub(crate) bytepos: usize,
     /// Lists all text selections that start here
-    pub(crate) begin: SmallVec<[TextSelectionHandle; 1]>, //heap allocation only needed when there are more than one
+    pub(crate) begin: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
     /// Lists all text selections that end here (non-inclusive)
-    pub(crate) end: SmallVec<[TextSelectionHandle; 1]>, //heap allocation only needed when there are more than one
+    pub(crate) end: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
 }
 
 impl Hash for PositionIndexItem {
@@ -211,36 +220,7 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
     }
 }
 
-/// This structure holds the primary reverse index for texts, pointing per text and per selected region in the text,
-/// to the annotations that reference it.
-////
-/// More formally, it maps [`TextResourceHandle`] => [`TextSelection`] => [`AnnotationHandle`]
-///
-/// The text selection map is ordered.
-pub struct TextRelationMap {
-    //primary indices correspond to TextResourceHandle
-    data: Vec<BTreeMap<TextSelection, Vec<AnnotationHandle>>>,
-}
-
-impl Default for TextRelationMap {
-    fn default() -> Self {
-        Self { data: Vec::new() }
-    }
-}
-
-impl TextRelationMap {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn insert(&mut self, x: TextResourceHandle, y: TextSelection, z: AnnotationHandle) {
-        if x.unwrap() >= self.data.len() {
-            //expand the map
-            self.data.resize_with(x.unwrap() + 1, Default::default);
-        }
-        self.data[x.unwrap()].entry(y).or_default().push(z);
-    }
-
+/*
     /// Returns a text selection => annotation map that is referenced from the specified resource
     pub fn get_by_resource(
         &self,
@@ -261,20 +241,7 @@ impl TextRelationMap {
             None
         }
     }
-
-    //TODO: implement remove()
-}
-
-impl Extend<(TextResourceHandle, TextSelection, AnnotationHandle)> for TextRelationMap {
-    fn extend<T>(&mut self, iter: T)
-    where
-        T: IntoIterator<Item = (TextResourceHandle, TextSelection, AnnotationHandle)>,
-    {
-        for (x, y, z) in iter {
-            self.insert(x, y, z);
-        }
-    }
-}
+*/
 
 /// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection'] instances. It
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
