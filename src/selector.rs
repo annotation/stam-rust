@@ -1,13 +1,14 @@
-use serde::ser::{SerializeStruct, Serializer};
+use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::ops::Deref;
 
 use crate::annotation::{Annotation, AnnotationHandle};
-use crate::annotationdataset::AnnotationDataSetHandle;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
+use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
@@ -29,6 +30,14 @@ impl Offset {
         Offset {
             begin: Cursor::BeginAligned(begin),
             end: Cursor::BeginAligned(end),
+        }
+    }
+
+    /// Shortcut constructor to create a constructor that selects everything of the target
+    pub fn whole() -> Self {
+        Offset {
+            begin: Cursor::BeginAligned(0),
+            end: Cursor::EndAligned(0),
         }
     }
 }
@@ -99,12 +108,96 @@ pub enum Selector {
 
     /// Combines selectors and expresseds a direction between two or more selectors in the exact order specified (from -> to)
     DirectionalSelector(Vec<Selector>),
+
+    /// Internal selector pointing directly to a TextSelection, exposed as TextSelector to the outside world
+    InternalTextSelector {
+        resource: TextResourceHandle,
+        textselection: TextSelectionHandle,
+    },
+    /// Internal selector pointing directly to a TextSelection and an Annotation, exposed as AnnotationSelector to the outside world
+    /// This can only be used for annotations that select the entire text of the underlying annotation (no subslices)
+    InternalAnnotationTextSelector {
+        annotation: AnnotationHandle,
+        resource: TextResourceHandle,
+        textselection: TextSelectionHandle,
+    },
+
+    /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
+    /// Conserved memory by pointing to a internal ID range
+    InternalRangedTextSelector {
+        resource: TextResourceHandle,
+        begin: TextSelectionHandle,
+        end: TextSelectionHandle,
+    },
+    /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
+    /// Conserved memory by pointing to a internal ID range
+    InternalRangedAnnotationSelector {
+        begin: AnnotationHandle,
+        end: AnnotationHandle,
+    },
+    /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
+    /// Conserved memory by pointing to a internal ID range
+    InternalRangedResourceSelector {
+        begin: TextResourceHandle,
+        end: TextResourceHandle,
+    },
+    /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
+    /// Conserved memory by pointing to a internal ID range
+    InternalRangedDataSetSelector {
+        begin: AnnotationDataSetHandle,
+        end: AnnotationDataSetHandle,
+    },
 }
 
 impl Selector {
     /// Returns a [`SelectorKind`]
     pub fn kind(&self) -> SelectorKind {
         self.into()
+    }
+
+    /// Translates an internal ranged selector to a vector of specific selectors
+    pub fn explode(&self) -> Option<Vec<Selector>> {
+        match self {
+            Self::InternalRangedResourceSelector { begin, end } => {
+                let mut result = Vec::new();
+                for handle in begin.unwrap()..end.unwrap() {
+                    result.push(Self::ResourceSelector(TextResourceHandle::new(handle)));
+                }
+                Some(result)
+            }
+            Self::InternalRangedDataSetSelector { begin, end } => {
+                let mut result = Vec::new();
+                for handle in begin.unwrap()..end.unwrap() {
+                    result.push(Self::DataSetSelector(AnnotationDataSetHandle::new(handle)));
+                }
+                Some(result)
+            }
+            Self::InternalRangedTextSelector {
+                resource,
+                begin,
+                end,
+            } => {
+                let mut result = Vec::new();
+                for handle in begin.unwrap()..end.unwrap() {
+                    result.push(Self::InternalTextSelector {
+                        resource: *resource,
+                        textselection: TextSelectionHandle::new(handle),
+                    });
+                }
+                Some(result)
+            }
+            Self::InternalRangedAnnotationSelector { begin, end } => {
+                let mut result = Vec::new();
+                for handle in begin.unwrap()..end.unwrap() {
+                    result.push(Self::AnnotationSelector(
+                        AnnotationHandle::new(handle),
+                        Some(Offset::whole()),
+                    ));
+                }
+                Some(result)
+            }
+            _ => None,
+        }
     }
 }
 
@@ -118,6 +211,7 @@ pub enum SelectorKind {
     MultiSelector = 5,
     CompositeSelector = 6,
     DirectionalSelector = 7,
+    InternalRangedSelector = 8,
 }
 
 impl From<&Selector> for SelectorKind {
@@ -130,6 +224,25 @@ impl From<&Selector> for SelectorKind {
             Selector::MultiSelector(_) => Self::MultiSelector,
             Selector::CompositeSelector(_) => Self::CompositeSelector,
             Selector::DirectionalSelector(_) => Self::DirectionalSelector,
+            Selector::InternalTextSelector {
+                resource: _,
+                textselection: _,
+            } => Self::TextSelector,
+            Selector::InternalAnnotationTextSelector {
+                annotation: _,
+                resource: _,
+                textselection: _,
+            } => Self::AnnotationSelector,
+            Selector::InternalRangedTextSelector {
+                resource: _,
+                begin: _,
+                end: _,
+            }
+            | Selector::InternalRangedAnnotationSelector { begin: _, end: _ }
+            | Selector::InternalRangedResourceSelector { begin: _, end: _ }
+            | Selector::InternalRangedDataSetSelector { begin: _, end: _ } => {
+                Self::InternalRangedSelector
+            }
         }
     }
 }
@@ -211,7 +324,8 @@ pub trait ApplySelector<'a, T> {
 }
 */
 
-/// This is a smart pointer that encapsulates both a selector and the annotationstore in which it can be resolved
+/// This is a smart pointer that encapsulates both a selector and the annotationstore in which it can be resolved.
+/// We need the wrapped structure for serialization.
 pub struct WrappedSelector<'a> {
     selector: &'a Selector,
     store: &'a AnnotationStore,
@@ -235,6 +349,41 @@ impl<'a> WrappedSelector<'a> {
     }
 }
 
+/// This structure is used for serializing subselectors
+pub struct WrappedSelectors<'a> {
+    selectors: &'a Vec<Selector>,
+    store: &'a AnnotationStore,
+}
+
+impl<'a> Serialize for WrappedSelectors<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.selectors.len()))?;
+        for subselector in self.selectors.iter() {
+            if subselector.kind() != SelectorKind::InternalRangedSelector {
+                //normal case
+                let wrappedselector = WrappedSelector {
+                    selector: subselector,
+                    store: self.store,
+                };
+                seq.serialize_element(&wrappedselector)?;
+            } else {
+                //we have an internal ranged selector
+                for subselector in subselector.explode().unwrap() {
+                    let wrappedselector = WrappedSelector {
+                        selector: &subselector,
+                        store: self.store,
+                    };
+                    seq.serialize_element(&wrappedselector)?;
+                }
+            }
+        }
+        seq.end()
+    }
+}
+
 impl<'a> Serialize for WrappedSelector<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -243,38 +392,144 @@ impl<'a> Serialize for WrappedSelector<'a> {
         match self.selector {
             Selector::ResourceSelector(res_handle) => {
                 let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
-                if let Ok(textresource) = textresource {
-                    let mut state = serializer.serialize_struct("Selector", 2)?;
-                    state.serialize_field("@type", "ResourceSelector")?;
-                    if textresource.id().is_none() {
-                        return Err(serde::ser::Error::custom("Selector target must have an ID"));
-                    }
-                    state.serialize_field("resource", &textresource.id())?;
-                    state.end()
-                } else {
-                    Err(serde::ser::Error::custom(
-                        "Unable to resolve resource for ResourceSelector during serialization",
-                    ))
+                let textresource = textresource.map_err(serde::ser::Error::custom)?;
+                let mut state = serializer.serialize_struct("Selector", 2)?;
+                state.serialize_field("@type", "ResourceSelector")?;
+                if textresource.id().is_none() {
+                    return Err(serde::ser::Error::custom(
+                        "Selector target must have an ID if it is to be serialized",
+                    ));
                 }
+                state.serialize_field("resource", &textresource.id())?;
+                state.end()
             }
             Selector::TextSelector(res_handle, offset) => {
                 let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
-                if let Ok(textresource) = textresource {
-                    let mut state = serializer.serialize_struct("Selector", 3)?;
-                    state.serialize_field("@type", "TextSelector")?;
-                    if textresource.id().is_none() {
-                        return Err(serde::ser::Error::custom("Selector target must have an ID"));
-                    }
-                    state.serialize_field("resource", &textresource.id())?;
-                    state.serialize_field("offset", offset)?;
-                    state.end()
-                } else {
-                    Err(serde::ser::Error::custom(
-                        "Unable to resolve resource for ResourceSelector during serialization",
-                    ))
+                let textresource = textresource.map_err(serde::ser::Error::custom)?;
+                let mut state = serializer.serialize_struct("Selector", 3)?;
+                state.serialize_field("@type", "TextSelector")?;
+                if textresource.id().is_none() {
+                    return Err(serde::ser::Error::custom(
+                        "Selector target must have an ID if it is to be serialized",
+                    ));
                 }
+                state.serialize_field("resource", &textresource.id())?;
+                state.serialize_field("offset", offset)?;
+                state.end()
             }
-            _ => panic!("Serialiser for this selector not implemented yet"), //TODO
+            Selector::DataSetSelector(dataset_handle) => {
+                let annotationset: Result<&AnnotationDataSet, _> =
+                    self.store().get(*dataset_handle);
+                let annotationset = annotationset.map_err(serde::ser::Error::custom)?;
+                let mut state = serializer.serialize_struct("Selector", 2)?;
+                state.serialize_field("@type", "DataSetSelector")?;
+                if annotationset.id().is_none() {
+                    return Err(serde::ser::Error::custom(
+                        "Selector target must have an ID if it is to be serialized",
+                    ));
+                }
+                state.serialize_field("resource", &annotationset.id())?;
+                state.end()
+            }
+            Selector::AnnotationSelector(annotation_handle, offset) => {
+                let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
+                let annotation = annotation.map_err(serde::ser::Error::custom)?;
+                let mut state = serializer.serialize_struct("Selector", 3)?;
+                state.serialize_field("@type", "AnnotationSelector")?;
+                if annotation.id().is_none() {
+                    return Err(serde::ser::Error::custom(
+                        "Selector target must have an ID if it is to be serialized",
+                    ));
+                }
+                state.serialize_field("annotation", &annotation.id())?;
+                if let Some(offset) = offset {
+                    state.serialize_field("offset", offset)?;
+                }
+                state.end()
+            }
+            Selector::InternalAnnotationTextSelector {
+                annotation: annotation_handle,
+                resource: _res_handle,
+                textselection: _textselection_handle,
+            } => {
+                let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
+                let annotation = annotation.map_err(serde::ser::Error::custom)?;
+
+                let mut state = serializer.serialize_struct("Selector", 3)?;
+                state.serialize_field("@type", "AnnotationSelector")?;
+                if annotation.id().is_none() {
+                    return Err(serde::ser::Error::custom(
+                        "Selector target must have an ID if it is to be serialized",
+                    ));
+                }
+                state.serialize_field("annotation", &annotation.id())?;
+                state.serialize_field("offset", &Offset::whole())?;
+                state.end()
+            }
+            Selector::InternalTextSelector {
+                resource: res_handle,
+                textselection: textselection_handle,
+            } => {
+                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
+                let textresource = textresource.map_err(serde::ser::Error::custom)?;
+                let textselection: &TextSelection = textresource
+                    .get(*textselection_handle)
+                    .map_err(serde::ser::Error::custom)?;
+
+                let mut state = serializer.serialize_struct("Selector", 3)?;
+                state.serialize_field("@type", "TextSelector")?;
+                if textresource.id().is_none() {
+                    return Err(serde::ser::Error::custom(
+                        "Selector target must have an ID if it is to be serialized",
+                    ));
+                }
+                state.serialize_field("resource", &textresource.id())?;
+                let offset: Offset = textselection.into();
+                state.serialize_field("offset", &offset)?;
+                state.end()
+            }
+            Selector::MultiSelector(subselectors) => {
+                let mut state = serializer.serialize_struct("Selector", 2)?;
+                state.serialize_field("@type", "MultiSelector")?;
+                let subselectors = WrappedSelectors {
+                    selectors: subselectors,
+                    store: self.store,
+                };
+                state.serialize_field("selectors", &subselectors)?;
+                state.end()
+            }
+            Selector::CompositeSelector(subselectors) => {
+                let mut state = serializer.serialize_struct("Selector", 2)?;
+                state.serialize_field("@type", "CompositeSelector")?;
+                let subselectors = WrappedSelectors {
+                    selectors: subselectors,
+                    store: self.store,
+                };
+                state.serialize_field("selectors", &subselectors)?;
+                state.end()
+            }
+            Selector::DirectionalSelector(subselectors) => {
+                let mut state = serializer.serialize_struct("Selector", 2)?;
+                state.serialize_field("@type", "DirectionalSelector")?;
+                let subselectors = WrappedSelectors {
+                    selectors: subselectors,
+                    store: self.store,
+                };
+                state.serialize_field("selectors", &subselectors)?;
+                state.end()
+            }
+            Selector::InternalRangedTextSelector {
+                resource: _,
+                begin: _,
+                end: _,
+            } 
+            | Selector::InternalRangedAnnotationSelector { begin: _, end: _ }
+            | Selector::InternalRangedDataSetSelector { begin: _, end: _ }
+            | Selector::InternalRangedResourceSelector { begin: _, end: _ } => {
+                Err(serde::ser::Error::custom(
+                    "Internal Ranged selectors can not be serialized directly, they can be serialized only when under a complex selector",
+                ))
+            }
         }
     }
 }
