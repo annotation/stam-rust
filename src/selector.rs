@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::ops::Deref;
 use std::borrow::Cow;
+use smallvec::{SmallVec, smallvec};
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
@@ -316,14 +317,6 @@ pub trait SelfSelector {
     fn selector(&self) -> Result<Selector, StamError>;
 }
 
-/*
-/// This trait is implemented by types to which a selector can be applied, returning as a result a reference to type T
-pub trait ApplySelector<'a, T> {
-    /// Apply a selector
-    /// Raises a [`StamError::WrongSelectorType`] if the selector of the passed type does not apply to this resource
-    fn select(&'a self, selector: &Selector) -> Result<T, StamError>;
-}
-*/
 
 /// This is a smart pointer that encapsulates both a selector and the annotationstore in which it can be resolved.
 /// We need the wrapped structure for serialization.
@@ -545,22 +538,27 @@ impl Selector {
         track_ancestors: bool,
     ) -> SelectorIter<'a> {
         SelectorIter {
-            selector: Some(self),
-            ancestors: Vec::new(),
+            selector: self,
+            ancestors: SmallVec::new(),
             subiterstack: Vec::new(),
             cursor_in_range: 0,
             recurse_annotation,
             track_ancestors,
             store,
+            done: false,
             depth: 0,
         }
     }
 }
 
+const ANCESTORSIZE: usize = 3;
+pub type AncestorVec<'a> = SmallVec<[Cow<'a,Selector>;ANCESTORSIZE]>;
+
 /// Iterator that returns the selector itself, plus all selectors under it (recursively)
 pub struct SelectorIter<'a> {
-    selector: Option<&'a Selector>, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
-    ancestors: Vec<&'a Selector>,
+    selector: &'a Selector, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
+    done: bool,
+    ancestors: AncestorVec<'a>,
     subiterstack: Vec<SelectorIter<'a>>,
     cursor_in_range: usize, //used to track iteration of InternalRangedSelectors
     recurse_annotation: bool,
@@ -570,24 +568,22 @@ pub struct SelectorIter<'a> {
 }
 
 pub struct SelectorIterItem<'a> {
-    ancestors: Vec<&'a Selector>,
-    selector: Cow<'a, Selector>,
+    ancestors: AncestorVec<'a>,
+    selector: Cow<'a, Selector>, //we use Cow because we may return create new owned selectors on the fly (like with ranged internal selectors)
     depth: usize,
     leaf: bool,
 }
 
-impl<'a> Deref for SelectorIterItem<'a> {
-    type Target = Selector;
-    fn deref(&self) -> &'a Selector {
-        self.selector
-    }
-}
 
 impl<'a> SelectorIterItem<'a> {
     pub fn depth(&self) -> usize {
         self.depth
     }
-    pub fn ancestors<'b>(&'b self) -> &'b Vec<&'a Selector> {
+
+    pub fn selector<'b>(&'b self) -> &'b Cow<'a,Selector> {
+        &self.selector
+    }
+    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'a> {
         &self.ancestors
     }
     pub fn is_leaf(&self) -> bool {
@@ -596,26 +592,32 @@ impl<'a> SelectorIterItem<'a> {
 }
 
 impl<'a> SelectorIter<'a> {
-    fn process_internal_ranged_selector(&mut self, begin: usize, end: usize, selector: &'a Selector) -> Option<SelectorIterItem<'a>> {
-        if begin + self.cursor_in_range >= end {
-            //we're done with this iterator
-            self.selector = None; //this flags that we have processed this selector
-            None
-        } else {
-            //increment for next round
-            self.cursor_in_range += 1;
-            Some(SelectorIterItem {
-                ancestors: if self.track_ancestors {
-                    self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
-                } else {
-                    Vec::new()
-                },
-                selector: match selector {
-                    //TODO: implement!
-                },
-                depth: self.depth,
-                leaf: true,
-            })
+    fn get_internal_ranged_item(&self, selector: &'a Selector) -> SelectorIterItem<'a> {
+        SelectorIterItem {
+            ancestors: if self.track_ancestors {
+                self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
+            } else {
+                SmallVec::new()
+            },
+            selector: match selector {
+                Selector::InternalRangedResourceSelector {..} => {
+                    Cow::Owned(Selector::ResourceSelector(TextResourceHandle::new(self.cursor_in_range)))
+                }
+                Selector::InternalRangedDataSetSelector {..} => {
+                    Cow::Owned(Selector::DataSetSelector(AnnotationDataSetHandle::new(self.cursor_in_range)))
+                }
+                Selector::InternalRangedAnnotationSelector {..} => {
+                    Cow::Owned(Selector::AnnotationSelector(AnnotationHandle::new(self.cursor_in_range), Some(Offset::whole())))
+                }
+                Selector::InternalRangedTextSelector { resource, .. } => {
+                    Cow::Owned(Selector::InternalTextSelector {resource:*resource, textselection: TextSelectionHandle::new(self.cursor_in_range)} )
+                }
+                _ => {
+                    unreachable!()
+                }
+            },
+            depth: self.depth,
+            leaf: true,
         }
     }
 }
@@ -624,12 +626,11 @@ impl<'a> Iterator for SelectorIter<'a> {
     type Item = SelectorIterItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        //note: Vec::new() should be cheap as Vec only allocates on push!
 
         if self.subiterstack.is_empty() {
-            if let Some(selector) = self.selector {
+            if !self.done {
                 let mut leaf = true;
-                match selector {
+                match self.selector {
                     //  higher-order annotation, appends to the subiterstack
                     Selector::AnnotationSelector(a_handle, _) | Selector::InternalAnnotationTextSelector { annotation: a_handle, .. }=> {
                         if self.recurse_annotation {
@@ -639,19 +640,21 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 .get(*a_handle)
                                 .expect("referenced annotation must exist");
                             self.subiterstack.push(SelectorIter {
-                                selector: Some(annotation.target()),
+                                selector: annotation.target(),
                                 ancestors: if self.track_ancestors {
                                     let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
-                                    ancestors.push(selector);
+                                    ancestors.push(Cow::Borrowed(&self.selector));
                                     ancestors
                                 } else {
-                                    Vec::new()
+                                    SmallVec::new()
                                 },
+                                //note: Vec::new() should be cheap as Vec only allocates on push!
                                 subiterstack: Vec::new(),
                                 cursor_in_range: 0,
                                 recurse_annotation: self.recurse_annotation,
                                 track_ancestors: self.track_ancestors,
                                 store: self.store,
+                                done: false,
                                 depth: self.depth + 1,
                             });
                         }
@@ -663,35 +666,70 @@ impl<'a> Iterator for SelectorIter<'a> {
                         leaf = false;
                         for subselector in v.iter() {
                             self.subiterstack.push(SelectorIter {
-                                selector: Some(subselector),
+                                selector: subselector,
                                 ancestors: if self.track_ancestors {
                                     let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
-                                    ancestors.push(subselector);
+                                    ancestors.push(Cow::Borrowed(subselector));
                                     ancestors
                                 } else {
-                                    Vec::new()
+                                    SmallVec::new()
                                 },
+                                //note: Vec::new() should be cheap as Vec only allocates on push!
                                 subiterstack: Vec::new(),
                                 cursor_in_range: 0,
                                 recurse_annotation: self.recurse_annotation,
                                 track_ancestors: self.track_ancestors,
                                 store: self.store,
+                                done: false,
                                 depth: self.depth + 1,
                             });
                         }
                     }
-                    // internal ranged selector, these return result immediately
-                    Selector::InternalRangedResourceSelector { begin, end } => {
-                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                    // internal ranged selector, these return a result immediately
+                    // some duplication because each begin/end has different parameter types even though it looks the same
+                    Selector::InternalRangedResourceSelector { begin , end } => {
+                        if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            //we're done with this iterator
+                            self.done = true; //this flags that we have processed this selector
+                            return None;
+                        } else {
+                            let result = self.get_internal_ranged_item(self.selector);
+                            self.cursor_in_range += 1;
+                            return Some(result);
+                        }
                     }
                     Selector::InternalRangedDataSetSelector { begin, end } => {
-                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                        if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            //we're done with this iterator
+                            self.done = true; //this flags that we have processed this selector
+                            return None;
+                        } else {
+                            let result = self.get_internal_ranged_item(self.selector);
+                            self.cursor_in_range += 1;
+                            return Some(result);
+                        }
                     }
                     Selector::InternalRangedAnnotationSelector { begin, end } => {
-                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                        if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            //we're done with this iterator
+                            self.done = true; //this flags that we have processed this selector
+                            return None;
+                        } else {
+                            let result = self.get_internal_ranged_item(self.selector);
+                            self.cursor_in_range += 1;
+                            return Some(result);
+                        }
                     }
                     Selector::InternalRangedTextSelector { resource: _, begin, end } => {
-                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                        if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            //we're done with this iterator
+                            self.done = true; //this flags that we have processed this selector
+                            return None;
+                        } else {
+                            let result = self.get_internal_ranged_item(self.selector);
+                            self.cursor_in_range += 1;
+                            return Some(result);
+                        }
                     },
                     // simple selectors fall back to the default behaviour after this match clause
                     Selector::TextSelector(_, _) => {},
@@ -699,14 +737,14 @@ impl<'a> Iterator for SelectorIter<'a> {
                     Selector::DataSetSelector(_) => {}
                     Selector::ResourceSelector(_) => {}
                 };
-                self.selector = None; //this flags that we have processed the selector
+                self.done = true; //this flags that we have processed the selector
                 Some(SelectorIterItem {
                     ancestors: if self.track_ancestors {
                         self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
                     } else {
-                        Vec::new()
+                        SmallVec::new()
                     },
-                    selector: Cow::Borrowed(selector),
+                    selector: Cow::Borrowed(self.selector),
                     depth: self.depth,
                     leaf,
                 })

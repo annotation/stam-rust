@@ -3,6 +3,7 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::marker::PhantomData;
@@ -16,7 +17,9 @@ use crate::annotationdataset::{
 };
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
-use crate::selector::{Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem};
+use crate::selector::{
+    AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
+};
 use crate::textselection::{
     PositionIndex, TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };
@@ -310,9 +313,10 @@ impl StoreFor<Annotation> for AnnotationStore {
                     if self.config.textrelationmap {
                         //process relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
-                        match self
-                            .textselection(targetitem.selector(), Some(targetitem.ancestors()))
-                        {
+                        match self.textselection(
+                            targetitem.selector(),
+                            Box::new(targetitem.ancestors().iter().map(|x| x.as_ref())),
+                        ) {
                             Ok(textselection) => {
                                 // note: a normal self.get() doesn't cut it here because of the borrow checker
                                 //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
@@ -732,7 +736,10 @@ impl AnnotationStore {
         Box::new(self.resources_by_annotation(annotation).map(|targetitem| {
             //process offset relative offset
             let res_handle = targetitem.handle().expect("resource must have a handle");
-            match self.textselection(targetitem.selector(), Some(targetitem.ancestors())) {
+            match self.textselection(
+                targetitem.selector(),
+                Box::new(targetitem.ancestors().iter().map(|x| x.as_ref())),
+            ) {
                 Ok(textselection) => (res_handle, textselection),
                 Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
             }
@@ -931,27 +938,25 @@ impl AnnotationStore {
     ///
     /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
     /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
-    pub fn textselection(
+    pub fn textselection<'b>(
         &self,
         selector: &Selector,
-        subselectors: Option<&Vec<&Selector>>,
+        subselectors: Box<impl Iterator<Item = &'b Selector>>,
     ) -> Result<TextSelection, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get(*res_id)?;
                 let mut textselection = resource.textselection(offset)?;
-                if let Some(subselectors) = subselectors {
-                    for selector in subselectors.iter() {
-                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
-                            //each annotation selector selects a subslice of the previous textselection
-                            let begin = textselection.absolute_cursor(&suboffset.begin)?;
-                            let end = textselection.absolute_cursor(&suboffset.end)?;
-                            textselection = TextSelection {
-                                intid: None,
-                                begin,
-                                end,
-                            };
-                        }
+                for selector in subselectors {
+                    if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
+                        //each annotation selector selects a subslice of the previous textselection
+                        let begin = textselection.absolute_cursor(&suboffset.begin)?;
+                        let end = textselection.absolute_cursor(&suboffset.end)?;
+                        textselection = TextSelection {
+                            intid: None,
+                            begin,
+                            end,
+                        };
                     }
                 }
                 Ok(textselection)
@@ -1084,10 +1089,10 @@ impl<'a, T> TargetIterItem<'a, T> {
     pub fn depth(&self) -> usize {
         self.selectoriteritem.depth()
     }
-    pub fn selector(&self) -> &Selector {
-        self.selectoriteritem.deref()
+    pub fn selector<'b>(&'b self) -> &'b Cow<'a, Selector> {
+        self.selectoriteritem.selector()
     }
-    pub fn ancestors<'b>(&'b self) -> &'b Vec<&'a Selector> {
+    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'a> {
         self.selectoriteritem.ancestors()
     }
     pub fn is_leaf(&self) -> bool {
@@ -1101,7 +1106,7 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
     fn next(&mut self) -> Option<Self::Item> {
         let selectoritem = self.iter.next();
         if let Some(selectoritem) = selectoritem {
-            match &*selectoritem {
+            match selectoritem.selector().as_ref() {
                 Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
                     let resource: &TextResource =
                         self.iter.store.get(*res_id).expect("Resource must exist");
@@ -1124,7 +1129,7 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
     fn next(&mut self) -> Option<Self::Item> {
         let selectoritem = self.iter.next();
         if let Some(selectoritem) = selectoritem {
-            match &*selectoritem {
+            match selectoritem.selector().as_ref() {
                 Selector::DataSetSelector(set_id) => {
                     let annotationset: &AnnotationDataSet =
                         self.iter.store.get(*set_id).expect("Dataset must exist");
@@ -1147,7 +1152,7 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
     fn next(&mut self) -> Option<Self::Item> {
         let selectoritem = self.iter.next();
         if let Some(selectoritem) = selectoritem {
-            match &*selectoritem {
+            match selectoritem.selector().as_ref() {
                 Selector::AnnotationSelector(a_id, _) => {
                     let annotation: &Annotation =
                         self.iter.store.get(*a_id).expect("Annotation must exist");
@@ -1163,119 +1168,3 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
         }
     }
 }
-
-/*
-impl<'a> ApplySelector<'a, &'a TextResource> for AnnotationStore {
-    /// Retrieve a reference to the resource ([`TextResource`]) the selector points to.
-    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select(&'a self, selector: &Selector) -> Result<&'a TextResource, StamError> {
-        match selector {
-            Selector::ResourceSelector(resource_handle) | Selector::TextSelector(resource_handle, .. ) => {
-                let resource: &TextResource = self.get(*resource_handle)?;
-                Ok(resource)
-            },
-            _ => {
-                Err(StamError::WrongSelectorType("Annotationstore::select() expected a ResourceSelector or TextSelector, got another"))
-            }
-        }
-    }
-}
-
-impl<'a> ApplySelector<'a, TextSelection> for AnnotationStore {
-    fn select(&'a self, selector: &Selector) -> Result<TextSelection, StamError> {
-        match selector {
-            Selector::TextSelector(_, offset) => {
-                let resource: &TextResource = self.select(selector)?;
-                let textselection = resource.text_selection(offset)?;
-                Ok(textselection)
-            }
-            Selector::AnnotationSelector(_, offset) => {
-                let annotation: &Annotation = self.select(selector)?;
-                let mut result: Option<TextSelection> = None;
-                let mut multi = false;
-                for (_, textselection) in self.textselections_by_annotation(annotation) {
-                    if result.is_some() {
-                        multi = true;
-                        break;
-                    }
-                    result = Some(textselection)
-                }
-                if multi {
-                    Err(StamError::WrongSelectorTarget("Annotation references multi texts fragment, can't capture in a single &str. Use textselections_by_annotations() instead"))
-                } else {
-                    Ok(result.unwrap())
-                }
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "AnnotationStore::select() expected a TextSelector, got another",
-            )),
-        }
-    }
-}
-
-impl<'a> ApplySelector<'a, &'a str> for AnnotationStore {
-    fn select(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
-        match selector {
-            Selector::TextSelector { .. } => {
-                let resource: &TextResource = self.select(selector)?;
-                let text = resource.select(selector)?;
-                Ok(text)
-            }
-            Selector::AnnotationSelector { .. } => {
-                let annotation: &Annotation = self.select(selector)?;
-                let mut result: Option<&'a str> = None;
-                let mut multi = false;
-                for (resourcehandle, textselection) in self.textselections_by_annotation(annotation)
-                {
-                    let resource: &TextResource = self.get(resourcehandle)?;
-                    if result.is_some() {
-                        multi = true;
-                        break;
-                    }
-                    result = Some(resource.text_of(&textselection))
-                }
-                if multi {
-                    Err(StamError::WrongSelectorTarget("Annotation references multi texts fragment, can't capture in a single &str. Use textselections_by_annotations() instead"))
-                } else {
-                    Ok(result.unwrap())
-                }
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "AnnotationStore::select() expected a TextSelector, got another",
-            )),
-        }
-    }
-}
-
-impl<'a> ApplySelector<'a, &'a AnnotationDataSet> for AnnotationStore {
-    /// Retrieve a reference to the annotation data set ([`AnnotationDataSet`]) the selector points to.
-    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select(&'a self, selector: &Selector) -> Result<&'a AnnotationDataSet, StamError> {
-        match selector {
-            Selector::DataSetSelector(int_id) => {
-                let dataset: &AnnotationDataSet = self.get(*int_id)?;
-                Ok(dataset)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "AnnotationStore::select() expected a DataSetSelector, got another",
-            )),
-        }
-    }
-}
-
-impl<'a> ApplySelector<'a, &'a Annotation> for AnnotationStore {
-    /// Retrieve a reference to the annotation ([`Annotation`]) the selector points to.
-    /// Raises a [`StamError::WrongSelectorType`] if the selector does not point to a resource.
-    fn select(&'a self, selector: &Selector) -> Result<&'a Annotation, StamError> {
-        match selector {
-            Selector::AnnotationSelector(annotation_handle, ..) => {
-                let annotation: &Annotation = self.get(*annotation_handle)?;
-                Ok(annotation)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "AnnotationStore::select() expected an AnnotationSelector, got another",
-            )),
-        }
-    }
-}
-*/
