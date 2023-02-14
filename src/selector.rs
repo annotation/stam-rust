@@ -2,6 +2,7 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::ops::Deref;
+use std::borrow::Cow;
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
@@ -547,6 +548,7 @@ impl Selector {
             selector: Some(self),
             ancestors: Vec::new(),
             subiterstack: Vec::new(),
+            cursor_in_range: 0,
             recurse_annotation,
             track_ancestors,
             store,
@@ -560,6 +562,7 @@ pub struct SelectorIter<'a> {
     selector: Option<&'a Selector>, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
     ancestors: Vec<&'a Selector>,
     subiterstack: Vec<SelectorIter<'a>>,
+    cursor_in_range: usize, //used to track iteration of InternalRangedSelectors
     recurse_annotation: bool,
     track_ancestors: bool,
     pub(crate) store: &'a AnnotationStore,
@@ -568,7 +571,7 @@ pub struct SelectorIter<'a> {
 
 pub struct SelectorIterItem<'a> {
     ancestors: Vec<&'a Selector>,
-    selector: &'a Selector,
+    selector: Cow<'a, Selector>,
     depth: usize,
     leaf: bool,
 }
@@ -592,6 +595,31 @@ impl<'a> SelectorIterItem<'a> {
     }
 }
 
+impl<'a> SelectorIter<'a> {
+    fn process_internal_ranged_selector(&mut self, begin: usize, end: usize, selector: &'a Selector) -> Option<SelectorIterItem<'a>> {
+        if begin + self.cursor_in_range >= end {
+            //we're done with this iterator
+            self.selector = None; //this flags that we have processed this selector
+            None
+        } else {
+            //increment for next round
+            self.cursor_in_range += 1;
+            Some(SelectorIterItem {
+                ancestors: if self.track_ancestors {
+                    self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
+                } else {
+                    Vec::new()
+                },
+                selector: match selector {
+                    //TODO: implement!
+                },
+                depth: self.depth,
+                leaf: true,
+            })
+        }
+    }
+}
+
 impl<'a> Iterator for SelectorIter<'a> {
     type Item = SelectorIterItem<'a>;
 
@@ -602,7 +630,8 @@ impl<'a> Iterator for SelectorIter<'a> {
             if let Some(selector) = self.selector {
                 let mut leaf = true;
                 match selector {
-                    Selector::AnnotationSelector(a_handle, _offset) => {
+                    //  higher-order annotation, appends to the subiterstack
+                    Selector::AnnotationSelector(a_handle, _) | Selector::InternalAnnotationTextSelector { annotation: a_handle, .. }=> {
                         if self.recurse_annotation {
                             leaf = false;
                             let annotation: &Annotation = self
@@ -619,6 +648,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                     Vec::new()
                                 },
                                 subiterstack: Vec::new(),
+                                cursor_in_range: 0,
                                 recurse_annotation: self.recurse_annotation,
                                 track_ancestors: self.track_ancestors,
                                 store: self.store,
@@ -626,6 +656,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                             });
                         }
                     }
+                    // complex iterators, these append to the subiterstack
                     Selector::MultiSelector(v)
                     | Selector::CompositeSelector(v)
                     | Selector::DirectionalSelector(v) => {
@@ -641,6 +672,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                     Vec::new()
                                 },
                                 subiterstack: Vec::new(),
+                                cursor_in_range: 0,
                                 recurse_annotation: self.recurse_annotation,
                                 track_ancestors: self.track_ancestors,
                                 store: self.store,
@@ -648,7 +680,24 @@ impl<'a> Iterator for SelectorIter<'a> {
                             });
                         }
                     }
-                    _ => {}
+                    // internal ranged selector, these return result immediately
+                    Selector::InternalRangedResourceSelector { begin, end } => {
+                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                    }
+                    Selector::InternalRangedDataSetSelector { begin, end } => {
+                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                    }
+                    Selector::InternalRangedAnnotationSelector { begin, end } => {
+                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                    }
+                    Selector::InternalRangedTextSelector { resource: _, begin, end } => {
+                        return self.process_internal_ranged_selector(begin.unwrap(), end.unwrap(), selector);
+                    },
+                    // simple selectors fall back to the default behaviour after this match clause
+                    Selector::TextSelector(_, _) => {},
+                    Selector::InternalTextSelector {..} => {},
+                    Selector::DataSetSelector(_) => {}
+                    Selector::ResourceSelector(_) => {}
                 };
                 self.selector = None; //this flags that we have processed the selector
                 Some(SelectorIterItem {
@@ -657,7 +706,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                     } else {
                         Vec::new()
                     },
-                    selector,
+                    selector: Cow::Borrowed(selector),
                     depth: self.depth,
                     leaf,
                 })
