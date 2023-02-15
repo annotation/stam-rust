@@ -993,8 +993,30 @@ impl AnnotationStore {
                     offset,
                 ))
             }
-            _ => {
-                panic!("not implemented yet")
+            SelectorBuilder::DataSetSelector(id) => {
+                let resource: &AnnotationDataSet = self.get_by_anyid_or_err(&id)?;
+                Ok(Selector::DataSetSelector(resource.handle_or_err()?))
+            }
+            SelectorBuilder::MultiSelector(v) => {
+                let mut new_v = Vec::with_capacity(v.len());
+                for builder in v {
+                    new_v.push(self.selector(builder)?);
+                }
+                Ok(Selector::MultiSelector(new_v))
+            }
+            SelectorBuilder::DirectionalSelector(v) => {
+                let mut new_v = Vec::with_capacity(v.len());
+                for builder in v {
+                    new_v.push(self.selector(builder)?);
+                }
+                Ok(Selector::DirectionalSelector(new_v))
+            }
+            SelectorBuilder::CompositeSelector(v) => {
+                let mut new_v = Vec::with_capacity(v.len());
+                for builder in v {
+                    new_v.push(self.selector(builder)?);
+                }
+                Ok(Selector::CompositeSelector(new_v))
             }
         }
     }
