@@ -1000,6 +1000,11 @@ impl AnnotationStore {
             SelectorBuilder::MultiSelector(v) => {
                 let mut new_v = Vec::with_capacity(v.len());
                 for builder in v {
+                    if builder.is_complex() {
+                        return Err(StamError::WrongSelectorType(
+                            "Complex selectors may not be nested",
+                        ));
+                    }
                     new_v.push(self.selector(builder)?);
                 }
                 Ok(Selector::MultiSelector(new_v))
@@ -1007,6 +1012,11 @@ impl AnnotationStore {
             SelectorBuilder::DirectionalSelector(v) => {
                 let mut new_v = Vec::with_capacity(v.len());
                 for builder in v {
+                    if builder.is_complex() {
+                        return Err(StamError::WrongSelectorType(
+                            "Complex selectors may not be nested",
+                        ));
+                    }
                     new_v.push(self.selector(builder)?);
                 }
                 Ok(Selector::DirectionalSelector(new_v))
@@ -1014,6 +1024,11 @@ impl AnnotationStore {
             SelectorBuilder::CompositeSelector(v) => {
                 let mut new_v = Vec::with_capacity(v.len());
                 for builder in v {
+                    if builder.is_complex() {
+                        return Err(StamError::WrongSelectorType(
+                            "Complex selectors may not be nested",
+                        ));
+                    }
                     new_v.push(self.selector(builder)?);
                 }
                 Ok(Selector::CompositeSelector(new_v))

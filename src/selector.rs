@@ -174,6 +174,16 @@ impl Selector {
         self.into()
     }
 
+    /// A complex selector targets multiple targets. Note the internal ranged selector is not counted as part of this category.
+    pub fn is_complex(&self) -> bool {
+        match self.kind() {
+            SelectorKind::MultiSelector => true,
+            SelectorKind::DirectionalSelector => true,
+            SelectorKind::CompositeSelector => true,
+            _ => false,
+        }
+    }
+
     /// Translates an internal ranged selector to a vector of specific selectors
     pub fn explode(&self) -> Option<Vec<Selector>> {
         match self {
@@ -266,6 +276,20 @@ impl From<&Selector> for SelectorKind {
     }
 }
 
+impl From<&SelectorBuilder> for SelectorKind {
+    fn from(selector: &SelectorBuilder) -> Self {
+        match selector {
+            SelectorBuilder::ResourceSelector(_) => Self::ResourceSelector,
+            SelectorBuilder::AnnotationSelector(_, _) => Self::AnnotationSelector,
+            SelectorBuilder::TextSelector(_, _) => Self::TextSelector,
+            SelectorBuilder::DataSetSelector(_) => Self::DataSetSelector,
+            SelectorBuilder::MultiSelector(_) => Self::MultiSelector,
+            SelectorBuilder::CompositeSelector(_) => Self::CompositeSelector,
+            SelectorBuilder::DirectionalSelector(_) => Self::DirectionalSelector,
+        }
+    }
+}
+
 /// A `SelectorBuilder` is a recipe that, when applied, identifies the target of an annotation and the part of the
 /// target that the annotation applies to. They produce a `Selector` and you can do so via [`Annotationstore.selector`].
 ///
@@ -283,6 +307,26 @@ pub enum SelectorBuilder {
     CompositeSelector(Vec<SelectorBuilder>),
     DirectionalSelector(Vec<SelectorBuilder>),
 }
+
+impl SelectorBuilder {
+    /// Returns a [`SelectorKind`]
+    pub fn kind(&self) -> SelectorKind {
+        self.into()
+    }
+
+    /// A complex selector targets multiple targets. Note the internal ranged selector is not counted as part of this category.
+    pub fn is_complex(&self) -> bool {
+        match self.kind() {
+            SelectorKind::MultiSelector => true,
+            SelectorKind::DirectionalSelector => true,
+            SelectorKind::CompositeSelector => true,
+            _ => false,
+        }
+    }
+}
+
+
+
 
 /// Helper structure for Json deserialisation, we need named fields for the serde tag macro to work
 #[serde_as]
