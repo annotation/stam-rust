@@ -42,6 +42,23 @@ impl Offset {
             end: Cursor::EndAligned(0),
         }
     }
+
+    /// Returns true if this Offset only uses begin-aligned cursors 
+    pub fn is_simple(&self) -> bool {
+        match (self.begin, self.end) {
+            (Cursor::BeginAligned(_), Cursor::BeginAligned(_)) => true,
+            _ => false
+        }
+    }
+
+    /// Returns true if this Offset only uses begin-aligned cursors, or if it selects the whole target
+    pub fn is_simple_or_whole(&self) -> bool {
+        match (self.begin, self.end) {
+            (Cursor::BeginAligned(_), Cursor::BeginAligned(_)) => true,
+            (Cursor::BeginAligned(0), Cursor::EndAligned(0)) => true,
+            _ => false
+        }
+    }
 }
 
 impl Default for Offset {
