@@ -1103,7 +1103,7 @@ pub struct TargetIter<'a, T>
 where
     T: Storable,
 {
-    iter: SelectorIter<'a>,
+    pub(crate) iter: SelectorIter<'a>,
     _phantomdata: PhantomData<T>,
 }
 
@@ -1120,8 +1120,8 @@ where
 }
 
 pub struct TargetIterItem<'a, T> {
-    item: &'a T,
-    selectoriteritem: SelectorIterItem<'a>,
+    pub(crate) item: &'a T,
+    pub(crate) selectoriteritem: SelectorIterItem<'a>,
 }
 
 impl<'a, T> Deref for TargetIterItem<'a, T>

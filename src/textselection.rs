@@ -7,9 +7,10 @@ use std::slice::Iter;
 use smallvec::{smallvec, SmallVec};
 
 use crate::annotation::AnnotationHandle;
+use crate::annotationstore::{TargetIter, TargetIterItem};
 use crate::error::StamError;
-use crate::resources::TextResourceHandle;
-use crate::selector::Offset;
+use crate::resources::{TextResource, TextResourceHandle};
+use crate::selector::{Offset, Selector};
 use crate::types::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -826,6 +827,35 @@ impl TextRelationOperator {
             | Self::RightAdjacent(offset)
             | Self::SameBegin(offset)
             | Self::SameEnd(offset) => offset,
+        }
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, TextSelection> {
+    type Item = TargetIterItem<'a, TextSelection>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let selectoritem = self.iter.next();
+        if let Some(selectoritem) = selectoritem {
+            match selectoritem.selector().as_ref() {
+                Selector::InternalTextSelector {
+                    resource,
+                    textselection,
+                } => {
+                    let resource: &TextResource =
+                        self.iter.store.get(*resource).expect("Resource must exist");
+                    let textselection: &TextSelection = resource
+                        .get(*textselection)
+                        .expect("TextSelection must exist");
+                    Some(TargetIterItem {
+                        item: textselection,
+                        selectoriteritem: selectoritem,
+                    })
+                }
+                _ => self.next(),
+            }
+        } else {
+            None
         }
     }
 }
