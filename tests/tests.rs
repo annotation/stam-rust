@@ -879,3 +879,34 @@ fn find_data() -> Result<(), StamError> {
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
 }
+
+pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
+    let store = AnnotationStore::new()
+        .with_id("test".into())
+        .add(TextResource::from_string(
+            "testres".to_string(),
+            "Hello world".into(),
+        ))?
+        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .with_annotation(
+            Annotation::builder()
+                .with_id("WordAnnotation".into())
+                .with_target(SelectorBuilder::MultiSelector(vec![
+                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
+                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
+                ]))
+                .with_data_with_id(
+                    "testdataset".into(),
+                    "type".into(),
+                    "word".into(),
+                    "WordAnnotationData".into(),
+                ),
+        )?;
+    Ok(store)
+}
+
+#[test]
+fn test_multiselector() -> Result<(), StamError> {
+    let store = setup_example_multiselector()?;
+    Ok(())
+}
