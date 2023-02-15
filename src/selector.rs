@@ -183,51 +183,6 @@ impl Selector {
             _ => false,
         }
     }
-
-    /// Translates an internal ranged selector to a vector of specific selectors
-    pub fn explode(&self) -> Option<Vec<Selector>> {
-        match self {
-            Self::InternalRangedResourceSelector { begin, end } => {
-                let mut result = Vec::new();
-                for handle in begin.unwrap()..end.unwrap() {
-                    result.push(Self::ResourceSelector(TextResourceHandle::new(handle)));
-                }
-                Some(result)
-            }
-            Self::InternalRangedDataSetSelector { begin, end } => {
-                let mut result = Vec::new();
-                for handle in begin.unwrap()..end.unwrap() {
-                    result.push(Self::DataSetSelector(AnnotationDataSetHandle::new(handle)));
-                }
-                Some(result)
-            }
-            Self::InternalRangedTextSelector {
-                resource,
-                begin,
-                end,
-            } => {
-                let mut result = Vec::new();
-                for handle in begin.unwrap()..end.unwrap() {
-                    result.push(Self::InternalTextSelector {
-                        resource: *resource,
-                        textselection: TextSelectionHandle::new(handle),
-                    });
-                }
-                Some(result)
-            }
-            Self::InternalRangedAnnotationSelector { begin, end } => {
-                let mut result = Vec::new();
-                for handle in begin.unwrap()..end.unwrap() {
-                    result.push(Self::AnnotationSelector(
-                        AnnotationHandle::new(handle),
-                        Some(Offset::whole()),
-                    ));
-                }
-                Some(result)
-            }
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -426,9 +381,9 @@ impl<'a> Serialize for WrappedSelectors<'a> {
                 seq.serialize_element(&wrappedselector)?;
             } else {
                 //we have an internal ranged selector
-                for subselector in subselector.explode().unwrap() {
+                for subselector in subselector.iter(self.store, false,false) {
                     let wrappedselector = WrappedSelector {
-                        selector: &subselector,
+                        selector: &subselector.selector,
                         store: self.store,
                     };
                     seq.serialize_element(&wrappedselector)?;

@@ -1107,6 +1107,18 @@ where
     _phantomdata: PhantomData<T>,
 }
 
+impl<'a, T> TargetIter<'a, T>
+where
+    T: Storable,
+{
+    pub fn new(iter: SelectorIter<'a>) -> Self {
+        Self {
+            iter,
+            _phantomdata: PhantomData,
+        }
+    }
+}
+
 pub struct TargetIterItem<'a, T> {
     item: &'a T,
     selectoriteritem: SelectorIterItem<'a>,
