@@ -906,7 +906,17 @@ pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
 }
 
 #[test]
-fn test_multiselector() -> Result<(), StamError> {
+fn test_multiselector_creation() -> Result<(), StamError> {
     let store = setup_example_multiselector()?;
+    Ok(())
+}
+
+#[test]
+fn test_multiselector_iter() -> Result<(), StamError> {
+    let store = setup_example_multiselector()?;
+    let annotation: &Annotation = store.get_by_id("WordAnnotation")?;
+    let result: Vec<&str> = store.text_by_annotation(annotation).collect();
+    assert_eq!(result[0], "Hello");
+    assert_eq!(result[1], "world");
     Ok(())
 }

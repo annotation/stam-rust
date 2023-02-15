@@ -681,7 +681,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                     | Selector::CompositeSelector(v)
                     | Selector::DirectionalSelector(v) => {
                         leaf = false;
-                        for subselector in v.iter() {
+                        for subselector in v.iter().rev() {
                             self.subiterstack.push(SelectorIter {
                                 selector: subselector,
                                 ancestors: if self.track_ancestors {
