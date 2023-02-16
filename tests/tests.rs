@@ -95,6 +95,46 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
     Ok(store)
 }
 
+pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
+    //instantiate with builder pattern
+    let store = AnnotationStore::new()
+        .with_id("test".into())
+        .add(TextResource::from_string(
+            "testres".to_string(),
+            "Hello world".into(),
+        ))?
+        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .with_annotation(
+            Annotation::builder()
+                .with_id("A1".into())
+                .with_target(SelectorBuilder::TextSelector(
+                    "testres".into(),
+                    Offset::simple(6, 11),
+                ))
+                .with_data_with_id(
+                    "testdataset".into(),
+                    "pos".into(),
+                    "noun".into(),
+                    "D1".into(),
+                ),
+        )?
+        .with_annotation(
+            Annotation::builder()
+                .with_id("A2".into())
+                .with_target(SelectorBuilder::TextSelector(
+                    "testres".into(),
+                    Offset::simple(0, 5),
+                ))
+                .with_data_with_id(
+                    "testdataset".into(),
+                    "pos".into(),
+                    "interjection".into(),
+                    "D2".into(),
+                ),
+        )?;
+    Ok(store)
+}
+
 pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
     //this example includes a higher-order annotation with relative offset
     let store = AnnotationStore::new()
@@ -853,6 +893,61 @@ fn textselections_by_annotation() -> Result<(), StamError> {
         assert_eq!(textselection.end(), 11);
     }
     assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn textselections_by_resource_unsorted() -> Result<(), StamError> {
+    let store = setup_example_4()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let v: Vec<&TextSelection> = resource.textselections().collect();
+    assert_eq!(v[0].begin(), 6);
+    assert_eq!(v[0].end(), 11);
+    assert_eq!(v[1].begin(), 0);
+    assert_eq!(v[1].end(), 5);
+    assert_eq!(v.len(), 2);
+    Ok(())
+}
+
+#[test]
+fn textselections_by_resource_sorted() -> Result<(), StamError> {
+    let store = setup_example_4()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let v: Vec<&TextSelection> = resource.iter().collect();
+    assert_eq!(v.len(), 2);
+    assert_eq!(v[0].begin(), 0);
+    assert_eq!(v[0].end(), 5);
+    Ok(())
+}
+
+#[test]
+fn positionindex() -> Result<(), StamError> {
+    let store = setup_example_4()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let v: Vec<&usize> = resource.positions().collect();
+    assert_eq!(v.len(), 4);
+    assert_eq!(v[0], &0);
+    assert_eq!(v[1], &5);
+    assert_eq!(v[2], &6);
+    assert_eq!(v[3], &11);
+    let v2: Vec<_> = resource
+        .position(0)
+        .unwrap()
+        .iter_begin2end()
+        .collect::<Vec<_>>();
+    assert_eq!(v2.len(), 1);
+    assert_eq!(v2[0].0, 5);
+    Ok(())
+}
+
+#[test]
+fn textselections_by_resource_range() -> Result<(), StamError> {
+    let store = setup_example_4()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let v: Vec<&TextSelection> = resource.range(6, 11).collect();
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].begin(), 6);
+    assert_eq!(v[0].end(), 11);
     Ok(())
 }
 

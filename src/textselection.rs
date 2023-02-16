@@ -1,5 +1,6 @@
 use sealed::sealed;
 use std::cmp::Ordering;
+use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 use std::slice::Iter;
@@ -132,14 +133,34 @@ impl Default for PositionIndex {
     }
 }
 
+impl PositionIndex {
+    //Returns an iterator over all positions in in index, in sorted order
+    pub fn keys(&self) -> btree_map::Keys<usize, PositionIndexItem> {
+        self.0.keys()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PositionIndexItem {
     /// Position in bytes (UTF-8 encoded)
     pub(crate) bytepos: usize,
     /// Lists all text selections that start here
-    pub(crate) begin: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
+    pub(crate) end2begin: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
     /// Lists all text selections that end here (non-inclusive)
-    pub(crate) end: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
+    pub(crate) begin2end: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
+}
+
+impl PositionIndexItem {
+    pub fn bytepos(&self) -> usize {
+        self.bytepos
+    }
+    pub fn iter_end2begin<'a>(&'a self) -> Iter<'a, (usize, TextSelectionHandle)> {
+        self.end2begin.iter()
+    }
+
+    pub fn iter_begin2end<'a>(&'a self) -> Iter<'a, (usize, TextSelectionHandle)> {
+        self.begin2end.iter()
+    }
 }
 
 impl Hash for PositionIndexItem {

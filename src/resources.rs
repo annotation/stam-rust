@@ -279,7 +279,7 @@ impl TextResource {
             self.absolute_cursor(&offset.end)?,
         );
         if let Some(beginitem) = self.positionindex.0.get(&begin) {
-            for (end2, handle) in beginitem.end.iter() {
+            for (end2, handle) in beginitem.begin2end.iter() {
                 if *end2 == end {
                     return Ok(Some(*handle));
                 }
@@ -381,8 +381,9 @@ impl TextResource {
         Box::new(self.store().iter().filter_map(|item| item.as_ref()))
     }
 
-    /// Returns a sorted double-ended iterator over a range of all textselections in this resource that overlap
-    /// with the specified range
+    /// Returns a sorted double-ended iterator over a range of all textselections and returns all
+    /// textselections that either start or end in this range (depending on the direction you're
+    /// iterating in)
     pub fn range<'a>(&'a self, begin: usize, end: usize) -> TextSelectionIter<'a> {
         TextSelectionIter {
             iter: self
@@ -396,9 +397,20 @@ impl TextResource {
     }
 
     /// Returns a sorted double-ended iterator over all textselections in this resource
-    /// For unsorted (slight more performant), used [`textselections()`] instead.
+    /// For unsorted (slightly more performant), used [`textselections()`] instead.
     pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
         self.range(0, self.textlen())
+    }
+
+    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use
+    pub fn positions(&self) -> btree_map::Keys<usize, PositionIndexItem> {
+        self.positionindex.keys()
+    }
+
+    /// Lookup a position (unicode point) in the PositionIndex. Low-level function.
+    /// Only works for positions at which a TextSelection starts or ends (non-inclusive), returns None otherwise
+    pub fn position(&self, index: usize) -> Option<&PositionIndexItem> {
+        self.positionindex.0.get(&index)
     }
 }
 
@@ -441,20 +453,20 @@ impl StoreFor<TextSelection> for TextResource {
         self.positionindex
             .0
             .entry(begin)
-            .and_modify(|positem| positem.end.push((end, handle)))
+            .and_modify(|positem| positem.begin2end.push((end, handle)))
             .or_insert_with(|| PositionIndexItem {
                 bytepos: beginbyte,
-                end: smallvec!((end, handle)),
-                begin: smallvec!(),
+                begin2end: smallvec!((end, handle)),
+                end2begin: smallvec!(),
             });
         self.positionindex
             .0
             .entry(end)
-            .and_modify(|positem| positem.begin.push((begin, handle)))
+            .and_modify(|positem| positem.end2begin.push((begin, handle)))
             .or_insert_with(|| PositionIndexItem {
                 bytepos: endbyte,
-                begin: smallvec!((begin, handle)),
-                end: smallvec!(),
+                end2begin: smallvec!((begin, handle)),
+                begin2end: smallvec!(),
             });
         Ok(())
     }
@@ -490,14 +502,16 @@ impl<'a> Iterator for TextSelectionIter<'a> {
                     self.resource.get(*handle).expect("handle must exist");
                 return Some(textselection);
             }
+            //fall back to final clause
         } else {
             if let Some((_, posindexitem)) = self.iter.next() {
-                self.begin2enditer = Some(posindexitem.begin.iter());
+                self.begin2enditer = Some(posindexitem.end2begin.iter());
                 return self.next();
             } else {
                 return None;
             }
         }
+        //final clause
         self.begin2enditer = None;
         self.next()
     }
@@ -511,14 +525,16 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
                     self.resource.get(*handle).expect("handle must exist");
                 return Some(textselection);
             }
+            //fall back to final clause
         } else {
             if let Some((_, posindexitem)) = self.iter.next_back() {
-                self.end2beginiter = Some(posindexitem.begin.iter());
+                self.end2beginiter = Some(posindexitem.end2begin.iter());
                 return self.next_back();
             } else {
                 return None;
             }
         }
+        //final clause
         self.end2beginiter = None;
         self.next_back()
     }
