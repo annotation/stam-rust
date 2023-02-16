@@ -274,15 +274,14 @@ impl TextResource {
         &self,
         offset: &Offset,
     ) -> Result<Option<TextSelectionHandle>, StamError> {
-        if let (begin, end) = (
+        let (begin, end) = (
             self.absolute_cursor(&offset.begin)?,
             self.absolute_cursor(&offset.end)?,
-        ) {
-            if let Some(beginitem) = self.positionindex.0.get(&begin) {
-                for (end2, handle) in beginitem.end.iter() {
-                    if *end2 == end {
-                        return Ok(Some(*handle));
-                    }
+        );
+        if let Some(beginitem) = self.positionindex.0.get(&begin) {
+            for (end2, handle) in beginitem.end.iter() {
+                if *end2 == end {
+                    return Ok(Some(*handle));
                 }
             }
         }
@@ -377,12 +376,13 @@ impl TextResource {
     }
 
     /// Returns an unsorted iterator over all textselections in this resource
-    /// For sorted, used [`iter()`] instead.
+    /// Use this only if order doesn't matter for. For a sorted ersion, used [`iter()`] or [`range()`] instead.
     pub fn textselections(&self) -> Box<impl Iterator<Item = &TextSelection>> {
         Box::new(self.store().iter().filter_map(|item| item.as_ref()))
     }
 
-    /// Returns a sorted double-ended iterator over a range of textselections in this resource
+    /// Returns a sorted double-ended iterator over a range of all textselections in this resource that overlap
+    /// with the specified range
     pub fn range<'a>(&'a self, begin: usize, end: usize) -> TextSelectionIter<'a> {
         TextSelectionIter {
             iter: self
