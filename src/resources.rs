@@ -1,7 +1,9 @@
+use std::collections::btree_map;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::ops::Bound::{Excluded, Included};
+use std::slice::Iter;
 
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
@@ -373,6 +375,31 @@ impl TextResource {
             Err(StamError::Unbound("TextResource::select_text()"))
         }
     }
+
+    /// Returns an unsorted iterator over all textselections in this resource
+    /// For sorted, used [`iter()`] instead.
+    pub fn textselections(&self) -> Box<impl Iterator<Item = &TextSelection>> {
+        Box::new(self.store().iter().filter_map(|item| item.as_ref()))
+    }
+
+    /// Returns a sorted double-ended iterator over a range of textselections in this resource
+    pub fn range<'a>(&'a self, begin: usize, end: usize) -> TextSelectionIter<'a> {
+        TextSelectionIter {
+            iter: self
+                .positionindex
+                .0
+                .range((Included(&begin), Excluded(&end))),
+            begin2enditer: None,
+            end2beginiter: None,
+            resource: self,
+        }
+    }
+
+    /// Returns a sorted double-ended iterator over all textselections in this resource
+    /// For unsorted (slight more performant), used [`textselections()`] instead.
+    pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
+        self.range(0, self.textlen())
+    }
 }
 
 //An TextResource is a StoreFor TextSelection
@@ -441,5 +468,58 @@ impl SelfSelector for TextResource {
         } else {
             Err(StamError::Unbound("TextResource::self_selector()"))
         }
+    }
+}
+
+/// This iteratator is used for iterating over TextSelections in a resource in a sorted fashion
+/// using the so-called position index.
+pub struct TextSelectionIter<'a> {
+    iter: btree_map::Range<'a, usize, PositionIndexItem>, //btree_map::Iter
+    begin2enditer: Option<Iter<'a, (usize, TextSelectionHandle)>>,
+    end2beginiter: Option<Iter<'a, (usize, TextSelectionHandle)>>,
+    resource: &'a TextResource,
+}
+
+impl<'a> Iterator for TextSelectionIter<'a> {
+    type Item = &'a TextSelection;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(begin2enditer) = &mut self.begin2enditer {
+            if let Some((_end, handle)) = begin2enditer.next() {
+                let textselection: &TextSelection =
+                    self.resource.get(*handle).expect("handle must exist");
+                return Some(textselection);
+            }
+        } else {
+            if let Some((_, posindexitem)) = self.iter.next() {
+                self.begin2enditer = Some(posindexitem.begin.iter());
+                return self.next();
+            } else {
+                return None;
+            }
+        }
+        self.begin2enditer = None;
+        self.next()
+    }
+}
+
+impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if let Some(end2beginiter) = &mut self.end2beginiter {
+            if let Some((_begin, handle)) = end2beginiter.next() {
+                let textselection: &TextSelection =
+                    self.resource.get(*handle).expect("handle must exist");
+                return Some(textselection);
+            }
+        } else {
+            if let Some((_, posindexitem)) = self.iter.next() {
+                self.end2beginiter = Some(posindexitem.begin.iter());
+                return self.next();
+            } else {
+                return None;
+            }
+        }
+        self.end2beginiter = None;
+        self.next()
     }
 }
