@@ -514,7 +514,7 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
         } else {
             if let Some((_, posindexitem)) = self.iter.next() {
                 self.end2beginiter = Some(posindexitem.begin.iter());
-                return self.next();
+                return self.next_back();
             } else {
                 return None;
             }
