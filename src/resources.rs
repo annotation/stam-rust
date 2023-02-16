@@ -512,7 +512,7 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
                 return Some(textselection);
             }
         } else {
-            if let Some((_, posindexitem)) = self.iter.next() {
+            if let Some((_, posindexitem)) = self.iter.next_back() {
                 self.end2beginiter = Some(posindexitem.begin.iter());
                 return self.next_back();
             } else {
