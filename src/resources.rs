@@ -520,6 +520,6 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
             }
         }
         self.end2beginiter = None;
-        self.next()
+        self.next_back()
     }
 }
