@@ -433,42 +433,6 @@ impl StoreFor<TextSelection> for TextResource {
     }
 }
 
-/*
-impl<'a> ApplySelector<'a, TextSelection> for TextResource {
-    fn select(&'a self, selector: &Selector) -> Result<TextSelection, StamError> {
-        match selector {
-            Selector::TextSelector(resource_handle, offset) => {
-                if self.handle() != Some(*resource_handle) {
-                    Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
-                } else {
-                    Ok(self.text_selection(offset)?)
-                }
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "TextResource::select() expected a TextSelector, got another",
-            )),
-        }
-    }
-}
-
-impl<'a> ApplySelector<'a, &'a str> for TextResource {
-    fn select(&'a self, selector: &Selector) -> Result<&'a str, StamError> {
-        match selector {
-            Selector::TextSelector(resource_handle, offset) => {
-                if self.handle() != Some(*resource_handle) {
-                    Err(StamError::WrongSelectorTarget("TextResource:select() can not apply selector meant for another TextResource"))
-                } else {
-                    Ok(self.text_slice(offset)?)
-                }
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "TextResource::select() expected a TextSelector, got another",
-            )),
-        }
-    }
-}
-*/
-
 impl SelfSelector for TextResource {
     /// Returns a selector to this resource
     fn selector(&self) -> Result<Selector, StamError> {
