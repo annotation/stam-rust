@@ -937,6 +937,13 @@ fn positionindex() -> Result<(), StamError> {
         .collect::<Vec<_>>();
     assert_eq!(v2.len(), 1);
     assert_eq!(v2[0].0, 5);
+    let v2: Vec<_> = resource
+        .position(6)
+        .unwrap()
+        .iter_begin2end()
+        .collect::<Vec<_>>();
+    assert_eq!(v2.len(), 1);
+    assert_eq!(v2[0].0, 11);
     Ok(())
 }
 

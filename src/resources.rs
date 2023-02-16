@@ -504,8 +504,8 @@ impl<'a> Iterator for TextSelectionIter<'a> {
             }
             //fall back to final clause
         } else {
-            if let Some((_, posindexitem)) = self.iter.next() {
-                self.begin2enditer = Some(posindexitem.end2begin.iter());
+            if let Some((_begin, posindexitem)) = self.iter.next() {
+                self.begin2enditer = Some(posindexitem.begin2end.iter());
                 return self.next();
             } else {
                 return None;
