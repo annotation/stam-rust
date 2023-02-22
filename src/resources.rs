@@ -483,7 +483,7 @@ impl SelfSelector for TextResource {
     }
 }
 
-/// This iteratator is used for iterating over TextSelections in a resource in a sorted fashion
+/// This iterator is used for iterating over TextSelections in a resource in a sorted fashion
 /// using the so-called position index.
 pub struct TextSelectionIter<'a> {
     iter: btree_map::Range<'a, usize, PositionIndexItem>, //btree_map::Iter

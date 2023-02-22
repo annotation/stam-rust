@@ -136,3 +136,8 @@ See [here](https://docs.rs/stam)
 ## Python binding
 
 This library comes with a binding for Python, see [here](https://github.com/annotation/stam-python)
+
+## Acknowledgements
+
+This work is conducted at the [KNAW Humanities Cluster](https://huc.knaw.nl/)'s [Digital Infrastructure department](https://di.huc.knaw.nl/), and funded by the [CLARIAH](https://clariah.nl) project (CLARIAH-PLUS, NWO grant 184.034.023) as part of the FAIR Annotations track.
+
