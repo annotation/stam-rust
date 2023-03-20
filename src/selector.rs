@@ -88,9 +88,10 @@ impl Serialize for Offset {
 /// target that the annotation applies to. Selectors can be considered the labelled edges of the graph model, tying all nodes together.
 /// There are multiple types of selectors, all captured in this enum.
 ///
-/// The selector can be applied to an annotationstore via [`AnnotationStore.select()`] and which will return actual references.
-///
 /// You usually do not instantiate these directly but via [`SelectorBuilder`].
+/// In searching, you also don't need direct access to this structure as
+/// the various search methods on AnnotationStore will resolve the selectors
+/// transparently.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selector {
     /// Refers to a [`TextResource`] as a whole (as opposed to a text fragment inside it), as owned by an AnnotationStore.
