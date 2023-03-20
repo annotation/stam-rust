@@ -53,13 +53,8 @@ for annotation in store.annotations() {
     let id = annotation.id().unwrap_or("");
     for (key, data, dataset) in store.data(annotation) {
         // get the text to which this annotation refers (if any)
-        let text: &str = match annotation.target().kind() {
-            stam::SelectorKind::TextSelector => {
-                store.select(annotation.target())?
-            },
-            _ => "",
-        };
-        print!("{}\t{}\t{}\t{}", id, key.id().unwrap(), data.value(), text);
+        let text: Vec<&str> = store.text_by_annotation(annotation)?.collect();
+        print!("{}\t{}\t{}\t{}", id, key.id().unwrap(), data.value(), text.join(" "));
     }
 }
 ```
