@@ -1047,3 +1047,111 @@ fn test_multiselector_iter() -> Result<(), StamError> {
     assert_eq!(result[1], "world");
     Ok(())
 }
+
+pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
+    let store = AnnotationStore::new()
+        .with_id("test".into())
+        .add(TextResource::from_string(
+            "testres".to_string(),
+            "Hello world".into(),
+        ))?
+        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .with_annotation(
+            Annotation::builder()
+                .with_id("A1".into())
+                .with_target(SelectorBuilder::TextSelector(
+                    "testres".into(),
+                    Offset::simple(6, 11),
+                ))
+                .with_data_with_id(
+                    "testdataset".into(),
+                    "pos".into(),
+                    "noun".into(),
+                    "D1".into(),
+                ),
+        )?
+        .with_annotation(
+            Annotation::builder()
+                .with_id("A2".into())
+                .with_target(SelectorBuilder::TextSelector(
+                    "testres".into(),
+                    Offset::simple(0, 5),
+                ))
+                .with_data_with_id(
+                    "testdataset".into(),
+                    "pos".into(),
+                    "interjection".into(),
+                    "D2".into(),
+                ),
+        )?
+        .with_annotation(
+            Annotation::builder()
+                .with_id("WordAnnotation".into())
+                .with_target(SelectorBuilder::MultiSelector(vec![
+                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
+                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
+                ]))
+                .with_data_with_id(
+                    "testdataset".into(),
+                    "type".into(),
+                    "word".into(),
+                    "WordAnnotationData".into(),
+                ),
+        )?;
+    Ok(store)
+}
+
+#[test]
+fn test_multiselector2_creation_and_sanity() -> Result<(), StamError> {
+    let mut store = setup_example_multiselector2()?;
+
+    //annotate existing data (just to test sanity)
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_target(SelectorBuilder::TextSelector(
+                "testres".into(),
+                Offset::simple(0, 5),
+            ))
+            .with_data(
+                "testdataset".into(),
+                "pos".into(),
+                DataValue::String("greeting".to_string()),
+            ),
+    )?;
+
+    //sanity check
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let v: Vec<&usize> = resource.positions(PositionMode::Begin).collect();
+    assert_eq!(v.len(), 2);
+    assert_eq!(v[0], &0);
+    assert_eq!(v[1], &6);
+    let v2: Vec<_> = resource
+        .position(0)
+        .unwrap()
+        .iter_begin2end()
+        .collect::<Vec<_>>();
+    assert_eq!(v2.len(), 1);
+    assert_eq!(v2[0].0, 5);
+    let v2: Vec<_> = resource
+        .position(6)
+        .unwrap()
+        .iter_begin2end()
+        .collect::<Vec<_>>();
+    assert_eq!(v2.len(), 1);
+    assert_eq!(v2[0].0, 11);
+
+    let v3: Vec<_> = resource.textselections().collect();
+    assert_eq!(v3.len(), 2);
+
+    Ok(())
+}
+
+#[test]
+fn test_multiselector2_iter() -> Result<(), StamError> {
+    let store = setup_example_multiselector2()?;
+    let annotation: &Annotation = store.get_by_id("WordAnnotation")?;
+    let result: Vec<&str> = store.text_by_annotation(annotation).collect();
+    assert_eq!(result[0], "Hello");
+    assert_eq!(result[1], "world");
+    Ok(())
+}
