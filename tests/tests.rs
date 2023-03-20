@@ -1097,6 +1097,20 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                     "word".into(),
                     "WordAnnotationData".into(),
                 ),
+        )?
+        .with_annotation(
+            Annotation::builder()
+                .with_id("AllPosAnnotation".into())
+                .with_target(SelectorBuilder::MultiSelector(vec![
+                    SelectorBuilder::AnnotationSelector("A1".into(), Some(Offset::whole())),
+                    SelectorBuilder::AnnotationSelector("A2".into(), Some(Offset::whole())),
+                ]))
+                .with_data_with_id(
+                    "testdataset".into(),
+                    "hastype".into(),
+                    "pos".into(),
+                    "AllPosAnnotationData".into(),
+                ),
         )?;
     Ok(store)
 }

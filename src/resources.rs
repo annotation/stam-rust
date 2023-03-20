@@ -481,7 +481,11 @@ impl StoreFor<TextSelection> for TextResource {
         self.positionindex
             .0
             .entry(begin)
-            .and_modify(|positem| positem.begin2end.push((end, handle)))
+            .and_modify(|positem| {
+                if !positem.begin2end.contains(&(end, handle)) {
+                    positem.begin2end.push((end, handle))
+                }
+            })
             .or_insert_with(|| PositionIndexItem {
                 bytepos: beginbyte,
                 begin2end: smallvec!((end, handle)),
@@ -490,7 +494,11 @@ impl StoreFor<TextSelection> for TextResource {
         self.positionindex
             .0
             .entry(end)
-            .and_modify(|positem| positem.end2begin.push((begin, handle)))
+            .and_modify(|positem| {
+                if !positem.end2begin.contains(&(begin, handle)) {
+                    positem.end2begin.push((begin, handle))
+                }
+            })
             .or_insert_with(|| PositionIndexItem {
                 bytepos: endbyte,
                 end2begin: smallvec!((begin, handle)),

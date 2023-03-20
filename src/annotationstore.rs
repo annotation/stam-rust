@@ -271,9 +271,11 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
         }
 
+        //intermediate structure to gather text relations that should later be added to the reverse index
         let mut extend_textrelationmap: SmallVec<
             [(TextResourceHandle, TextSelection, AnnotationHandle); 1],
         > = SmallVec::new();
+
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
             if self.config.dataset_annotation_map {
@@ -318,8 +320,6 @@ impl StoreFor<Annotation> for AnnotationStore {
                             Box::new(targetitem.ancestors().iter().map(|x| x.as_ref())),
                         ) {
                             Ok(textselection) => {
-                                // note: a normal self.get() doesn't cut it here because of the borrow checker
-                                //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
                                 extend_textrelationmap.push((res_handle, textselection, handle))
                             }
                             Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
@@ -335,6 +335,7 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
 
             if self.config.textrelationmap {
+                //now we add the gathered textselection to the textrelationmap
                 self.textrelationmap.extend(
                     extend_textrelationmap
                         .iter()
@@ -347,13 +348,24 @@ impl StoreFor<Annotation> for AnnotationStore {
                                 .unwrap();
                             let textselection_handle: TextSelectionHandle =
                                 if let Some(textselection_handle) = textselection.handle() {
-                                    //already exists
+                                    //we already have handle, don't insert anew
                                     textselection_handle
                                 } else {
-                                    //new, insert... (it's important never to insert the same one twice!)
-                                    resource
-                                        .insert(*textselection)
-                                        .expect("insertion should succeed")
+                                    match resource.find_textselection(&textselection.into()) {
+                                        Ok(Some(found_textselectionhandle)) => {
+                                            //we have just been inserted and found a handle
+                                            found_textselectionhandle
+                                        }
+                                        Ok(None) => {
+                                            //new, insert... (it's important never to insert the same one twice!)
+                                            resource
+                                                .insert(*textselection)
+                                                .expect("insertion should succeed")
+                                        }
+                                        Err(err) => {
+                                            panic!("Error resolving textselection: {}", err)
+                                        }
+                                    }
                                 };
                             (*res_handle, textselection_handle, *handle)
                         })
