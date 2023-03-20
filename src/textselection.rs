@@ -164,6 +164,14 @@ impl PositionIndexItem {
     pub fn iter_begin2end<'a>(&'a self) -> Iter<'a, (usize, TextSelectionHandle)> {
         self.begin2end.iter()
     }
+
+    pub fn len_begin2end<'a>(&'a self) -> usize {
+        self.begin2end.len()
+    }
+
+    pub fn len_end2begin<'a>(&'a self) -> usize {
+        self.end2begin.len()
+    }
 }
 
 impl Hash for PositionIndexItem {
