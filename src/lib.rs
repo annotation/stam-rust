@@ -20,7 +20,9 @@ pub use annotationstore::{AnnotationStore, AnnotationStoreBuilder, TargetIter, T
 pub use datakey::{DataKey, DataKeyHandle};
 pub use datavalue::DataValue;
 pub use error::StamError;
-pub use resources::{TextResource, TextResourceBuilder, TextResourceHandle, TextSelectionIter};
+pub use resources::{
+    PositionMode, TextResource, TextResourceBuilder, TextResourceHandle, TextSelectionIter,
+};
 pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };

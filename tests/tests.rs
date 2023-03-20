@@ -924,12 +924,37 @@ fn textselections_by_resource_sorted() -> Result<(), StamError> {
 fn positionindex() -> Result<(), StamError> {
     let store = setup_example_4()?;
     let resource: &TextResource = store.get_by_id("testres")?;
-    let v: Vec<&usize> = resource.positions().collect();
+    let v: Vec<&usize> = resource.positions(PositionMode::Both).collect();
     assert_eq!(v.len(), 4);
     assert_eq!(v[0], &0);
     assert_eq!(v[1], &5);
     assert_eq!(v[2], &6);
     assert_eq!(v[3], &11);
+    let v2: Vec<_> = resource
+        .position(0)
+        .unwrap()
+        .iter_begin2end()
+        .collect::<Vec<_>>();
+    assert_eq!(v2.len(), 1);
+    assert_eq!(v2[0].0, 5);
+    let v2: Vec<_> = resource
+        .position(6)
+        .unwrap()
+        .iter_begin2end()
+        .collect::<Vec<_>>();
+    assert_eq!(v2.len(), 1);
+    assert_eq!(v2[0].0, 11);
+    Ok(())
+}
+
+#[test]
+fn positionindex_mode_begins() -> Result<(), StamError> {
+    let store = setup_example_4()?;
+    let resource: &TextResource = store.get_by_id("testres")?;
+    let v: Vec<&usize> = resource.positions(PositionMode::Begin).collect();
+    assert_eq!(v.len(), 2);
+    assert_eq!(v[0], &0);
+    assert_eq!(v[1], &6);
     let v2: Vec<_> = resource
         .position(0)
         .unwrap()

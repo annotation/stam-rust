@@ -138,6 +138,9 @@ impl PositionIndex {
     pub fn keys(&self) -> btree_map::Keys<usize, PositionIndexItem> {
         self.0.keys()
     }
+    pub fn iter(&self) -> btree_map::Iter<usize, PositionIndexItem> {
+        self.0.iter()
+    }
 }
 
 #[derive(Debug, Clone)]
