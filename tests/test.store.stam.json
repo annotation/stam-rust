@@ -1,0 +1,56 @@
+{
+    "@type": "AnnotationStore",
+    "@id": "Example A",
+    "resources":  [{
+        "@include": "hello.txt"
+    }],
+    "annotationsets": [{
+        "@id": "https://example.org/test/",
+        "@include": "test.annotationset.stam.json"
+    }],
+    "annotations": [{
+        "@type": "Annotation",
+        "data": [ {
+            "@type": "AnnotationData",
+            "@id": "PosInterjection",
+            "set": "https://example.org/test/"
+        }],
+        "target": {
+            "@type": "TextSelector",
+            "resource": "hello.txt",
+            "offsets": {
+                "begin": {
+                    "@type": "BeginAligned",
+                    "value": 0
+                },
+                "end":  {
+                    "@type": "BeginAligned",
+                    "value": 5
+                }
+            }
+        }
+    },
+    {
+        "@type": "Annotation",
+        "data": [ {
+            "@type": "AnnotationData",
+            "@id": "PosNoun",
+            "set": "https://example.org/test/"
+        }],
+        "target": {
+            "@type": "TextSelector",
+            "resource": "hello.txt",
+            "offsets": {
+                "begin": {
+                    "@type": "BeginAligned",
+                    "value": 6
+                },
+                "end":  {
+                    "@type": "BeginAligned",
+                    "value": 11
+                }
+            }
+        }
+    }
+    ]
+}

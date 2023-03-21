@@ -310,16 +310,32 @@ impl AnnotationDataSet {
         Self::from_builder(builder)
     }
 
+    /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current one.
+    /// The file must contain a single object which has "@type": "AnnotationDataSet"
+    /// The ID will be ignored (existing one takes precendence).
     pub fn merge_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
-        //TODO
-        Ok(self)
+        let f = File::open(filename).map_err(|e| {
+            StamError::IOError(e, "Reading AnnotationDataSet from file, open failed")
+        })?;
+        let reader = BufReader::new(f);
+        let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader)
+            .map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
+        self.merge_from_builder(builder)
     }
 
+    /// Merge another AnnotationDataSet, represented by an AnnotationDataSetBuilder, into this one
     pub fn merge_from_builder(
         &mut self,
         builder: AnnotationDataSetBuilder,
     ) -> Result<&mut Self, StamError> {
-        //TODO
+        for key in builder.keys {
+            self.insert(key)?;
+        }
+        if builder.data.is_some() {
+            for dataitem in builder.data.unwrap() {
+                self.build_insert_data(dataitem, true)?;
+            }
+        }
         Ok(self)
     }
 
