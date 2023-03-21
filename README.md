@@ -51,9 +51,9 @@ Iterating through all annotations in the store, and outputting a simple tab sepa
 ```rust
 for annotation in store.annotations() {
     let id = annotation.id().unwrap_or("");
-    for (key, data, dataset) in store.data(annotation) {
+    for (key, data, dataset) in store.data_by_annotation(annotation) {
         // get the text to which this annotation refers (if any)
-        let text: Vec<&str> = store.text_by_annotation(annotation)?.collect();
+        let text: Vec<&str> = store.text_by_annotation(annotation).collect();
         print!("{}\t{}\t{}\t{}", id, key.id().unwrap(), data.value(), text.join(" "));
     }
 }
