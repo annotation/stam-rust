@@ -278,6 +278,15 @@ impl SelfSelector for AnnotationDataSet {
     }
 }
 
+impl PartialEq<AnnotationDataSet> for AnnotationDataSet {
+    fn eq(&self, other: &AnnotationDataSet) -> bool {
+        self.id.is_some()
+            && self.id == other.id
+            && self.keys == other.keys
+            && self.data == other.data
+    }
+}
+
 impl AnnotationDataSet {
     pub fn new() -> Self {
         Self::default()

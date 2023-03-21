@@ -258,7 +258,7 @@ impl Default for StoreConfig {
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait Storable {
+pub trait Storable: PartialEq {
     type HandleType: Handle;
     /// Retrieve the internal (numeric) id. For any type T uses in StoreFor<T>, this may be None only in the initial
     /// stage when it is still unbounded to a store.
@@ -374,10 +374,9 @@ pub trait StoreFor<T: Storable> {
                 //ok. the already ID exists, now is the existing item exactly the same as the item we're about to insert?
                 //in that case we can discard this error and just return the existing handle without actually inserting a new one
                 let existing_item = self.get_by_id(id).unwrap();
-                //TODO
-                /*if *existing_item == item {
+                if *existing_item == item {
                     return Ok(existing_item.handle().unwrap());
-                }*/
+                }
                 //in all other cases, we return an error
                 return Err(StamError::DuplicateIdError(
                     id.to_string(),
@@ -858,7 +857,7 @@ where
 /// This allows us to pass a reference to any stored item and get back the best AnyId for it
 /// Will panic on totally unbounded that also don't have a public ID
 
-impl<HandleType> From<&dyn Storable<HandleType = HandleType>> for AnyId<HandleType>
+/*impl<HandleType> From<&dyn Storable<HandleType = HandleType>> for AnyId<HandleType>
 where
     HandleType: Handle,
 {
@@ -871,7 +870,7 @@ where
             panic!("Passed a reference to an unbound item without a public ID! Unable to convert to AnyId");
         }
     }
-}
+}*/
 
 impl<HandleType> PartialEq<&str> for AnyId<HandleType>
 where

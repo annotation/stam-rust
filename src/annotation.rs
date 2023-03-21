@@ -68,6 +68,14 @@ impl Storable for Annotation {
     }
 }
 
+impl PartialEq<Annotation> for Annotation {
+    fn eq(&self, other: &Annotation) -> bool {
+        self.id.is_some()
+            && self.id == other.id
+            && self.target == other.target
+            && self.data == other.data
+    }
+}
 /// This is the build recipe for `Annotation`. It contains public IDs or handles that will be resolved
 /// when the actual Annotation is built. The building is done by passing this to [`AnnotationStore::annotate()`].
 #[serde_as]

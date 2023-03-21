@@ -69,6 +69,15 @@ impl Storable for AnnotationData {
     }
 }
 
+impl PartialEq<AnnotationData> for AnnotationData {
+    fn eq(&self, other: &AnnotationData) -> bool {
+        self.id.is_some()
+            && self.id == other.id
+            && self.key == other.key
+            && self.value == other.value
+    }
+}
+
 impl<'a> Serialize for WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

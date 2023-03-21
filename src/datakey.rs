@@ -66,6 +66,12 @@ impl Storable for DataKey {
     }
 }
 
+impl PartialEq<DataKey> for DataKey {
+    fn eq(&self, other: &DataKey) -> bool {
+        self.id == other.id
+    }
+}
+
 impl fmt::Display for DataKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())

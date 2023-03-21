@@ -140,6 +140,12 @@ impl Serialize for TextResource {
     }
 }
 
+impl PartialEq<TextResource> for TextResource {
+    fn eq(&self, other: &TextResource) -> bool {
+        self.id == other.id && self.text == other.text
+    }
+}
+
 impl TextResource {
     /// Instantiates a new completely empty TextResource
     pub fn new(id: String) -> Self {
