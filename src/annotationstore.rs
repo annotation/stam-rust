@@ -548,6 +548,48 @@ impl AnnotationStore {
         Self::from_builder(builder)
     }
 
+    //Merge another annotation store STAM JSON file into this one
+    pub fn merge_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
+        let f = File::open(filename)
+            .map_err(|e| StamError::IOError(e, "Reading annotationstore from file, open failed"))?;
+        let reader = BufReader::new(f);
+        let builder: AnnotationStoreBuilder = serde_json::from_reader(reader)
+            .map_err(|e| StamError::JsonError(e, "Reading annotationstore from file"))?;
+        self.merge_from_builder(builder)
+    }
+
+    //Merge another annotation store, represented by a builder, into this one
+    pub fn merge_from_builder(
+        &mut self,
+        builder: AnnotationStoreBuilder,
+    ) -> Result<&mut Self, StamError> {
+        for dataset in builder.annotationsets {
+            if let Some(dataset_id) = dataset.id.as_ref() {
+                if let Ok(basedataset) =
+                    <AnnotationStore as StoreFor<AnnotationDataSet>>::get_mut_by_id(
+                        self,
+                        &dataset_id,
+                    )
+                {
+                    basedataset.merge_from_builder(dataset)?;
+                    //done, skip the rest
+                    continue;
+                }
+            }
+            //otherwise
+            let dataset: AnnotationDataSet = dataset.try_into()?;
+            self.insert(dataset)?;
+        }
+        for resource in builder.resources {
+            let resource: TextResource = resource.try_into()?;
+            self.insert(resource)?;
+        }
+        for annotation in builder.annotations {
+            self.annotate(annotation)?;
+        }
+        Ok(self)
+    }
+
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
         let f = File::create(filename)

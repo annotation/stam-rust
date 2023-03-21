@@ -301,6 +301,19 @@ impl AnnotationDataSet {
         Self::from_builder(builder)
     }
 
+    pub fn merge_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
+        //TODO
+        Ok(self)
+    }
+
+    pub fn merge_from_builder(
+        &mut self,
+        builder: AnnotationDataSetBuilder,
+    ) -> Result<&mut Self, StamError> {
+        //TODO
+        Ok(self)
+    }
+
     pub fn with_config(mut self, config: StoreConfig) -> Self {
         self.config = config;
         self
