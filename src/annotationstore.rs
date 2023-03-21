@@ -1111,18 +1111,12 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
     }
 }
 
-pub struct TargetIter<'a, T>
-where
-    T: Storable,
-{
+pub struct TargetIter<'a, T> {
     pub(crate) iter: SelectorIter<'a>,
     _phantomdata: PhantomData<T>,
 }
 
-impl<'a, T> TargetIter<'a, T>
-where
-    T: Storable,
-{
+impl<'a, T> TargetIter<'a, T> {
     pub fn new(iter: SelectorIter<'a>) -> Self {
         Self {
             iter,
@@ -1136,10 +1130,7 @@ pub struct TargetIterItem<'a, T> {
     pub(crate) selectoriteritem: SelectorIterItem<'a>,
 }
 
-impl<'a, T> Deref for TargetIterItem<'a, T>
-where
-    T: Storable,
-{
+impl<'a, T> Deref for TargetIterItem<'a, T> {
     type Target = T;
     fn deref(&self) -> &'a T {
         self.item
