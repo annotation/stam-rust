@@ -66,8 +66,10 @@ pub struct AnnotationDataSet {
 pub struct AnnotationDataSetBuilder {
     #[serde(rename = "@id")]
     pub id: Option<String>,
-    pub keys: Vec<DataKey>,
+    pub keys: Option<Vec<DataKey>>, //this is an Option because it can be omitted if @include is used
     pub data: Option<Vec<AnnotationDataBuilder>>,
+    #[serde(rename = "@include")]
+    pub(crate) include: Option<String>,
 }
 
 impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
@@ -76,7 +78,11 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     fn try_from(other: AnnotationDataSetBuilder) -> Result<Self, StamError> {
         let mut set = Self {
             id: other.id,
-            keys: Vec::with_capacity(other.keys.len()),
+            keys: if other.keys.is_some() {
+                Vec::with_capacity(other.keys.as_ref().unwrap().len())
+            } else {
+                Vec::new()
+            },
             data: if other.data.is_some() {
                 Vec::with_capacity(other.data.as_ref().unwrap().len())
             } else {
@@ -84,13 +90,19 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
             },
             ..Default::default()
         };
-        for key in other.keys {
-            set.insert(key)?;
+        if other.keys.is_some() {
+            for key in other.keys.unwrap() {
+                set.insert(key)?;
+            }
         }
         if other.data.is_some() {
             for dataitem in other.data.unwrap() {
                 set.build_insert_data(dataitem, true)?;
             }
+        }
+        if let Some(filename) = &other.include {
+            set.include = Some(filename.to_string());
+            set.merge_from_file(filename)?;
         }
         Ok(set)
     }
@@ -375,13 +387,18 @@ impl AnnotationDataSet {
         self.merge_from_builder(builder)
     }
 
-    /// Merge another AnnotationDataSet, represented by an AnnotationDataSetBuilder, into this one
+    /// Merge another AnnotationDataSet, represented by an AnnotationDataSetBuilder, into this one.
     pub fn merge_from_builder(
         &mut self,
         builder: AnnotationDataSetBuilder,
     ) -> Result<&mut Self, StamError> {
-        for key in builder.keys {
-            self.insert(key)?;
+        if self.id.is_none() && builder.id.is_some() {
+            self.id = builder.id;
+        }
+        if builder.keys.is_some() {
+            for key in builder.keys.unwrap() {
+                self.insert(key)?;
+            }
         }
         if builder.data.is_some() {
             for dataitem in builder.data.unwrap() {

@@ -1,7 +1,11 @@
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 
 use stam::*;
+
+const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
 
 #[test]
 fn instantiation_naive() -> Result<(), StamError> {
@@ -1167,5 +1171,23 @@ fn test_multiselector2_iter() -> Result<(), StamError> {
     let result: Vec<&str> = store.text_by_annotation(annotation).collect();
     assert_eq!(result[0], "Hello");
     assert_eq!(result[1], "world");
+    Ok(())
+}
+
+#[test]
+fn test_read_single() -> Result<(), StamError> {
+    AnnotationStore::from_file(&format!(
+        "{}/tests/singletest.store.stam.json",
+        CARGO_MANIFEST_DIR
+    ))?;
+    Ok(())
+}
+
+#[test]
+fn test_read_include() -> Result<(), StamError> {
+    let olddir = env::current_dir().unwrap();
+    env::set_current_dir(&format!("{}/tests", CARGO_MANIFEST_DIR));
+    AnnotationStore::from_file("test.store.stam.json")?;
+    env::set_current_dir(olddir);
     Ok(())
 }
