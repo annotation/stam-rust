@@ -642,7 +642,7 @@ impl AnnotationStore {
         &mut self,
         filename: &str,
     ) -> Result<TextResourceHandle, StamError> {
-        let resource = TextResource::from_file(filename)?;
+        let resource = TextResource::from_file(filename, true)?;
         self.insert(resource)
     }
 

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::slice::{Iter, IterMut};
+use std::sync::{Arc, RwLock};
 
 use crate::error::StamError;
 use serde::{Deserialize, Serialize};
@@ -247,11 +248,42 @@ where
 pub struct StoreConfig {
     ///generate ids when missing
     pub generate_ids: bool,
+
+    /// This flag can be flagged on or off (using internal mutability) to indicate whether we are serializing for the standoff include mechanism
+    #[serde(skip)]
+    standoff_include: Arc<RwLock<bool>>,
 }
 
 impl Default for StoreConfig {
     fn default() -> Self {
-        Self { generate_ids: true }
+        Self {
+            generate_ids: true,
+            standoff_include: Arc::new(RwLock::new(false)),
+        }
+    }
+}
+
+impl StoreConfig {
+    /// This sets a parameter we use in serialisation
+    pub(crate) fn begin_standoff_include(&self) {
+        if let Ok(mut standoff_include) = self.standoff_include.write() {
+            *standoff_include = true;
+        }
+    }
+    /// This unsets a parameter we use in serialisation
+    pub(crate) fn end_standoff_include(&self) {
+        if let Ok(mut standoff_include) = self.standoff_include.write() {
+            *standoff_include = false;
+        }
+    }
+
+    /// This tests a parameter we use in serialisation
+    pub(crate) fn standoff_include(&self) -> bool {
+        if let Ok(mut standoff_include) = self.standoff_include.read() {
+            *standoff_include
+        } else {
+            false
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
+use std::sync::{Arc, RwLock};
 
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
@@ -32,6 +33,14 @@ pub struct AnnotationDataSet {
 
     /// A store for [`AnnotationData`], each makes *reference* to a [`DataKey`] (in this same `AnnotationDataSet`) and gives it a value  ([`DataValue`])
     data: Store<AnnotationData>,
+
+    /// Is this annotation dataset stored stand-off in an external file?
+    #[serde(skip)]
+    include: Option<String>,
+
+    /// Flags if set has changed, if so, they need to be reserialised if stored via the include mechanism
+    #[serde(skip)]
+    changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership
     #[serde(skip)]
@@ -163,6 +172,14 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         "DataKey in AnnotationDataSet"
     }
 
+    fn inserted(&mut self, handle: DataKeyHandle) -> Result<(), StamError> {
+        // called after the key is inserted in the store
+        if let Ok(mut changed) = self.changed.write() {
+            *changed = true;
+        }
+        Ok(())
+    }
+
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: DataKeyHandle) -> Result<(), StamError> {
@@ -175,6 +192,9 @@ impl StoreFor<DataKey> for AnnotationDataSet {
             }
         }
         self.key_data_map.data.remove(handle.unwrap());
+        if let Ok(mut changed) = self.changed.write() {
+            *changed = true;
+        }
         Ok(())
     }
 
@@ -216,6 +236,9 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
             self.get(handle).expect("item must exist after insertion");
 
         self.key_data_map.insert(annotationdata.key, handle);
+        if let Ok(mut changed) = self.changed.write() {
+            *changed = true;
+        }
         Ok(())
     }
 
@@ -227,6 +250,9 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
             return Err(StamError::InUse("Refusing to remove annotationdata because AnnotationDataSet is bound and we can't guarantee it's not used"));
         }
         self.key_data_map.remove(data.key, handle);
+        if let Ok(mut changed) = self.changed.write() {
+            *changed = true;
+        }
         Ok(())
     }
 
@@ -242,6 +268,8 @@ impl Default for AnnotationDataSet {
             keys: Store::new(),
             data: Store::new(),
             intid: None,
+            include: None,
+            changed: Arc::new(RwLock::new(false)),
             key_idmap: IdMap::new("K".to_string()),
             data_idmap: IdMap::new("D".to_string()),
             key_data_map: RelationMap::new(),
@@ -257,12 +285,36 @@ impl Serialize for AnnotationDataSet {
     {
         let mut state = serializer.serialize_struct("AnnotationDataSet", 4)?;
         state.serialize_field("@type", "AnnotationDataSet")?;
-        if let Some(id) = self.id() {
-            state.serialize_field("@id", id)?;
+        let config = <AnnotationDataSet as StoreFor<DataKey>>::config(self);
+        if self.include.is_some() && !config.standoff_include()
+        //                                      ^-- we need type annotations for the compiler, doesn't really matter which we use
+        {
+            let filename = self.include.as_ref().unwrap();
+            if self.id() != Some(&filename) && self.id.is_some() {
+                state.serialize_field("@id", &self.id().unwrap())?;
+            }
+            state.serialize_field("@include", &filename)?;
+
+            //if there are any changes, we write to the standoff file
+            if let Ok(changed) = self.changed.read() {
+                if *changed {
+                    //we trigger the standoff flag, this is the only way we can parametrize the serializer
+                    let result = self.to_file(&filename); //this reinvokes this function after setting config.standoff_include
+                    result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
+                }
+            }
+            if let Ok(mut changed) = self.changed.write() {
+                //reset
+                *changed = false;
+            }
+        } else {
+            if self.id().is_some() {
+                state.serialize_field("@id", &self.id().unwrap())?;
+            }
+            state.serialize_field("keys", &self.keys)?;
+            let wrappedstore: WrappedStore<AnnotationData, Self> = self.wrappedstore();
+            state.serialize_field("data", &wrappedstore)?;
         }
-        state.serialize_field("keys", &self.keys)?;
-        let wrappedstore: WrappedStore<AnnotationData, Self> = self.wrappedstore();
-        state.serialize_field("data", &wrappedstore)?;
         state.end()
     }
 }
@@ -310,7 +362,7 @@ impl AnnotationDataSet {
         Self::from_builder(builder)
     }
 
-    /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current one.
+    /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current     one.
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
     pub fn merge_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
@@ -485,8 +537,11 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let f = File::create(filename)
-            .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
+        let config = <AnnotationDataSet as StoreFor<DataKey>>::config(self);
+        config.begin_standoff_include(); //set standoff mode, what we're about the write is the standoff file
+        let f = File::create(filename);
+        config.end_standoff_include();
+        let f = f.map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
         let writer = BufWriter::new(f);
         serde_json::to_writer_pretty(writer, &self).map_err(|e| {
             StamError::SerializationError(format!("Writing dataset to file: {}", e))

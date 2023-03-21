@@ -1,9 +1,10 @@
 use std::collections::btree_map;
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 use std::ops::Bound::{Excluded, Included};
 use std::slice::Iter;
+use std::sync::{Arc, RwLock};
 
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
@@ -34,6 +35,14 @@ pub struct TextResource {
 
     /// The internal numeric identifier for the resource (may only be None upon creation when not bound yet)
     intid: Option<TextResourceHandle>,
+
+    /// Is this resource stored stand-off in an external file?
+    #[serde(skip)]
+    include: Option<String>,
+
+    /// Flags if the text contents have changed, if so, they need to be reserialised if stored via the include mechanism
+    #[serde(skip)]
+    changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
     /// Length of the text in unicode points
     #[serde(skip)]
@@ -69,7 +78,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
         } else {
             0
         };
-        let mut text = Self {
+        let mut resource = Self {
             intid: None,
             id: if let Some(id) = builder.id {
                 id
@@ -87,11 +96,13 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
             config: StoreConfig::default(),
+            include: builder.include.clone(),
+            changed: Arc::new(RwLock::new(false)),
         };
-        if let Some(filename) = builder.include.as_ref() {
-            text = text.with_file(filename)?;
+        if let Some(filename) = &builder.include {
+            resource = resource.with_file(filename, builder.include.is_some())?;
         }
-        Ok(text)
+        Ok(resource)
     }
 }
 
@@ -132,10 +143,35 @@ impl Serialize for TextResource {
         S: Serializer,
     {
         let mut state = serializer.serialize_struct("TextResource", 2)?;
+        let config = self.config();
         state.serialize_field("@type", "TextResource")?;
-        state.serialize_field("@id", &self.id())?;
-        state.serialize_field("text", &self.text())?;
-        //TODO: implement @include
+        if self.include.is_some() && !config.standoff_include() {
+            let filename = self.include.as_ref().unwrap();
+            if self.id() != Some(&filename) {
+                state.serialize_field("@id", &self.id())?;
+            }
+            state.serialize_field("@include", &filename)?;
+            //if there are any changes, we write to the standoff file
+            if let Ok(changed) = self.changed.read() {
+                if *changed {
+                    if filename.ends_with(".json") {
+                        let result = self.to_file(&filename); //this reinvokes this function after setting config.standoff_include
+                        result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
+                    } else {
+                        //plain text
+                        std::fs::write(filename, &self.text)
+                            .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
+                    }
+                }
+            }
+            if let Ok(mut changed) = self.changed.write() {
+                //reset
+                *changed = false;
+            }
+        } else {
+            state.serialize_field("@id", &self.id())?;
+            state.serialize_field("text", &self.text())?;
+        }
         state.end()
     }
 }
@@ -154,6 +190,8 @@ impl TextResource {
             intid: None,
             text: String::new(),
             textlen: 0,
+            include: None,
+            changed: Arc::new(RwLock::new(false)),
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
             config: StoreConfig::default(),
@@ -167,7 +205,8 @@ impl TextResource {
     }
 
     /// Create a new TextResource from file, the text will be loaded into memory entirely
-    pub fn from_file(filename: &str) -> Result<Self, StamError> {
+    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
+    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
             let f = File::open(filename).map_err(|e| {
                 StamError::IOError(e, "Reading text resource from STAM JSON file, open failed")
@@ -182,17 +221,20 @@ impl TextResource {
                 id: filename.to_string(),
                 text: String::new(),
                 intid: None, //unbounded for now, will be assigned when added to a AnnotationStore
+                include: None, //may be overridden in with_file
+                changed: Arc::new(RwLock::new(false)),
                 textlen: 0,
                 positionindex: PositionIndex::default(),
                 textselections: Store::default(),
                 config: StoreConfig::default(),
             }
-            .with_file(filename)?)
+            .with_file(filename, include)?)
         }
     }
 
     /// Loads a text for the TextResource from file, the text will be loaded into memory entirely
-    pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
+    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
+    pub fn with_file(mut self, filename: &str, include: bool) -> Result<Self, StamError> {
         match File::open(filename) {
             Ok(mut f) => {
                 if let Err(err) = f.read_to_string(&mut self.text) {
@@ -204,11 +246,56 @@ impl TextResource {
             }
         }
         self.textlen = self.text.chars().count();
+        self.include = if include {
+            Some(filename.to_string())
+        } else {
+            None
+        };
         Ok(self)
+    }
+
+    /// Writes a resource to a STAM JSON file, with appropriate formatting
+    pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
+        let config = self.config();
+        config.begin_standoff_include(); //set standoff mode, what we're about the write is the standoff file
+        let f = File::create(filename);
+        config.end_standoff_include();
+        let f = f.map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
+        let writer = BufWriter::new(f);
+        serde_json::to_writer_pretty(writer, &self).map_err(|e| {
+            StamError::SerializationError(format!("Writing dataset to file: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// Writes a resource to a STAM JSON file, without any indentation
+    pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
+        let f = File::create(filename)
+            .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
+        let writer = BufWriter::new(f);
+        serde_json::to_writer(writer, &self).map_err(|e| {
+            StamError::SerializationError(format!("Writing dataset to file: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// Associate an external stand-off file with this resource
+    pub fn set_include(&mut self, filename: &str) {
+        if self.include != Some(filename.to_string()) {
+            if let Ok(mut changed) = self.changed.write() {
+                *changed = true;
+            }
+        }
+        self.include = Some(filename.to_string())
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely
     pub fn with_string(mut self, text: String) -> Self {
+        if !self.text.is_empty() {
+            if let Ok(mut changed) = self.changed.write() {
+                *changed = true;
+            }
+        }
         self.text = text;
         self.textlen = self.text.chars().count();
         self
@@ -227,6 +314,8 @@ impl TextResource {
             id,
             text,
             intid: None,
+            include: None,
+            changed: Arc::new(RwLock::new(false)),
             textlen,
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
