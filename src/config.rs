@@ -71,7 +71,7 @@ impl Config {
 
     /// Gets the mdoe for (de)serialization
     pub fn serialize_mode(&self) -> SerializeMode {
-        if let Ok(mut serialize_mode) = self.serialize_mode.read() {
+        if let Ok(serialize_mode) = self.serialize_mode.read() {
             *serialize_mode
         } else {
             panic!("Unable to get lock for serialize mode");
@@ -87,7 +87,7 @@ impl Config {
     pub fn from_file(filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
         let reader = open_file_reader(filename, workdir)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-        let mut result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
+        let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
         result
             .map_err(|e| StamError::JsonError(e, filename.to_string(), "Reading config from file"))
     }

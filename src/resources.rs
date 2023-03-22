@@ -1,7 +1,7 @@
 use std::collections::btree_map;
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{BufReader, BufWriter};
+use std::io::BufWriter;
 use std::ops::Bound::{Excluded, Included};
 use std::path::{Path, PathBuf};
 use std::slice::Iter;
@@ -10,7 +10,7 @@ use std::sync::{Arc, RwLock};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use smallvec::{smallvec, SmallVec};
+use smallvec::smallvec;
 
 use crate::config::{Config, SerializeMode};
 use crate::error::StamError;

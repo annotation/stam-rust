@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -190,6 +190,7 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         "DataKey in AnnotationDataSet"
     }
 
+    #[allow(unused_variables)]
     fn inserted(&mut self, handle: DataKeyHandle) -> Result<(), StamError> {
         // called after the key is inserted in the store
         if let Ok(mut changed) = self.changed.write() {

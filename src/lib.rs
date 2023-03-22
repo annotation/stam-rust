@@ -18,7 +18,7 @@ pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
 pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle};
 pub use annotationstore::{AnnotationStore, AnnotationStoreBuilder, TargetIter, TargetIterItem};
-pub use config::Config;
+pub use config::{Config, SerializeMode};
 pub use datakey::{DataKey, DataKeyHandle};
 pub use datavalue::DataValue;
 pub use error::StamError;

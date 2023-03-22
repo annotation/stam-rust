@@ -6,9 +6,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::slice::{Iter, IterMut};
-use std::sync::{Arc, RwLock};
 
-use crate::config::{Config, SerializeMode};
+use crate::config::Config;
 use crate::error::StamError;
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
@@ -242,53 +241,6 @@ where
         for (x, y, z) in iter {
             self.insert(x, y, z);
         }
-    }
-}
-
-//Configuration pertaining to a store
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct StoreConfig {
-    ///generate ids when missing
-    pub generate_ids: bool,
-
-    /// The working directory
-    pub workdir: Option<PathBuf>,
-
-    /// This flag can be flagged on or off (using internal mutability) to indicate whether we are serializing for the standoff include mechanism
-    #[serde(skip)]
-    serialize_mode: Arc<RwLock<SerializeMode>>,
-}
-
-impl Default for StoreConfig {
-    fn default() -> Self {
-        Self {
-            generate_ids: true,
-            workdir: None,
-            serialize_mode: Arc::new(RwLock::new(SerializeMode::AllowInclude)),
-        }
-    }
-}
-
-impl StoreConfig {
-    /// This sets a parameter we use in serialisation
-    pub fn set_serialize_mode(&self, mode: SerializeMode) {
-        if let Ok(mut serialize_mode) = self.serialize_mode.write() {
-            *serialize_mode = mode;
-        }
-    }
-
-    /// This tests a parameter we use in serialisation
-    pub fn serialize_mode(&self) -> SerializeMode {
-        if let Ok(mut serialize_mode) = self.serialize_mode.read() {
-            *serialize_mode
-        } else {
-            panic!("Unable to get lock for serialize mode");
-        }
-    }
-
-    ///  Return the working directory
-    pub fn workdir(&self) -> Option<&Path> {
-        self.workdir.as_ref().map(|x| x.as_path())
     }
 }
 
@@ -1084,8 +1036,8 @@ pub(crate) fn get_filepath(filename: &str, workdir: Option<&Path>) -> Result<Pat
 
 /// Auxiliary function to help open files
 pub(crate) fn open_file(filename: &str, workdir: Option<&Path>) -> Result<File, StamError> {
-    let path = get_filepath(filename, workdir)?;
-    File::open(filename).map_err(|e| StamError::IOError(e, "Opening file for reading failed"))
+    let found_filename = get_filepath(filename, workdir)?;
+    File::open(found_filename).map_err(|e| StamError::IOError(e, "Opening file for reading failed"))
 }
 
 /// Auxiliary function to help open files

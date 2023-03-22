@@ -4,12 +4,11 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::BufWriter;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::slice::Iter;
-use std::sync::{Arc, RwLock};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
@@ -24,7 +23,7 @@ use crate::selector::{
     AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
 };
 use crate::textselection::{
-    PositionIndex, TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
+    TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };
 use crate::types::*;
 
