@@ -39,7 +39,7 @@ pub enum StamError {
     StoreError(Box<StamError>, &'static str),
 
     /// This error indicates there was an Input/Output error. It wraps the deeper error that occured.
-    IOError(std::io::Error, &'static str),
+    IOError(std::io::Error, String, &'static str),
 
     /// This error indicates there was an error during JSON parsing. It wraps the deeper error that occurred.
     JsonError(
@@ -106,7 +106,9 @@ impl From<&StamError> for String {
                 "DuplicatIdError: ID already exists for a different item: {} ({})",
                 id, contextmsg
             ),
-            StamError::IOError(err, contextmsg) => format!("IOError: {} ({})", err, contextmsg),
+            StamError::IOError(err, filename, contextmsg) => {
+                format!("IOError for {}: {} ({})", filename, err, contextmsg)
+            }
             StamError::JsonError(err, input, contextmsg) => {
                 format!(
                     "JsonError: Parsing failed: {} ({}). Input: {}",

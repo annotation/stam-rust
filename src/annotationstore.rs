@@ -673,11 +673,7 @@ impl AnnotationStore {
 
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let workdir = self.config.workdir();
-        let found_filename = get_filepath(filename, workdir)?;
-        let f = File::create(found_filename)
-            .map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
-        let writer = BufWriter::new(f);
+        let writer = open_file_writer(filename, self.config().workdir())?;
         serde_json::to_writer_pretty(writer, &self).map_err(|e| {
             StamError::SerializationError(format!("Writing annotationstore to file: {}", e))
         })?;
@@ -686,11 +682,7 @@ impl AnnotationStore {
 
     /// Writes an AnnotationStore to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let workdir = self.config.workdir();
-        let found_filename = get_filepath(filename, workdir)?;
-        let f = File::create(found_filename)
-            .map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
-        let writer = BufWriter::new(f);
+        let writer = open_file_writer(filename, self.config().workdir())?;
         serde_json::to_writer(writer, &self).map_err(|e| {
             StamError::SerializationError(format!("Writing annotationstore to file: {}", e))
         })?;

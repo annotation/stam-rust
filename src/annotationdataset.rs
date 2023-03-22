@@ -628,10 +628,8 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
+        let writer = open_file_writer(filename, self.config().workdir())?;
         self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
-        let f = File::create(filename);
-        let f = f.map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
-        let writer = BufWriter::new(f);
         let result = serde_json::to_writer_pretty(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
         self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
@@ -641,9 +639,7 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let f = File::create(filename)
-            .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
-        let writer = BufWriter::new(f);
+        let writer = open_file_writer(filename, self.config().workdir())?;
         self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let result = serde_json::to_writer(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));

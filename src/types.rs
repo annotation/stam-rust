@@ -1,7 +1,7 @@
 use sealed::sealed;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -1037,7 +1037,33 @@ pub(crate) fn get_filepath(filename: &str, workdir: Option<&Path>) -> Result<Pat
 /// Auxiliary function to help open files
 pub(crate) fn open_file(filename: &str, workdir: Option<&Path>) -> Result<File, StamError> {
     let found_filename = get_filepath(filename, workdir)?;
-    File::open(found_filename).map_err(|e| StamError::IOError(e, "Opening file for reading failed"))
+    File::open(found_filename.as_path()).map_err(|e| {
+        StamError::IOError(
+            e,
+            found_filename
+                .as_path()
+                .to_str()
+                .expect("path must be valid unicode")
+                .to_owned(),
+            "Opening file for reading failed",
+        )
+    })
+}
+
+/// Auxiliary function to help open files
+pub(crate) fn create_file(filename: &str, workdir: Option<&Path>) -> Result<File, StamError> {
+    let found_filename = get_filepath(filename, workdir)?;
+    File::create(found_filename.as_path()).map_err(|e| {
+        StamError::IOError(
+            e,
+            found_filename
+                .as_path()
+                .to_str()
+                .expect("path must be valid unicode")
+                .to_owned(),
+            "Opening file for reading failed",
+        )
+    })
 }
 
 /// Auxiliary function to help open files
@@ -1046,4 +1072,12 @@ pub(crate) fn open_file_reader(
     workdir: Option<&Path>,
 ) -> Result<BufReader<File>, StamError> {
     Ok(BufReader::new(open_file(filename, workdir)?))
+}
+
+/// Auxiliary function to help open files
+pub(crate) fn open_file_writer(
+    filename: &str,
+    workdir: Option<&Path>,
+) -> Result<BufWriter<File>, StamError> {
+    Ok(BufWriter::new(create_file(filename, workdir)?))
 }

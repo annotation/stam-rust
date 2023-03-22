@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::BufReader;
+use std::path::Path;
 use std::slice::Iter;
 
 use sealed::sealed;
@@ -229,11 +230,8 @@ impl AnnotationBuilder {
     }
 
     /// Reads a single annotation in STAM JSON from file
-    pub fn from_file(filename: &str) -> Result<Self, StamError> {
-        let found_filename = get_filepath(filename, None)?;
-        let f = File::open(found_filename)
-            .map_err(|e| StamError::IOError(e, "Reading annotation from file, open failed"))?;
-        let reader = BufReader::new(f);
+    pub fn from_file(filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
+        let reader = open_file_reader(filename, workdir)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
         result.map_err(|e| {
