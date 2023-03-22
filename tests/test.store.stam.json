@@ -23,13 +23,13 @@
             "target": {
                 "@type": "TextSelector",
                 "resource": "hello.txt",
-                "offsets": {
+                "offset": {
                     "begin": {
-                        "@type": "BeginAligned",
+                        "@type": "BeginAlignedCursor",
                         "value": 0
                     },
                     "end":  {
-                        "@type": "BeginAligned",
+                        "@type": "BeginAlignedCursor",
                         "value": 5
                     }
                 }
@@ -45,13 +45,13 @@
             "target": {
                 "@type": "TextSelector",
                 "resource": "hello.txt",
-                "offsets": {
+                "offset": {
                     "begin": {
-                        "@type": "BeginAligned",
+                        "@type": "BeginAlignedCursor",
                         "value": 6
                     },
                     "end":  {
-                        "@type": "BeginAligned",
+                        "@type": "BeginAlignedCursor",
                         "value": 13
                     }
                 }
