@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use std::slice::Iter;
 
 use sealed::sealed;
@@ -204,6 +206,27 @@ impl AnnotationBuilder {
     pub fn with_data_builder(mut self, builder: AnnotationDataBuilder) -> Self {
         self.data.push(builder);
         self
+    }
+
+    /// Reads a single annotation in STAM JSON from file
+    pub fn from_file(filename: &str) -> Result<Self, StamError> {
+        let f = File::open(filename)
+            .map_err(|e| StamError::IOError(e, "Reading annotation from file, open failed"))?;
+        let reader = BufReader::new(f);
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+        let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
+        result.map_err(|e| {
+            StamError::JsonError(e, filename.to_string(), "Reading annotation from file")
+        })
+    }
+
+    /// Reads a single annotation in STAM JSON from string
+    pub fn from_str(string: &str) -> Result<Self, StamError> {
+        let deserializer = &mut serde_json::Deserializer::from_str(string);
+        let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
+        result.map_err(|e| {
+            StamError::JsonError(e, string.to_string(), "Reading annotation from string")
+        })
     }
 }
 
