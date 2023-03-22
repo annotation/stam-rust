@@ -99,7 +99,7 @@ impl Config {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct AnnotationStoreBuilder {
     #[serde(rename = "@id")]
     pub id: Option<String>,
@@ -567,17 +567,20 @@ impl AnnotationStore {
         Self::from_builder(builder)
     }
 
-    //Merge another annotation store STAM JSON file into this one
-    pub fn merge_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
+    /// Merge another annotation store STAM JSON file into this one
+    pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
         let builder = AnnotationStoreBuilder::from_file(filename)?;
-        self.merge_from_builder(builder)
+        self.merge_from_builder(builder)?;
+        Ok(self)
     }
 
-    //Merge another annotation store, represented by a builder, into this one
+    /// Merge another annotation store, represented by a builder, into this one
+    /// It's a fairly low-level function which you often don't need directly, use `AnnotationStore.with_file()` instead.
     pub fn merge_from_builder(
         &mut self,
         builder: AnnotationStoreBuilder,
     ) -> Result<&mut Self, StamError> {
+        //this is very much like TryFrom<AnnotationStoreBuilder> for AnnotationStore
         for dataset in builder.annotationsets {
             if let Some(dataset_id) = dataset.id.as_ref() {
                 if let Ok(basedataset) =

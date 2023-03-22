@@ -67,39 +67,43 @@ pub struct AnnotationDataSetBuilder {
     pub data: Option<Vec<AnnotationDataBuilder>>,
     #[serde(rename = "@include")]
     pub(crate) include: Option<String>,
+    #[serde(skip)]
+    pub(crate) mode: SerializeMode,
 }
 
 impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     type Error = StamError;
 
-    fn try_from(other: AnnotationDataSetBuilder) -> Result<Self, StamError> {
+    fn try_from(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
         let mut set = Self {
-            id: other.id,
-            keys: if other.keys.is_some() {
-                Vec::with_capacity(other.keys.as_ref().unwrap().len())
+            id: builder.id,
+            keys: if builder.keys.is_some() {
+                Vec::with_capacity(builder.keys.as_ref().unwrap().len())
             } else {
                 Vec::new()
             },
-            data: if other.data.is_some() {
-                Vec::with_capacity(other.data.as_ref().unwrap().len())
+            data: if builder.data.is_some() {
+                Vec::with_capacity(builder.data.as_ref().unwrap().len())
             } else {
                 Vec::new()
             },
             ..Default::default()
         };
-        if other.keys.is_some() {
-            for key in other.keys.unwrap() {
+        if builder.keys.is_some() {
+            for key in builder.keys.unwrap() {
                 set.insert(key)?;
             }
         }
-        if other.data.is_some() {
-            for dataitem in other.data.unwrap() {
+        if builder.data.is_some() {
+            for dataitem in builder.data.unwrap() {
                 set.build_insert_data(dataitem, true)?;
             }
         }
-        if let Some(filename) = &other.include {
+        if let Some(filename) = &builder.include {
             set.include = Some(filename.to_string());
-            set.merge_from_file(filename)?;
+            if builder.mode == SerializeMode::AllowInclude {
+                set = set.with_file(filename)?;
+            }
         }
         Ok(set)
     }
@@ -362,6 +366,7 @@ impl AnnotationDataSetBuilder {
             serde_path_to_error::deserialize(deserializer);
         if result.is_ok() && include {
             result.as_mut().unwrap().include = Some(filename.to_string());
+            result.as_mut().unwrap().mode = SerializeMode::NoInclude;
         }
         result.map_err(|e| {
             StamError::JsonError(
@@ -395,8 +400,8 @@ impl AnnotationDataSet {
 
     ///Builds a new annotation store from [`AnnotationDataSetBuilder'].
     pub fn from_builder(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
-        let store: Self = builder.try_into()?;
-        Ok(store)
+        let set: Self = builder.try_into()?;
+        Ok(set)
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON file
@@ -417,16 +422,20 @@ impl AnnotationDataSet {
     /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current     one.
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
-    pub fn merge_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
+    pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
         let builder = AnnotationDataSetBuilder::from_file(filename, false)?;
-        self.merge_from_builder(builder)
+        self.merge_from_builder(builder)?;
+        Ok(self)
     }
 
     /// Merge another AnnotationDataSet, represented by an AnnotationDataSetBuilder, into this one.
+    /// It's a fairly low-level function which you often don't need directly, use `AnnotationDataSet.with_file()` instead.
     pub fn merge_from_builder(
         &mut self,
         builder: AnnotationDataSetBuilder,
     ) -> Result<&mut Self, StamError> {
+        //this function is very much like TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet
+
         if self.id.is_none() && builder.id.is_some() {
             self.id = builder.id;
         }
