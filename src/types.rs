@@ -242,7 +242,7 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum SerializeMode {
+pub enum SerializeMode {
     /// Allow serialisation of stand-off files (which means we allow @include)
     AllowInclude,
 

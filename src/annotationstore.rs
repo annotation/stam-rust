@@ -621,6 +621,21 @@ impl AnnotationStore {
         Ok(())
     }
 
+    /// Used to set the serialization mode, determines whether to output @include statements and standoff files
+    /// This should be used prior to calling [`AnnotationStore.to_file()`] or [`AnnotationStore.to_string()`]
+    pub fn set_serialize_mode(&self, mode: SerializeMode) {
+        let config = <AnnotationStore as StoreFor<Annotation>>::config(self);
+        config.set_serialize_mode(mode);
+        for resource in self.resources() {
+            let config = resource.config();
+            config.set_serialize_mode(mode);
+        }
+        for annotationset in self.annotationsets() {
+            let config = <AnnotationDataSet as StoreFor<DataKey>>::config(annotationset);
+            config.set_serialize_mode(mode);
+        }
+    }
+
     /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting
     pub fn to_string(&self) -> Result<String, StamError> {
         serde_json::to_string_pretty(&self).map_err(|e| {
