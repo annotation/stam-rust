@@ -12,6 +12,7 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 
+use crate::config::{Config, SerializeMode};
 use crate::error::StamError;
 use crate::selector::{Offset, Selector, SelfSelector};
 use crate::textselection::PositionIndexItem;
@@ -54,7 +55,7 @@ pub struct TextResource {
     positionindex: PositionIndex,
 
     #[serde(skip)]
-    config: StoreConfig,
+    config: Config,
 }
 
 #[derive(Deserialize, Debug)]
@@ -103,7 +104,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             textlen,
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
-            config: StoreConfig::default(),
+            config: Config::default(),
             include: builder.include.clone(),
             changed: Arc::new(RwLock::new(false)),
         };
@@ -158,9 +159,8 @@ impl Serialize for TextResource {
         S: Serializer,
     {
         let mut state = serializer.serialize_struct("TextResource", 2)?;
-        let config = self.storeconfig();
         state.serialize_field("@type", "TextResource")?;
-        if self.include.is_some() && config.serialize_mode() == SerializeMode::AllowInclude {
+        if self.include.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude {
             let filename = self.include.as_ref().unwrap();
             if self.id() != Some(&filename) {
                 state.serialize_field("@id", &self.id())?;
@@ -264,7 +264,7 @@ impl TextResource {
             changed: Arc::new(RwLock::new(false)),
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
-            config: StoreConfig::default(),
+            config: Config::default(),
         }
     }
 
@@ -303,61 +303,47 @@ impl TextResource {
 
     /// Writes a resource to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let config = self.storeconfig();
         let f = File::create(filename);
         let f = f.map_err(|e| StamError::IOError(e, "Writing resource from file, open failed"))?;
         let writer = BufWriter::new(f);
-        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_writer_pretty(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing resource to file: {}", e)));
-        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result?;
         Ok(())
     }
 
     /// Writes a resource to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let config = self.storeconfig();
         let f = File::create(filename)
             .map_err(|e| StamError::IOError(e, "Writing resource from file, open failed"))?;
         let writer = BufWriter::new(f);
-        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_writer(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing resource to file: {}", e)));
-        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result?;
         Ok(())
     }
 
-    pub fn with_config(mut self, config: StoreConfig) -> Self {
-        self.config = config;
-        self
-    }
-
-    pub fn set_config(&mut self, config: StoreConfig) -> &mut Self {
-        self.config = config;
-        self
-    }
-
     /// Writes a resource to a STAM JSON string, with appropriate formatting
     pub fn to_json(&self) -> Result<String, StamError> {
-        let config = self.storeconfig();
-        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_string_pretty(&self).map_err(|e| {
             StamError::SerializationError(format!("Serializing resource to string: {}", e))
         });
-        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result
     }
 
     /// Writes a resource to a STAM JSON string, without any indentation
     pub fn to_json_compact(&self) -> Result<String, StamError> {
-        let config = self.storeconfig();
-        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_string(&self).map_err(|e| {
             StamError::SerializationError(format!("Serializing resource to string: {}", e))
         });
-        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result
     }
 
@@ -401,7 +387,7 @@ impl TextResource {
             textlen,
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
-            config: StoreConfig::default(),
+            config: Config::default(),
         }
     }
 
@@ -619,6 +605,18 @@ pub enum PositionMode {
     Both,
 }
 
+#[sealed]
+impl Configurable for TextResource {
+    fn config(&self) -> &Config {
+        &self.config
+    }
+
+    fn set_config(&mut self, config: Config) -> &mut Self {
+        self.config = config;
+        self
+    }
+}
+
 //An TextResource is a StoreFor TextSelection
 #[sealed]
 impl StoreFor<TextSelection> for TextResource {
@@ -640,10 +638,6 @@ impl StoreFor<TextSelection> for TextResource {
     }
     fn introspect_type(&self) -> &'static str {
         "TextSelection in TextResource"
-    }
-
-    fn storeconfig(&self) -> &StoreConfig {
-        &self.config
     }
 
     fn inserted(&mut self, handle: TextSelectionHandle) -> Result<(), StamError> {

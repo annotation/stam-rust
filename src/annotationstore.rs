@@ -9,13 +9,16 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::slice::Iter;
+use std::sync::{Arc, RwLock};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
+use crate::config::{Config, SerializeMode};
 use crate::datakey::{DataKey, DataKeyHandle};
+use crate::error::*;
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{
     AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
@@ -23,8 +26,6 @@ use crate::selector::{
 use crate::textselection::{
     PositionIndex, TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };
-
-use crate::error::*;
 use crate::types::*;
 
 /// An Annotation Store is an unordered collection of annotations, resources and
@@ -34,7 +35,10 @@ use crate::types::*;
 #[serde(try_from = "AnnotationStoreBuilder")]
 pub struct AnnotationStore {
     id: Option<String>,
+
+    /// Configuration with interior mutability
     config: Config,
+
     pub(crate) annotations: Store<Annotation>,
     pub(crate) annotationsets: Store<AnnotationDataSet>,
     pub(crate) resources: Store<TextResource>,
@@ -70,39 +74,6 @@ pub struct AnnotationStore {
     filename: Option<PathBuf>,
 }
 
-/// This holds the configuration for the annotationstore
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Config {
-    /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
-    pub textrelationmap: bool,
-    /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
-    pub resource_annotation_map: bool,
-    /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
-    pub dataset_annotation_map: bool,
-    /// Enable/disable index for annotations that reference other annotations
-    pub annotation_annotation_map: bool,
-    /// Configuration for underlying stores
-    pub storeconfig: StoreConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            textrelationmap: true,
-            resource_annotation_map: true,
-            dataset_annotation_map: true,
-            annotation_annotation_map: true,
-            storeconfig: StoreConfig::default(),
-        }
-    }
-}
-
-impl Config {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
 #[derive(Deserialize, Default)]
 pub struct AnnotationStoreBuilder {
     #[serde(rename = "@id")]
@@ -113,6 +84,7 @@ pub struct AnnotationStoreBuilder {
     pub annotations: Vec<AnnotationBuilder>,
 
     pub resources: Vec<TextResourceBuilder>,
+
     #[serde(skip)]
     pub config: Config,
 
@@ -184,7 +156,7 @@ impl StoreFor<TextResource> for AnnotationStore {
     /// parameters from parent to the item
     #[allow(unused_variables)]
     fn preinsert(&self, item: &mut TextResource) -> Result<(), StamError> {
-        item.set_config(self.config.storeconfig.clone());
+        item.set_config(self.config.clone());
         Ok(())
     }
 
@@ -198,10 +170,6 @@ impl StoreFor<TextResource> for AnnotationStore {
         }
         self.resource_annotation_map.data.remove(handle.unwrap());
         Ok(())
-    }
-
-    fn storeconfig(&self) -> &StoreConfig {
-        &self.config.storeconfig
     }
 }
 
@@ -431,10 +399,6 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         Ok(())
     }
-
-    fn storeconfig(&self) -> &StoreConfig {
-        &self.config.storeconfig
-    }
 }
 
 //An AnnotationStore is a StoreFor AnnotationDataSet
@@ -462,7 +426,7 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     /// parameters from parent to the item
     #[allow(unused_variables)]
     fn preinsert(&self, item: &mut AnnotationDataSet) -> Result<(), StamError> {
-        item.set_config(self.config.storeconfig.clone());
+        item.set_config(self.config.clone());
         Ok(())
     }
 
@@ -476,10 +440,6 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
         }
         self.dataset_annotation_map.data.remove(handle.unwrap());
         Ok(())
-    }
-
-    fn storeconfig(&self) -> &StoreConfig {
-        &self.config.storeconfig
     }
 }
 
@@ -575,6 +535,19 @@ impl AnnotationStoreBuilder {
     }
 }
 
+#[sealed]
+impl Configurable for AnnotationStore {
+    /// Return the associated configuration
+    fn config(&self) -> &Config {
+        &self.config
+    }
+
+    fn set_config(&mut self, config: Config) -> &mut Self {
+        self.config = config;
+        self
+    }
+}
+
 impl AnnotationStore {
     ///Creates a new empty annotation store
     pub fn new() -> Self {
@@ -585,11 +558,6 @@ impl AnnotationStore {
     /// reverse indices are built.
     pub fn with_config(&mut self, configuration: Config) {
         self.config = configuration;
-    }
-
-    /// Return the associated configuration
-    pub fn config(&self) -> &Config {
-        &self.config
     }
 
     ///Builds a new annotation store from [`AnnotationStoreBuilder'].
@@ -614,8 +582,7 @@ impl AnnotationStore {
 
     /// Merge another annotation store STAM JSON file into this one
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
-        let builder =
-            AnnotationStoreBuilder::from_file(filename, self.config.storeconfig.workdir())?;
+        let builder = AnnotationStoreBuilder::from_file(filename, self.config.workdir())?;
         self.merge_from_builder(builder)?;
         Ok(self)
     }
@@ -632,7 +599,7 @@ impl AnnotationStore {
         if let Some(mut workdir) = self.filename.clone() {
             workdir.pop();
             if workdir.to_str().expect("path to string").is_empty() {
-                self.config.storeconfig.workdir = Some(workdir);
+                self.config.workdir = Some(workdir);
             }
         }
         self
@@ -645,7 +612,7 @@ impl AnnotationStore {
 
     /// Load a JSON file containing an array of annotations in STAM JSON
     pub fn annotate_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
-        let reader = open_file_reader(filename, self.config.storeconfig.workdir())?; //TODO!
+        let reader = open_file_reader(filename, self.config.workdir())?; //TODO!
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<AnnotationsJson, _> = serde_path_to_error::deserialize(deserializer);
         let result = result.map_err(|e| {
@@ -707,7 +674,8 @@ impl AnnotationStore {
 
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let found_filename = get_filepath(filename, None)?;
+        let workdir = self.config.workdir();
+        let found_filename = get_filepath(filename, workdir)?;
         let f = File::create(found_filename)
             .map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
         let writer = BufWriter::new(f);
@@ -719,7 +687,8 @@ impl AnnotationStore {
 
     /// Writes an AnnotationStore to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let found_filename = get_filepath(filename, None)?;
+        let workdir = self.config.workdir();
+        let found_filename = get_filepath(filename, workdir)?;
         let f = File::create(found_filename)
             .map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
         let writer = BufWriter::new(f);
@@ -732,15 +701,12 @@ impl AnnotationStore {
     /// Used to set the serialization mode, determines whether to output @include statements and standoff files
     /// This should be used prior to calling [`AnnotationStore.to_file()`] or [`AnnotationStore.to_string()`]
     pub fn set_serialize_mode(&self, mode: SerializeMode) {
-        let config = <AnnotationStore as StoreFor<Annotation>>::storeconfig(self);
-        config.set_serialize_mode(mode);
+        self.config.set_serialize_mode(mode);
         for resource in self.resources() {
-            let config = resource.storeconfig();
-            config.set_serialize_mode(mode);
+            resource.config().set_serialize_mode(mode);
         }
         for annotationset in self.annotationsets() {
-            let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(annotationset);
-            config.set_serialize_mode(mode);
+            annotationset.config().set_serialize_mode(mode);
         }
     }
 

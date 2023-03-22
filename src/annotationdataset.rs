@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
+use crate::config::{Config, SerializeMode};
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
@@ -56,8 +57,9 @@ pub struct AnnotationDataSet {
     #[serde(skip)]
     key_data_map: RelationMap<DataKeyHandle, AnnotationDataHandle>,
 
+    /// Configuration
     #[serde(skip)]
-    config: StoreConfig,
+    config: Config,
 }
 
 #[derive(Deserialize)]
@@ -213,9 +215,17 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         }
         Ok(())
     }
+}
 
-    fn storeconfig(&self) -> &StoreConfig {
+#[sealed]
+impl Configurable for AnnotationDataSet {
+    fn config(&self) -> &Config {
         &self.config
+    }
+
+    fn set_config(&mut self, config: Config) -> &mut Self {
+        self.config = config;
+        self
     }
 }
 
@@ -271,10 +281,6 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         }
         Ok(())
     }
-
-    fn storeconfig(&self) -> &StoreConfig {
-        &self.config
-    }
 }
 
 impl Default for AnnotationDataSet {
@@ -289,7 +295,7 @@ impl Default for AnnotationDataSet {
             key_idmap: IdMap::new("K".to_string()),
             data_idmap: IdMap::new("D".to_string()),
             key_data_map: RelationMap::new(),
-            config: StoreConfig::default(),
+            config: Config::default(),
         }
     }
 }
@@ -301,8 +307,7 @@ impl Serialize for AnnotationDataSet {
     {
         let mut state = serializer.serialize_struct("AnnotationDataSet", 4)?;
         state.serialize_field("@type", "AnnotationDataSet")?;
-        let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(self);
-        if self.include.is_some() && config.serialize_mode() == SerializeMode::AllowInclude
+        if self.include.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude
         //                                      ^-- we need type annotations for the compiler, doesn't really matter which we use
         {
             let filename = self.include.as_ref().unwrap();
@@ -481,16 +486,6 @@ impl AnnotationDataSet {
         Ok(self)
     }
 
-    pub fn with_config(mut self, config: StoreConfig) -> Self {
-        self.config = config;
-        self
-    }
-
-    pub fn set_config(&mut self, config: StoreConfig) -> &mut Self {
-        self.config = config;
-        self
-    }
-
     /// Adds new [`AnnotationData`] to the dataset, this should be
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
     pub fn with_data(
@@ -632,28 +627,26 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(self);
-        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
+        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let f = File::create(filename);
         let f = f.map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
         let writer = BufWriter::new(f);
         let result = serde_json::to_writer_pretty(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
-        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result?;
         Ok(())
     }
 
     /// Writes a dataset to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(self);
         let f = File::create(filename)
             .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
         let writer = BufWriter::new(f);
-        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
+        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let result = serde_json::to_writer(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
-        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result?;
         Ok(())
     }

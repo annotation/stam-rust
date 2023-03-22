@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::slice::{Iter, IterMut};
 use std::sync::{Arc, RwLock};
 
+use crate::config::{Config, SerializeMode};
 use crate::error::StamError;
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
@@ -244,21 +245,6 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SerializeMode {
-    /// Allow serialisation of stand-off files (which means we allow @include)
-    AllowInclude,
-
-    ///We are in standoff mode to serialized stand-off files (which means we don't output @include again)
-    NoInclude,
-}
-
-impl Default for SerializeMode {
-    fn default() -> Self {
-        Self::AllowInclude
-    }
-}
-
 //Configuration pertaining to a store
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StoreConfig {
@@ -386,11 +372,26 @@ pub trait Storable: PartialEq {
     }
 }
 
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
+pub trait Configurable: Sized {
+    //// Obtain the configuration if it exists
+    fn config(&self) -> &Config;
+
+    ///Builder pattern to associate a configuration
+    fn with_config(mut self, config: Config) -> Self {
+        self.set_config(config);
+        self
+    }
+
+    ///Setter to associate a configuration
+    fn set_config(&mut self, config: Config) -> &mut Self;
+}
+
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
 /// It is a sealed trait, not implementable outside this crate.
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait StoreFor<T: Storable> {
+pub trait StoreFor<T: Storable>: Configurable {
     /// Get a reference to the entire store for the associated type
     fn store(&self) -> &Store<T>;
     /// Get a mutable reference to the entire store for the associated type
@@ -439,7 +440,7 @@ pub trait StoreFor<T: Storable> {
                 //                 v-- MAYBE TODO: optimise the id copy away
                 idmap.data.insert(id.to_string(), item.handle().unwrap())
             });
-        } else if self.storeconfig().generate_ids {
+        } else if self.config().generate_ids {
             item = item.generate_id(self.idmap_mut());
         }
 
@@ -708,9 +709,6 @@ pub trait StoreFor<T: Storable> {
             parent: self,
         }
     }
-
-    /// Return associated configuration
-    fn storeconfig(&self) -> &StoreConfig;
 }
 
 //  generic iterator implementations, these take care of skipping over deleted items (None)
