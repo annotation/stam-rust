@@ -289,11 +289,11 @@ impl TextResource {
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
         let config = self.config();
         let f = File::create(filename);
-        let f = f.map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
+        let f = f.map_err(|e| StamError::IOError(e, "Writing resource from file, open failed"))?;
         let writer = BufWriter::new(f);
         config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_writer_pretty(writer, &self)
-            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
+            .map_err(|e| StamError::SerializationError(format!("Writing resource to file: {}", e)));
         config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result?;
         Ok(())
@@ -303,14 +303,36 @@ impl TextResource {
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
         let config = self.config();
         let f = File::create(filename)
-            .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
+            .map_err(|e| StamError::IOError(e, "Writing resource from file, open failed"))?;
         let writer = BufWriter::new(f);
         config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_writer(writer, &self)
-            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
+            .map_err(|e| StamError::SerializationError(format!("Writing resource to file: {}", e)));
         config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result?;
         Ok(())
+    }
+
+    /// Writes a resource to a STAM JSON string, with appropriate formatting
+    pub fn to_json(&self) -> Result<String, StamError> {
+        let config = self.config();
+        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        let result = serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Serializing resource to string: {}", e))
+        });
+        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        result
+    }
+
+    /// Writes a resource to a STAM JSON string, without any indentation
+    pub fn to_json_compact(&self) -> Result<String, StamError> {
+        let config = self.config();
+        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        let result = serde_json::to_string(&self).map_err(|e| {
+            StamError::SerializationError(format!("Serializing resource to string: {}", e))
+        });
+        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        result
     }
 
     /// Associate an external stand-off file with this resource

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::error::StamError;
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(tag = "@type", content = "value")]
 pub enum DataValue {
@@ -77,6 +79,22 @@ impl<'a> DataValue {
             }
             _ => false,
         }
+    }
+
+    /// Writes a datavalue to one STAM JSON string, with appropriate formatting
+    pub fn to_json(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing datavalue to string: {}", e))
+        })
+    }
+
+    /// Writes a datavalue to one STAM JSON string, without any indentation
+    pub fn to_json_compact(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing datavalue to string: {}", e))
+        })
     }
 }
 

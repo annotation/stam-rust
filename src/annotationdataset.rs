@@ -428,6 +428,22 @@ impl AnnotationDataSet {
         Ok(self)
     }
 
+    /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting
+    pub fn to_json(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing annotation dataset to string: {}", e))
+        })
+    }
+
+    /// Writes an AnnotationStore to one big STAM JSON string, without any indentation
+    pub fn to_json_compact(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing annotation dataset to string: {}", e))
+        })
+    }
+
     /// Merge another AnnotationDataSet, represented by an AnnotationDataSetBuilder, into this one.
     /// It's a fairly low-level function which you often don't need directly, use `AnnotationDataSet.with_file()` instead.
     pub fn merge_from_builder(

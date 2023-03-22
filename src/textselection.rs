@@ -768,6 +768,8 @@ impl TextSelection {
             TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
         }
     }
+
+    //there are no to_json() methods here, but you can convert a TextSelection to an Offset, which does have them
 }
 
 impl Extend<TextSelection> for TextSelectionSet {

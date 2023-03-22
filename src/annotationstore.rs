@@ -646,14 +646,14 @@ impl AnnotationStore {
     }
 
     /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting
-    pub fn to_string(&self) -> Result<String, StamError> {
+    pub fn to_json(&self) -> Result<String, StamError> {
         serde_json::to_string_pretty(&self).map_err(|e| {
             StamError::SerializationError(format!("Writing annotationstore to string: {}", e))
         })
     }
 
     /// Writes an AnnotationStore to one big STAM JSON string, without any indentation
-    pub fn to_string_compact(&self) -> Result<String, StamError> {
+    pub fn to_json_compact(&self) -> Result<String, StamError> {
         serde_json::to_string(&self).map_err(|e| {
             StamError::SerializationError(format!("Writing annotationstore to string: {}", e))
         })

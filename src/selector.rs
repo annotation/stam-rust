@@ -57,6 +57,22 @@ impl Offset {
             _ => false
         }
     }
+
+    /// Writes a datavalue to one STAM JSON string, with appropriate formatting
+    pub fn to_json(&self) -> Result<String, StamError> {
+        //note: this function is not called during normal serialisation
+        serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing textselection to string: {}", e))
+        })
+    }
+
+    /// Writes a datavalue to one STAM JSON string, without any indentation
+    pub fn to_json_compact(&self) -> Result<String, StamError> {
+        //note: this function is not called during normal serialisation
+        serde_json::to_string(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing textselection to string: {}", e))
+        })
+    }
 }
 
 impl Default for Offset {
@@ -181,6 +197,24 @@ impl Selector {
             SelectorKind::CompositeSelector => true,
             _ => false,
         }
+    }
+
+    /// Writes a Selector to a STAM JSON string, with appropriate formatting
+    pub fn to_json(&self, store: &AnnotationStore) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        let wrapped = WrappedSelector::new(self, store);
+        serde_json::to_string_pretty(&wrapped).map_err(|e| {
+            StamError::SerializationError(format!("Writing selector to string: {}", e))
+        })
+    }
+
+    /// Writes a Selector to a STAM JSON string, without indentation
+    pub fn to_json_compact(&self, store: &AnnotationStore) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        let wrapped = WrappedSelector::new(self, store);
+        serde_json::to_string(&wrapped).map_err(|e| {
+            StamError::SerializationError(format!("Writing selector to string: {}", e))
+        })
     }
 }
 

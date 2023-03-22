@@ -169,6 +169,15 @@ impl AnnotationData {
     pub fn value(&self) -> &DataValue {
         &self.value
     }
+
+    /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
+    pub fn to_json(&self, store: &AnnotationDataSet) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        let wrapped: WrappedStorable<Self, AnnotationDataSet> = WrappedStorable::new(self, store)?;
+        serde_json::to_string_pretty(&wrapped).map_err(|e| {
+            StamError::SerializationError(format!("Writing annotation dataset to string: {}", e))
+        })
+    }
 }
 
 impl<'a> WrappedStorable<'a, AnnotationData, AnnotationDataSet> {

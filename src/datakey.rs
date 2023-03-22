@@ -5,6 +5,7 @@ use std::fmt;
 //use serde_json::Result;
 
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
+use crate::error::StamError;
 use crate::types::*;
 
 /// The DataKey class defines a vocabulary field, it
@@ -108,6 +109,22 @@ impl DataKey {
     /// Returns a handle to the [`AnnotationDataSet`]
     pub fn annotationset(&self) -> Option<AnnotationDataSetHandle> {
         self.part_of_set
+    }
+
+    /// Writes a datakey to a STAM JSON string, with appropriate formatting
+    pub fn to_json(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Serializing datakey to string: {}", e))
+        })
+    }
+
+    /// Writes a datakey to a STAM JSON string, without any indentation
+    pub fn to_json_compact(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string(&self).map_err(|e| {
+            StamError::SerializationError(format!("Serializing datakey to string: {}", e))
+        })
     }
 }
 
