@@ -230,7 +230,8 @@ impl AnnotationBuilder {
 
     /// Reads a single annotation in STAM JSON from file
     pub fn from_file(filename: &str) -> Result<Self, StamError> {
-        let f = File::open(filename)
+        let found_filename = get_filepath(filename, None)?;
+        let f = File::open(found_filename)
             .map_err(|e| StamError::IOError(e, "Reading annotation from file, open failed"))?;
         let reader = BufReader::new(f);
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);

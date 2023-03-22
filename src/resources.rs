@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::ops::Bound::{Excluded, Included};
+use std::path::{Path, PathBuf};
 use std::slice::Iter;
 use std::sync::{Arc, RwLock};
 
@@ -71,6 +72,9 @@ pub struct TextResourceBuilder {
     /// Sets mode for deserialisation (whether to follow @include statements)
     #[serde(skip)]
     mode: SerializeMode,
+
+    #[serde(skip)]
+    workdir: Option<PathBuf>,
 }
 
 impl TryFrom<TextResourceBuilder> for TextResource {
@@ -106,7 +110,11 @@ impl TryFrom<TextResourceBuilder> for TextResource {
         if let Some(filename) = &builder.include {
             if builder.mode == SerializeMode::AllowInclude {
                 //parse and associate external file
-                resource = resource.with_file(filename, builder.include.is_some())?;
+                resource = resource.with_file(
+                    filename,
+                    builder.workdir.as_ref().map(|x| x.as_path()),
+                    builder.include.is_some(),
+                )?;
             }
         }
         Ok(resource)
@@ -193,35 +201,31 @@ impl TextResourceBuilder {
     /// Loads a Text Resource from a STAM JSON  or plain text file file.
     /// If the file is JSON, it file must contain a single object which has "@type": "TextResource"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
+    pub fn from_file(
+        filename: &str,
+        workdir: Option<&Path>,
+        include: bool,
+    ) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
-            let f = File::open(filename).map_err(|e| {
-                StamError::IOError(e, "Reading text resource from file, open failed")
-            })?;
-            let reader = BufReader::new(f);
+            let reader = open_file_reader(filename, workdir)?;
             let deserializer = &mut serde_json::Deserializer::from_reader(reader);
             let mut result: Result<TextResourceBuilder, _> =
                 serde_path_to_error::deserialize(deserializer);
             if result.is_ok() && include {
-                result.as_mut().unwrap().include = Some(filename.to_string());
-                //we just processed the include, this instructs the deserialiser not to do it again
-                result.as_mut().unwrap().mode = SerializeMode::NoInclude;
+                let result = result.as_mut().unwrap();
+                result.include = Some(filename.to_string()); //always uses the original filename (not the found one)
+                result.mode = SerializeMode::NoInclude;
+                result.workdir = workdir.map(|x| x.to_owned())
             }
             result.map_err(|e| {
                 StamError::JsonError(e, filename.to_string(), "Reading text resource from file")
             })
         } else {
             //plain text
+            let mut f = open_file(filename, workdir)?;
             let mut text: String = String::new();
-            match File::open(filename) {
-                Ok(mut f) => {
-                    if let Err(err) = f.read_to_string(&mut text) {
-                        return Err(StamError::IOError(err, "TextResource::from_file"));
-                    }
-                }
-                Err(err) => {
-                    return Err(StamError::IOError(err, "TextResource::from_file"));
-                }
+            if let Err(err) = f.read_to_string(&mut text) {
+                return Err(StamError::IOError(err, "TextResource::from_file"));
             }
             Ok(Self {
                 id: Some(filename.to_string()),
@@ -232,6 +236,7 @@ impl TextResourceBuilder {
                     None
                 }, //may be overridden in with_file
                 mode: SerializeMode::NoInclude, //we just processed the include, this instructs the deserialiser not to do it again
+                workdir: workdir.map(|x| x.to_owned()),
             })
         }
     }
@@ -272,15 +277,26 @@ impl TextResource {
 
     /// Create a new TextResource from file, the text will be loaded into memory entirely
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
-        let builder = TextResourceBuilder::from_file(filename, include)?;
+    /// If `workdir` is set, the file will be searched for in the workdir if needed
+    pub fn from_file(
+        filename: &str,
+        workdir: Option<&Path>,
+        include: bool,
+    ) -> Result<Self, StamError> {
+        let builder = TextResourceBuilder::from_file(filename, workdir, include)?;
         Self::from_builder(builder)
     }
 
     /// Loads a text for the TextResource from file (STAM JSON or plain text), the text will be loaded into memory entirely
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn with_file(mut self, filename: &str, include: bool) -> Result<Self, StamError> {
-        let builder = TextResourceBuilder::from_file(filename, include)?;
+    /// If `workdir` is set, the file will be searched for in the workdir if needed
+    pub fn with_file(
+        mut self,
+        filename: &str,
+        workdir: Option<&Path>,
+        include: bool,
+    ) -> Result<Self, StamError> {
+        let builder = TextResourceBuilder::from_file(filename, workdir, include)?;
         self = Self::from_builder(builder)?;
         Ok(self)
     }
@@ -311,6 +327,16 @@ impl TextResource {
         config.set_serialize_mode(SerializeMode::AllowInclude); //reset
         result?;
         Ok(())
+    }
+
+    pub fn with_config(mut self, config: StoreConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    pub fn set_config(&mut self, config: StoreConfig) -> &mut Self {
+        self.config = config;
+        self
     }
 
     /// Writes a resource to a STAM JSON string, with appropriate formatting

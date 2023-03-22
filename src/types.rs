@@ -1,7 +1,10 @@
 use sealed::sealed;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufReader;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::path::{Path, PathBuf};
 use std::slice::{Iter, IterMut};
 use std::sync::{Arc, RwLock};
 
@@ -262,6 +265,9 @@ pub struct StoreConfig {
     ///generate ids when missing
     pub generate_ids: bool,
 
+    /// The working directory
+    pub workdir: Option<PathBuf>,
+
     /// This flag can be flagged on or off (using internal mutability) to indicate whether we are serializing for the standoff include mechanism
     #[serde(skip)]
     serialize_mode: Arc<RwLock<SerializeMode>>,
@@ -271,6 +277,7 @@ impl Default for StoreConfig {
     fn default() -> Self {
         Self {
             generate_ids: true,
+            workdir: None,
             serialize_mode: Arc::new(RwLock::new(SerializeMode::AllowInclude)),
         }
     }
@@ -278,18 +285,24 @@ impl Default for StoreConfig {
 
 impl StoreConfig {
     /// This sets a parameter we use in serialisation
-    pub(crate) fn set_serialize_mode(&self, mode: SerializeMode) {
+    pub fn set_serialize_mode(&self, mode: SerializeMode) {
         if let Ok(mut serialize_mode) = self.serialize_mode.write() {
             *serialize_mode = mode;
         }
     }
+
     /// This tests a parameter we use in serialisation
-    pub(crate) fn serialize_mode(&self) -> SerializeMode {
+    pub fn serialize_mode(&self) -> SerializeMode {
         if let Ok(mut serialize_mode) = self.serialize_mode.read() {
             *serialize_mode
         } else {
             panic!("Unable to get lock for serialize mode");
         }
+    }
+
+    ///  Return the working directory
+    pub fn workdir(&self) -> Option<&Path> {
+        self.workdir.as_ref().map(|x| x.as_path())
     }
 }
 
@@ -430,6 +443,8 @@ pub trait StoreFor<T: Storable> {
             item = item.generate_id(self.idmap_mut());
         }
 
+        self.preinsert(&mut item)?;
+
         //add the resource
         self.store_mut().push(Some(item));
 
@@ -439,6 +454,16 @@ pub trait StoreFor<T: Storable> {
 ");
 
         Ok(handle)
+    }
+
+    /// Called prior to inserting an item into to the store
+    /// If it returns an error, the insert will be cancelled.
+    /// Allows for bookkeeping such as inheriting configuration
+    /// parameters from parent to the item
+    #[allow(unused_variables)]
+    fn preinsert(&self, item: &mut T) -> Result<(), StamError> {
+        //default implementation does nothing
+        Ok(())
     }
 
     /// Called after an item was inserted to the store
@@ -1027,4 +1052,48 @@ where
     pub fn parent(&self) -> &S {
         self.parent
     }
+}
+
+/// Get a file for reading or writing, this resolves relative files more intelligently
+pub(crate) fn get_filepath(filename: &str, workdir: Option<&Path>) -> Result<PathBuf, StamError> {
+    if filename.starts_with("https://") || filename.starts_with("http://") {
+        //TODO: implement downloading of remote URLs and storing them locally
+        return Err(StamError::OtherError("Loading URLs is not supported yet"));
+    }
+    let path = if filename.starts_with("file://") {
+        //strip the file:// prefix
+        PathBuf::from(&filename[7..])
+    } else {
+        PathBuf::from(filename)
+    };
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        //check whether we can find one in our workdir first
+        if let Some(workdir) = workdir {
+            let path = workdir.join(&path);
+            if path.is_file() {
+                //should also work with symlinks
+                return Ok(path);
+            }
+        }
+
+        //final fallback is simply relative to the current working directly
+        // we don't test for existance here
+        Ok(path)
+    }
+}
+
+/// Auxiliary function to help open files
+pub(crate) fn open_file(filename: &str, workdir: Option<&Path>) -> Result<File, StamError> {
+    let path = get_filepath(filename, workdir)?;
+    File::open(filename).map_err(|e| StamError::IOError(e, "Opening file for reading failed"))
+}
+
+/// Auxiliary function to help open files
+pub(crate) fn open_file_reader(
+    filename: &str,
+    workdir: Option<&Path>,
+) -> Result<BufReader<File>, StamError> {
+    Ok(BufReader::new(open_file(filename, workdir)?))
 }

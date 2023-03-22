@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use sealed::sealed;
@@ -69,6 +70,8 @@ pub struct AnnotationDataSetBuilder {
     pub(crate) include: Option<String>,
     #[serde(skip)]
     pub(crate) mode: SerializeMode,
+    #[serde(skip)]
+    pub(crate) workdir: Option<PathBuf>,
 }
 
 impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
@@ -102,7 +105,7 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
         if let Some(filename) = &builder.include {
             set.include = Some(filename.to_string());
             if builder.mode == SerializeMode::AllowInclude {
-                set = set.with_file(filename)?;
+                set = set.with_file(filename, builder.workdir.as_ref().map(|x| x.as_path()))?;
             }
         }
         Ok(set)
@@ -356,17 +359,21 @@ impl AnnotationDataSetBuilder {
     /// Loads an AnnotationDataSet from a STAM JSON file, as a builder
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
-        let f = File::open(filename).map_err(|e| {
-            StamError::IOError(e, "Reading AnnotationDataSet from file, open failed")
-        })?;
-        let reader = BufReader::new(f);
+    /// If `workdir` is set, the file will be searched for in the workdir if needed
+    pub fn from_file(
+        filename: &str,
+        workdir: Option<&Path>,
+        include: bool,
+    ) -> Result<Self, StamError> {
+        let reader = open_file_reader(filename, workdir)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let mut result: Result<AnnotationDataSetBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
         if result.is_ok() && include {
-            result.as_mut().unwrap().include = Some(filename.to_string());
-            result.as_mut().unwrap().mode = SerializeMode::NoInclude;
+            let result = result.as_mut().unwrap();
+            result.include = Some(filename.to_string()); //we use the original filename, not the one we found
+            result.mode = SerializeMode::NoInclude;
+            result.workdir = workdir.map(|x| x.to_owned())
         }
         result.map_err(|e| {
             StamError::JsonError(
@@ -407,8 +414,13 @@ impl AnnotationDataSet {
     /// Loads an AnnotationDataSet from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_file(filename, include)?;
+    /// If `workdir` is set, the file will be searched for in the workdir if needed
+    pub fn from_file(
+        filename: &str,
+        workdir: Option<&Path>,
+        include: bool,
+    ) -> Result<Self, StamError> {
+        let builder = AnnotationDataSetBuilder::from_file(filename, workdir, include)?;
         Self::from_builder(builder)
     }
 
@@ -422,8 +434,9 @@ impl AnnotationDataSet {
     /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current     one.
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
-    pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_file(filename, false)?;
+    /// If `workdir` is set, the file will be searched for in the workdir if needed
+    pub fn with_file(mut self, filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
+        let builder = AnnotationDataSetBuilder::from_file(filename, workdir, false)?;
         self.merge_from_builder(builder)?;
         Ok(self)
     }
@@ -469,6 +482,11 @@ impl AnnotationDataSet {
     }
 
     pub fn with_config(mut self, config: StoreConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    pub fn set_config(&mut self, config: StoreConfig) -> &mut Self {
         self.config = config;
         self
     }

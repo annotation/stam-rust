@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::path::{Path, PathBuf};
 use std::slice::Iter;
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -64,6 +65,9 @@ pub struct AnnotationStore {
 
     /// Reverse index for annotations that reference other annotations
     annotation_annotation_map: RelationMap<AnnotationHandle, AnnotationHandle>,
+
+    /// path associated with this store
+    filename: Option<PathBuf>,
 }
 
 /// This holds the configuration for the annotationstore
@@ -111,6 +115,9 @@ pub struct AnnotationStoreBuilder {
     pub resources: Vec<TextResourceBuilder>,
     #[serde(skip)]
     pub config: Config,
+
+    #[serde(skip)]
+    pub filename: Option<PathBuf>,
 }
 
 impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
@@ -124,6 +131,15 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
             resources: Vec::with_capacity(builder.resources.len()),
             ..Default::default()
         };
+        if let Some(filename) = builder.filename {
+            //also sets working directory
+            store.set_filename(
+                filename
+                    .as_path()
+                    .to_str()
+                    .expect("filename must be valid utf-8"),
+            );
+        }
         for dataset in builder.annotationsets {
             let dataset: AnnotationDataSet = dataset.try_into()?;
             store.insert(dataset)?;
@@ -160,6 +176,16 @@ impl StoreFor<TextResource> for AnnotationStore {
     }
     fn introspect_type(&self) -> &'static str {
         "TextResource in AnnotationStore"
+    }
+
+    /// Called prior to inserting an item into to the store
+    /// If it returns an error, the insert will be cancelled.
+    /// Allows for bookkeeping such as inheriting configuration
+    /// parameters from parent to the item
+    #[allow(unused_variables)]
+    fn preinsert(&self, item: &mut TextResource) -> Result<(), StamError> {
+        item.set_config(self.config.storeconfig.clone());
+        Ok(())
     }
 
     /// called before the item is removed from the store
@@ -430,6 +456,16 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
         "AnnotationDataSet in AnnotationStore"
     }
 
+    /// Called prior to inserting an item into to the store
+    /// If it returns an error, the insert will be cancelled.
+    /// Allows for bookkeeping such as inheriting configuration
+    /// parameters from parent to the item
+    #[allow(unused_variables)]
+    fn preinsert(&self, item: &mut AnnotationDataSet) -> Result<(), StamError> {
+        item.set_config(self.config.storeconfig.clone());
+        Ok(())
+    }
+
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationDataSetHandle) -> Result<(), StamError> {
@@ -465,6 +501,7 @@ impl Default for AnnotationStore {
             annotation_annotation_map: RelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
             config: Config::default(),
+            filename: None,
         }
     }
 }
@@ -511,13 +548,16 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
 impl AnnotationStoreBuilder {
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_file(filename: &str) -> Result<Self, StamError> {
-        let f = File::open(filename)
-            .map_err(|e| StamError::IOError(e, "Reading annotationstore from file, open failed"))?;
-        let reader = BufReader::new(f);
+    pub fn from_file(filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
+        let reader = open_file_reader(filename, workdir)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-        let result: Result<AnnotationStoreBuilder, _> =
+        let mut result: Result<AnnotationStoreBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
+        if result.is_ok() {
+            //keep track of the filename we loaded (its directory is searched for @include files when applicable)
+            let result = result.as_mut().unwrap();
+            result.filename = Some(filename.into());
+        }
         result.map_err(|e| {
             StamError::JsonError(e, filename.to_string(), "Reading annotationstore from file")
         })
@@ -556,7 +596,7 @@ impl AnnotationStore {
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
     pub fn from_file(filename: &str) -> Result<Self, StamError> {
-        let builder = AnnotationStoreBuilder::from_file(filename)?;
+        let builder = AnnotationStoreBuilder::from_file(filename, None)?;
         Self::from_builder(builder)
     }
 
@@ -569,16 +609,38 @@ impl AnnotationStore {
 
     /// Merge another annotation store STAM JSON file into this one
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
-        let builder = AnnotationStoreBuilder::from_file(filename)?;
+        let builder =
+            AnnotationStoreBuilder::from_file(filename, self.config.storeconfig.workdir())?;
         self.merge_from_builder(builder)?;
         Ok(self)
     }
 
+    //Set the associated filename for this annotation store. Also sets the working directory. Builder pattern.
+    pub fn with_filename(mut self, filename: &str) -> Self {
+        self.set_filename(filename);
+        self
+    }
+
+    //Set the associated filename for this annotation store. Also sets the working directory.
+    pub fn set_filename(&mut self, filename: &str) -> &mut Self {
+        self.filename = Some(filename.into());
+        if let Some(mut workdir) = self.filename.clone() {
+            workdir.pop();
+            if workdir.to_str().expect("path to string").is_empty() {
+                self.config.storeconfig.workdir = Some(workdir);
+            }
+        }
+        self
+    }
+
+    /// Returns the filename associated with this annotation store
+    pub fn filename(&self) -> Option<&Path> {
+        self.filename.as_ref().map(|x| x.as_path())
+    }
+
     /// Load a JSON file containing an array of annotations in STAM JSON
     pub fn annotate_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
-        let f = File::open(filename)
-            .map_err(|e| StamError::IOError(e, "Reading annotations from file, open failed"))?;
-        let reader = BufReader::new(f);
+        let reader = open_file_reader(filename, self.config.storeconfig.workdir())?; //TODO!
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<AnnotationsJson, _> = serde_path_to_error::deserialize(deserializer);
         let result = result.map_err(|e| {
@@ -625,9 +687,23 @@ impl AnnotationStore {
         Ok(self)
     }
 
+    /// Shortcut to write an AnnotationStore to a STAM JSON file, writes to the same file as was loaded.
+    /// Returns an error if no filename was associated yet.
+    /// Use [`AnnotationStore.to_file`] instead if you want to write elsewhere.
+    pub fn save(&self) -> Result<(), StamError> {
+        if let Some(filepath) = &self.filename {
+            self.to_file(filepath.to_str().expect("filename must be valid unicode"))
+        } else {
+            Err(StamError::OtherError(
+                "No filename associated with the store",
+            ))
+        }
+    }
+
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let f = File::create(filename)
+        let found_filename = get_filepath(filename, None)?;
+        let f = File::create(found_filename)
             .map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
         let writer = BufWriter::new(f);
         serde_json::to_writer_pretty(writer, &self).map_err(|e| {
@@ -638,7 +714,8 @@ impl AnnotationStore {
 
     /// Writes an AnnotationStore to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let f = File::create(filename)
+        let found_filename = get_filepath(filename, None)?;
+        let f = File::create(found_filename)
             .map_err(|e| StamError::IOError(e, "Writing annotationstore from file, open failed"))?;
         let writer = BufWriter::new(f);
         serde_json::to_writer(writer, &self).map_err(|e| {
@@ -691,8 +768,10 @@ impl AnnotationStore {
     pub fn add_resource_from_file(
         &mut self,
         filename: &str,
+        workdir: Option<&Path>,
+        include: bool,
     ) -> Result<TextResourceHandle, StamError> {
-        let resource = TextResource::from_file(filename, true)?;
+        let resource = TextResource::from_file(filename, workdir, include)?;
         self.insert(resource)
     }
 
