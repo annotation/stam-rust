@@ -91,4 +91,10 @@ impl Config {
         result
             .map_err(|e| StamError::JsonError(e, filename.to_string(), "Reading config from file"))
     }
+
+    /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting
+    pub fn to_json(&self) -> Result<String, StamError> {
+        serde_json::to_string_pretty(&self)
+            .map_err(|e| StamError::SerializationError(format!("Writing config to string: {}", e)))
+    }
 }
