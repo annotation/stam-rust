@@ -643,7 +643,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
 
 const EXAMPLE_3: &'static str = r#"{ 
         "@type": "AnnotationStore",
-        "annotationsets": {
+        "annotationsets": [{
             "@type": "AnnotationDataSet",
             "@id": "testdataset",
             "keys": [
@@ -663,7 +663,7 @@ const EXAMPLE_3: &'static str = r#"{
                     }
                 }
             ]
-        },
+        }],
         "resources": [{
             "@id": "testres",
             "text": "Hello world"

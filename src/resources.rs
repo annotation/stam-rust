@@ -9,7 +9,6 @@ use std::sync::{Arc, RwLock};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use smallvec::{smallvec, SmallVec};
 
 use crate::error::StamError;
@@ -23,7 +22,6 @@ use crate::types::*;
 /// The text *SHOULD* be in
 /// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
 /// *MAY* be in another unicode normalization forms.
-#[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(try_from = "TextResourceBuilder")]
 pub struct TextResource {
@@ -58,7 +56,6 @@ pub struct TextResource {
     config: StoreConfig,
 }
 
-#[serde_as]
 #[derive(Deserialize, Debug)]
 pub struct TextResourceBuilder {
     /// Public identifier for the text resource (often the filename/URL)

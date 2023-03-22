@@ -3,7 +3,6 @@ use std::slice::Iter;
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 
 use crate::annotationdata::{
     AnnotationData, AnnotationDataBuilder, AnnotationDataHandle, AnnotationDataRefWithSet,
@@ -78,7 +77,6 @@ impl PartialEq<Annotation> for Annotation {
 }
 /// This is the build recipe for `Annotation`. It contains public IDs or handles that will be resolved
 /// when the actual Annotation is built. The building is done by passing this to [`AnnotationStore::annotate()`].
-#[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
@@ -409,12 +407,11 @@ impl<'a> Annotation {
 }
 
 /// Helper structure for deserialisation
-#[serde_as]
 #[derive(Deserialize)]
+#[serde(expecting = "DEBUG")]
 struct AnnotationJson {
     #[serde(rename = "@id")]
     id: Option<String>,
-    #[serde_as(as = "serde_with::OneOrMany<_>")]
     data: Vec<AnnotationDataBuilder>,
     target: SelectorBuilder,
 }

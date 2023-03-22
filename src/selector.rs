@@ -1,6 +1,5 @@
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use std::ops::Deref;
 use std::borrow::Cow;
 use smallvec::{SmallVec, smallvec};
@@ -15,7 +14,6 @@ use crate::types::*;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
-#[serde_as]
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct Offset {
     pub begin: Cursor,
@@ -285,7 +283,6 @@ impl SelectorBuilder {
 
 
 /// Helper structure for Json deserialisation, we need named fields for the serde tag macro to work
-#[serde_as]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "@type")]
 enum SelectorJson {

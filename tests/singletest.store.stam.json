@@ -1,6 +1,6 @@
 { 
     "@type": "AnnotationStore",
-    "annotationsets": {
+    "annotationsets": [{
         "@type": "AnnotationDataSet",
         "@id": "testdataset",
         "keys": [
@@ -20,7 +20,7 @@
                 }
             }
         ]
-    },
+    }],
     "resources": [{
         "@id": "testres",
         "text": "Hello world"

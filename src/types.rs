@@ -7,7 +7,6 @@ use std::sync::{Arc, RwLock};
 
 use crate::error::StamError;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use std::hash::Hash;
 
 /// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
@@ -19,7 +18,6 @@ pub type Store<T> = Vec<Option<T>>;
 ///
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
-#[serde_as]
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "@type", content = "value")]
 pub enum Cursor {

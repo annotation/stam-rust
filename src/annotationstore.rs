@@ -1,7 +1,6 @@
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fs::File;
@@ -30,7 +29,6 @@ use crate::types::*;
 /// An Annotation Store is an unordered collection of annotations, resources and
 /// annotation data sets. It can be seen as the *root* of the *graph model* and the glue
 /// that holds everything together. It is the entry point for any stam model.
-#[serde_as]
 #[derive(Deserialize)]
 #[serde(try_from = "AnnotationStoreBuilder")]
 pub struct AnnotationStore {
@@ -101,16 +99,15 @@ impl Config {
     }
 }
 
-#[serde_as]
 #[derive(Deserialize)]
 pub struct AnnotationStoreBuilder {
     #[serde(rename = "@id")]
     pub id: Option<String>,
-    #[serde_as(as = "serde_with::OneOrMany<_>")]
+
     pub annotationsets: Vec<AnnotationDataSetBuilder>,
-    #[serde_as(as = "serde_with::OneOrMany<_>")]
+
     pub annotations: Vec<AnnotationBuilder>,
-    #[serde_as(as = "serde_with::OneOrMany<_>")]
+
     pub resources: Vec<TextResourceBuilder>,
     #[serde(skip)]
     pub config: Config,

@@ -5,7 +5,6 @@ use std::sync::{Arc, RwLock};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 //use serde_json::Result;
 
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
@@ -20,7 +19,6 @@ use crate::types::*;
 /// It effectively defines a certain vocabulary, i.e. key/value pairs.
 /// The `AnnotationDataSet` does not store the [`crate::annotation::Annotation`] instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
-#[serde_as]
 #[derive(Deserialize)]
 #[serde(try_from = "AnnotationDataSetBuilder")]
 pub struct AnnotationDataSet {
@@ -61,7 +59,6 @@ pub struct AnnotationDataSet {
     config: StoreConfig,
 }
 
-#[serde_as]
 #[derive(Deserialize)]
 pub struct AnnotationDataSetBuilder {
     #[serde(rename = "@id")]
