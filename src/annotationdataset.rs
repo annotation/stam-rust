@@ -351,14 +351,18 @@ impl PartialEq<AnnotationDataSet> for AnnotationDataSet {
 impl AnnotationDataSetBuilder {
     /// Loads an AnnotationDataSet from a STAM JSON file, as a builder
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_file(filename: &str) -> Result<Self, StamError> {
+    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
+    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
         let f = File::open(filename).map_err(|e| {
             StamError::IOError(e, "Reading AnnotationDataSet from file, open failed")
         })?;
         let reader = BufReader::new(f);
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-        let result: Result<AnnotationDataSetBuilder, _> =
+        let mut result: Result<AnnotationDataSetBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
+        if result.is_ok() && include {
+            result.as_mut().unwrap().include = Some(filename.to_string());
+        }
         result.map_err(|e| {
             StamError::JsonError(
                 e,
@@ -397,8 +401,9 @@ impl AnnotationDataSet {
 
     /// Loads an AnnotationDataSet from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_file(filename: &str) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_file(filename)?;
+    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
+    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
+        let builder = AnnotationDataSetBuilder::from_file(filename, include)?;
         Self::from_builder(builder)
     }
 
@@ -413,7 +418,7 @@ impl AnnotationDataSet {
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
     pub fn merge_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_file(filename)?;
+        let builder = AnnotationDataSetBuilder::from_file(filename, false)?;
         self.merge_from_builder(builder)
     }
 

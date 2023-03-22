@@ -182,12 +182,17 @@ impl PartialEq<TextResource> for TextResource {
 impl TextResourceBuilder {
     /// Loads a Text Resource from a STAM JSON file. Plain text files are not supported via the builder  (they are via [`TextResource::from_file()`] directly)
     /// The file must contain a single object which has "@type": "TextResource"
-    pub fn from_file(filename: &str) -> Result<Self, StamError> {
+    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
+    pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
         let f = File::open(filename)
             .map_err(|e| StamError::IOError(e, "Reading text resource from file, open failed"))?;
         let reader = BufReader::new(f);
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-        let result: Result<TextResourceBuilder, _> = serde_path_to_error::deserialize(deserializer);
+        let mut result: Result<TextResourceBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        if result.is_ok() && include {
+            result.as_mut().unwrap().include = Some(filename.to_string());
+        }
         result.map_err(|e| {
             StamError::JsonError(e, filename.to_string(), "Reading text resource from file")
         })
@@ -230,7 +235,7 @@ impl TextResource {
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
     pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
-            let builder = TextResourceBuilder::from_file(filename)?;
+            let builder = TextResourceBuilder::from_file(filename, include)?;
             Self::from_builder(builder)
         } else {
             Ok(Self {
