@@ -241,6 +241,21 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum SerializeMode {
+    /// Allow serialisation of stand-off files (which means we allow @include)
+    AllowInclude,
+
+    ///We are in standoff mode to serialized stand-off files (which means we don't output @include again)
+    NoInclude,
+}
+
+impl Default for SerializeMode {
+    fn default() -> Self {
+        Self::AllowInclude
+    }
+}
+
 //Configuration pertaining to a store
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StoreConfig {
@@ -249,38 +264,31 @@ pub struct StoreConfig {
 
     /// This flag can be flagged on or off (using internal mutability) to indicate whether we are serializing for the standoff include mechanism
     #[serde(skip)]
-    standoff_include: Arc<RwLock<bool>>,
+    serialize_mode: Arc<RwLock<SerializeMode>>,
 }
 
 impl Default for StoreConfig {
     fn default() -> Self {
         Self {
             generate_ids: true,
-            standoff_include: Arc::new(RwLock::new(false)),
+            serialize_mode: Arc::new(RwLock::new(SerializeMode::AllowInclude)),
         }
     }
 }
 
 impl StoreConfig {
     /// This sets a parameter we use in serialisation
-    pub(crate) fn begin_standoff_include(&self) {
-        if let Ok(mut standoff_include) = self.standoff_include.write() {
-            *standoff_include = true;
+    pub(crate) fn set_serialize_mode(&self, mode: SerializeMode) {
+        if let Ok(mut serialize_mode) = self.serialize_mode.write() {
+            *serialize_mode = mode;
         }
     }
-    /// This unsets a parameter we use in serialisation
-    pub(crate) fn end_standoff_include(&self) {
-        if let Ok(mut standoff_include) = self.standoff_include.write() {
-            *standoff_include = false;
-        }
-    }
-
     /// This tests a parameter we use in serialisation
-    pub(crate) fn standoff_include(&self) -> bool {
-        if let Ok(mut standoff_include) = self.standoff_include.read() {
-            *standoff_include
+    pub(crate) fn serialize_mode(&self) -> SerializeMode {
+        if let Ok(mut serialize_mode) = self.serialize_mode.read() {
+            *serialize_mode
         } else {
-            false
+            panic!("Unable to get lock for serialize mode");
         }
     }
 }

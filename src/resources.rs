@@ -142,7 +142,7 @@ impl Serialize for TextResource {
         let mut state = serializer.serialize_struct("TextResource", 2)?;
         let config = self.config();
         state.serialize_field("@type", "TextResource")?;
-        if self.include.is_some() && !config.standoff_include() {
+        if self.include.is_some() && config.serialize_mode() == SerializeMode::AllowInclude {
             let filename = self.include.as_ref().unwrap();
             if self.id() != Some(&filename) {
                 state.serialize_field("@id", &self.id())?;
@@ -257,25 +257,28 @@ impl TextResource {
     /// Writes a resource to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
         let config = self.config();
-        config.begin_standoff_include(); //set standoff mode, what we're about the write is the standoff file
         let f = File::create(filename);
-        config.end_standoff_include();
         let f = f.map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
         let writer = BufWriter::new(f);
-        serde_json::to_writer_pretty(writer, &self).map_err(|e| {
-            StamError::SerializationError(format!("Writing dataset to file: {}", e))
-        })?;
+        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        let result = serde_json::to_writer_pretty(writer, &self)
+            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
+        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        result?;
         Ok(())
     }
 
     /// Writes a resource to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
+        let config = self.config();
         let f = File::create(filename)
             .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
         let writer = BufWriter::new(f);
-        serde_json::to_writer(writer, &self).map_err(|e| {
-            StamError::SerializationError(format!("Writing dataset to file: {}", e))
-        })?;
+        config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
+        let result = serde_json::to_writer(writer, &self)
+            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
+        config.set_serialize_mode(SerializeMode::AllowInclude); //reset
+        result?;
         Ok(())
     }
 
