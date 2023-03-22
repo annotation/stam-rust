@@ -369,8 +369,32 @@ impl AnnotationDataSet {
             StamError::IOError(e, "Reading AnnotationDataSet from file, open failed")
         })?;
         let reader = BufReader::new(f);
-        let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader)
-            .map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+        let result: Result<AnnotationDataSetBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        let builder: AnnotationDataSetBuilder = result.map_err(|e| {
+            StamError::JsonError(
+                e,
+                filename.to_string(),
+                "Reading AnnotationDataSet from file",
+            )
+        })?;
+        Self::from_builder(builder)
+    }
+
+    /// Loads an AnnotationDataSet from a STAM JSON string
+    /// The string must contain a single object which has "@type": "AnnotationDataSet"
+    pub fn from_str(string: &str) -> Result<Self, StamError> {
+        let deserializer = &mut serde_json::Deserializer::from_str(string);
+        let result: Result<AnnotationDataSetBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        let builder: AnnotationDataSetBuilder = result.map_err(|e| {
+            StamError::JsonError(
+                e,
+                string.to_string(),
+                "Reading AnnotationDataSet from string",
+            )
+        })?;
         Self::from_builder(builder)
     }
 
@@ -382,8 +406,16 @@ impl AnnotationDataSet {
             StamError::IOError(e, "Reading AnnotationDataSet from file, open failed")
         })?;
         let reader = BufReader::new(f);
-        let builder: AnnotationDataSetBuilder = serde_json::from_reader(reader)
-            .map_err(|e| StamError::JsonError(e, "Reading AnnotationDataSet from file"))?;
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+        let result: Result<AnnotationDataSetBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        let builder: AnnotationDataSetBuilder = result.map_err(|e| {
+            StamError::JsonError(
+                e,
+                filename.to_string(),
+                "Reading AnnotationDataSet from file",
+            )
+        })?;
         self.merge_from_builder(builder)
     }
 

@@ -209,11 +209,14 @@ impl TextResource {
     pub fn from_file(filename: &str, include: bool) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
             let f = File::open(filename).map_err(|e| {
-                StamError::IOError(e, "Reading text resource from STAM JSON file, open failed")
+                StamError::IOError(e, "Reading TextResource from file, open failed")
             })?;
             let reader = BufReader::new(f);
-            let builder: TextResourceBuilder = serde_json::from_reader(reader).map_err(|e| {
-                StamError::JsonError(e, "Reading text resource from STAM JSON file")
+            let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+            let result: Result<TextResourceBuilder, _> =
+                serde_path_to_error::deserialize(deserializer);
+            let builder: TextResourceBuilder = result.map_err(|e| {
+                StamError::JsonError(e, filename.to_string(), "Reading TextResource from file")
             })?;
             Self::build_new(builder)
         } else {

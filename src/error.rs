@@ -42,7 +42,11 @@ pub enum StamError {
     IOError(std::io::Error, &'static str),
 
     /// This error indicates there was an error during JSON parsing. It wraps the deeper error that occurred.
-    JsonError(serde_json::error::Error, &'static str),
+    JsonError(
+        serde_path_to_error::Error<serde_json::error::Error>,
+        String, //filename or string of entire json
+        &'static str,
+    ),
 
     SerializationError(String),
 
@@ -99,12 +103,15 @@ impl From<&StamError> for String {
                 format!("NoIdError: Store does not map IDs. ({})", contextmsg)
             }
             StamError::DuplicateIdError(id, contextmsg) => format!(
-                "DuplicatIdError: ID already exists: {} ({})",
+                "DuplicatIdError: ID already exists for a different item: {} ({})",
                 id, contextmsg
             ),
             StamError::IOError(err, contextmsg) => format!("IOError: {} ({})", err, contextmsg),
-            StamError::JsonError(err, contextmsg) => {
-                format!("JsonError: Parsing failed: {} ({})", err, contextmsg)
+            StamError::JsonError(err, input, contextmsg) => {
+                format!(
+                    "JsonError: Parsing failed: {} ({}). Input: {}",
+                    err, contextmsg, input
+                )
             }
             StamError::SerializationError(err) => {
                 format!("SerializationError: Serialization failed: {}", err)

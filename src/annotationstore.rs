@@ -535,16 +535,24 @@ impl AnnotationStore {
         let f = File::open(filename)
             .map_err(|e| StamError::IOError(e, "Reading annotationstore from file, open failed"))?;
         let reader = BufReader::new(f);
-        let builder: AnnotationStoreBuilder = serde_json::from_reader(reader)
-            .map_err(|e| StamError::JsonError(e, "Reading annotationstore from file"))?;
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+        let result: Result<AnnotationStoreBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        let builder: AnnotationStoreBuilder = result.map_err(|e| {
+            StamError::JsonError(e, filename.to_string(), "Reading annotationstore from file")
+        })?;
         Self::from_builder(builder)
     }
 
     /// Loads an AnnotationStore from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationStore"
     pub fn from_str(string: &str) -> Result<Self, StamError> {
-        let builder: AnnotationStoreBuilder = serde_json::from_str(string)
-            .map_err(|e| StamError::JsonError(e, "Reading annotationstore from file"))?;
+        let deserializer = &mut serde_json::Deserializer::from_str(string);
+        let result: Result<AnnotationStoreBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        let builder: AnnotationStoreBuilder = result.map_err(|e| {
+            StamError::JsonError(e, string.to_string(), "Reading annotationstore from string")
+        })?;
         Self::from_builder(builder)
     }
 
@@ -553,8 +561,12 @@ impl AnnotationStore {
         let f = File::open(filename)
             .map_err(|e| StamError::IOError(e, "Reading annotationstore from file, open failed"))?;
         let reader = BufReader::new(f);
-        let builder: AnnotationStoreBuilder = serde_json::from_reader(reader)
-            .map_err(|e| StamError::JsonError(e, "Reading annotationstore from file"))?;
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+        let result: Result<AnnotationStoreBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        let builder: AnnotationStoreBuilder = result.map_err(|e| {
+            StamError::JsonError(e, filename.to_string(), "Reading annotationstore from file")
+        })?;
         self.merge_from_builder(builder)
     }
 
