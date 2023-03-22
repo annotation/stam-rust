@@ -451,13 +451,15 @@ impl<'a> Annotation {
 
 /// Helper structure for deserialisation
 #[derive(Deserialize)]
-#[serde(expecting = "DEBUG")]
-struct AnnotationJson {
+pub(crate) struct AnnotationJson {
     #[serde(rename = "@id")]
     id: Option<String>,
     data: Vec<AnnotationDataBuilder>,
     target: SelectorBuilder,
 }
+
+#[derive(Deserialize)]
+pub(crate) struct AnnotationsJson(pub(crate) Vec<AnnotationJson>);
 
 impl From<AnnotationJson> for AnnotationBuilder {
     fn from(helper: AnnotationJson) -> Self {

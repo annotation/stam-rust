@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::slice::Iter;
 
-use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
+use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
@@ -571,6 +571,23 @@ impl AnnotationStore {
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
         let builder = AnnotationStoreBuilder::from_file(filename)?;
         self.merge_from_builder(builder)?;
+        Ok(self)
+    }
+
+    /// Load a JSON file containing an array of annotations in STAM JSON
+    pub fn annotate_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
+        let f = File::open(filename)
+            .map_err(|e| StamError::IOError(e, "Reading annotations from file, open failed"))?;
+        let reader = BufReader::new(f);
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+        let result: Result<AnnotationsJson, _> = serde_path_to_error::deserialize(deserializer);
+        let result = result.map_err(|e| {
+            StamError::JsonError(e, filename.to_string(), "Reading annotations from file")
+        })?;
+        for annotation in result.0.into_iter() {
+            let builder: AnnotationBuilder = annotation.into();
+            self.annotate(builder)?;
+        }
         Ok(self)
     }
 
