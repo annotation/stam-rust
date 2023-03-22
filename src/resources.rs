@@ -158,7 +158,7 @@ impl Serialize for TextResource {
         S: Serializer,
     {
         let mut state = serializer.serialize_struct("TextResource", 2)?;
-        let config = self.config();
+        let config = self.storeconfig();
         state.serialize_field("@type", "TextResource")?;
         if self.include.is_some() && config.serialize_mode() == SerializeMode::AllowInclude {
             let filename = self.include.as_ref().unwrap();
@@ -303,7 +303,7 @@ impl TextResource {
 
     /// Writes a resource to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let config = self.config();
+        let config = self.storeconfig();
         let f = File::create(filename);
         let f = f.map_err(|e| StamError::IOError(e, "Writing resource from file, open failed"))?;
         let writer = BufWriter::new(f);
@@ -317,7 +317,7 @@ impl TextResource {
 
     /// Writes a resource to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let config = self.config();
+        let config = self.storeconfig();
         let f = File::create(filename)
             .map_err(|e| StamError::IOError(e, "Writing resource from file, open failed"))?;
         let writer = BufWriter::new(f);
@@ -341,7 +341,7 @@ impl TextResource {
 
     /// Writes a resource to a STAM JSON string, with appropriate formatting
     pub fn to_json(&self) -> Result<String, StamError> {
-        let config = self.config();
+        let config = self.storeconfig();
         config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_string_pretty(&self).map_err(|e| {
             StamError::SerializationError(format!("Serializing resource to string: {}", e))
@@ -352,7 +352,7 @@ impl TextResource {
 
     /// Writes a resource to a STAM JSON string, without any indentation
     pub fn to_json_compact(&self) -> Result<String, StamError> {
-        let config = self.config();
+        let config = self.storeconfig();
         config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
         let result = serde_json::to_string(&self).map_err(|e| {
             StamError::SerializationError(format!("Serializing resource to string: {}", e))
@@ -642,7 +642,7 @@ impl StoreFor<TextSelection> for TextResource {
         "TextSelection in TextResource"
     }
 
-    fn config(&self) -> &StoreConfig {
+    fn storeconfig(&self) -> &StoreConfig {
         &self.config
     }
 

@@ -200,7 +200,7 @@ impl StoreFor<TextResource> for AnnotationStore {
         Ok(())
     }
 
-    fn config(&self) -> &StoreConfig {
+    fn storeconfig(&self) -> &StoreConfig {
         &self.config.storeconfig
     }
 }
@@ -432,7 +432,7 @@ impl StoreFor<Annotation> for AnnotationStore {
         Ok(())
     }
 
-    fn config(&self) -> &StoreConfig {
+    fn storeconfig(&self) -> &StoreConfig {
         &self.config.storeconfig
     }
 }
@@ -478,7 +478,7 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
         Ok(())
     }
 
-    fn config(&self) -> &StoreConfig {
+    fn storeconfig(&self) -> &StoreConfig {
         &self.config.storeconfig
     }
 }
@@ -583,8 +583,13 @@ impl AnnotationStore {
 
     /// Sets a configuration for the annotation store. The configuration determines what
     /// reverse indices are built.
-    pub fn with_configuration(&mut self, configuration: Config) {
+    pub fn with_config(&mut self, configuration: Config) {
         self.config = configuration;
+    }
+
+    /// Return the associated configuration
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
     ///Builds a new annotation store from [`AnnotationStoreBuilder'].
@@ -727,14 +732,14 @@ impl AnnotationStore {
     /// Used to set the serialization mode, determines whether to output @include statements and standoff files
     /// This should be used prior to calling [`AnnotationStore.to_file()`] or [`AnnotationStore.to_string()`]
     pub fn set_serialize_mode(&self, mode: SerializeMode) {
-        let config = <AnnotationStore as StoreFor<Annotation>>::config(self);
+        let config = <AnnotationStore as StoreFor<Annotation>>::storeconfig(self);
         config.set_serialize_mode(mode);
         for resource in self.resources() {
-            let config = resource.config();
+            let config = resource.storeconfig();
             config.set_serialize_mode(mode);
         }
         for annotationset in self.annotationsets() {
-            let config = <AnnotationDataSet as StoreFor<DataKey>>::config(annotationset);
+            let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(annotationset);
             config.set_serialize_mode(mode);
         }
     }

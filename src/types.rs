@@ -439,7 +439,7 @@ pub trait StoreFor<T: Storable> {
                 //                 v-- MAYBE TODO: optimise the id copy away
                 idmap.data.insert(id.to_string(), item.handle().unwrap())
             });
-        } else if self.config().generate_ids {
+        } else if self.storeconfig().generate_ids {
             item = item.generate_id(self.idmap_mut());
         }
 
@@ -710,7 +710,7 @@ pub trait StoreFor<T: Storable> {
     }
 
     /// Return associated configuration
-    fn config(&self) -> &StoreConfig;
+    fn storeconfig(&self) -> &StoreConfig;
 }
 
 //  generic iterator implementations, these take care of skipping over deleted items (None)

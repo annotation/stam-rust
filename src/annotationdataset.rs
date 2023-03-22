@@ -214,7 +214,7 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         Ok(())
     }
 
-    fn config(&self) -> &StoreConfig {
+    fn storeconfig(&self) -> &StoreConfig {
         &self.config
     }
 }
@@ -272,7 +272,7 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
         Ok(())
     }
 
-    fn config(&self) -> &StoreConfig {
+    fn storeconfig(&self) -> &StoreConfig {
         &self.config
     }
 }
@@ -301,7 +301,7 @@ impl Serialize for AnnotationDataSet {
     {
         let mut state = serializer.serialize_struct("AnnotationDataSet", 4)?;
         state.serialize_field("@type", "AnnotationDataSet")?;
-        let config = <AnnotationDataSet as StoreFor<DataKey>>::config(self);
+        let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(self);
         if self.include.is_some() && config.serialize_mode() == SerializeMode::AllowInclude
         //                                      ^-- we need type annotations for the compiler, doesn't really matter which we use
         {
@@ -632,7 +632,7 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let config = <AnnotationDataSet as StoreFor<DataKey>>::config(self);
+        let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(self);
         config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let f = File::create(filename);
         let f = f.map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
@@ -646,7 +646,7 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let config = <AnnotationDataSet as StoreFor<DataKey>>::config(self);
+        let config = <AnnotationDataSet as StoreFor<DataKey>>::storeconfig(self);
         let f = File::create(filename)
             .map_err(|e| StamError::IOError(e, "Writing dataset from file, open failed"))?;
         let writer = BufWriter::new(f);
