@@ -1342,7 +1342,7 @@ impl AnnotationStore {
     ///  - resource_annotation_map
     ///  - dataset_annotation_map
     ///  - annotation_annotation_map
-    pub fn index_totalcount(&mut self) -> (usize, usize, usize, usize, usize) {
+    pub fn index_totalcount(&self) -> (usize, usize, usize, usize, usize) {
         (
             self.dataset_data_annotation_map.totalcount(),
             self.textrelationmap.totalcount(),
