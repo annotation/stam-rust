@@ -1,7 +1,7 @@
 use sealed::sealed;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -1031,6 +1031,10 @@ where
 
 /// Get a file for reading or writing, this resolves relative files more intelligently
 pub(crate) fn get_filepath(filename: &str, workdir: Option<&Path>) -> Result<PathBuf, StamError> {
+    if filename == "-" {
+        //designates stdin or stdout
+        return Ok(filename.into());
+    }
     if filename.starts_with("https://") || filename.starts_with("http://") {
         //TODO: implement downloading of remote URLs and storing them locally
         return Err(StamError::OtherError("Loading URLs is not supported yet"));
@@ -1097,16 +1101,25 @@ pub(crate) fn create_file(filename: &str, config: &Config) -> Result<File, StamE
 pub(crate) fn open_file_reader(
     filename: &str,
     config: &Config,
-) -> Result<BufReader<File>, StamError> {
-    Ok(BufReader::new(open_file(filename, config)?))
+) -> Result<Box<dyn BufRead>, StamError> {
+    if filename == "-" {
+        //read from stdin
+        Ok(Box::new(std::io::stdin().lock()))
+    } else {
+        Ok(Box::new(BufReader::new(open_file(filename, config)?)))
+    }
 }
 
 /// Auxiliary function to help open files
 pub(crate) fn open_file_writer(
     filename: &str,
     config: &Config,
-) -> Result<BufWriter<File>, StamError> {
-    Ok(BufWriter::new(create_file(filename, config)?))
+) -> Result<Box<dyn Write>, StamError> {
+    if filename == "-" {
+        Ok(Box::new(std::io::stdout()))
+    } else {
+        Ok(Box::new(BufWriter::new(create_file(filename, config)?)))
+    }
 }
 
 pub(crate) fn debug<F>(config: &Config, message_func: F)
