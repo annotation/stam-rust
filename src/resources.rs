@@ -505,22 +505,22 @@ impl TextResource {
 
     /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in ['utf8byte()`]
     pub fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
-        let mut beginpos = None;
+        let mut beginpos = 0;
+        let mut beginbyte = 0;
         for (pos, posindexitem) in self.positionindex.0.iter() {
             if bytecursor == posindexitem.bytepos {
                 //lucky shot! an exact match! not likely to happen often
                 return Ok(*pos);
             }
-            beginpos = Some((pos, posindexitem.bytepos));
+            beginpos = *pos;
+            beginbyte = posindexitem.bytepos;
         }
-        if let Some((beginpos, beginbyte)) = beginpos {
-            let textslice = &self.text[beginbyte..];
-            for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
-                if beginbyte + bytepos == bytecursor {
-                    return Ok(beginpos + charpos);
-                } else if beginbyte + bytepos > bytecursor {
-                    break;
-                }
+        let textslice = &self.text[beginbyte..];
+        for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
+            if beginbyte + bytepos == bytecursor {
+                return Ok(beginpos + charpos);
+            } else if beginbyte + bytepos > bytecursor {
+                break;
             }
         }
         Err(StamError::CursorOutOfBounds(
