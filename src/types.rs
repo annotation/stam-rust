@@ -158,6 +158,14 @@ where
         self.data.get(x.unwrap())
     }
 
+    pub fn totalcount(&self) -> usize {
+        let mut total = 0;
+        for v in self.data.iter() {
+            total += v.len();
+        }
+        total
+    }
+
     pub fn count(&self, x: A) -> usize {
         self.data.get(x.unwrap()).map(|v| v.len()).unwrap_or(0)
     }
@@ -217,6 +225,14 @@ where
         } else {
             None
         }
+    }
+
+    pub fn totalcount(&self) -> usize {
+        let mut total = 0;
+        for v in self.data.iter() {
+            total += v.totalcount();
+        }
+        total
     }
 
     pub fn count(&self, x: A, y: B) -> usize {

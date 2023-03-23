@@ -1335,6 +1335,22 @@ impl AnnotationStore {
     ) -> Option<&mut Annotation> {
         self.get_mut_by_anyid(annotation)
     }
+
+    /// Returns total counts for each of the reverse indices
+    ///  - dataset_data_annotation_map
+    ///  - textrelationmap
+    ///  - resource_annotation_map
+    ///  - dataset_annotation_map
+    ///  - annotation_annotation_map
+    pub fn index_totalcount(&mut self) -> (usize, usize, usize, usize, usize) {
+        (
+            self.dataset_data_annotation_map.totalcount(),
+            self.textrelationmap.totalcount(),
+            self.resource_annotation_map.totalcount(),
+            self.dataset_annotation_map.totalcount(),
+            self.annotation_annotation_map.totalcount(),
+        )
+    }
 }
 
 pub struct AnnotationDataIter<'a> {
