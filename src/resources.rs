@@ -1,9 +1,6 @@
 use std::collections::btree_map;
-use std::fs::File;
 use std::io::prelude::*;
-use std::io::BufWriter;
 use std::ops::Bound::{Excluded, Included};
-use std::path::{Path, PathBuf};
 use std::slice::Iter;
 use std::sync::{Arc, RwLock};
 
@@ -12,7 +9,7 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
-use crate::config::{Config, SerializeMode};
+use crate::config::{get_global_config, Config, SerializeMode};
 use crate::error::StamError;
 use crate::selector::{Offset, Selector, SelfSelector};
 use crate::textselection::PositionIndexItem;
@@ -36,9 +33,9 @@ pub struct TextResource {
     /// The internal numeric identifier for the resource (may only be None upon creation when not bound yet)
     intid: Option<TextResourceHandle>,
 
-    /// Is this resource stored stand-off in an external file?
+    /// Is this resource stored stand-off in an external file via @include? This holds the filename.
     #[serde(skip)]
-    include: Option<String>,
+    filename: Option<String>,
 
     /// Flags if the text contents have changed, if so, they need to be reserialised if stored via the include mechanism
     #[serde(skip)]
@@ -54,7 +51,7 @@ pub struct TextResource {
     #[serde(skip)]
     positionindex: PositionIndex,
 
-    #[serde(skip)]
+    #[serde(skip, default = "get_global_config")]
     config: Config,
 }
 
@@ -74,20 +71,23 @@ pub struct TextResourceBuilder {
     #[serde(skip)]
     mode: SerializeMode,
 
-    #[serde(skip)]
-    workdir: Option<PathBuf>,
+    #[serde(skip, default = "get_global_config")]
+    config: Config,
 }
 
 impl TryFrom<TextResourceBuilder> for TextResource {
     type Error = StamError;
 
     fn try_from(builder: TextResourceBuilder) -> Result<Self, StamError> {
+        debug(&builder.config, || {
+            format!("TryFrom<TextResourceBuilder for TextResource>: Creation of TextResource from builder")
+        });
         let textlen = if let Some(text) = &builder.text {
             text.chars().count()
         } else {
             0
         };
-        let mut resource = Self {
+        Ok(Self {
             intid: None,
             id: if let Some(id) = builder.id {
                 id
@@ -104,21 +104,12 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             textlen,
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
-            config: Config::default(),
-            include: builder.include.clone(),
+            config: builder.config,
+            //note: includes have to be resolved in a later stage via [`AnnotationStore.process_includes()`]
+            //      we don't do it here as we don't have state information from the deserializer (believe me, I tried)
+            filename: builder.include.clone(),
             changed: Arc::new(RwLock::new(false)),
-        };
-        if let Some(filename) = &builder.include {
-            if builder.mode == SerializeMode::AllowInclude {
-                //parse and associate external file
-                resource = resource.with_file(
-                    filename,
-                    builder.workdir.as_ref().map(|x| x.as_path()),
-                    builder.include.is_some(),
-                )?;
-            }
-        }
-        Ok(resource)
+        })
     }
 }
 
@@ -160,8 +151,8 @@ impl Serialize for TextResource {
     {
         let mut state = serializer.serialize_struct("TextResource", 2)?;
         state.serialize_field("@type", "TextResource")?;
-        if self.include.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude {
-            let filename = self.include.as_ref().unwrap();
+        if self.filename.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude {
+            let filename = self.filename.as_ref().unwrap();
             if self.id() != Some(&filename) {
                 state.serialize_field("@id", &self.id())?;
             }
@@ -201,28 +192,23 @@ impl TextResourceBuilder {
     /// Loads a Text Resource from a STAM JSON  or plain text file file.
     /// If the file is JSON, it file must contain a single object which has "@type": "TextResource"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn from_file(
-        filename: &str,
-        workdir: Option<&Path>,
-        include: bool,
-    ) -> Result<Self, StamError> {
+    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
-            let reader = open_file_reader(filename, workdir)?;
+            let reader = open_file_reader(filename, config)?;
             let deserializer = &mut serde_json::Deserializer::from_reader(reader);
             let mut result: Result<TextResourceBuilder, _> =
                 serde_path_to_error::deserialize(deserializer);
-            if result.is_ok() && include {
+            if result.is_ok() && config.use_include {
                 let result = result.as_mut().unwrap();
                 result.include = Some(filename.to_string()); //always uses the original filename (not the found one)
                 result.mode = SerializeMode::NoInclude;
-                result.workdir = workdir.map(|x| x.to_owned())
             }
             result.map_err(|e| {
                 StamError::JsonError(e, filename.to_string(), "Reading text resource from file")
             })
         } else {
             //plain text
-            let mut f = open_file(filename, workdir)?;
+            let mut f = open_file(filename, config)?;
             let mut text: String = String::new();
             if let Err(err) = f.read_to_string(&mut text) {
                 return Err(StamError::IOError(
@@ -234,13 +220,13 @@ impl TextResourceBuilder {
             Ok(Self {
                 id: Some(filename.to_string()),
                 text: Some(text),
-                include: if include {
+                include: if config.use_include {
                     Some(filename.to_string())
                 } else {
                     None
                 }, //may be overridden in with_file
                 mode: SerializeMode::NoInclude, //we just processed the include, this instructs the deserialiser not to do it again
-                workdir: workdir.map(|x| x.to_owned()),
+                config: config.clone(),
             })
         }
     }
@@ -264,7 +250,7 @@ impl TextResource {
             intid: None,
             text: String::new(),
             textlen: 0,
-            include: None,
+            filename: None,
             changed: Arc::new(RwLock::new(false)),
             positionindex: PositionIndex::default(),
             textselections: Store::default(),
@@ -280,34 +266,27 @@ impl TextResource {
     }
 
     /// Create a new TextResource from file, the text will be loaded into memory entirely
-    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn from_file(
-        filename: &str,
-        workdir: Option<&Path>,
-        include: bool,
-    ) -> Result<Self, StamError> {
-        let builder = TextResourceBuilder::from_file(filename, workdir, include)?;
-        Self::from_builder(builder)
+    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
+        debug(config, || {
+            format!(
+                "TextResourceBuilder::from_file: filename={:?} config={:?}",
+                filename, config
+            )
+        });
+        let builder = TextResourceBuilder::from_file(filename, config)?;
+        Ok(Self::from_builder(builder)?)
     }
 
     /// Loads a text for the TextResource from file (STAM JSON or plain text), the text will be loaded into memory entirely
-    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn with_file(
-        mut self,
-        filename: &str,
-        workdir: Option<&Path>,
-        include: bool,
-    ) -> Result<Self, StamError> {
-        let builder = TextResourceBuilder::from_file(filename, workdir, include)?;
+    pub fn with_file(mut self, filename: &str, config: &Config) -> Result<Self, StamError> {
+        let builder = TextResourceBuilder::from_file(filename, config)?;
         self = Self::from_builder(builder)?;
         Ok(self)
     }
 
     /// Writes a resource to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config().workdir())?;
+        let writer = open_file_writer(filename, self.config())?;
         self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let result = serde_json::to_writer_pretty(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
@@ -318,7 +297,7 @@ impl TextResource {
 
     /// Writes a resource to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config().workdir())?;
+        let writer = open_file_writer(filename, self.config())?;
         self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let result = serde_json::to_writer(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
@@ -347,14 +326,9 @@ impl TextResource {
         result
     }
 
-    /// Associate an external stand-off file with this resource
-    pub fn set_include(&mut self, filename: &str) {
-        if self.include != Some(filename.to_string()) {
-            if let Ok(mut changed) = self.changed.write() {
-                *changed = true;
-            }
-        }
-        self.include = Some(filename.to_string())
+    /// Get the filename for stand-off file specified using @include (if any)
+    pub fn filename(&self) -> Option<&str> {
+        self.filename.as_ref().map(|x| x.as_str())
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely
@@ -382,7 +356,7 @@ impl TextResource {
             id,
             text,
             intid: None,
-            include: None,
+            filename: None,
             changed: Arc::new(RwLock::new(false)),
             textlen,
             positionindex: PositionIndex::default(),

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -35,12 +36,19 @@ pub struct Config {
     ///generate ids when missing
     pub generate_ids: bool,
 
+    ///use the @include mechanism to point to external files, if unset, all data will be kept in a single STAM JSON file
+    pub use_include: bool,
+
     /// The working directory
     pub workdir: Option<PathBuf>,
 
+    /// Debug mode
+    pub debug: bool,
+
     /// This flag can be flagged on or off (using internal mutability) to indicate whether we are serializing for the standoff include mechanism
+    /// TODO: move this out of the config?
     #[serde(skip)]
-    serialize_mode: Arc<RwLock<SerializeMode>>,
+    pub serialize_mode: Arc<RwLock<SerializeMode>>,
 }
 
 impl Default for Config {
@@ -51,7 +59,9 @@ impl Default for Config {
             dataset_annotation_map: true,
             annotation_annotation_map: true,
             generate_ids: true,
+            use_include: true,
             workdir: None,
+            debug: false,
             serialize_mode: Arc::new(RwLock::new(SerializeMode::AllowInclude)),
         }
     }
@@ -84,8 +94,8 @@ impl Config {
     }
 
     /// Loads configuration a JSON file
-    pub fn from_file(filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
-        let reader = open_file_reader(filename, workdir)?;
+    pub fn from_file(filename: &str) -> Result<Self, StamError> {
+        let reader = open_file_reader(filename, &Config::default())?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
         result
@@ -97,4 +107,24 @@ impl Config {
         serde_json::to_string_pretty(&self)
             .map_err(|e| StamError::SerializationError(format!("Writing config to string: {}", e)))
     }
+}
+
+// below is a fairly ugly solution needed to get the Config into Builder structure deserialised with Serde,
+// which itself has no means to propagate state.. We abuse a global variable to accomplish
+// We use the serde macro default=get_global_config() on the config field to inject this state (as it is not in the serialisation)
+
+thread_local! {
+    pub(crate) static GLOBAL_CONFIG: RefCell<Config> = RefCell::new(Config::default());
+}
+
+pub(crate) fn set_global_config(config: Config) {
+    debug(&config, || format!("set_global_config: {:?}", &config));
+    GLOBAL_CONFIG.with(|global_config| *global_config.borrow_mut() = config);
+}
+
+pub(crate) fn get_global_config() -> Config {
+    let mut config = Config::default();
+    GLOBAL_CONFIG.with(|global_config| config = global_config.borrow().clone());
+    debug(&config, || format!("get_global_config: {:?}", &config));
+    config
 }

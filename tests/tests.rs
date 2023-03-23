@@ -730,7 +730,7 @@ fn parse_json_annotationstore_from_file() -> Result<(), StamError> {
     write!(f, "{}", EXAMPLE_3).expect("writing test file");
 
     //read the test file
-    let store = AnnotationStore::from_file("/tmp/test.stam.json")?;
+    let store = AnnotationStore::from_file("/tmp/test.stam.json", Config::default())?;
     example_3_common_tests(&store)?;
 
     Ok(())
@@ -1175,18 +1175,21 @@ fn test_multiselector2_iter() -> Result<(), StamError> {
 
 #[test]
 fn test_read_single() -> Result<(), StamError> {
-    AnnotationStore::from_file(&format!(
-        "{}/tests/singletest.store.stam.json",
-        CARGO_MANIFEST_DIR
-    ))?;
+    AnnotationStore::from_file(
+        &format!("{}/tests/singletest.store.stam.json", CARGO_MANIFEST_DIR),
+        Config::default(),
+    )?;
     Ok(())
 }
 
 #[test]
 fn test_read_include() -> Result<(), StamError> {
-    let olddir = env::current_dir().unwrap();
-    env::set_current_dir(&format!("{}/tests", CARGO_MANIFEST_DIR));
-    AnnotationStore::from_file("test.store.stam.json")?;
-    env::set_current_dir(olddir);
+    AnnotationStore::from_file(
+        "tests/test.store.stam.json",
+        Config {
+            debug: true,
+            ..Config::default()
+        },
+    )?;
     Ok(())
 }

@@ -1,6 +1,3 @@
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
 use std::slice::Iter;
 
 use sealed::sealed;
@@ -12,6 +9,7 @@ use crate::annotationdata::{
 };
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
+use crate::config::Config;
 use crate::datakey::DataKeyHandle;
 use crate::datavalue::DataValue;
 use crate::error::*;
@@ -230,8 +228,8 @@ impl AnnotationBuilder {
     }
 
     /// Reads a single annotation in STAM JSON from file
-    pub fn from_file(filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
-        let reader = open_file_reader(filename, workdir)?;
+    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
+        let reader = open_file_reader(filename, config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
         result.map_err(|e| {
@@ -342,6 +340,9 @@ impl AnnotationStore {
         &mut self,
         dataitem: AnnotationDataBuilder,
     ) -> Result<(AnnotationDataSetHandle, AnnotationDataHandle), StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore.insert_data: dataitem={:?}", dataitem)
+        });
         // Obtain the dataset for this data item
         let dataset: &mut AnnotationDataSet =
             if let Some(dataset) = self.get_mut_by_anyid(&dataitem.annotationset) {
@@ -369,6 +370,9 @@ impl AnnotationStore {
     /// Builds and inserts an annotation
     /// In a builder pattenr, use [`Self.with_annotation()`] instead
     pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationHandle, StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore.annotate: builder={:?}", builder)
+        });
         // Create the target selector if needed
         // If the selector fails, the annotate() fails with an error
         let target = match builder.target {

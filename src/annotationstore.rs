@@ -3,8 +3,6 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
-use std::fs::File;
-use std::io::BufWriter;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -15,7 +13,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
-use crate::config::{Config, SerializeMode};
+use crate::config::{set_global_config, Config, SerializeMode};
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::error::*;
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
@@ -95,11 +93,15 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
     type Error = StamError;
 
     fn try_from(builder: AnnotationStoreBuilder) -> Result<Self, StamError> {
+        debug(&builder.config, || {
+            format!("TryFrom<AnnotationStoreBuilder for AnnotationStore>: Creation of AnnotationStore from builder")
+        });
         let mut store = Self {
             id: builder.id,
             annotationsets: Vec::with_capacity(builder.annotationsets.len()),
             annotations: Vec::with_capacity(builder.annotations.len()),
             resources: Vec::with_capacity(builder.resources.len()),
+            config: builder.config,
             ..Default::default()
         };
         if let Some(filename) = builder.filename {
@@ -111,14 +113,70 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
                     .expect("filename must be valid utf-8"),
             );
         }
-        for dataset in builder.annotationsets {
-            let dataset: AnnotationDataSet = dataset.try_into()?;
-            store.insert(dataset)?;
+        debug(&store.config, || {
+            format!(
+                "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Adding {} annotation sets",
+                builder.annotationsets.len()
+            )
+        });
+        for annotationset in builder.annotationsets {
+            let mut annotationset: AnnotationDataSet = annotationset.try_into()?;
+            if annotationset.filename().is_some() {
+                //we have an @include statement to resolve
+                let filename = annotationset.filename().unwrap().to_owned();
+                let id = annotationset.id().map(|x| x.to_string());
+                debug(&store.config, || {
+                    format!(
+                        "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Resolving @include for AnnotationDataSet: filename={:?} id={:?}",
+                        filename,
+                        id
+                    )
+                });
+                if id.is_some() {
+                    //create and override with the ID we already had
+                    annotationset = AnnotationDataSet::from_file(&filename, &store.config)?
+                        .with_id(id.unwrap());
+                } else {
+                    annotationset = AnnotationDataSet::from_file(&filename, &store.config)?;
+                }
+            }
+            store.insert(annotationset)?;
         }
+        debug(&store.config, || {
+            format!(
+                "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Adding {} resources",
+                builder.resources.len()
+            )
+        });
         for resource in builder.resources {
-            let resource: TextResource = resource.try_into()?;
+            let mut resource: TextResource = resource.try_into()?;
+            if resource.filename().is_some() {
+                //we have an @include statement to resolve
+                let filename = resource.filename().unwrap().to_owned();
+                let id = resource.id().map(|x| x.to_string());
+                debug(&store.config, || {
+                    format!(
+                        "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Resolving @include for TextResource: filename={:?} id={:?}",
+                        filename,
+                        id
+                    )
+                });
+                if id.is_some() {
+                    //create and override with the ID we already had
+                    resource =
+                        TextResource::from_file(&filename, &store.config)?.with_id(id.unwrap());
+                } else {
+                    resource = TextResource::from_file(&filename, &store.config)?;
+                }
+            }
             store.insert(resource)?;
         }
+        debug(&store.config, || {
+            format!(
+                "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Adding {} annotations",
+                builder.annotations.len()
+            )
+        });
         for annotation in builder.annotations {
             store.annotate(annotation)?;
         }
@@ -205,6 +263,10 @@ impl StoreFor<Annotation> for AnnotationStore {
             .unwrap()
             .as_ref()
             .unwrap();
+
+        debug(self.config(), || {
+            format!("StoreFor<Annotation in AnnotationStore>.inserted: Indexing annotation")
+        });
 
         for (dataset, data) in annotation.data() {
             self.dataset_data_annotation_map
@@ -507,15 +569,20 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
 impl AnnotationStoreBuilder {
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_file(filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
-        let reader = open_file_reader(filename, workdir)?;
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!("AnnotationStoreBuilder::from_file: filename={:?}", filename)
+        });
+        set_global_config(config.clone()); //we need this trick to inject state into serde's deserializer
+        let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let mut result: Result<AnnotationStoreBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
         if result.is_ok() {
             //keep track of the filename we loaded (its directory is searched for @include files when applicable)
-            let result = result.as_mut().unwrap();
-            result.filename = Some(filename.into());
+            let builder = result.as_mut().unwrap();
+            builder.filename = Some(filename.into());
+            builder.config = config;
         }
         result.map_err(|e| {
             StamError::JsonError(e, filename.to_string(), "Reading annotationstore from file")
@@ -524,10 +591,17 @@ impl AnnotationStoreBuilder {
 
     /// Loads an AnnotationStore from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_str(string: &str) -> Result<Self, StamError> {
+    pub fn from_str(string: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!("AnnotationStoreBuilder::from_str: string={:?}", string)
+        });
         let deserializer = &mut serde_json::Deserializer::from_str(string);
-        let result: Result<AnnotationStoreBuilder, _> =
+        let mut result: Result<AnnotationStoreBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
+        if result.is_ok() {
+            let builder = result.as_mut().unwrap();
+            builder.config = config;
+        }
         result.map_err(|e| {
             StamError::JsonError(e, string.to_string(), "Reading annotationstore from string")
         })
@@ -542,46 +616,64 @@ impl Configurable for AnnotationStore {
     }
 
     fn set_config(&mut self, config: Config) -> &mut Self {
+        set_global_config(config.clone()); //we need this trick to inject state for serde's deserializer
         self.config = config;
         self
     }
 }
 
 impl AnnotationStore {
-    ///Creates a new empty annotation store
+    ///Creates a new empty annotation store with a default configuraton, add the [`AnnotationStore.with_config()`] to provide a custom one
     pub fn new() -> Self {
         AnnotationStore::default()
     }
 
-    /// Sets a configuration for the annotation store. The configuration determines what
-    /// reverse indices are built.
-    pub fn with_config(&mut self, configuration: Config) {
-        self.config = configuration;
-    }
-
     ///Builds a new annotation store from [`AnnotationStoreBuilder'].
     pub fn from_builder(builder: AnnotationStoreBuilder) -> Result<Self, StamError> {
-        let store: Self = builder.try_into()?;
-        Ok(store)
+        debug(&builder.config, || format!("AnnotationStore::from_builder"));
+        Ok(builder.try_into()?)
     }
 
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_file(filename: &str) -> Result<Self, StamError> {
-        let builder = AnnotationStoreBuilder::from_file(filename, None)?;
+    pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!(
+                "AnnotationStore::from_file: filename={:?} config={:?}",
+                filename, config
+            )
+        });
+        //extract work directory add add it to the config (if it does not already specify a working directory)
+        if config.workdir().is_none() {
+            let mut workdir: PathBuf = filename.into();
+            workdir.pop();
+            if !workdir.to_str().expect("path to string").is_empty() {
+                debug(&config, || {
+                    format!("AnnotationStore::from_file: set workdir to {:?}", workdir)
+                });
+                config.workdir = Some(workdir);
+            }
+        }
+        let builder = AnnotationStoreBuilder::from_file(filename, config)?;
         Self::from_builder(builder)
     }
 
     /// Loads an AnnotationStore from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_str(string: &str) -> Result<Self, StamError> {
-        let builder = AnnotationStoreBuilder::from_str(string)?;
+    pub fn from_str(string: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!(
+                "AnnotationStore::from_str: string={:?} config={:?}",
+                string, config
+            )
+        });
+        let builder = AnnotationStoreBuilder::from_str(string, config)?;
         Self::from_builder(builder)
     }
 
     /// Merge another annotation store STAM JSON file into this one
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
-        let builder = AnnotationStoreBuilder::from_file(filename, self.config.workdir())?;
+        let builder = AnnotationStoreBuilder::from_file(filename, self.config.clone())?;
         self.merge_from_builder(builder)?;
         Ok(self)
     }
@@ -592,13 +684,22 @@ impl AnnotationStore {
         self
     }
 
-    //Set the associated filename for this annotation store. Also sets the working directory.
+    //Set the associated filename for this annotation store. Also resets the working directory accordingly if needed.
     pub fn set_filename(&mut self, filename: &str) -> &mut Self {
+        debug(self.config(), || {
+            format!("AnnotationStore.set_filename: {}", filename)
+        });
         self.filename = Some(filename.into());
         if let Some(mut workdir) = self.filename.clone() {
             workdir.pop();
-            if workdir.to_str().expect("path to string").is_empty() {
+            if !workdir.to_str().expect("path to string").is_empty() {
+                debug(self.config(), || {
+                    format!("AnnotationStore.set_filename: workdir={:?}", workdir)
+                });
                 self.config.workdir = Some(workdir);
+                set_global_config(self.config.clone());
+                //propagate to all children
+                self.update_config();
             }
         }
         self
@@ -611,7 +712,7 @@ impl AnnotationStore {
 
     /// Load a JSON file containing an array of annotations in STAM JSON
     pub fn annotate_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
-        let reader = open_file_reader(filename, self.config.workdir())?; //TODO!
+        let reader = open_file_reader(filename, self.config())?; //TODO!
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<AnnotationsJson, _> = serde_path_to_error::deserialize(deserializer);
         let result = result.map_err(|e| {
@@ -630,6 +731,9 @@ impl AnnotationStore {
         &mut self,
         builder: AnnotationStoreBuilder,
     ) -> Result<&mut Self, StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore.merge_from_builder")
+        });
         //this is very much like TryFrom<AnnotationStoreBuilder> for AnnotationStore
         for dataset in builder.annotationsets {
             if let Some(dataset_id) = dataset.id.as_ref() {
@@ -662,18 +766,22 @@ impl AnnotationStore {
     /// Returns an error if no filename was associated yet.
     /// Use [`AnnotationStore.to_file`] instead if you want to write elsewhere.
     pub fn save(&self) -> Result<(), StamError> {
+        debug(self.config(), || format!("AnnotationStore.save"));
         if let Some(filepath) = &self.filename {
             self.to_file(filepath.to_str().expect("filename must be valid unicode"))
         } else {
-            Err(StamError::OtherError(
-                "No filename associated with the store",
+            Err(StamError::SerializationError(
+                "No filename associated with the store".to_owned(),
             ))
         }
     }
 
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config().workdir())?;
+        debug(self.config(), || {
+            format!("AnnotationStore.to_file: filename={:?}", filename)
+        });
+        let writer = open_file_writer(filename, self.config())?;
         serde_json::to_writer_pretty(writer, &self).map_err(|e| {
             StamError::SerializationError(format!("Writing annotationstore to file: {}", e))
         })?;
@@ -682,7 +790,7 @@ impl AnnotationStore {
 
     /// Writes an AnnotationStore to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config().workdir())?;
+        let writer = open_file_writer(filename, self.config())?;
         serde_json::to_writer(writer, &self).map_err(|e| {
             StamError::SerializationError(format!("Writing annotationstore to file: {}", e))
         })?;
@@ -698,6 +806,21 @@ impl AnnotationStore {
         }
         for annotationset in self.annotationsets() {
             annotationset.config().set_serialize_mode(mode);
+        }
+    }
+
+    /// Propagate the changed configuration to all children
+    fn update_config(&mut self) {
+        let config = self.config().clone();
+        for resource in self.resources.iter_mut() {
+            if let Some(resource) = resource.as_mut() {
+                resource.set_config(config.clone());
+            }
+        }
+        for annotationset in self.annotationsets.iter_mut() {
+            if let Some(annotationset) = annotationset.as_mut() {
+                annotationset.set_config(config.clone());
+            }
         }
     }
 
@@ -730,10 +853,8 @@ impl AnnotationStore {
     pub fn add_resource_from_file(
         &mut self,
         filename: &str,
-        workdir: Option<&Path>,
-        include: bool,
     ) -> Result<TextResourceHandle, StamError> {
-        let resource = TextResource::from_file(filename, workdir, include)?;
+        let resource = TextResource::from_file(filename, self.config())?;
         self.insert(resource)
     }
 

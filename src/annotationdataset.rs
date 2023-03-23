@@ -1,6 +1,3 @@
-use std::fs::File;
-use std::io::BufWriter;
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use sealed::sealed;
@@ -9,7 +6,7 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
-use crate::config::{Config, SerializeMode};
+use crate::config::{get_global_config, Config, SerializeMode};
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
@@ -34,9 +31,9 @@ pub struct AnnotationDataSet {
     /// A store for [`AnnotationData`], each makes *reference* to a [`DataKey`] (in this same `AnnotationDataSet`) and gives it a value  ([`DataValue`])
     data: Store<AnnotationData>,
 
-    /// Is this annotation dataset stored stand-off in an external file?
+    /// Is this annotation dataset stored stand-off in an external file via @include? This holds the filename
     #[serde(skip)]
-    include: Option<String>,
+    filename: Option<String>,
 
     /// Flags if set has changed, if so, they need to be reserialised if stored via the include mechanism
     #[serde(skip)]
@@ -58,7 +55,7 @@ pub struct AnnotationDataSet {
     key_data_map: RelationMap<DataKeyHandle, AnnotationDataHandle>,
 
     /// Configuration
-    #[serde(skip)]
+    #[serde(skip, default = "get_global_config")]
     config: Config,
 }
 
@@ -70,16 +67,22 @@ pub struct AnnotationDataSetBuilder {
     pub data: Option<Vec<AnnotationDataBuilder>>,
     #[serde(rename = "@include")]
     pub(crate) include: Option<String>,
+
     #[serde(skip)]
     pub(crate) mode: SerializeMode,
-    #[serde(skip)]
-    pub(crate) workdir: Option<PathBuf>,
+
+    /// Configuration
+    #[serde(skip, default = "get_global_config")]
+    pub(crate) config: Config,
 }
 
 impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
     type Error = StamError;
 
     fn try_from(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
+        debug(&builder.config, || {
+            format!("TryFrom<AnnotationBuilder for AnnotationDataSet>: Creation of AnnotationDataSet from builder")
+        });
         let mut set = Self {
             id: builder.id,
             keys: if builder.keys.is_some() {
@@ -92,6 +95,10 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
             } else {
                 Vec::new()
             },
+            //note: includes have to be resolved in a later stage via [`AnnotationStore.process_includes()`]
+            //      we don't do it here as we don't have state information from the deserializer (believe me, I tried)
+            filename: builder.include,
+            config: builder.config,
             ..Default::default()
         };
         if builder.keys.is_some() {
@@ -102,12 +109,6 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
         if builder.data.is_some() {
             for dataitem in builder.data.unwrap() {
                 set.build_insert_data(dataitem, true)?;
-            }
-        }
-        if let Some(filename) = &builder.include {
-            set.include = Some(filename.to_string());
-            if builder.mode == SerializeMode::AllowInclude {
-                set = set.with_file(filename, builder.workdir.as_ref().map(|x| x.as_path()))?;
             }
         }
         Ok(set)
@@ -291,7 +292,7 @@ impl Default for AnnotationDataSet {
             keys: Store::new(),
             data: Store::new(),
             intid: None,
-            include: None,
+            filename: None,
             changed: Arc::new(RwLock::new(false)),
             key_idmap: IdMap::new("K".to_string()),
             data_idmap: IdMap::new("D".to_string()),
@@ -308,10 +309,10 @@ impl Serialize for AnnotationDataSet {
     {
         let mut state = serializer.serialize_struct("AnnotationDataSet", 4)?;
         state.serialize_field("@type", "AnnotationDataSet")?;
-        if self.include.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude
+        if self.filename.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude
         //                                      ^-- we need type annotations for the compiler, doesn't really matter which we use
         {
-            let filename = self.include.as_ref().unwrap();
+            let filename = self.filename.as_ref().unwrap();
             if self.id() != Some(&filename) && self.id.is_some() {
                 state.serialize_field("@id", &self.id().unwrap())?;
             }
@@ -366,20 +367,19 @@ impl AnnotationDataSetBuilder {
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
     /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn from_file(
-        filename: &str,
-        workdir: Option<&Path>,
-        include: bool,
-    ) -> Result<Self, StamError> {
-        let reader = open_file_reader(filename, workdir)?;
+    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
+        debug(config, || {
+            format!("AnnotationDataSetBuilder::from_file: filename={}", filename)
+        });
+        let reader = open_file_reader(filename, config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let mut result: Result<AnnotationDataSetBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
-        if result.is_ok() && include {
-            let result = result.as_mut().unwrap();
-            result.include = Some(filename.to_string()); //we use the original filename, not the one we found
-            result.mode = SerializeMode::NoInclude;
-            result.workdir = workdir.map(|x| x.to_owned())
+        if result.is_ok() {
+            let builder = result.as_mut().unwrap();
+            builder.include = Some(filename.to_string()); //we use the original filename, not the one we found
+            builder.mode = SerializeMode::NoInclude;
+            builder.config = config.clone();
         }
         result.map_err(|e| {
             StamError::JsonError(
@@ -419,15 +419,16 @@ impl AnnotationDataSet {
 
     /// Loads an AnnotationDataSet from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
-    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
     /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn from_file(
-        filename: &str,
-        workdir: Option<&Path>,
-        include: bool,
-    ) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_file(filename, workdir, include)?;
-        Self::from_builder(builder)
+    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
+        debug(config, || {
+            format!(
+                "AnnotationDataSet::from_file: filename={:?} config={:?}",
+                filename, config
+            )
+        });
+        let builder = AnnotationDataSetBuilder::from_file(filename, config)?;
+        Ok(Self::from_builder(builder)?)
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON string
@@ -440,9 +441,14 @@ impl AnnotationDataSet {
     /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current     one.
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
-    /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn with_file(mut self, filename: &str, workdir: Option<&Path>) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_file(filename, workdir, false)?;
+    pub fn with_file(mut self, filename: &str, config: &Config) -> Result<Self, StamError> {
+        debug(config, || {
+            format!(
+                "AnnotationDataSet.with_file: filename={:?} config={:?}",
+                filename, config
+            )
+        });
+        let builder = AnnotationDataSetBuilder::from_file(filename, self.config())?;
         self.merge_from_builder(builder)?;
         Ok(self)
     }
@@ -470,7 +476,11 @@ impl AnnotationDataSet {
         builder: AnnotationDataSetBuilder,
     ) -> Result<&mut Self, StamError> {
         //this function is very much like TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet
+        debug(self.config(), || {
+            format!("AnnotationDataSet.merge_from_builder")
+        });
 
+        //only override ID if we had none yet
         if self.id.is_none() && builder.id.is_some() {
             self.id = builder.id;
         }
@@ -487,6 +497,11 @@ impl AnnotationDataSet {
         Ok(self)
     }
 
+    /// Get the filename for the stand-off file specified using @include (if any)
+    pub fn filename(&self) -> Option<&str> {
+        self.filename.as_ref().map(|x| x.as_str())
+    }
+
     /// Adds new [`AnnotationData`] to the dataset, this should be
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
     pub fn with_data(
@@ -495,6 +510,7 @@ impl AnnotationDataSet {
         key: AnyId<DataKeyHandle>,
         value: DataValue,
     ) -> Result<Self, StamError> {
+        debug(self.config(), || format!("AnnotationDataSet.with_data"));
         self.insert_data(id, key, value, true)?;
         Ok(self)
     }
@@ -540,6 +556,13 @@ impl AnnotationDataSet {
         value: DataValue,
         safety: bool,
     ) -> Result<AnnotationDataHandle, StamError> {
+        debug(self.config(), || {
+            format!(
+                "AnnotationDataSetBuilder.insert_data: id={:?} key={:?} value={:?}",
+                id, key, value
+            )
+        });
+
         let annotationdata: Option<&AnnotationData> = self.get_by_anyid(&id);
         if let Some(annotationdata) = annotationdata {
             //already exists, return as is
@@ -549,7 +572,7 @@ impl AnnotationDataSet {
         }
         if key.is_none() {
             return Err(StamError::IncompleteError(
-                "Key supplied to AnnotationDataSet.with_data() can not be None",
+                "Key supplied to AnnotationDataSet.insert_data() (or with_data()) can not be None",
             ));
         }
 
@@ -562,7 +585,7 @@ impl AnnotationDataSet {
             newkey = true;
             self.insert(DataKey::new(key.to_string().unwrap()))?
         } else {
-            return Err(key.error("Datakey not found by AnnotationDataSet.with_data()"));
+            return Err(key.error("Datakey not found by AnnotationDataSet.insert_data()"));
         };
 
         if !newkey && id.is_none() && safety {
@@ -628,7 +651,7 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config().workdir())?;
+        let writer = open_file_writer(filename, self.config())?;
         self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let result = serde_json::to_writer_pretty(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
@@ -639,7 +662,7 @@ impl AnnotationDataSet {
 
     /// Writes a dataset to a STAM JSON file, without any indentation
     pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config().workdir())?;
+        let writer = open_file_writer(filename, self.config())?;
         self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         let result = serde_json::to_writer(writer, &self)
             .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
