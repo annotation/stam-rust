@@ -503,6 +503,32 @@ impl TextResource {
         }
     }
 
+    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in ['utf8byte()`]
+    pub fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
+        let mut beginpos = None;
+        for (pos, posindexitem) in self.positionindex.0.iter() {
+            if bytecursor == posindexitem.bytepos {
+                //lucky shot! an exact match! not likely to happen often
+                return Ok(*pos);
+            }
+            beginpos = Some((pos, posindexitem.bytepos));
+        }
+        if let Some((beginpos, beginbyte)) = beginpos {
+            let textslice = &self.text[beginbyte..];
+            for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
+                if beginbyte + bytepos == bytecursor {
+                    return Ok(beginpos + charpos);
+                } else if beginbyte + bytepos > bytecursor {
+                    break;
+                }
+            }
+        }
+        Err(StamError::CursorOutOfBounds(
+            Cursor::BeginAligned(bytecursor),
+            "TextResource::utf8byte_to_charpos() (value in error is to be interpreted as a byte position here)",
+        ))
+    }
+
     /// Returns a text selector with the specified offset in this resource
     pub fn text_selector(&self, begin: Cursor, end: Cursor) -> Result<Selector, StamError> {
         if let Some(handle) = self.handle() {
