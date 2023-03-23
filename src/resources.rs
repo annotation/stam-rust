@@ -511,6 +511,8 @@ impl TextResource {
             if bytecursor == posindexitem.bytepos {
                 //lucky shot! an exact match! not likely to happen often
                 return Ok(*pos);
+            } else if posindexitem.bytepos > bytecursor {
+                break;
             }
             beginpos = *pos;
             beginbyte = posindexitem.bytepos;
