@@ -426,15 +426,15 @@ impl TextResource {
     }
 
     /// Returns a string reference to a slice of text as specified by the offset
-    /// This is a higher-level variant of [`Self.text_of()`].
+    /// This is a higher-level variant of [`Self.text_by_textselection()`].
     pub fn text_slice(&self, offset: &Offset) -> Result<&str, StamError> {
         let textselection = self.textselection(offset)?;
-        self.text_of(&textselection)
+        self.text_by_textselection(&textselection)
     }
 
     /// Returns the text for a given [`TextSelection`]. Make sure the [`TextSelection`] applies to this resource, there are no further checks here.
     /// Use [`Self.text_slice()`] for a higher-level method that takes an offset.
-    pub fn text_of(&self, selection: &TextSelection) -> Result<&str, StamError> {
+    pub fn text_by_textselection(&self, selection: &TextSelection) -> Result<&str, StamError> {
         let beginbyte = self.utf8byte(selection.begin)?;
         let endbyte = self.utf8byte(selection.end)?;
         Ok(&self.text()[beginbyte..endbyte])

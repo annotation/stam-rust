@@ -320,7 +320,10 @@ fn store_get_text_selection() -> Result<(), StamError> {
         5,
         "testing utf-8 end byte"
     );
-    assert_eq!(resource.text_of(&textselection).unwrap(), "Hello");
+    assert_eq!(
+        resource.text_by_textselection(&textselection).unwrap(),
+        "Hello"
+    );
     Ok(())
 }
 
@@ -791,7 +794,7 @@ fn textselection() -> Result<(), StamError> {
     for (resourcehandle, textselection) in store.textselections_by_annotation(&sentence) {
         let resource: &TextResource = store.get(resourcehandle)?;
         assert_eq!(
-            resource.text_of(&textselection).unwrap(),
+            resource.text_by_textselection(&textselection).unwrap(),
             "I am only passionately curious."
         )
     }
@@ -824,7 +827,10 @@ fn textselection_relative() -> Result<(), StamError> {
     let word: &Annotation = store.get_by_id("sentence2word2")?;
     for (resourcehandle, textselection) in store.textselections_by_annotation(&word) {
         let resource: &TextResource = store.get(resourcehandle)?;
-        assert_eq!(resource.text_of(&textselection).unwrap(), "am")
+        assert_eq!(
+            resource.text_by_textselection(&textselection).unwrap(),
+            "am"
+        )
     }
     Ok(())
 }
@@ -848,7 +854,7 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
             textselection,
             resource.textlen()
         );
-        assert_eq!(resource.text_of(&textselection)?, "curious")
+        assert_eq!(resource.text_by_textselection(&textselection)?, "curious")
     }
     Ok(())
 }

@@ -1022,7 +1022,7 @@ impl AnnotationStore {
                 .map(|(reshandle, selection)| {
                     let resource: &TextResource = self.get(reshandle).expect("resource must exist");
                     resource
-                        .text_of(&selection)
+                        .text_by_textselection(&selection)
                         .expect("selection must be valid")
                 }),
         )
