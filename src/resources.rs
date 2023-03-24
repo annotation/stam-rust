@@ -547,7 +547,7 @@ impl TextResource {
     /// An offset can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
     pub fn search_text<'a, 'b>(
         &'a self,
-        expressions: &'b [&'b Regex],
+        expressions: &'b [Regex],
         offset: Option<&Offset>,
         precompiledset: Option<&RegexSet>,
     ) -> Result<SearchTextIter<'a, 'b>, StamError> {
@@ -892,9 +892,9 @@ impl<'t, 'r> SearchTextMatch<'t, 'r> {
 
 pub struct SearchTextIter<'t, 'r> {
     resource: &'t TextResource,
-    expressions: &'r [&'r Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
+    expressions: &'r [Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
     selectexpressions: Option<Vec<usize>>, //points at an expression
-    cursor: usize,                //points at an expression in selectexpressions
+    cursor: usize,            //points at an expression in selectexpressions
     matchiter: Matches<'r, 't>,
     text: &'t str,
     begincharpos: usize,
@@ -910,7 +910,7 @@ impl<'t, 'r> Iterator for SearchTextIter<'t, 'r> {
             if self.cursor >= selectexpressions.len() {
                 return None;
             }
-            let re = self.expressions[selectexpressions[self.cursor]];
+            let re = &self.expressions[selectexpressions[self.cursor]];
             if re.captures_len() > 1 {
                 self.matchiter = Matches::WithCapture(re.captures_iter(self.text))
             } else {
@@ -934,7 +934,7 @@ impl<'t, 'r> Iterator for SearchTextIter<'t, 'r> {
                                 .expect("byte to pos conversion must succeed"),
                     };
                     return Some(SearchTextMatch {
-                        expression: self.expressions[self.selectexpressions()[self.cursor]],
+                        expression: &self.expressions[self.selectexpressions()[self.cursor]],
                         expression_index: self.selectexpressions()[self.cursor],
                         resource: self.resource,
                         textselections: smallvec!(textselection),
@@ -967,7 +967,7 @@ impl<'t, 'r> Iterator for SearchTextIter<'t, 'r> {
                         }
                     }
                     return Some(SearchTextMatch {
-                        expression: self.expressions[self.selectexpressions()[self.cursor]],
+                        expression: &self.expressions[self.selectexpressions()[self.cursor]],
                         expression_index: self.selectexpressions()[self.cursor],
                         resource: self.resource,
                         textselections,

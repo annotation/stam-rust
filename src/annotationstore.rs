@@ -1362,7 +1362,7 @@ impl AnnotationStore {
     /// Note that this method, unlike its counterpart on TextResource, silently ignores any deeper errors that might occur
     pub fn search_text<'t, 'r>(
         &'t self,
-        expressions: &'r [&'r Regex],
+        expressions: &'r [Regex],
         offset: &'r Option<Offset>,
         precompiledset: &'r Option<RegexSet>,
     ) -> Box<impl Iterator<Item = SearchTextMatch<'t, 'r>>> {
