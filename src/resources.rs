@@ -1,13 +1,15 @@
 use std::collections::btree_map;
 use std::io::prelude::*;
 use std::ops::Bound::{Excluded, Included};
+use std::ops::Deref;
 use std::slice::Iter;
 use std::sync::{Arc, RwLock};
 
+use regex::{Regex, RegexSet};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use smallvec::smallvec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::config::{get_global_config, Config, SerializeMode};
 use crate::error::StamError;
@@ -531,6 +533,59 @@ impl TextResource {
         ))
     }
 
+    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
+    /// is held by the [`SearchTextMatch'] struct.
+    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
+    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
+    /// The entire experssion is returned.
+    /// An offset can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
+    pub fn search_text<'a>(
+        &'a self,
+        expressions: &'a [&'a Regex],
+        offset: Option<&Offset>,
+        precompiledset: Option<&RegexSet>,
+    ) -> Result<SearchTextIter<'a>, StamError> {
+        let (text, begincharpos, beginbytepos) = if let Some(offset) = offset {
+            let selection = self.textselection(&offset)?;
+            (
+                self.text_by_textselection(&selection)?,
+                selection.begin(),
+                self.utf8byte(selection.begin())?,
+            )
+        } else {
+            (self.text(), 0, 0)
+        };
+        let selectexpressions = if expressions.len() > 2 {
+            //we have multiple expressions, first we do a pass to see WHICH of the regular expression matche (taking them all into account in a single pass!).
+            //then afterwards we find for each of the matching expressions WHERE they are found
+            let foundexpressions: Vec<_> = if let Some(regexset) = precompiledset {
+                regexset.matches(text).into_iter().collect()
+            } else {
+                RegexSet::new(expressions.iter().map(|x| x.as_str()))
+                    .map_err(|e| {
+                        StamError::RegexError(e, "Parsing regular expressions in search_text()")
+                    })?
+                    .matches(text)
+                    .into_iter()
+                    .collect()
+            };
+            Some(foundexpressions)
+        } else {
+            None //means we select all
+        };
+        //Returns an iterator that does the remainder of the actual searching
+        Ok(SearchTextIter {
+            resource: self,
+            expressions,
+            selectexpressions,
+            cursor: 0,
+            matchiter: Matches::None,
+            text,
+            begincharpos,
+            beginbytepos,
+        })
+    }
+
     /// Returns a text selector with the specified offset in this resource
     pub fn text_selector(&self, begin: Cursor, end: Cursor) -> Result<Selector, StamError> {
         if let Some(handle) = self.handle() {
@@ -746,5 +801,177 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
         //final clause
         self.end2beginiter = None;
         self.next_back()
+    }
+}
+
+enum Matches<'a> {
+    None,
+    NoCapture(regex::Matches<'a, 'a>),
+    WithCapture(regex::CaptureMatches<'a, 'a>),
+}
+
+pub struct SearchTextMatch<'a> {
+    expression: &'a Regex,
+    expression_index: usize,
+    textselections: SmallVec<[TextSelection; 2]>,
+    //Records the numbers of the capture that match (1-indexed)
+    capturegroups: SmallVec<[usize; 2]>,
+    resource: &'a TextResource,
+}
+
+impl<'a> SearchTextMatch<'a> {
+    /// Does this match return multiple text selections?
+    /// Multiple text selections are returned only when the expression contains multiple capture groups.
+    pub fn multi(&self) -> bool {
+        self.textselections.len() > 1
+    }
+
+    /// Returns the regular expression that matched
+    pub fn expression(&self) -> &'a Regex {
+        self.expression
+    }
+
+    /// Returns the index of regular expression that matched
+    pub fn expression_index(&self) -> usize {
+        self.expression_index
+    }
+
+    pub fn textselections(&self) -> &[TextSelection] {
+        &self.textselections
+    }
+
+    /// Records the number of the capture groups (1-indexed!) that match.
+    /// This array has the same length as textselections and identifies precisely
+    /// which textselection corresponds with which capture group.
+    pub fn capturegroups(&self) -> &[usize] {
+        &self.capturegroups
+    }
+
+    /// Return the text of the match, this only works
+    /// if there the regular expression targets a single
+    /// consecutive text, i.e. by not using multiple capture groups.
+    pub fn as_str(&self) -> Option<&'a str> {
+        if self.multi() {
+            None
+        } else {
+            Some(
+                self.resource
+                    .text_by_textselection(
+                        self.textselections
+                            .first()
+                            .expect("there must be a textselection"),
+                    )
+                    .expect("textselection should exist"),
+            )
+        }
+    }
+}
+
+pub struct SearchTextIter<'a> {
+    resource: &'a TextResource,
+    expressions: &'a [&'a Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
+    selectexpressions: Option<Vec<usize>>, //points at an expression
+    cursor: usize,                //points at an expression in selectexpressions
+    matchiter: Matches<'a>,
+    text: &'a str,
+    begincharpos: usize,
+    beginbytepos: usize,
+}
+
+impl<'a> Iterator for SearchTextIter<'a> {
+    type Item = SearchTextMatch<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Matches::None = self.matchiter {
+            //a new iterator
+            let selectexpressions = self.selectexpressions();
+            if self.cursor >= selectexpressions.len() {
+                return None;
+            }
+            let re = self.expressions[selectexpressions[self.cursor]];
+            if re.captures_len() > 0 {
+                self.matchiter = Matches::WithCapture(re.captures_iter(self.text))
+            } else {
+                self.matchiter = Matches::NoCapture(re.find_iter(self.text))
+            }
+        }
+        match &mut self.matchiter {
+            Matches::NoCapture(matchiter) => {
+                if let Some(m) = matchiter.next() {
+                    let textselection = TextSelection {
+                        intid: None,
+                        begin: self.begincharpos
+                            + self
+                                .resource
+                                .utf8byte_to_charpos(self.beginbytepos + m.start())
+                                .expect("byte to pos conversion must succeed"),
+                        end: self.begincharpos
+                            + self
+                                .resource
+                                .utf8byte_to_charpos(self.beginbytepos + m.end())
+                                .expect("byte to pos conversion must succeed"),
+                    };
+                    return Some(SearchTextMatch {
+                        expression: self.expressions[self.selectexpressions()[self.cursor]],
+                        expression_index: self.selectexpressions()[self.cursor],
+                        resource: self.resource,
+                        textselections: smallvec!(textselection),
+                        capturegroups: smallvec!(),
+                    });
+                }
+            }
+            Matches::WithCapture(matchiter) => {
+                if let Some(m) = matchiter.next() {
+                    let mut groupiter = m.iter();
+                    groupiter.next(); //The first match always corresponds to the overall match of the regex, we can ignore it
+                    let mut textselections: SmallVec<[TextSelection; 2]> = SmallVec::new();
+                    let mut capturegroups: SmallVec<[usize; 2]> = SmallVec::new();
+                    for (i, group) in groupiter.enumerate() {
+                        if let Some(group) = group {
+                            capturegroups.push(i + 1); //1-indexed
+                            textselections.push(TextSelection {
+                                intid: None,
+                                begin: self.begincharpos
+                                    + self
+                                        .resource
+                                        .utf8byte_to_charpos(self.beginbytepos + group.start())
+                                        .expect("byte to pos conversion must succeed"),
+                                end: self.begincharpos
+                                    + self
+                                        .resource
+                                        .utf8byte_to_charpos(self.beginbytepos + group.end())
+                                        .expect("byte to pos conversion must succeed"),
+                            });
+                        }
+                    }
+                    return Some(SearchTextMatch {
+                        expression: self.expressions[self.selectexpressions()[self.cursor]],
+                        expression_index: self.selectexpressions()[self.cursor],
+                        resource: self.resource,
+                        textselections,
+                        capturegroups: capturegroups,
+                    });
+                }
+            }
+            _ => unreachable!("Matchiter must exist"),
+        }
+        //if we reach this point without returning we have no matches to process
+        self.matchiter = Matches::None;
+        //increase cursor for next round
+        self.cursor += 1;
+        //and recurse
+        self.next()
+    }
+}
+
+impl<'a> SearchTextIter<'a> {
+    fn selectexpressions(&self) -> &[usize] {
+        match self.selectexpressions.as_ref() {
+            Some(v) => v,
+            None => match self.expressions.len() {
+                1 => &[0],
+                2 => &[0, 1],
+                _ => unreachable!("Expected 1 or 2 expressions"),
+            },
+        }
     }
 }

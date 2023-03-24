@@ -48,6 +48,9 @@ pub enum StamError {
         &'static str,
     ),
 
+    /// This error is raised when there is an error in regular expressions
+    RegexError(regex::Error, &'static str),
+
     SerializationError(String),
 
     /// This error is raised when you ask a selector to do something it is not capable of because it is the wrong type of selector
@@ -114,6 +117,9 @@ impl From<&StamError> for String {
                     "JsonError: Parsing failed: {} ({}). Input: {}",
                     err, contextmsg, input
                 )
+            }
+            StamError::RegexError(err, contextmsg) => {
+                format!("RegexError: {} ({})", err, contextmsg)
             }
             StamError::SerializationError(err) => {
                 format!("SerializationError: Serialization failed: {}", err)
