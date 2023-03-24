@@ -545,12 +545,12 @@ impl TextResource {
     /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
     /// The entire experssion is returned.
     /// An offset can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
-    pub fn search_text<'a>(
+    pub fn search_text<'a, 'b>(
         &'a self,
-        expressions: &'a [&'a Regex],
+        expressions: &'b [&'b Regex],
         offset: Option<&Offset>,
         precompiledset: Option<&RegexSet>,
-    ) -> Result<SearchTextIter<'a>, StamError> {
+    ) -> Result<SearchTextIter<'a, 'b>, StamError> {
         debug(self.config(), || {
             format!("search_text: expressions={:?}", expressions)
         });
@@ -813,22 +813,22 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
     }
 }
 
-enum Matches<'a> {
+enum Matches<'r, 't> {
     None,
-    NoCapture(regex::Matches<'a, 'a>),
-    WithCapture(regex::CaptureMatches<'a, 'a>),
+    NoCapture(regex::Matches<'r, 't>),
+    WithCapture(regex::CaptureMatches<'r, 't>),
 }
 
-pub struct SearchTextMatch<'a> {
-    expression: &'a Regex,
+pub struct SearchTextMatch<'t, 'r> {
+    expression: &'r Regex,
     expression_index: usize,
     textselections: SmallVec<[TextSelection; 2]>,
     //Records the numbers of the capture that match (1-indexed)
     capturegroups: SmallVec<[usize; 2]>,
-    resource: &'a TextResource,
+    resource: &'t TextResource,
 }
 
-impl<'a> SearchTextMatch<'a> {
+impl<'t, 'r> SearchTextMatch<'t, 'r> {
     /// Does this match return multiple text selections?
     /// Multiple text selections are returned only when the expression contains multiple capture groups.
     pub fn multi(&self) -> bool {
@@ -836,7 +836,7 @@ impl<'a> SearchTextMatch<'a> {
     }
 
     /// Returns the regular expression that matched
-    pub fn expression(&self) -> &'a Regex {
+    pub fn expression(&self) -> &'r Regex {
         self.expression
     }
 
@@ -859,7 +859,7 @@ impl<'a> SearchTextMatch<'a> {
     /// Return the text of the match, this only works
     /// if there the regular expression targets a single
     /// consecutive text, i.e. by not using multiple capture groups.
-    pub fn as_str(&self) -> Option<&'a str> {
+    pub fn as_str(&self) -> Option<&'t str> {
         if self.multi() {
             None
         } else {
@@ -890,19 +890,19 @@ impl<'a> SearchTextMatch<'a> {
     }
 }
 
-pub struct SearchTextIter<'a> {
-    resource: &'a TextResource,
-    expressions: &'a [&'a Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
+pub struct SearchTextIter<'t, 'r> {
+    resource: &'t TextResource,
+    expressions: &'r [&'r Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
     selectexpressions: Option<Vec<usize>>, //points at an expression
     cursor: usize,                //points at an expression in selectexpressions
-    matchiter: Matches<'a>,
-    text: &'a str,
+    matchiter: Matches<'r, 't>,
+    text: &'t str,
     begincharpos: usize,
     beginbytepos: usize,
 }
 
-impl<'a> Iterator for SearchTextIter<'a> {
-    type Item = SearchTextMatch<'a>;
+impl<'t, 'r> Iterator for SearchTextIter<'t, 'r> {
+    type Item = SearchTextMatch<'t, 'r>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Matches::None = self.matchiter {
             //a new iterator
@@ -986,7 +986,7 @@ impl<'a> Iterator for SearchTextIter<'a> {
     }
 }
 
-impl<'a> SearchTextIter<'a> {
+impl<'t, 'r> SearchTextIter<'t, 'r> {
     fn selectexpressions(&self) -> &[usize] {
         match self.selectexpressions.as_ref() {
             Some(v) => {
