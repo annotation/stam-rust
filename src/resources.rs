@@ -551,6 +551,9 @@ impl TextResource {
         offset: Option<&Offset>,
         precompiledset: Option<&RegexSet>,
     ) -> Result<SearchTextIter<'a>, StamError> {
+        debug(self.config(), || {
+            format!("search_text: expressions={:?}", expressions)
+        });
         let (text, begincharpos, beginbytepos) = if let Some(offset) = offset {
             let selection = self.textselection(&offset)?;
             (
@@ -894,7 +897,7 @@ impl<'a> Iterator for SearchTextIter<'a> {
                 return None;
             }
             let re = self.expressions[selectexpressions[self.cursor]];
-            if re.captures_len() > 0 {
+            if re.captures_len() > 1 {
                 self.matchiter = Matches::WithCapture(re.captures_iter(self.text))
             } else {
                 self.matchiter = Matches::NoCapture(re.find_iter(self.text))
@@ -972,7 +975,13 @@ impl<'a> Iterator for SearchTextIter<'a> {
 impl<'a> SearchTextIter<'a> {
     fn selectexpressions(&self) -> &[usize] {
         match self.selectexpressions.as_ref() {
-            Some(v) => v,
+            Some(v) => {
+                if !v.is_empty() {
+                    v
+                } else {
+                    unreachable!("Selectexpressions may not be empty")
+                }
+            }
             None => match self.expressions.len() {
                 1 => &[0],
                 2 => &[0, 1],

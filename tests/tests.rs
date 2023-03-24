@@ -1199,3 +1199,46 @@ fn test_read_include() -> Result<(), StamError> {
     )?;
     Ok(())
 }
+
+#[test]
+fn test_search_text_single_simple_regex() -> Result<(), StamError> {
+    let resource = TextResource::new("testres".into()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
+            .into(),
+    );
+    let mut count = 0;
+    for result in resource.search_text(&[&Regex::new(r"eavesdropping").unwrap()], None, None)? {
+        count += 1;
+        assert_eq!(result.textselections().len(), 1);
+        assert_eq!(result.textselections()[0].begin(), 25);
+        assert_eq!(result.textselections()[0].end(), 38);
+        assert_eq!(result.as_str(), Some("eavesdropping"));
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn test_search_text_single_simple_regex2() -> Result<(), StamError> {
+    let resource = TextResource::new("testres".into()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
+            .into(),
+    );
+    let mut count = 0;
+    for result in resource.search_text(&[&Regex::new(r"\b\w{13}\b").unwrap()], None, None)? {
+        count += 1;
+        if count == 1 {
+            assert_eq!(result.textselections().len(), 1);
+            assert_eq!(result.textselections()[0].begin(), 2);
+            assert_eq!(result.textselections()[0].end(), 15);
+            assert_eq!(result.as_str(), Some("categorically"));
+        } else {
+            assert_eq!(result.textselections().len(), 1);
+            assert_eq!(result.textselections()[0].begin(), 25);
+            assert_eq!(result.textselections()[0].end(), 38);
+            assert_eq!(result.as_str(), Some("eavesdropping"));
+        }
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
