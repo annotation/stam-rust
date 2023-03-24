@@ -24,7 +24,7 @@ Loading a STAM JSON file containing an annotation store:
 
 ```rust
 fn your_function() -> Result<(),stam::StamError> {
-    let store = stam::AnnotationStore::from_file("example.stam.json")?;
+    let store = stam::AnnotationStore::from_file("example.stam.json", Config::default())?;
     ...
 }
 ```
@@ -62,7 +62,7 @@ for annotation in store.annotations() {
 Add resources:
 
 ```rust
-let resource_handle = store.insert( stam::TextResource::from_file("my-text.txt") )?;
+let resource_handle = store.insert( stam::TextResource::from_file("my-text.txt", store.config()) )?;
 ```
 
 Many methods return a so called *handle* instead of a reference. You can use this handle to obtain a reference as shown in the next example, in which we obtain a reference to the resource we just inserted:
