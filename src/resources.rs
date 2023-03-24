@@ -520,12 +520,18 @@ impl TextResource {
             beginbyte = posindexitem.bytepos;
         }
         let textslice = &self.text[beginbyte..];
+        let mut charcount = 0;
         for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
+            charcount = charpos;
             if beginbyte + bytepos == bytecursor {
                 return Ok(beginpos + charpos);
             } else if beginbyte + bytepos > bytecursor {
                 break;
             }
+        }
+        if bytecursor == textslice.len() {
+            //non-inclusive end is also a valid point to return
+            return Ok(beginpos + charcount + 1);
         }
         Err(StamError::CursorOutOfBounds(
             Cursor::BeginAligned(bytecursor),
@@ -948,7 +954,7 @@ impl<'a> Iterator for SearchTextIter<'a> {
                         expression_index: self.selectexpressions()[self.cursor],
                         resource: self.resource,
                         textselections,
-                        capturegroups: capturegroups,
+                        capturegroups,
                     });
                 }
             }

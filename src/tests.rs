@@ -377,3 +377,27 @@ fn unicode2utf8() {
         15
     );
 }
+
+#[test]
+fn utf82unicode() {
+    let resource = TextResource::new("testres".into()).with_string("Hallå världen".into());
+    assert_eq!(resource.utf8byte_to_charpos(0).unwrap(), 0); //H
+    assert_eq!(resource.utf8byte_to_charpos(1).unwrap(), 1); //a
+    assert_eq!(resource.utf8byte_to_charpos(2).unwrap(), 2); //l
+    assert_eq!(resource.utf8byte_to_charpos(3).unwrap(), 3); //l
+    assert_eq!(resource.utf8byte_to_charpos(4).unwrap(), 4); //å
+    assert_eq!(resource.utf8byte_to_charpos(6).unwrap(), 5); //
+    assert_eq!(resource.utf8byte_to_charpos(7).unwrap(), 6); //v
+    assert_eq!(resource.utf8byte_to_charpos(8).unwrap(), 7); //ä
+    assert_eq!(resource.utf8byte_to_charpos(10).unwrap(), 8); //r
+    assert_eq!(resource.utf8byte_to_charpos(11).unwrap(), 9); //l
+    assert_eq!(resource.utf8byte_to_charpos(12).unwrap(), 10); //d
+    assert_eq!(resource.utf8byte_to_charpos(13).unwrap(), 11); //e
+    assert_eq!(resource.utf8byte_to_charpos(14).unwrap(), 12); //n
+    assert_eq!(
+        resource
+            .utf8byte_to_charpos(15)
+            .expect("non-inclusive end must exist too"),
+        13
+    );
+}
