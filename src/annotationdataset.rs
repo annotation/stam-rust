@@ -590,7 +590,7 @@ impl AnnotationDataSet {
 
         if !newkey && id.is_none() && safety {
             // there is a chance that this key and value combination already occurs, check it
-            if let Some(data) = self.find_data(AnyId::Handle(datakey_handle), &value) {
+            if let Some(data) = self.find_data(AnyId::from(datakey_handle), &value) {
                 return Ok(data.handle().expect("item must have intid if in store"));
             }
         }

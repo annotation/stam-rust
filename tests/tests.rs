@@ -435,12 +435,12 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
 
     let data: AnnotationDataBuilder = serde_json::from_str(json)?;
 
-    assert_eq!(data.id, AnyId::Id("D2".into()));
-    assert_eq!(data.id, "D2"); //can also be compared with &str etc
-    assert_eq!(data.key, AnyId::Id("pos".into()));
-    assert_eq!(data.key, "pos");
-    assert_eq!(data.value, DataValue::String("verb".into()));
-    assert_eq!(data.value, "verb"); //shorter version
+    assert_eq!(data.id(), &AnyId::from("D2"));
+    assert_eq!(data.id(), "D2"); //can also be compared with &str etc
+    assert_eq!(data.key(), &AnyId::from("pos"));
+    assert_eq!(data.key(), "pos");
+    assert_eq!(data.value(), &DataValue::String("verb".into()));
+    assert_eq!(data.value(), "verb"); //shorter version
 
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
@@ -467,10 +467,10 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 
     let data: AnnotationDataBuilder = serde_json::from_str(data)?;
 
-    assert_eq!(data.id, AnyId::Id("D1".into()));
-    assert_eq!(data.id, "D1"); //can also be compared with &str etc
-    assert_eq!(data.annotationset, AnyId::Id("testdataset".into()));
-    assert_eq!(data.annotationset, "testdataset");
+    assert_eq!(data.id(), &AnyId::from("D1"));
+    assert_eq!(data.id(), "D1"); //can also be compared with &str etc
+    assert_eq!(data.annotationset(), &AnyId::from("testdataset"));
+    assert_eq!(data.annotationset(), "testdataset");
 
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut_by_id("testdataset").unwrap();
@@ -863,7 +863,7 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
 fn existing_textselection() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let resource: &TextResource = store
-        .resource(&AnyId::Id("testres".into()))
+        .resource(&AnyId::from("testres"))
         .expect("test: resource must exist");
     let textselection = resource.textselection(&Offset::simple(6, 11))?;
 
@@ -1010,7 +1010,7 @@ fn find_data() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let annotationset: &AnnotationDataSet = store.get_by_id("testdataset")?;
     let annotationdata: Option<&AnnotationData> =
-        annotationset.find_data(AnyId::Id("pos".into()), &DataValue::String("noun".into()));
+        annotationset.find_data(AnyId::from("pos"), &DataValue::String("noun".into()));
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -1207,7 +1207,7 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
             .into(),
     );
     let mut count = 0;
-    for result in resource.search_text(&[&Regex::new(r"eavesdropping").unwrap()], None, None)? {
+    for result in resource.search_text(&[Regex::new(r"eavesdropping").unwrap()], None, None)? {
         count += 1;
         assert_eq!(result.textselections().len(), 1);
         assert_eq!(result.textselections()[0].begin(), 25);
@@ -1225,7 +1225,7 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
             .into(),
     );
     let mut count = 0;
-    for result in resource.search_text(&[&Regex::new(r"\b\w{13}\b").unwrap()], None, None)? {
+    for result in resource.search_text(&[Regex::new(r"\b\w{13}\b").unwrap()], None, None)? {
         count += 1;
         if count == 1 {
             assert_eq!(result.textselections().len(), 1);
@@ -1251,7 +1251,7 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
     );
     let mut count = 0;
     for result in resource.search_text(
-        &[&Regex::new(r"deny\s(\w+)\seavesdropping").unwrap()],
+        &[Regex::new(r"deny\s(\w+)\seavesdropping").unwrap()],
         None,
         None,
     )? {
@@ -1273,7 +1273,7 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
     );
     let mut count = 0;
     for result in resource.search_text(
-        &[&Regex::new(r"deny\s(\w+)\seavesdropping\s(on\s\w+)\b").unwrap()],
+        &[Regex::new(r"deny\s(\w+)\seavesdropping\s(on\s\w+)\b").unwrap()],
         None,
         None,
     )? {

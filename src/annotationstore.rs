@@ -1103,7 +1103,7 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
-        if let Some(resource) = self.resource(&AnyId::Handle(resource_handle)) {
+        if let Some(resource) = self.resource(&AnyId::from(resource_handle)) {
             if let Ok(textselection) = resource.textselection(&offset) {
                 if let Some(textselection_handle) = textselection.handle() {
                     return self
