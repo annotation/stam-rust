@@ -1201,7 +1201,7 @@ fn test_read_include() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_search_text_single_simple_regex() -> Result<(), StamError> {
+fn test_search_text_regex_single() -> Result<(), StamError> {
     let resource = TextResource::new("testres".into()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
             .into(),
@@ -1219,7 +1219,7 @@ fn test_search_text_single_simple_regex() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_search_text_single_simple_regex2() -> Result<(), StamError> {
+fn test_search_text_regex_single2() -> Result<(), StamError> {
     let resource = TextResource::new("testres".into()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
             .into(),
@@ -1240,5 +1240,51 @@ fn test_search_text_single_simple_regex2() -> Result<(), StamError> {
         }
     }
     assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
+fn test_search_text_regex_single_capture() -> Result<(), StamError> {
+    let resource = TextResource::new("testres".into()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
+            .into(),
+    );
+    let mut count = 0;
+    for result in resource.search_text(
+        &[&Regex::new(r"deny\s(\w+)\seavesdropping").unwrap()],
+        None,
+        None,
+    )? {
+        count += 1;
+        assert_eq!(result.textselections().len(), 1);
+        assert_eq!(result.textselections()[0].begin(), 21);
+        assert_eq!(result.textselections()[0].end(), 24);
+        assert_eq!(result.as_str(), Some("any"));
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn test_search_text_regex_double_capture() -> Result<(), StamError> {
+    let resource = TextResource::new("testres".into()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
+            .into(),
+    );
+    let mut count = 0;
+    for result in resource.search_text(
+        &[&Regex::new(r"deny\s(\w+)\seavesdropping\s(on\s\w+)\b").unwrap()],
+        None,
+        None,
+    )? {
+        count += 1;
+        assert_eq!(result.textselections().len(), 2);
+        assert_eq!(result.textselections()[0].begin(), 21);
+        assert_eq!(result.textselections()[0].end(), 24);
+        assert_eq!(result.textselections()[1].begin(), 39);
+        assert_eq!(result.textselections()[1].end(), 45);
+        assert_eq!(result.text(), vec!("any", "on you"));
+    }
+    assert_eq!(count, 1);
     Ok(())
 }
