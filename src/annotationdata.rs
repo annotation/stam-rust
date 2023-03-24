@@ -199,11 +199,11 @@ impl<'a> WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
 #[serde(from = "AnnotationDataJson")]
 pub struct AnnotationDataBuilder {
     #[serde(rename = "@id")]
-    pub id: AnyId<AnnotationDataHandle>,
+    pub(crate) id: AnyId<AnnotationDataHandle>,
     #[serde(rename = "set")]
-    pub annotationset: AnyId<AnnotationDataSetHandle>,
-    pub key: AnyId<DataKeyHandle>,
-    pub value: DataValue,
+    pub(crate) annotationset: AnyId<AnnotationDataSetHandle>,
+    pub(crate) key: AnyId<DataKeyHandle>,
+    pub(crate) value: DataValue,
 }
 
 impl Default for AnnotationDataBuilder {
@@ -214,6 +214,48 @@ impl Default for AnnotationDataBuilder {
             key: AnyId::None,
             value: DataValue::Null,
         }
+    }
+}
+
+impl AnnotationDataBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_id(mut self, id: String) -> Self {
+        self.id = AnyId::Id(id);
+        self
+    }
+
+    pub fn id(&self) -> &AnyId<AnnotationDataHandle> {
+        &self.id
+    }
+
+    pub fn with_annotationset(mut self, annotationset: AnyId<AnnotationDataSetHandle>) -> Self {
+        self.annotationset = annotationset;
+        self
+    }
+
+    pub fn annotationset(&self) -> &AnyId<AnnotationDataSetHandle> {
+        &self.annotationset
+    }
+
+    pub fn with_key(mut self, key: AnyId<DataKeyHandle>) -> Self {
+        self.key = key;
+        self
+    }
+
+    pub fn key(&self) -> &AnyId<DataKeyHandle> {
+        &self.key
+    }
+
+    pub fn with_value(mut self, value: DataValue) -> Self {
+        self.value = value;
+        self
+    }
+
+    pub fn value(&self) -> &DataValue {
+        &self.value
     }
 }
 
