@@ -31,4 +31,6 @@ pub use selector::{
 pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;
 
+pub use regex::{Regex, RegexSet};
+
 mod tests;
