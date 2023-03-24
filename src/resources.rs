@@ -849,6 +849,10 @@ impl<'t, 'r> SearchTextMatch<'t, 'r> {
         &self.textselections
     }
 
+    pub fn resource(&self) -> &'t TextResource {
+        self.resource
+    }
+
     /// Records the number of the capture groups (1-indexed!) that match.
     /// This array has the same length as textselections and identifies precisely
     /// which textselection corresponds with which capture group.
