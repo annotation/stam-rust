@@ -226,8 +226,8 @@ impl AnnotationDataBuilder {
         Self::default()
     }
 
-    pub fn with_id(mut self, id: String) -> Self {
-        self.id = AnyId::Id(id);
+    pub fn with_id(mut self, id: AnyId<AnnotationDataHandle>) -> Self {
+        self.id = id;
         self
     }
 
