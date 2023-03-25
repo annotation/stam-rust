@@ -562,7 +562,7 @@ impl AnnotationDataSet {
     ) -> Result<AnnotationDataHandle, StamError> {
         debug(self.config(), || {
             format!(
-                "AnnotationDataSetBuilder.insert_data: id={:?} key={:?} value={:?}",
+                "AnnotationDataSet.insert_data: id={:?} key={:?} value={:?}",
                 id, key, value
             )
         });
@@ -576,6 +576,7 @@ impl AnnotationDataSet {
         }
         if key.is_none() {
             return Err(StamError::IncompleteError(
+                format!("id={:?} key={:?} value={:?}", id, key, value),
                 "Key supplied to AnnotationDataSet.insert_data() (or with_data()) can not be None",
             ));
         }

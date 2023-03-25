@@ -274,7 +274,7 @@ impl<'a> Serialize for WrappedStorable<'a, Annotation, AnnotationStore> {
     }
 }
 
-//Helper for serialising annotationdata under to annotations
+//Helper for serialising annotationdata under annotations
 struct AnnotationDataRefSerializer<'a, 'b> {
     annotation: &'b WrappedStorable<'a, Annotation, AnnotationStore>,
 }
@@ -291,7 +291,7 @@ impl<'a> Serialize for AnnotationDataRef<'a> {
     {
         let mut state = serializer.serialize_struct("AnnotationDataRef", 3)?;
         state.serialize_field("@type", "AnnotationData")?;
-        state.serialize_field("id", &self.id)?;
+        state.serialize_field("@id", &self.id)?;
         state.serialize_field("set", &self.set)?;
         state.end()
     }
@@ -344,7 +344,7 @@ impl AnnotationStore {
         Ok(self)
     }
 
-    /// Builds an inserts an AnnotationData item
+    /// Builds and inserts an AnnotationData item
     pub fn insert_data(
         &mut self,
         dataitem: AnnotationDataBuilder,

@@ -75,7 +75,7 @@ pub enum StamError {
     InUse(&'static str),
 
     /// This error is raised when the information supplied during build is incomplete
-    IncompleteError(&'static str),
+    IncompleteError(String, &'static str),
 
     /// Category for other errors, try to use this sparingly
     OtherError(&'static str),
@@ -155,8 +155,11 @@ impl From<&StamError> for String {
                 "InUse: Item can't be removed because it is being referenced ({})",
                 contextmsg
             ),
-            StamError::IncompleteError(contextmsg) => {
-                format!("IncompleteError: Not enough data to build ({})", contextmsg)
+            StamError::IncompleteError(data, contextmsg) => {
+                format!(
+                    "IncompleteError: Not enough data to build {} ({})",
+                    data, contextmsg
+                )
             }
             StamError::OtherError(contextmsg) => {
                 format!("OtherError: {}", contextmsg)
