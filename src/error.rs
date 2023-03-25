@@ -106,7 +106,7 @@ impl From<&StamError> for String {
                 format!("NoIdError: Store does not map IDs. ({})", contextmsg)
             }
             StamError::DuplicateIdError(id, contextmsg) => format!(
-                "DuplicatIdError: ID already exists for a different item: {} ({})",
+                "DuplicateIdError: ID already exists for a different item: {} ({})",
                 id, contextmsg
             ),
             StamError::IOError(err, filename, contextmsg) => {
