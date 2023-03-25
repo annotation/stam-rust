@@ -2,7 +2,7 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::borrow::Cow;
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};

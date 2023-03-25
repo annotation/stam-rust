@@ -4,11 +4,9 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
-use std::iter::Chain;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::result;
 use std::slice::Iter;
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -19,9 +17,7 @@ use crate::annotationdataset::{
 use crate::config::{set_global_config, Config, SerializeMode};
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::error::*;
-use crate::resources::{
-    SearchTextIter, SearchTextMatch, TextResource, TextResourceBuilder, TextResourceHandle,
-};
+use crate::resources::{SearchTextMatch, TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{
     AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
 };

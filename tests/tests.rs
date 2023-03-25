@@ -1042,7 +1042,7 @@ pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
 
 #[test]
 fn test_multiselector_creation() -> Result<(), StamError> {
-    let store = setup_example_multiselector()?;
+    let _store = setup_example_multiselector()?;
     Ok(())
 }
 

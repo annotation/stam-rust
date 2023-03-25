@@ -1,7 +1,6 @@
 use std::collections::btree_map;
 use std::io::prelude::*;
 use std::ops::Bound::{Excluded, Included};
-use std::ops::Deref;
 use std::slice::Iter;
 use std::sync::{Arc, RwLock};
 
@@ -284,6 +283,7 @@ impl TextResource {
     }
 
     /// Loads a text for the TextResource from file (STAM JSON or plain text), the text will be loaded into memory entirely
+    #[allow(unused_assignments)]
     pub fn with_file(mut self, filename: &str, config: &Config) -> Result<Self, StamError> {
         let builder = TextResourceBuilder::from_file(filename, config)?;
         self = Self::from_builder(builder)?;
