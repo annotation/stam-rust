@@ -145,6 +145,10 @@ impl Storable for AnnotationDataSet {
         self.intid = Some(handle);
     }
 
+    fn carries_id() -> bool {
+        true
+    }
+
     /// Sets the ownership of all items in the store
     /// This ensure the part_of_set relation (backreference)
     /// is set right.

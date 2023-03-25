@@ -1,16 +1,18 @@
 use sealed::sealed;
 use std::collections::HashMap;
 use std::fs::File;
+use std::hash::Hash;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::slice::{Iter, IterMut};
 
+use nanoid::nanoid;
+use serde::{Deserialize, Serialize};
+
 use crate::config::Config;
 use crate::error::StamError;
-use serde::{Deserialize, Serialize};
-use std::hash::Hash;
 
 /// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
 pub type Store<T> = Vec<Option<T>>;
@@ -72,9 +74,6 @@ pub struct IdMap<HandleType> {
 
     /// A prefix that automatically generated IDs will get when added to this map
     autoprefix: String,
-
-    ///Sequence number used for ID generation
-    seqnr: usize,
 }
 
 impl<HandleType> Default for IdMap<HandleType>
@@ -85,7 +84,6 @@ where
         Self {
             data: HashMap::new(),
             autoprefix: "_".to_string(),
-            seqnr: 0,
         }
     }
 }
@@ -295,6 +293,9 @@ pub trait Storable: PartialEq {
         self
     }
 
+    /// Does this type support an ID?
+    fn carries_id() -> bool;
+
     /// Returns a wrapped reference to this item and the store that owns it. This allows for some
     /// more introspection on the part of the item.
     /// reverse of [`StoreFor<T>::wrap()`]
@@ -319,7 +320,7 @@ pub trait Storable: PartialEq {
         //no-op by default
     }
 
-    /// Generate a random ID in a given idmap (adds it to the map), Item must be bound
+    /// Generate a random ID in a given idmap (adds it to the map and assigns it to the item)
     fn generate_id(self, idmap: Option<&mut IdMap<Self::HandleType>>) -> Self
     where
         Self: Sized,
@@ -327,16 +328,18 @@ pub trait Storable: PartialEq {
         if let Some(intid) = self.handle() {
             if let Some(idmap) = idmap {
                 loop {
-                    let id = format!("{}{}", idmap.autoprefix, idmap.seqnr);
+                    let id = format!("{}{}", idmap.autoprefix, nanoid!());
+                    let id_copy = id.clone();
                     if idmap.data.insert(id, intid).is_none() {
+                        //checks for collisions (extremely unlikely)
                         //returns none if the key did not exist yet
-                        break;
+                        return self.with_id(id_copy);
                     }
-                    idmap.seqnr += 1
                 }
             }
         }
-        self
+        // if the item is not bound or has no IDmap, we can't check collisions, but that's okay
+        self.with_id(format!("X{}", nanoid!()))
     }
 }
 
@@ -390,43 +393,46 @@ pub trait StoreFor<T: Storable>: Configurable {
             intid
         };
 
-        //insert a mapping from the public ID to the numeric ID in the idmap
-        if let Some(id) = item.id() {
-            //check if public ID does not already exist
-            if self.has_id(id) {
-                //ok. the already ID exists, now is the existing item exactly the same as the item we're about to insert?
-                //in that case we can discard this error and just return the existing handle without actually inserting a new one
-                let existing_item = self.get_by_id(id).unwrap();
-                if *existing_item == item {
-                    return Ok(existing_item.handle().unwrap());
+        if T::carries_id() {
+            //insert a mapping from the public ID to the numeric ID in the idmap
+            if let Some(id) = item.id() {
+                //check if public ID does not already exist
+                if self.has_id(id) {
+                    //ok. the already ID exists, now is the existing item exactly the same as the item we're about to insert?
+                    //in that case we can discard this error and just return the existing handle without actually inserting a new one
+                    let existing_item = self.get_by_id(id).unwrap();
+                    if *existing_item == item {
+                        return Ok(existing_item.handle().unwrap());
+                    }
+                    //in all other cases, we return an error
+                    return Err(StamError::DuplicateIdError(
+                        id.to_string(),
+                        self.introspect_type(),
+                    ));
                 }
-                //in all other cases, we return an error
-                return Err(StamError::DuplicateIdError(
-                    id.to_string(),
-                    self.introspect_type(),
-                ));
+
+                self.idmap_mut().map(|idmap| {
+                    //                 v-- MAYBE TODO: optimise the id copy away
+                    idmap.data.insert(id.to_string(), item.handle().unwrap())
+                });
+
+                debug(self.config(), || {
+                    format!(
+                        "StoreFor<{}>.insert: ^--- id={:?}",
+                        self.introspect_type(),
+                        id
+                    )
+                });
+            } else if self.config().generate_ids {
+                item = item.generate_id(self.idmap_mut());
+                debug(self.config(), || {
+                    format!(
+                        "StoreFor<{}>.insert: ^--- autogenerated id {}",
+                        self.introspect_type(),
+                        item.id().unwrap(),
+                    )
+                });
             }
-
-            self.idmap_mut().map(|idmap| {
-                //                 v-- MAYBE TODO: optimise the id copy away
-                idmap.data.insert(id.to_string(), item.handle().unwrap())
-            });
-
-            debug(self.config(), || {
-                format!(
-                    "StoreFor<{}>.insert: ^--- id={:?}",
-                    self.introspect_type(),
-                    id
-                )
-            });
-        } else if self.config().generate_ids {
-            item = item.generate_id(self.idmap_mut());
-            debug(self.config(), || {
-                format!(
-                    "StoreFor<{}>.insert: ^--- autogenerated id",
-                    self.introspect_type(),
-                )
-            });
         }
 
         self.preinsert(&mut item)?;

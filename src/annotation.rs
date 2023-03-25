@@ -66,6 +66,15 @@ impl Storable for Annotation {
     fn set_handle(&mut self, handle: Self::HandleType) {
         self.intid = Some(handle);
     }
+
+    fn with_id(mut self, id: String) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    fn carries_id() -> bool {
+        true
+    }
 }
 
 impl PartialEq<Annotation> for Annotation {

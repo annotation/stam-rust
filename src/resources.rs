@@ -144,6 +144,10 @@ impl Storable for TextResource {
     fn set_handle(&mut self, handle: TextResourceHandle) {
         self.intid = Some(handle);
     }
+
+    fn carries_id() -> bool {
+        true
+    }
 }
 
 impl Serialize for TextResource {

@@ -67,6 +67,10 @@ impl Storable for TextSelection {
     fn set_handle(&mut self, handle: TextSelectionHandle) {
         self.intid = Some(handle);
     }
+
+    fn carries_id() -> bool {
+        false
+    }
 }
 
 impl Hash for TextSelection {

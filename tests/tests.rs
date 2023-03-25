@@ -570,7 +570,6 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
             &DataValue::String("interjection".to_string())
         );
         assert_eq!(annotationdata.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(annotationdata.id(), None); //No public ID was assigned
         assert_eq!(dataset.id(), Some("testdataset"));
     }
     assert_eq!(count, 1);

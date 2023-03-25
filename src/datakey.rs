@@ -65,6 +65,15 @@ impl Storable for DataKey {
     fn set_handle(&mut self, intid: DataKeyHandle) {
         self.intid = Some(intid);
     }
+
+    fn with_id(mut self, id: String) -> Self {
+        self.id = id;
+        self
+    }
+
+    fn carries_id() -> bool {
+        true
+    }
 }
 
 impl PartialEq<DataKey> for DataKey {
