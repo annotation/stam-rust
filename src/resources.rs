@@ -818,6 +818,8 @@ impl StoreFor<TextSelection> for TextResource {
                 end2begin: smallvec!((begin, handle)),
                 begin2end: smallvec!(),
             });
+        self.byte2charmap.entry(beginbyte).or_insert(begin);
+        self.byte2charmap.entry(endbyte).or_insert(end);
         Ok(())
     }
 }
