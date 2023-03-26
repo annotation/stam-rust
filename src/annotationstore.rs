@@ -135,10 +135,10 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
                 });
                 if id.is_some() {
                     //create and override with the ID we already had
-                    annotationset = AnnotationDataSet::from_file(&filename, &store.config)?
+                    annotationset = AnnotationDataSet::from_file(&filename, store.config.clone())?
                         .with_id(id.unwrap());
                 } else {
-                    annotationset = AnnotationDataSet::from_file(&filename, &store.config)?;
+                    annotationset = AnnotationDataSet::from_file(&filename, store.config.clone())?;
                 }
             }
             store.insert(annotationset)?;
@@ -592,9 +592,9 @@ impl AnnotationStoreBuilder {
 
     /// Loads an AnnotationStore from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_str(string: &str, config: Config) -> Result<Self, StamError> {
+    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
-            format!("AnnotationStoreBuilder::from_str: string={:?}", string)
+            format!("AnnotationStoreBuilder::from_json: string={:?}", string)
         });
         let deserializer = &mut serde_json::Deserializer::from_str(string);
         let mut result: Result<AnnotationStoreBuilder, _> =
@@ -668,7 +668,7 @@ impl AnnotationStore {
                 string, config
             )
         });
-        let builder = AnnotationStoreBuilder::from_str(string, config)?;
+        let builder = AnnotationStoreBuilder::from_json(string, config)?;
         Self::from_builder(builder)
     }
 

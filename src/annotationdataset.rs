@@ -371,11 +371,11 @@ impl AnnotationDataSetBuilder {
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
     /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
-        debug(config, || {
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
             format!("AnnotationDataSetBuilder::from_file: filename={}", filename)
         });
-        let reader = open_file_reader(filename, config)?;
+        let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let mut result: Result<AnnotationDataSetBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
@@ -383,7 +383,7 @@ impl AnnotationDataSetBuilder {
             let builder = result.as_mut().unwrap();
             builder.include = Some(filename.to_string()); //we use the original filename, not the one we found
             builder.mode = SerializeMode::NoInclude;
-            builder.config = config.clone();
+            builder.config = config;
         }
         result.map_err(|e| {
             StamError::JsonError(
@@ -396,10 +396,14 @@ impl AnnotationDataSetBuilder {
 
     /// Loads an AnnotationDataSet from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_str(string: &str) -> Result<Self, StamError> {
+    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
-        let result: Result<AnnotationDataSetBuilder, _> =
+        let mut result: Result<AnnotationDataSetBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
+        if result.is_ok() {
+            let builder = result.as_mut().unwrap();
+            builder.config = config;
+        }
         result.map_err(|e| {
             StamError::JsonError(
                 e,
@@ -427,8 +431,8 @@ impl AnnotationDataSet {
     /// Loads an AnnotationDataSet from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
-        debug(config, || {
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
             format!(
                 "AnnotationDataSet::from_file: filename={:?} config={:?}",
                 filename, config
@@ -440,22 +444,22 @@ impl AnnotationDataSet {
 
     /// Loads an AnnotationDataSet from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_str(string: &str) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_str(string)?;
+    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
+        let builder = AnnotationDataSetBuilder::from_json(string, config)?;
         Self::from_builder(builder)
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current     one.
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
-    pub fn with_file(mut self, filename: &str, config: &Config) -> Result<Self, StamError> {
-        debug(config, || {
+    pub fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
             format!(
                 "AnnotationDataSet.with_file: filename={:?} config={:?}",
                 filename, config
             )
         });
-        let builder = AnnotationDataSetBuilder::from_file(filename, self.config())?;
+        let builder = AnnotationDataSetBuilder::from_file(filename, self.config().clone())?;
         self.merge_from_builder(builder)?;
         Ok(self)
     }

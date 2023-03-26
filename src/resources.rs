@@ -246,9 +246,14 @@ impl TextResourceBuilder {
 
     /// Loads a text resource from a STAM JSON string
     /// The string must contain a single object which has "@type": "TextResource"
-    pub fn from_str(string: &str) -> Result<Self, StamError> {
+    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
-        let result: Result<TextResourceBuilder, _> = serde_path_to_error::deserialize(deserializer);
+        let mut result: Result<TextResourceBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        if result.is_ok() {
+            let result = result.as_mut().unwrap();
+            result.config = config;
+        }
         result.map_err(|e| {
             StamError::JsonError(e, string.to_string(), "Reading text resource from string")
         })
