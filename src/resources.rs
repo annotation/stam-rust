@@ -732,6 +732,11 @@ impl TextResource {
     pub fn position(&self, index: usize) -> Option<&PositionIndexItem> {
         self.positionindex.0.get(&index)
     }
+
+    /// Returns the number of positions in the positionindex
+    pub fn positionindex_len(&self) -> usize {
+        self.positionindex.0.len()
+    }
 }
 
 pub enum PositionMode {
