@@ -1361,12 +1361,19 @@ impl AnnotationStore {
         expressions: &'r [Regex],
         offset: &'r Option<Offset>,
         precompiledset: &'r Option<RegexSet>,
+        allow_overlap: bool,
     ) -> Box<impl Iterator<Item = SearchTextMatch<'t, 'r>>> {
         Box::new(
             self.resources()
-                .filter_map(|resource| {
+                .filter_map(move |resource| {
+                    //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
                     resource
-                        .search_text(expressions, offset.as_ref(), precompiledset.as_ref())
+                        .search_text(
+                            expressions,
+                            offset.as_ref(),
+                            precompiledset.as_ref(),
+                            allow_overlap,
+                        )
                         .ok() //ignore errors!
                 })
                 .flatten(),
