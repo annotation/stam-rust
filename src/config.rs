@@ -42,6 +42,9 @@ pub struct Config {
     /// The working directory
     pub workdir: Option<PathBuf>,
 
+    /// Milestone placement interval (in unicode codepoints) in indexing text resources. A low number above zero increases search performance at the cost of memory and increased initialisation time.
+    pub milestone_interval: usize,
+
     /// Debug mode
     pub debug: bool,
 
@@ -60,6 +63,7 @@ impl Default for Config {
             annotation_annotation_map: true,
             generate_ids: true,
             use_include: true,
+            milestone_interval: 100,
             workdir: None,
             debug: false,
             serialize_mode: Arc::new(RwLock::new(SerializeMode::AllowInclude)),

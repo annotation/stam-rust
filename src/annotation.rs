@@ -366,7 +366,8 @@ impl AnnotationStore {
                     // handle a missing set, however, is.
                     "default".into()
                 };
-                let inserted_intid = self.insert(AnnotationDataSet::new().with_id(dataset_id))?;
+                let inserted_intid =
+                    self.insert(AnnotationDataSet::new(self.config().clone()).with_id(dataset_id))?;
                 self.get_mut(inserted_intid)
                     .expect("must exist after insertion")
             };

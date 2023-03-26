@@ -164,10 +164,10 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
                 });
                 if id.is_some() {
                     //create and override with the ID we already had
-                    resource =
-                        TextResource::from_file(&filename, &store.config)?.with_id(id.unwrap());
+                    resource = TextResource::from_file(&filename, store.config.clone())?
+                        .with_id(id.unwrap());
                 } else {
-                    resource = TextResource::from_file(&filename, &store.config)?;
+                    resource = TextResource::from_file(&filename, store.config.clone())?;
                 }
             }
             store.insert(resource)?;
@@ -855,7 +855,7 @@ impl AnnotationStore {
         &mut self,
         filename: &str,
     ) -> Result<TextResourceHandle, StamError> {
-        let resource = TextResource::from_file(filename, self.config())?;
+        let resource = TextResource::from_file(filename, self.config().clone())?;
         self.insert(resource)
     }
 

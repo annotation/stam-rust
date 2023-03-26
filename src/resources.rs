@@ -1,4 +1,5 @@
 use std::collections::btree_map;
+use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::ops::Bound::{Excluded, Included};
 use std::slice::Iter;
@@ -49,8 +50,13 @@ pub struct TextResource {
     #[serde(skip)]
     textselections: Store<TextSelection>,
 
+    /// Maps character positions to utf8 bytes and to text selections
     #[serde(skip)]
     positionindex: PositionIndex,
+
+    /// Reverse position index, maps utf8 bytes to character positions (and nothing more)
+    #[serde(skip)]
+    byte2charmap: BTreeMap<usize, usize>,
 
     #[serde(skip, default = "get_global_config")]
     config: Config,
@@ -104,6 +110,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             },
             textlen,
             positionindex: PositionIndex::default(),
+            byte2charmap: BTreeMap::default(),
             textselections: Store::default(),
             config: builder.config,
             //note: includes have to be resolved in a later stage via [`AnnotationStore.process_includes()`]
@@ -197,9 +204,9 @@ impl TextResourceBuilder {
     /// Loads a Text Resource from a STAM JSON  or plain text file file.
     /// If the file is JSON, it file must contain a single object which has "@type": "TextResource"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
-            let reader = open_file_reader(filename, config)?;
+            let reader = open_file_reader(filename, &config)?;
             let deserializer = &mut serde_json::Deserializer::from_reader(reader);
             let mut result: Result<TextResourceBuilder, _> =
                 serde_path_to_error::deserialize(deserializer);
@@ -207,13 +214,14 @@ impl TextResourceBuilder {
                 let result = result.as_mut().unwrap();
                 result.include = Some(filename.to_string()); //always uses the original filename (not the found one)
                 result.mode = SerializeMode::NoInclude;
+                result.config = config;
             }
             result.map_err(|e| {
                 StamError::JsonError(e, filename.to_string(), "Reading text resource from file")
             })
         } else {
             //plain text
-            let mut f = open_file(filename, config)?;
+            let mut f = open_file(filename, &config)?;
             let mut text: String = String::new();
             if let Err(err) = f.read_to_string(&mut text) {
                 return Err(StamError::IOError(
@@ -231,7 +239,7 @@ impl TextResourceBuilder {
                     None
                 }, //may be overridden in with_file
                 mode: SerializeMode::NoInclude, //we just processed the include, this instructs the deserialiser not to do it again
-                config: config.clone(),
+                config,
             })
         }
     }
@@ -249,7 +257,7 @@ impl TextResourceBuilder {
 
 impl TextResource {
     /// Instantiates a new completely empty TextResource
-    pub fn new(id: String) -> Self {
+    pub fn new(id: String, config: Config) -> Self {
         Self {
             id,
             intid: None,
@@ -258,8 +266,9 @@ impl TextResource {
             filename: None,
             changed: Arc::new(RwLock::new(false)),
             positionindex: PositionIndex::default(),
+            byte2charmap: BTreeMap::new(),
             textselections: Store::default(),
-            config: Config::default(),
+            config,
         }
     }
 
@@ -267,12 +276,15 @@ impl TextResource {
     pub fn from_builder(builder: TextResourceBuilder) -> Result<Self, StamError> {
         let mut res: Self = builder.try_into()?;
         res.textlen = res.text.chars().count();
+        if res.config().milestone_interval > 0 {
+            res.create_milestones(res.config().milestone_interval)
+        }
         Ok(res)
     }
 
     /// Create a new TextResource from file, the text will be loaded into memory entirely
-    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
-        debug(config, || {
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
             format!(
                 "TextResourceBuilder::from_file: filename={:?} config={:?}",
                 filename, config
@@ -283,8 +295,11 @@ impl TextResource {
     }
 
     /// Loads a text for the TextResource from file (STAM JSON or plain text), the text will be loaded into memory entirely
+    /// The use of [`from_file()`] is preferred instead. This method can be dangerous
+    /// if it modifies any existing text of a resource.
     #[allow(unused_assignments)]
-    pub fn with_file(mut self, filename: &str, config: &Config) -> Result<Self, StamError> {
+    pub fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
+        self.check_mutation();
         let builder = TextResourceBuilder::from_file(filename, config)?;
         self = Self::from_builder(builder)?;
         Ok(self)
@@ -338,15 +353,40 @@ impl TextResource {
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely
+    /// The use of [`from_string()`] is preferred instead. This method can be dangerous
+    /// if it modifies any existing text of a resource.
     pub fn with_string(mut self, text: String) -> Self {
+        self.check_mutation();
+        self.text = text;
+        self.textlen = self.text.chars().count();
+        if self.config.milestone_interval > 0 {
+            self.create_milestones(self.config.milestone_interval)
+        }
+        self
+    }
+
+    /// Check if there is already text associated, if so, this is a mutation and some indices will be invalidated
+    fn check_mutation(&mut self) -> bool {
         if !self.text.is_empty() {
+            // in case we change an existing text
+            // 1. mark has changed
             if let Ok(mut changed) = self.changed.write() {
                 *changed = true;
             }
+            // 2. invalidate all the reverse indices
+            if !self.positionindex.0.is_empty() {
+                self.positionindex = PositionIndex::default();
+            }
+            if !self.byte2charmap.is_empty() {
+                self.byte2charmap = BTreeMap::new();
+            }
+            if !self.textselections.is_empty() {
+                self.textselections = Vec::new();
+            }
+            true
+        } else {
+            false
         }
-        self.text = text;
-        self.textlen = self.text.chars().count();
-        self
     }
 
     /// Returns the length of the text in unicode points
@@ -356,9 +396,9 @@ impl TextResource {
     }
 
     /// Create a new TextResource from string, kept in memory entirely
-    pub fn from_string(id: String, text: String) -> Self {
+    pub fn from_string(id: String, text: String, config: Config) -> Self {
         let textlen = text.chars().count();
-        TextResource {
+        let mut resource = TextResource {
             id,
             text,
             intid: None,
@@ -366,8 +406,31 @@ impl TextResource {
             changed: Arc::new(RwLock::new(false)),
             textlen,
             positionindex: PositionIndex::default(),
+            byte2charmap: BTreeMap::new(),
             textselections: Store::default(),
-            config: Config::default(),
+            config,
+        };
+        if resource.config.milestone_interval > 0 {
+            resource.create_milestones(resource.config.milestone_interval)
+        }
+        resource
+    }
+
+    /// Creates milestones (reverse index to facilitate character positions to utf8 byte position lookup and vice versa)
+    /// Does initial population of the positionindex.
+    fn create_milestones(&mut self, interval: usize) {
+        for (charpos, (bytepos, _)) in self.text.char_indices().enumerate() {
+            if charpos > 0 && charpos % interval == 0 {
+                self.positionindex.0.insert(
+                    charpos,
+                    PositionIndexItem {
+                        bytepos,
+                        end2begin: smallvec!(),
+                        begin2end: smallvec!(),
+                    },
+                );
+                self.byte2charmap.insert(bytepos, charpos);
+            }
         }
     }
 

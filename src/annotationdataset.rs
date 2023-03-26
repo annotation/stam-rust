@@ -411,8 +411,11 @@ impl AnnotationDataSetBuilder {
 }
 
 impl AnnotationDataSet {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(config: Config) -> Self {
+        AnnotationDataSet {
+            config,
+            ..Self::default()
+        }
     }
 
     ///Builds a new annotation store from [`AnnotationDataSetBuilder'].

@@ -13,9 +13,10 @@ fn instantiation_naive() -> Result<(), StamError> {
     let _res_intid = store.insert(TextResource::from_string(
         "testres".into(),
         "Hello world".into(),
+        Config::default(),
     ));
 
-    let mut annotationset = AnnotationDataSet::new().with_id("testdataset".into());
+    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset".into());
     annotationset.insert(DataKey::new("pos".into()))?;
     store.insert(annotationset)?;
 
@@ -31,10 +32,11 @@ fn sanity_check() -> Result<(), StamError> {
     let _res_handle = store.insert(TextResource::from_string(
         "testres".into(),
         "Hello world".into(),
+        Config::default(),
     ));
 
     // Create a dataset with one key and insert it into the store
-    let mut annotationset = AnnotationDataSet::new().with_id("testdataset".into());
+    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset".into());
     annotationset.insert(DataKey::new("pos".into()))?; //returns a DataKeyHandle, not further used in this test
     let set_handle = store.insert(annotationset)?;
 
@@ -56,9 +58,10 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
         .add(TextResource::from_string(
             "testres".into(),
             "Hello world".into(),
+            Config::default(),
         ))?
         .add(
-            AnnotationDataSet::new()
+            AnnotationDataSet::new(Config::default())
                 .with_id("testdataset".into())
                 .add(DataKey::new("pos".into()))?
                 .with_data("D1".into(), "pos".into(), "noun".into())?,
@@ -79,8 +82,9 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
         .add(TextResource::from_string(
             "testres".to_string(),
             "Hello world".into(),
+            Config::default(),
         ))?
-        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
         .with_annotation(
             Annotation::builder()
                 .with_id("A1".into())
@@ -105,8 +109,9 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
         .add(TextResource::from_string(
             "testres".to_string(),
             "Hello world".into(),
+            Config::default(),
         ))?
-        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
         .with_annotation(
             Annotation::builder()
                 .with_id("A1".into())
@@ -145,8 +150,9 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
         .add(TextResource::from_string(
             "testres".to_string(),
             "I have no special talent. I am only passionately curious. -- Albert Einstein".into(),
+            Config::default(),
         ))?
-        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
         .with_annotation(
             Annotation::builder()
                 .with_id("sentence2".into())
@@ -1021,8 +1027,9 @@ pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
         .add(TextResource::from_string(
             "testres".to_string(),
             "Hello world".into(),
+            Config::default(),
         ))?
-        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
         .with_annotation(
             Annotation::builder()
                 .with_id("WordAnnotation".into())
@@ -1062,8 +1069,9 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         .add(TextResource::from_string(
             "testres".to_string(),
             "Hello world".into(),
+            Config::default(),
         ))?
-        .add(AnnotationDataSet::new().with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
         .with_annotation(
             Annotation::builder()
                 .with_id("A1".into())
@@ -1201,7 +1209,7 @@ fn test_read_include() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into()).with_string(
+    let resource = TextResource::new("testres".into(), Config::default()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
             .into(),
     );
@@ -1219,7 +1227,7 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single2() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into()).with_string(
+    let resource = TextResource::new("testres".into(), Config::default()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
             .into(),
     );
@@ -1244,7 +1252,7 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single_capture() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into()).with_string(
+    let resource = TextResource::new("testres".into(), Config::default()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
             .into(),
     );
@@ -1266,7 +1274,7 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_double_capture() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into()).with_string(
+    let resource = TextResource::new("testres".into(), Config::default()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
             .into(),
     );

@@ -102,7 +102,8 @@ fn parse_json_textselector() -> Result<(), std::io::Error> {
 
 #[test]
 fn textresource() {
-    let resource = TextResource::from_string("testres".into(), "Hello world".into());
+    let resource =
+        TextResource::from_string("testres".into(), "Hello world".into(), Config::default());
     assert_eq!(resource.id(), Some("testres"));
 }
 
@@ -356,7 +357,8 @@ fn textselectionoperator_sameend_1vs1() {
 
 #[test]
 fn unicode2utf8() {
-    let resource = TextResource::new("testres".into()).with_string("Hallå världen".into());
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
     assert_eq!(resource.utf8byte(0).unwrap(), 0); //H
     assert_eq!(resource.utf8byte(1).unwrap(), 1); //a
     assert_eq!(resource.utf8byte(2).unwrap(), 2); //l
@@ -380,7 +382,8 @@ fn unicode2utf8() {
 
 #[test]
 fn utf82unicode() {
-    let resource = TextResource::new("testres".into()).with_string("Hallå världen".into());
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
     assert_eq!(resource.utf8byte_to_charpos(0).unwrap(), 0); //H
     assert_eq!(resource.utf8byte_to_charpos(1).unwrap(), 1); //a
     assert_eq!(resource.utf8byte_to_charpos(2).unwrap(), 2); //l
