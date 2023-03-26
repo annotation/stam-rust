@@ -631,8 +631,9 @@ impl TextResource {
     ///
     /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
     ///
-    /// The `allow_overlap` parameter determines if the matching expressions are allowed to overlap. Setting this to false is more efficient.
-    /// It you are doing some form of tokenisation, you also likely want this set to false. All of this only matters if you supply multiple regular expressions.
+    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
+    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
+    /// false. All of this only matters if you supply multiple regular expressions.
     ///
     /// Results are returned in the exact order they are found in the text
     pub fn search_text<'a, 'b>(
@@ -947,6 +948,24 @@ impl<'t> Match<'t> {
             }
         }
     }
+
+    /// Return the end offset of the match (in utf-8 bytes)
+    fn end(&self) -> usize {
+        match self {
+            Self::NoCapture(m) => m.end(),
+            Self::WithCapture(m) => {
+                let mut end = None;
+                for group in m.iter() {
+                    if let Some(group) = group {
+                        if end.is_none() || end.unwrap() < group.start() {
+                            end = Some(group.start());
+                        }
+                    }
+                }
+                end.expect("there must be at least one capture group that was found")
+            }
+        }
+    }
 }
 
 impl<'r, 't> Iterator for Matches<'r, 't> {
@@ -1093,6 +1112,21 @@ impl<'t, 'r> Iterator for SearchTextIter<'t, 'r> {
         if let Some(i) = bestmatchindex {
             // this match will be the result, convert it to the proper structure
             let m = self.nextmatches[i].take().unwrap();
+
+            // iterate any buffers than overlap with this result, discarding those matces in the process
+            if !self.allow_overlap {
+                for (j, m2) in self.nextmatches.iter_mut().enumerate() {
+                    if j != i && m2.is_some() {
+                        if m2.as_ref().unwrap().begin() >= m.begin()
+                            && m2.as_ref().unwrap().begin() <= m.end()
+                        {
+                            //(note: no need to check whether m2.end in range m.begin-m.end)
+                            *m2 = self.matchiters[j].next();
+                        }
+                    }
+                }
+            }
+
             let result = self.match_to_result(m, i);
 
             // iterate the iterator for this one and buffer the next match for next round
