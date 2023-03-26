@@ -538,7 +538,7 @@ impl TextResource {
             //exact position is in the position index, return the byte
             Ok(posindexitem.bytepos)
         } else {
-            // Get the item previous to abscursor usin a double ended range iterator
+            // Get the item previous to abscursor using a double ended range iterator
             if let Some((before_pos, posindexitem)) = self
                 .positionindex
                 .0
@@ -553,13 +553,14 @@ impl TextResource {
                 }
                 // now we just count characters and keep track of the bytes they take,
                 // if everything went well, we have only a minimum amount to count
+                // at most the O(n) where n is config.milestone_interval
                 for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
                     if before_pos + charpos == abscursor {
                         return Ok(before_bytepos + bytepos);
                     }
                 }
             } else {
-                //fallback, position index has no useful entries, search from 0
+                //fallback, position index has no useful entries (config.mileston_interval < textlen?), search from 0
                 if self.textlen == abscursor {
                     //non-inclusive end is also a valid point to return
                     return Ok(self.text().len());
@@ -579,36 +580,46 @@ impl TextResource {
 
     /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in ['utf8byte()`]
     pub fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
-        let mut beginpos = 0;
-        let mut beginbyte = 0;
-        for (pos, posindexitem) in self.positionindex.0.iter() {
-            if bytecursor == posindexitem.bytepos {
-                //lucky shot! an exact match! not likely to happen often
-                return Ok(*pos);
-            } else if posindexitem.bytepos > bytecursor {
-                break;
+        if let Some(charpos) = self.byte2charmap.get(&bytecursor) {
+            //exact byte position is in the index, return the position
+            Ok(*charpos)
+        } else {
+            // Get the item previous to bytecursor using a double ended range iterator
+            if let Some((before_bytepos, before_charpos)) = self
+                .byte2charmap
+                .range((Included(&0), Excluded(&bytecursor)))
+                .next_back()
+            {
+                let textslice = &self.text[*before_bytepos..];
+                if before_bytepos + textslice.len() == bytecursor {
+                    //non-inclusive end is also a valid point to return
+                    return Ok(self.textlen);
+                }
+                // now we just count characters and keep track of the bytes they take,
+                // if everything went well, we have only a minimum amount to count
+                // at most the O(n) where n is config.milestone_interval
+                for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
+                    if before_bytepos + bytepos == bytecursor {
+                        return Ok(before_charpos + charpos);
+                    }
+                }
+            } else {
+                //fallback, position index has no useful entries (config.mileston_interval < textlen?), search from 0
+                if self.text().len() == bytecursor {
+                    //non-inclusive end is also a valid point to return
+                    return Ok(self.textlen);
+                }
+                for (charpos, (bytepos, _)) in self.text().char_indices().enumerate() {
+                    if bytepos == bytecursor {
+                        return Ok(charpos);
+                    }
+                }
             }
-            beginpos = *pos;
-            beginbyte = posindexitem.bytepos;
+            Err(StamError::CursorOutOfBounds(
+                Cursor::BeginAligned(bytecursor),
+                "TextResource::utf8byte_to_charpos() (cursor value in this error is to be interpreted as a utf-8 byte position in this rare context!!). It is also possible that the UTF-8 byte is not out of bounds but ends up in the middle of a unicodepoint.",
+            ))
         }
-        let textslice = &self.text[beginbyte..];
-        let mut charcount = 0;
-        for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
-            charcount = charpos;
-            if beginbyte + bytepos == bytecursor {
-                return Ok(beginpos + charpos);
-            } else if beginbyte + bytepos > bytecursor {
-                break;
-            }
-        }
-        if bytecursor == textslice.len() {
-            //non-inclusive end is also a valid point to return
-            return Ok(beginpos + charcount + 1);
-        }
-        Err(StamError::CursorOutOfBounds(
-            Cursor::BeginAligned(bytecursor),
-            "TextResource::utf8byte_to_charpos() (value in error is to be interpreted as a byte position here)",
-        ))
     }
 
     /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
