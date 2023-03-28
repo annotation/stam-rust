@@ -919,7 +919,6 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
 
 /// Wrapper over iterator regex Matches or CaptureMatches
 enum Matches<'r, 't> {
-    None,
     NoCapture(regex::Matches<'r, 't>),
     WithCapture(regex::CaptureMatches<'r, 't>),
 }
@@ -973,7 +972,6 @@ impl<'r, 't> Iterator for Matches<'r, 't> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Self::None => None,
             Self::NoCapture(iter) => {
                 if let Some(m) = iter.next() {
                     Some(Match::NoCapture(m))
