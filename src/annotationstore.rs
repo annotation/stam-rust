@@ -777,6 +777,21 @@ impl AnnotationStore {
         }
     }
 
+    /// Shortcut to write an AnnotationStore to a STAM JSON file, writes to the same file as was loaded.
+    /// Returns an error if no filename was associated yet.
+    /// Writes in compact form, i.e. without any indentation
+    /// Use [`AnnotationStore.to_file_compact`] instead if you want to write elsewhere.
+    pub fn save_compact(&self) -> Result<(), StamError> {
+        debug(self.config(), || format!("AnnotationStore.save_compact"));
+        if let Some(filepath) = &self.filename {
+            self.to_file_compact(filepath.to_str().expect("filename must be valid unicode"))
+        } else {
+            Err(StamError::SerializationError(
+                "No filename associated with the store".to_owned(),
+            ))
+        }
+    }
+
     /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
     pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
         debug(self.config(), || {
