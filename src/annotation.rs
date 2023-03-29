@@ -54,6 +54,13 @@ impl Handle for AnnotationHandle {
 }
 
 #[sealed]
+impl TypeInfo for Annotation {
+    fn typeinfo() -> Type {
+        Type::Annotation
+    }
+}
+
+#[sealed]
 impl Storable for Annotation {
     type HandleType = AnnotationHandle;
 

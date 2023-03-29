@@ -128,6 +128,16 @@ impl Handle for AnnotationDataSetHandle {
 }
 
 #[sealed]
+impl TypeInfo for AnnotationDataSet {
+    fn typeinfo() -> Type {
+        Type::AnnotationDataSet
+    }
+}
+
+#[sealed]
+impl Writable for AnnotationDataSet {}
+
+#[sealed]
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
 
@@ -191,7 +201,8 @@ impl StoreFor<DataKey> for AnnotationDataSet {
             Some(item.part_of_set == self.handle())
         }
     }
-    fn introspect_type(&self) -> &'static str {
+
+    fn store_typeinfo() -> &'static str {
         "DataKey in AnnotationDataSet"
     }
 
@@ -257,7 +268,7 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
             Some(item.part_of_set == self.handle())
         }
     }
-    fn introspect_type(&self) -> &'static str {
+    fn store_typeinfo() -> &'static str {
         "AnnotationData in AnnotationDataSet"
     }
 
@@ -326,7 +337,7 @@ impl Serialize for AnnotationDataSet {
             if let Ok(changed) = self.changed.read() {
                 if *changed {
                     //we trigger the standoff flag, this is the only way we can parametrize the serializer
-                    let result = self.to_file(&filename); //this reinvokes this function after setting config.standoff_include
+                    let result = self.to_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
                     result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
                 }
             }
@@ -661,29 +672,7 @@ impl AnnotationDataSet {
         self
     }
 
-    /// Writes a dataset to a STAM JSON file, with appropriate formatting
-    pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config())?;
-        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
-        let result = serde_json::to_writer_pretty(writer, &self)
-            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
-        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
-        result?;
-        Ok(())
-    }
-
-    /// Writes a dataset to a STAM JSON file, without any indentation
-    pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config())?;
-        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
-        let result = serde_json::to_writer(writer, &self)
-            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
-        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
-        result?;
-        Ok(())
-    }
-
-    //Returns the number of keys in the store (deletions are not substracted)
+    /// Writes a    //Returns the number of keys in the store (deletions are not substracted)
     pub fn keys_len(&self) -> usize {
         self.keys.len()
     }

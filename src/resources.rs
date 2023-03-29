@@ -134,6 +134,16 @@ impl Handle for TextResourceHandle {
 }
 
 #[sealed]
+impl TypeInfo for TextResource {
+    fn typeinfo() -> Type {
+        Type::TextResource
+    }
+}
+
+#[sealed]
+impl Writable for TextResource {}
+
+#[sealed]
 impl Storable for TextResource {
     type HandleType = TextResourceHandle;
 
@@ -173,7 +183,7 @@ impl Serialize for TextResource {
             if let Ok(changed) = self.changed.read() {
                 if *changed {
                     if filename.ends_with(".json") {
-                        let result = self.to_file(&filename); //this reinvokes this function after setting config.standoff_include
+                        let result = self.to_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
                         result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
                     } else {
                         //plain text
@@ -308,48 +318,6 @@ impl TextResource {
         let builder = TextResourceBuilder::from_file(filename, config)?;
         self = Self::from_builder(builder)?;
         Ok(self)
-    }
-
-    /// Writes a resource to a STAM JSON file, with appropriate formatting
-    pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config())?;
-        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
-        let result = serde_json::to_writer_pretty(writer, &self)
-            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
-        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
-        result?;
-        Ok(())
-    }
-
-    /// Writes a resource to a STAM JSON file, without any indentation
-    pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config())?;
-        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
-        let result = serde_json::to_writer(writer, &self)
-            .map_err(|e| StamError::SerializationError(format!("Writing dataset to file: {}", e)));
-        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
-        result?;
-        Ok(())
-    }
-
-    /// Writes a resource to a STAM JSON string, with appropriate formatting
-    pub fn to_json(&self) -> Result<String, StamError> {
-        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
-        let result = serde_json::to_string_pretty(&self).map_err(|e| {
-            StamError::SerializationError(format!("Serializing resource to string: {}", e))
-        });
-        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
-        result
-    }
-
-    /// Writes a resource to a STAM JSON string, without any indentation
-    pub fn to_json_compact(&self) -> Result<String, StamError> {
-        self.config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode
-        let result = serde_json::to_string(&self).map_err(|e| {
-            StamError::SerializationError(format!("Serializing resource to string: {}", e))
-        });
-        self.config.set_serialize_mode(SerializeMode::AllowInclude); //reset
-        result
     }
 
     /// Get the filename for stand-off file specified using @include (if any)
@@ -804,7 +772,7 @@ impl StoreFor<TextSelection> for TextResource {
     fn idmap_mut(&mut self) -> Option<&mut IdMap<TextSelectionHandle>> {
         None
     }
-    fn introspect_type(&self) -> &'static str {
+    fn store_typeinfo() -> &'static str {
         "TextSelection in TextResource"
     }
 

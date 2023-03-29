@@ -775,7 +775,7 @@ fn serialize_annotationstore() -> Result<(), StamError> {
 #[test]
 fn serialize_annotationstore_to_file() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    store.to_file("/tmp/testoutput.stam.json")
+    store.to_file("/tmp/testoutput.stam.json", &Config::default())
 }
 
 #[test]

@@ -53,6 +53,13 @@ impl Handle for DataKeyHandle {
 }
 
 #[sealed]
+impl TypeInfo for DataKey {
+    fn typeinfo() -> Type {
+        Type::DataKey
+    }
+}
+
+#[sealed]
 impl Storable for DataKey {
     type HandleType = DataKeyHandle;
 

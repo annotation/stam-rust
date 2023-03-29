@@ -185,6 +185,13 @@ impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
     }
 }
 
+#[sealed]
+impl TypeInfo for AnnotationStore {
+    fn typeinfo() -> Type {
+        Type::AnnotationStore
+    }
+}
+
 //An AnnotationStore is a StoreFor TextResource
 #[sealed]
 impl StoreFor<TextResource> for AnnotationStore {
@@ -204,7 +211,7 @@ impl StoreFor<TextResource> for AnnotationStore {
     fn idmap_mut(&mut self) -> Option<&mut IdMap<TextResourceHandle>> {
         Some(&mut self.resource_idmap)
     }
-    fn introspect_type(&self) -> &'static str {
+    fn store_typeinfo() -> &'static str {
         "TextResource in AnnotationStore"
     }
 
@@ -246,7 +253,7 @@ impl StoreFor<Annotation> for AnnotationStore {
     fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationHandle>> {
         Some(&mut self.annotation_idmap)
     }
-    fn introspect_type(&self) -> &'static str {
+    fn store_typeinfo() -> &'static str {
         "Annotation in AnnotationStore"
     }
 
@@ -478,7 +485,7 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationDataSetHandle>> {
         Some(&mut self.dataset_idmap)
     }
-    fn introspect_type(&self) -> &'static str {
+    fn store_typeinfo() -> &'static str {
         "AnnotationDataSet in AnnotationStore"
     }
 
@@ -527,6 +534,9 @@ impl Default for AnnotationStore {
         }
     }
 }
+
+#[sealed]
+impl Writable for AnnotationStore {}
 
 impl Serialize for AnnotationStore {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -769,48 +779,15 @@ impl AnnotationStore {
     pub fn save(&self) -> Result<(), StamError> {
         debug(self.config(), || format!("AnnotationStore.save"));
         if let Some(filepath) = &self.filename {
-            self.to_file(filepath.to_str().expect("filename must be valid unicode"))
+            self.to_file(
+                filepath.to_str().expect("filename must be valid unicode"),
+                self.config(),
+            )
         } else {
             Err(StamError::SerializationError(
                 "No filename associated with the store".to_owned(),
             ))
         }
-    }
-
-    /// Shortcut to write an AnnotationStore to a STAM JSON file, writes to the same file as was loaded.
-    /// Returns an error if no filename was associated yet.
-    /// Writes in compact form, i.e. without any indentation
-    /// Use [`AnnotationStore.to_file_compact`] instead if you want to write elsewhere.
-    pub fn save_compact(&self) -> Result<(), StamError> {
-        debug(self.config(), || format!("AnnotationStore.save_compact"));
-        if let Some(filepath) = &self.filename {
-            self.to_file_compact(filepath.to_str().expect("filename must be valid unicode"))
-        } else {
-            Err(StamError::SerializationError(
-                "No filename associated with the store".to_owned(),
-            ))
-        }
-    }
-
-    /// Writes an AnnotationStore to a STAM JSON file, with appropriate formatting
-    pub fn to_file(&self, filename: &str) -> Result<(), StamError> {
-        debug(self.config(), || {
-            format!("AnnotationStore.to_file: filename={:?}", filename)
-        });
-        let writer = open_file_writer(filename, self.config())?;
-        serde_json::to_writer_pretty(writer, &self).map_err(|e| {
-            StamError::SerializationError(format!("Writing annotationstore to file: {}", e))
-        })?;
-        Ok(())
-    }
-
-    /// Writes an AnnotationStore to a STAM JSON file, without any indentation
-    pub fn to_file_compact(&self, filename: &str) -> Result<(), StamError> {
-        let writer = open_file_writer(filename, self.config())?;
-        serde_json::to_writer(writer, &self).map_err(|e| {
-            StamError::SerializationError(format!("Writing annotationstore to file: {}", e))
-        })?;
-        Ok(())
     }
 
     /// Used to set the serialization mode, determines whether to output @include statements and standoff files
@@ -838,20 +815,6 @@ impl AnnotationStore {
                 annotationset.set_config(config.clone());
             }
         }
-    }
-
-    /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting
-    pub fn to_json(&self) -> Result<String, StamError> {
-        serde_json::to_string_pretty(&self).map_err(|e| {
-            StamError::SerializationError(format!("Writing annotationstore to string: {}", e))
-        })
-    }
-
-    /// Writes an AnnotationStore to one big STAM JSON string, without any indentation
-    pub fn to_json_compact(&self) -> Result<String, StamError> {
-        serde_json::to_string(&self).map_err(|e| {
-            StamError::SerializationError(format!("Writing annotationstore to string: {}", e))
-        })
     }
 
     /// Returns the ID of the annotation store (if any)

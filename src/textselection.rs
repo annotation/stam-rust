@@ -55,6 +55,13 @@ impl Handle for TextSelectionHandle {
 }
 
 #[sealed]
+impl TypeInfo for TextSelection {
+    fn typeinfo() -> Type {
+        Type::TextSelection
+    }
+}
+
+#[sealed]
 impl Storable for TextSelection {
     type HandleType = TextSelectionHandle;
 

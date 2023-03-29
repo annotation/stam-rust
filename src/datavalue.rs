@@ -2,6 +2,15 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::error::StamError;
+use crate::types::*;
+use sealed::sealed;
+
+#[sealed]
+impl TypeInfo for DataValue {
+    fn typeinfo() -> Type {
+        Type::DataValue
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(tag = "@type", content = "value")]

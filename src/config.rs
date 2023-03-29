@@ -45,6 +45,8 @@ pub struct Config {
     /// Milestone placement interval (in unicode codepoints) in indexing text resources. A low number above zero increases search performance at the cost of memory and increased initialisation time.
     pub milestone_interval: usize,
 
+    pub dataformat: DataFormat,
+
     /// Debug mode
     pub debug: bool,
 
@@ -63,6 +65,7 @@ impl Default for Config {
             annotation_annotation_map: true,
             generate_ids: true,
             use_include: true,
+            dataformat: DataFormat::Json { compact: false },
             milestone_interval: 100,
             workdir: None,
             debug: false,
