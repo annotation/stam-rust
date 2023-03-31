@@ -334,9 +334,9 @@ enum SelectorJson {
     DataSetSelector {
         dataset: AnyId<AnnotationDataSetHandle>,
     },
-    MultiSelector(Vec<SelectorBuilder>),
-    CompositeSelector(Vec<SelectorBuilder>),
-    DirectionalSelector(Vec<SelectorBuilder>),
+    MultiSelector { selectors: Vec<SelectorBuilder> },
+    CompositeSelector { selectors: Vec<SelectorBuilder>},
+    DirectionalSelector{ selectors: Vec<SelectorBuilder>},
 }
 
 impl From<SelectorJson> for SelectorBuilder {
@@ -352,9 +352,9 @@ impl From<SelectorJson> for SelectorBuilder {
                 offset: o,
             } => Self::AnnotationSelector(a, o),
             SelectorJson::DataSetSelector { dataset: s } => Self::DataSetSelector(s),
-            SelectorJson::MultiSelector(v) => Self::MultiSelector(v),
-            SelectorJson::CompositeSelector(v) => Self::CompositeSelector(v),
-            SelectorJson::DirectionalSelector(v) => Self::DirectionalSelector(v),
+            SelectorJson::MultiSelector { selectors: v } => Self::MultiSelector(v),
+            SelectorJson::CompositeSelector { selectors: v } => Self::CompositeSelector(v),
+            SelectorJson::DirectionalSelector { selectors: v } => Self::DirectionalSelector(v),
         }
     }
 }
