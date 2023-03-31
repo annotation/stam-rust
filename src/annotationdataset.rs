@@ -134,6 +134,7 @@ impl TypeInfo for AnnotationDataSet {
     }
 }
 
+#[cfg(not(feature = "csv"))]
 #[sealed]
 impl Writable for AnnotationDataSet {}
 

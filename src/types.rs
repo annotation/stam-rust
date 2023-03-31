@@ -14,9 +14,12 @@ use serde::{Deserialize, Serialize};
 use crate::config::{get_global_config, Config, SerializeMode};
 use crate::error::StamError;
 
+#[cfg(feature = "csv")]
+use crate::csv::CsvTable;
+
 /// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
 pub type Store<T> = Vec<Option<T>>;
-//                       ^------- may be None when an element gets deleted
+//                       ^------- may be None when an element getssubtype: tabled
 /// A cursor points to a specific point in a text. I
 /// Used to select offsets. Units are unicode codepoints (not bytes!)
 /// and are 0-indexed.
@@ -70,7 +73,7 @@ pub trait TypeInfo {
     fn typeinfo() -> Type;
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Type {
     AnnotationStore,
     Annotation,
@@ -317,7 +320,14 @@ where
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum DataFormat {
-    Json { compact: bool },
+    Json {
+        compact: bool,
+    },
+
+    #[cfg(feature = "csv")]
+    Csv {
+        table: CsvTable,
+    },
 }
 
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
@@ -772,6 +782,8 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 }
 
+const KNOWN_EXTENSIONS: &[&str; 4] = &[".stam.json", ".stam.csv", ".json", ".csv"];
+
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait Writable
 where
@@ -801,10 +813,12 @@ where
                     ))
                 })
             }
+            #[cfg(feature = "csv")]
+            DataFormat::Csv { table } => self.csv_writer(writer, *table),
         }
     }
 
-    /// Writes this structure to a STAM JSON file
+    /// Writes this structure to a file
     /// The actual dataformat can be set via `config`, the default is STAM JSON.
     fn to_file(&self, filename: &str, config: &Config) -> Result<(), StamError> {
         debug(config, || {
@@ -848,12 +862,41 @@ where
                     e
                 ))
             }),
+            #[cfg(feature = "csv")]
+            DataFormat::Csv { table } => {
+                let mut writer = BufWriter::new(Vec::new());
+                self.csv_writer(&mut writer, table)?;
+                let bytes = writer.into_inner().expect("unwrapping buffer");
+                Ok(String::from_utf8(bytes).expect("valid utf-8"))
+            }
         };
         if let Type::TextResource | Type::AnnotationDataSet = Self::typeinfo() {
             //introspection to detect whether type can do @include
             config.set_serialize_mode(SerializeMode::AllowInclude); //set standoff mode, what we're about the write is the standoff file
         }
         result
+    }
+
+    /// Attempts to extract the basename from a filename
+    fn extract_basename<'a>(filename: &'a str) -> &'a str {
+        for extension in KNOWN_EXTENSIONS.iter() {
+            if filename.ends_with(extension) {
+                return &filename[0..filename.len() - extension.len()];
+            }
+        }
+        return filename;
+    }
+
+    #[cfg(feature = "csv")]
+    fn csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
+    where
+        W: std::io::Write,
+    {
+        //default trait implementation returns an error
+        Err(StamError::SerializationError(format!(
+            "No csv_writer implementation for {}",
+            Self::typeinfo(),
+        )))
     }
 }
 

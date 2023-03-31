@@ -218,7 +218,7 @@ impl Selector {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize,Deserialize)]
 /// See [`Selector`], this is a simplified variant that carries only the type, not the target.
 pub enum SelectorKind {
     ResourceSelector = 1,
@@ -229,6 +229,21 @@ pub enum SelectorKind {
     CompositeSelector = 6,
     DirectionalSelector = 7,
     InternalRangedSelector = 8,
+}
+
+impl SelectorKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ResourceSelector => "ResourceSelector",
+            AnnotationSelector => "AnnotationSelector",
+            TextSelector => "TextSelector",
+            DataSetSelector => "DataSetSelector",
+            MultiSelector => "MultiSelector",
+            CompositeSelector => "CompositeSelector",
+            DirectionalSelector => "DirectionalSelector",
+            InternalRangedSelector => "InternalRangedSelector",
+        }
+    }
 }
 
 impl From<&Selector> for SelectorKind {

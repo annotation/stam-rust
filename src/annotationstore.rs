@@ -70,6 +70,10 @@ pub struct AnnotationStore {
 
     /// path associated with this store
     filename: Option<PathBuf>,
+
+    #[cfg(feature = "csv")]
+    /// path associated with the stand-off files holding annotations (only used for STAM CSV)
+    annotations_filename: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Default)]
@@ -88,6 +92,9 @@ pub struct AnnotationStoreBuilder {
 
     #[serde(skip)]
     pub filename: Option<PathBuf>,
+
+    #[serde(skip)]
+    pub annotations_filename: Option<PathBuf>,
 }
 
 impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
@@ -238,6 +245,9 @@ impl StoreFor<TextResource> for AnnotationStore {
     }
 }
 
+#[cfg(not(feature = "csv"))]
+#[sealed]
+impl Writable for AnnotationStore {}
 //An AnnotationStore is a StoreFor Annotation
 #[sealed]
 impl StoreFor<Annotation> for AnnotationStore {
@@ -531,12 +541,10 @@ impl Default for AnnotationStore {
             textrelationmap: TripleRelationMap::new(),
             config: Config::default(),
             filename: None,
+            annotations_filename: None,
         }
     }
 }
-
-#[sealed]
-impl Writable for AnnotationStore {}
 
 impl Serialize for AnnotationStore {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -719,6 +727,12 @@ impl AnnotationStore {
     /// Returns the filename associated with this annotation store
     pub fn filename(&self) -> Option<&Path> {
         self.filename.as_ref().map(|x| x.as_path())
+    }
+
+    /// Returns the filename associated with this annotation store for storage of annotations
+    /// Only used for STAM CSV, not for STAM JSON.
+    pub fn annotations_filename(&self) -> Option<&Path> {
+        self.annotations_filename.as_ref().map(|x| x.as_path())
     }
 
     /// Load a JSON file containing an array of annotations in STAM JSON
