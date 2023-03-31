@@ -101,6 +101,45 @@ fn parse_json_textselector() -> Result<(), std::io::Error> {
 }
 
 #[test]
+fn parse_json_complexselector() -> Result<(), std::io::Error> {
+    let data = r#"{
+    "@type": "MultiSelector",
+    "selectors": [
+        { 
+            "@type": "TextSelector",
+            "resource": "testres",
+            "offset": {
+                "begin": {
+                    "@type": "BeginAlignedCursor",
+                    "value": 0
+                },
+                "end": {
+                    "@type": "BeginAlignedCursor",
+                    "value": 5
+                }
+            }
+        },
+        { 
+            "@type": "TextSelector",
+            "resource": "testres",
+            "offset": {
+                "begin": {
+                    "@type": "BeginAlignedCursor",
+                    "value": 9
+                },
+                "end": {
+                    "@type": "BeginAlignedCursor",
+                    "value": 12
+                }
+            }
+        }
+    ]}"#;
+
+    let _builder: SelectorBuilder = serde_json::from_str(data)?;
+    Ok(())
+}
+
+#[test]
 fn textresource() {
     let resource =
         TextResource::from_string("testres".into(), "Hello world".into(), Config::default());
