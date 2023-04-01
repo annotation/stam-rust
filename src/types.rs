@@ -59,13 +59,13 @@ impl TryFrom<&str> for Cursor {
     fn try_from(cursor: &str) -> Result<Self, Self::Error> {
         if cursor.starts_with('-') {
             //EndAligned
-            let cursor: isize = isize::from_str_radix(cursor, 10).map_err(|e| {
+            let cursor: isize = isize::from_str_radix(cursor, 10).map_err(|_e| {
                 StamError::InvalidCursor(cursor.to_owned(), "Invalid EndAlignedCursor")
             })?;
             Cursor::try_from(cursor)
         } else {
             //BeginAligned
-            let cursor: usize = usize::from_str_radix(cursor, 10).map_err(|e| {
+            let cursor: usize = usize::from_str_radix(cursor, 10).map_err(|_e| {
                 StamError::InvalidCursor(cursor.to_owned(), "Invalid BeginAlignedCursor")
             })?;
             Ok(Cursor::from(cursor))

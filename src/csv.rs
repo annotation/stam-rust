@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
 use crate::types::*;
-use crate::{AnnotationDataSet, AnnotationStore, DataValue, Selector, SelectorKind, StamError};
+use crate::{
+    Annotation, AnnotationDataSet, AnnotationStore, DataValue, Selector, SelectorKind, StamError,
+    TextResource,
+};
 
 #[derive(Serialize)]
 struct AnnotationStoreCsv<'a> {
@@ -38,6 +41,12 @@ struct AnnotationCsv<'a> {
     set_ids: Cow<'a, str>,
     #[serde(rename = "SelectorType")]
     selectortype: Cow<'a, str>,
+    #[serde(rename = "TargetResource")]
+    targetresource: Cow<'a, str>,
+    #[serde(rename = "TargetAnnotation")]
+    targetannotation: Cow<'a, str>,
+    #[serde(rename = "TargetDataSet")]
+    targetdataset: Cow<'a, str>,
     #[serde(rename = "BeginOffset")]
     begin: String,
     #[serde(rename = "EndOffset")]
@@ -94,6 +103,89 @@ impl<'a> AnnotationCsv<'a> {
                 Selector::TextSelector(_, offset)
                 | Selector::AnnotationSelector(_, Some(offset)) => format!("{}", offset.end),
                 _ => String::new(),
+            }
+        }
+    }
+
+    fn set_targetresource(selector: &Selector, store: &'a AnnotationStore) -> Cow<'a, str> {
+        if selector.is_complex() {
+            let mut out: String = String::new();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    out.push(';'); //delimiter
+                    match subselector {
+                        Selector::ResourceSelector(res) | Selector::TextSelector(res, _) => {
+                            let res: &TextResource = store.get(*res).expect("resource must exist");
+                            out += res.id().expect("resource must have an id");
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Cow::Owned(out)
+        } else {
+            match selector {
+                Selector::ResourceSelector(res) | Selector::TextSelector(res, _) => {
+                    let res: &TextResource = store.get(*res).expect("resource must exist");
+                    Cow::Borrowed(res.id().expect("resource must have an id"))
+                }
+                _ => Cow::Borrowed(""),
+            }
+        }
+    }
+
+    fn set_targetdataset(selector: &Selector, store: &'a AnnotationStore) -> Cow<'a, str> {
+        if selector.is_complex() {
+            let mut out: String = String::new();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    out.push(';'); //delimiter
+                    match subselector {
+                        Selector::DataSetSelector(dataset) => {
+                            let dataset: &AnnotationDataSet =
+                                store.get(*dataset).expect("dataset must exist");
+                            out += dataset.id().expect("dataset must have an id");
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Cow::Owned(out)
+        } else {
+            match selector {
+                Selector::DataSetSelector(dataset) => {
+                    let dataset: &AnnotationDataSet =
+                        store.get(*dataset).expect("dataset must exist");
+                    Cow::Borrowed(dataset.id().expect("dataset must have an id"))
+                }
+                _ => Cow::Borrowed(""),
+            }
+        }
+    }
+
+    fn set_targetannotation(selector: &Selector, store: &'a AnnotationStore) -> Cow<'a, str> {
+        if selector.is_complex() {
+            let mut out: String = String::new();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    out.push(';'); //delimiter
+                    match subselector {
+                        Selector::AnnotationSelector(ann, _) => {
+                            let ann: &Annotation = store.get(*ann).expect("annotation must exist");
+                            out += ann.id().expect("annotation must have an id");
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Cow::Owned(out)
+        } else {
+            match selector {
+                Selector::AnnotationSelector(ann, _) => {
+                    let ann: &Annotation = store.get(*ann).expect("annotation must exist");
+                    Cow::Borrowed(ann.id().expect("annotation must have an id"))
+                }
+                _ => Cow::Borrowed(""),
             }
         }
     }
@@ -194,6 +286,18 @@ impl Writable for AnnotationStore {
                             data_ids: Cow::Borrowed(""),
                             set_ids: Cow::Borrowed(""),
                             selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            targetdataset: AnnotationCsv::set_targetdataset(
+                                annotation.target(),
+                                self,
+                            ),
+                            targetresource: AnnotationCsv::set_targetresource(
+                                annotation.target(),
+                                self,
+                            ),
+                            targetannotation: AnnotationCsv::set_targetannotation(
+                                annotation.target(),
+                                self,
+                            ),
                             begin: AnnotationCsv::set_beginoffset(annotation.target()),
                             end: AnnotationCsv::set_endoffset(annotation.target()),
                         }
@@ -215,6 +319,18 @@ impl Writable for AnnotationStore {
                             data_ids: Cow::Borrowed(data.id().unwrap()),
                             set_ids: Cow::Borrowed(set.id().unwrap()),
                             selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            targetdataset: AnnotationCsv::set_targetdataset(
+                                annotation.target(),
+                                self,
+                            ),
+                            targetresource: AnnotationCsv::set_targetresource(
+                                annotation.target(),
+                                self,
+                            ),
+                            targetannotation: AnnotationCsv::set_targetannotation(
+                                annotation.target(),
+                                self,
+                            ),
                             begin: AnnotationCsv::set_beginoffset(annotation.target()),
                             end: AnnotationCsv::set_endoffset(annotation.target()),
                         }
@@ -244,6 +360,18 @@ impl Writable for AnnotationStore {
                             data_ids: Cow::Owned(data_ids),
                             set_ids: Cow::Owned(set_ids),
                             selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            targetdataset: AnnotationCsv::set_targetdataset(
+                                annotation.target(),
+                                self,
+                            ),
+                            targetresource: AnnotationCsv::set_targetresource(
+                                annotation.target(),
+                                self,
+                            ),
+                            targetannotation: AnnotationCsv::set_targetannotation(
+                                annotation.target(),
+                                self,
+                            ),
                             begin: AnnotationCsv::set_beginoffset(annotation.target()),
                             end: AnnotationCsv::set_endoffset(annotation.target()),
                         }
