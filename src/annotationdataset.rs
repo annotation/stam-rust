@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 use crate::config::{get_global_config, Config, SerializeMode};
+#[cfg(feature = "csv")]
+use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
@@ -66,7 +68,7 @@ pub struct AnnotationDataSetBuilder {
     pub keys: Option<Vec<DataKey>>, //this is an Option because it can be omitted if @include is used
     pub data: Option<Vec<AnnotationDataBuilder>>,
     #[serde(rename = "@include")]
-    pub(crate) include: Option<String>,
+    pub(crate) filename: Option<String>,
 
     #[serde(skip)]
     pub(crate) mode: SerializeMode,
@@ -97,7 +99,7 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
             },
             //note: includes have to be resolved in a later stage via [`AnnotationStore.process_includes()`]
             //      we don't do it here as we don't have state information from the deserializer (believe me, I tried)
-            filename: builder.include,
+            filename: builder.filename,
             config: builder.config,
             ..Default::default()
         };
@@ -415,7 +417,7 @@ impl<'a> FromJson<'a> for AnnotationDataSetBuilder {
             serde_path_to_error::deserialize(deserializer);
         if result.is_ok() {
             let builder = result.as_mut().unwrap();
-            builder.include = Some(filename.to_string()); //we use the original filename, not the one we found
+            builder.filename = Some(filename.to_string()); //we use the original filename, not the one we found
             builder.mode = SerializeMode::NoInclude;
             builder.config = config;
         }
@@ -489,7 +491,7 @@ impl AnnotationDataSet {
     /// Loads an AnnotationDataSet from file (STAM JSON or other supported format) and merges it into the current one.
     /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
-    pub fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
+    pub fn with_file(mut self, filename: &str, mut config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!(
                 "AnnotationDataSet.with_file: filename={:?} config={:?}",
@@ -512,7 +514,7 @@ impl AnnotationDataSet {
 
     /// Loads an AnnotationDataSet from file (STAM JSON or other supported format).
     /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+    pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") {
             config.dataformat = DataFormat::Csv;

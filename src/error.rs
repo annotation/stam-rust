@@ -48,6 +48,10 @@ pub enum StamError {
         &'static str,
     ),
 
+    /// This error indicates there was an error during CSV parsing. It wraps the deeper error that occurred.
+    #[cfg(feature = "csv")]
+    CsvError(String, &'static str),
+
     /// This error is raised when there is an error in regular expressions
     RegexError(regex::Error, &'static str),
 
@@ -120,6 +124,10 @@ impl From<&StamError> for String {
                     "JsonError: Parsing failed: {} ({}). Input: {}",
                     err, contextmsg, input
                 )
+            }
+            #[cfg(feature = "csv")]
+            StamError::CsvError(msg, contextmsg) => {
+                format!("CsvError: Parsing failed: {} ({})", msg, contextmsg)
             }
             StamError::RegexError(err, contextmsg) => {
                 format!("RegexError: {} ({})", err, contextmsg)

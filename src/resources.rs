@@ -72,7 +72,7 @@ pub struct TextResourceBuilder {
     /// Associates an external resource with the text resource.
     /// `mode` determines whether it is still to be parsed.
     #[serde(rename = "@include")]
-    include: Option<String>,
+    filename: Option<String>,
 
     /// Sets mode for deserialisation (whether to follow @include statements)
     #[serde(skip)]
@@ -98,7 +98,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             intid: None,
             id: if let Some(id) = builder.id {
                 id
-            } else if let Some(filename) = builder.include.as_ref() {
+            } else if let Some(filename) = builder.filename.as_ref() {
                 filename.clone()
             } else {
                 return Err(StamError::NoIdError("Expected an ID for resource"));
@@ -115,7 +115,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             config: builder.config,
             //note: includes have to be resolved in a later stage via [`AnnotationStore.process_includes()`]
             //      we don't do it here as we don't have state information from the deserializer (believe me, I tried)
-            filename: builder.include.clone(),
+            filename: builder.filename.clone(),
             changed: Arc::new(RwLock::new(false)),
         })
     }
@@ -231,7 +231,7 @@ impl<'a> FromJson<'a> for TextResourceBuilder {
             serde_path_to_error::deserialize(deserializer);
         if result.is_ok() && config.use_include {
             let result = result.as_mut().unwrap();
-            result.include = Some(filename.to_string()); //always uses the original filename (not the found one)
+            result.filename = Some(filename.to_string()); //always uses the original filename (not the found one)
             result.mode = SerializeMode::NoInclude;
             result.config = config;
         }
@@ -271,7 +271,7 @@ impl TextResourceBuilder {
         Ok(Self {
             id: Some(filename.to_string()),
             text: Some(text),
-            include: if config.use_include {
+            filename: if config.use_include {
                 Some(filename.to_string())
             } else {
                 None

@@ -2,15 +2,16 @@ use csv;
 use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::io::BufWriter;
+use std::io::{BufRead, BufReader, BufWriter};
 
 use crate::types::*;
 use crate::{
-    Annotation, AnnotationDataSet, AnnotationStore, Config, DataValue, Selector, SelectorKind,
-    StamError, TextResource,
+    Annotation, AnnotationDataBuilder, AnnotationDataSet, AnnotationDataSetBuilder,
+    AnnotationStore, AnnotationStoreBuilder, Config, DataKey, DataValue, Selector, SelectorKind,
+    SerializeMode, StamError, TextResource,
 };
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct AnnotationStoreCsv<'a> {
     #[serde(rename = "Type")]
     tp: Type,
@@ -20,7 +21,7 @@ struct AnnotationStoreCsv<'a> {
     filename: Option<Cow<'a, str>>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct AnnotationDataCsv<'a> {
     #[serde(rename = "Id")]
     id: Option<Cow<'a, str>>,
@@ -550,5 +551,73 @@ impl ToCsv for AnnotationDataSet {
                 })?;
         }
         Ok(())
+    }
+}
+
+#[sealed] //<-- this ensures nobody outside this crate can implement the trait
+pub trait FromCsv<'a>
+where
+    Self: TypeInfo + serde::Deserialize<'a>,
+{
+    fn from_csv_reader(
+        reader: Box<dyn BufRead>,
+        filename: Option<&str>,
+        config: Config,
+    ) -> Result<Self, StamError>;
+
+    fn from_csv_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!("{}::from_csv_file: filename={}", Self::typeinfo(), filename)
+        });
+        let reader = open_file_reader(filename, &config)?;
+        let mut result = Self::from_csv_reader(reader, Some(filename), config)?;
+        Ok(result)
+    }
+}
+
+#[sealed]
+impl<'a> FromCsv<'a> for AnnotationDataSetBuilder {
+    fn from_csv_reader(
+        reader: Box<dyn BufRead>,
+        filename: Option<&str>,
+        config: Config,
+    ) -> Result<Self, StamError> {
+        let mut reader = csv::Reader::from_reader(reader);
+        let mut keys: Vec<DataKey> = Vec::new();
+        let mut databuilders: Vec<AnnotationDataBuilder> = Vec::new();
+        for result in reader.deserialize() {
+            let record: AnnotationDataCsv = result.map_err(|e| {
+                StamError::CsvError(format!("{}", e), "while parsing AnnotationDataSet")
+            })?;
+            if (record.id.is_none() || record.id.as_ref().unwrap().is_empty())
+                && !record.key.is_empty()
+                && record.value.is_empty()
+            {
+                keys.push(DataKey::new(record.key.to_string()));
+            } else {
+                databuilders.push(AnnotationDataBuilder {
+                    id: if record.id.is_none() || record.id.as_ref().unwrap().is_empty() {
+                        AnyId::None
+                    } else {
+                        AnyId::Id(record.id.as_ref().unwrap().to_string())
+                    },
+                    key: if record.key.is_empty() {
+                        AnyId::None //will produce an error later on
+                    } else {
+                        AnyId::Id(record.key.to_string())
+                    },
+                    annotationset: AnyId::None, //we're confined to a single set so don't need this
+                    value: record.value.into(),
+                });
+            }
+        }
+        Ok(AnnotationDataSetBuilder {
+            id: None, //determines by StoreManifest rather than the set itself
+            keys: Some(keys),
+            data: Some(databuilders),
+            filename: filename.map(|x| x.to_string()),
+            config,
+            mode: SerializeMode::NoInclude,
+        })
     }
 }
