@@ -3,22 +3,24 @@ use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::io::{BufRead, BufReader, BufWriter};
+use std::path::PathBuf;
 
 use crate::types::*;
 use crate::{
     Annotation, AnnotationDataBuilder, AnnotationDataSet, AnnotationDataSetBuilder,
     AnnotationStore, AnnotationStoreBuilder, Config, DataKey, DataValue, Selector, SelectorKind,
-    SerializeMode, StamError, TextResource,
+    SerializeMode, StamError, TextResource, TextResourceBuilder,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
-struct AnnotationStoreCsv<'a> {
+/// Annotation Store Manifest
+struct StoreManifestCsv<'a> {
     #[serde(rename = "Type")]
     tp: Type,
     #[serde(rename = "Id")]
     id: Option<Cow<'a, str>>,
     #[serde(rename = "Filename")]
-    filename: Option<Cow<'a, str>>,
+    filename: Cow<'a, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -332,12 +334,13 @@ where
                     )));
                 }
                 writer
-                    .serialize(AnnotationStoreCsv {
+                    .serialize(StoreManifestCsv {
                         tp: Type::AnnotationStore,
                         id: self.id().map(|x| Cow::Borrowed(x)),
                         filename: self
                             .annotations_filename()
-                            .map(|x| Cow::Borrowed(x.to_str().expect("valid utf-8 filename"))),
+                            .map(|x| Cow::Borrowed(x.to_str().expect("valid utf-8 filename")))
+                            .unwrap(),
                     })
                     .map_err(|e| {
                         StamError::SerializationError(format!("Failure serializing CSV: {:?}", e))
@@ -353,10 +356,10 @@ where
                         )));
                     }
                     writer
-                        .serialize(AnnotationStoreCsv {
+                        .serialize(StoreManifestCsv {
                             tp: Type::AnnotationDataSet,
                             id: self.id().map(|x| Cow::Borrowed(x)),
-                            filename: dataset.filename().map(|x| Cow::Borrowed(x)),
+                            filename: dataset.filename().map(|x| Cow::Borrowed(x)).unwrap(),
                         })
                         .map_err(|e| {
                             StamError::SerializationError(format!(
@@ -376,10 +379,10 @@ where
                         )));
                     }
                     writer
-                        .serialize(AnnotationStoreCsv {
+                        .serialize(StoreManifestCsv {
                             tp: Type::TextResource,
                             id: resource.id().map(|x| Cow::Borrowed(x)),
-                            filename: resource.filename().map(|x| Cow::Borrowed(x)),
+                            filename: resource.filename().map(|x| Cow::Borrowed(x)).unwrap(),
                         })
                         .map_err(|e| {
                             StamError::SerializationError(format!(
@@ -570,8 +573,85 @@ where
             format!("{}::from_csv_file: filename={}", Self::typeinfo(), filename)
         });
         let reader = open_file_reader(filename, &config)?;
-        let mut result = Self::from_csv_reader(reader, Some(filename), config)?;
-        Ok(result)
+        Self::from_csv_reader(reader, Some(filename), config)
+    }
+}
+
+impl AnnotationStoreBuilder {
+    fn from_csv_annotations_reader(&mut self, reader: Box<dyn BufRead>) -> Result<(), StamError> {
+        let mut reader = csv::Reader::from_reader(reader);
+        for result in reader.deserialize() {
+            let record: AnnotationCsv = result
+                .map_err(|e| StamError::CsvError(format!("{}", e), "while parsing Annotation"))?;
+            //TODO
+        }
+        Ok(())
+    }
+}
+
+#[sealed]
+impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
+    fn from_csv_reader(
+        reader: Box<dyn BufRead>,
+        filename: Option<&str>,
+        config: Config,
+    ) -> Result<Self, StamError> {
+        let mut reader = csv::Reader::from_reader(reader);
+        let mut first = true;
+        let mut builder = AnnotationStoreBuilder::default();
+        for result in reader.deserialize() {
+            let record: StoreManifestCsv = result.map_err(|e| {
+                StamError::CsvError(format!("{}", e), "while parsing AnnotationStore manifest")
+            })?;
+            if first {
+                if record.tp != Type::AnnotationStore {
+                    return Err(StamError::CsvError(
+                        format!("First row of CSV Store Manifest must have type AnnotationStore, got {} instead", record.tp),
+                        "",
+                    ));
+                }
+                builder.id = record.id.map(|x| x.to_string());
+                builder.annotations_filename = Some(PathBuf::from(record.filename.to_string()));
+            } else {
+                match record.tp {
+                    Type::AnnotationDataSet => {
+                        let setbuilder = AnnotationDataSetBuilder::from_csv_file(
+                            &record.filename,
+                            config.clone(),
+                        )?;
+                        builder.annotationsets.push(setbuilder);
+                    }
+                    Type::TextResource => {
+                        let resourcebuilder =
+                            TextResourceBuilder::from_txt_file(&record.filename, config.clone())?;
+                        builder.resources.push(resourcebuilder);
+                    }
+                    Type::AnnotationStore => {
+                        return Err(StamError::CsvError(
+                        format!("There may be only one record with type AnnotationStore (the first one)"),
+                        "",
+                    ));
+                    }
+                    _ => {
+                        return Err(StamError::CsvError(
+                            format!(
+                                "CSV Store Manifest Record has unsupported type {}",
+                                record.tp
+                            ),
+                            "",
+                        ));
+                    }
+                }
+            }
+            first = false;
+        }
+        if builder.annotations_filename.is_some() {
+            let filename = builder.annotations_filename.as_ref().unwrap();
+            let filename = filename.to_str().expect("valid utf-8");
+            let reader = open_file_reader(filename, &config)?;
+            builder.from_csv_annotations_reader(reader)?;
+        }
+        Ok(builder)
     }
 }
 
@@ -612,7 +692,7 @@ impl<'a> FromCsv<'a> for AnnotationDataSetBuilder {
             }
         }
         Ok(AnnotationDataSetBuilder {
-            id: None, //determines by StoreManifest rather than the set itself
+            id: None, //determined by StoreManifest rather than the set itself
             keys: Some(keys),
             data: Some(databuilders),
             filename: filename.map(|x| x.to_string()),

@@ -16,7 +16,7 @@ use crate::annotationdataset::{
 };
 use crate::config::{set_global_config, Config, SerializeMode};
 #[cfg(feature = "csv")]
-use crate::csv::ToCsv;
+use crate::csv::{FromCsv, ToCsv};
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::error::*;
 use crate::resources::{SearchTextMatch, TextResource, TextResourceBuilder, TextResourceHandle};
@@ -669,7 +669,7 @@ impl AnnotationStore {
         Ok(builder.try_into()?)
     }
 
-    /// Loads an AnnotationStore from a STAM JSON file
+    /// Loads an AnnotationStore from a file (STAM JSON or another supported format)
     /// The file must contain a single object which has "@type": "AnnotationStore"
     pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
         debug(&config, || {
@@ -689,6 +689,14 @@ impl AnnotationStore {
                 config.workdir = Some(workdir);
             }
         }
+
+        #[cfg(feature = "csv")]
+        if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
+            config.dataformat = DataFormat::Csv;
+            let builder = AnnotationStoreBuilder::from_csv_file(filename, config)?;
+            return Self::from_builder(builder);
+        }
+
         let builder = AnnotationStoreBuilder::from_json_file(filename, config)?;
         Self::from_builder(builder)
     }
@@ -708,6 +716,14 @@ impl AnnotationStore {
 
     /// Merge another annotation store STAM JSON file into this one
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
+        #[cfg(feature = "csv")]
+        if filename.ends_with("csv") || self.config().dataformat == DataFormat::Csv {
+            let mut config = self.config.clone();
+            config.dataformat = DataFormat::Csv;
+            let builder = AnnotationStoreBuilder::from_csv_file(filename, config)?;
+            return Self::from_builder(builder);
+        }
+
         let builder = AnnotationStoreBuilder::from_json_file(filename, self.config.clone())?;
         self.merge_from_builder(builder)?;
         Ok(self)
