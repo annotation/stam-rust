@@ -241,8 +241,26 @@ impl Configurable for AnnotationDataSet {
         &self.config
     }
 
+    fn config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
     fn set_config(&mut self, config: Config) -> &mut Self {
         self.config = config;
+        self
+    }
+}
+
+#[sealed]
+impl AssociatedFile for AnnotationDataSet {
+    /// Get the filename for stand-off file specified using @include (if any)
+    fn filename(&self) -> Option<&str> {
+        self.filename.as_ref().map(|x| x.as_str())
+    }
+
+    /// Get the filename for stand-off file specified using @include (if any)
+    fn set_filename(&mut self, filename: &str) -> &mut Self {
+        self.filename = Some(filename.into());
         self
     }
 }
@@ -521,11 +539,6 @@ impl AnnotationDataSet {
             }
         }
         Ok(self)
-    }
-
-    /// Get the filename for the stand-off file specified using @include (if any)
-    pub fn filename(&self) -> Option<&str> {
-        self.filename.as_ref().map(|x| x.as_str())
     }
 
     /// Adds new [`AnnotationData`] to the dataset, this should be

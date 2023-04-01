@@ -347,7 +347,7 @@ where
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
 pub enum DataFormat {
     Json {
         compact: bool,
@@ -469,8 +469,11 @@ pub trait Storable: PartialEq + TypeInfo {
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait Configurable: Sized {
-    //// Obtain the configuration if it exists
+    //// Obtain the configuration
     fn config(&self) -> &Config;
+
+    //// Obtain the configuration mutably
+    fn config_mut(&mut self) -> &mut Config;
 
     ///Builder pattern to associate a configuration
     fn with_config(mut self, config: Config) -> Self {
@@ -936,16 +939,6 @@ where
         }
         result
     }
-
-    /// Attempts to extract the basename from a filename
-    fn extract_basename<'a>(filename: &'a str) -> &'a str {
-        for extension in KNOWN_EXTENSIONS.iter() {
-            if filename.ends_with(extension) {
-                return &filename[0..filename.len() - extension.len()];
-            }
-        }
-        return filename;
-    }
 }
 
 //  generic iterator implementations, these take care of skipping over deleted items (None)
@@ -1388,5 +1381,41 @@ where
 {
     if config.debug {
         eprintln!("[STAM DEBUG] {}", message_func());
+    }
+}
+
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
+pub trait AssociatedFile {
+    fn filename(&self) -> Option<&str>;
+
+    //Set the associated filename for this structure.
+    fn set_filename(&mut self, filename: &str) -> &mut Self;
+
+    //Set the associated filename for this annotation store. Also sets the working directory. Builder pattern.
+    fn with_filename(mut self, filename: &str) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_filename(filename);
+        self
+    }
+
+    /// Returns the filename without extension
+    fn filename_without_extension(&self) -> Option<&str> {
+        if let Some(filename) = self.filename() {
+            for extension in KNOWN_EXTENSIONS.iter() {
+                if filename.ends_with(extension) {
+                    return Some(&filename[0..filename.len() - extension.len()]);
+                }
+            }
+        }
+        None
+    }
+
+    /// Helper function to replace some symbols that may not be valid in a filename
+    /// Only the actual file name part, without any directories, should be passed here.
+    /// It is mainly useful in converting public IDs to filenames
+    fn sanitize_filename(s: &str) -> String {
+        s.replace("://", ".").replace(&['/', '\\', ':', '?'], ".")
     }
 }

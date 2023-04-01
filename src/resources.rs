@@ -320,11 +320,6 @@ impl TextResource {
         Ok(self)
     }
 
-    /// Get the filename for stand-off file specified using @include (if any)
-    pub fn filename(&self) -> Option<&str> {
-        self.filename.as_ref().map(|x| x.as_str())
-    }
-
     /// Sets the text of the TextResource from string, kept in memory entirely
     /// The use of [`from_string()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
@@ -747,8 +742,26 @@ impl Configurable for TextResource {
         &self.config
     }
 
+    fn config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
     fn set_config(&mut self, config: Config) -> &mut Self {
         self.config = config;
+        self
+    }
+}
+
+#[sealed]
+impl AssociatedFile for TextResource {
+    /// Get the filename for stand-off file specified using @include (if any)
+    fn filename(&self) -> Option<&str> {
+        self.filename.as_ref().map(|x| x.as_str())
+    }
+
+    /// Get the filename for stand-off file specified using @include (if any)
+    fn set_filename(&mut self, filename: &str) -> &mut Self {
+        self.filename = Some(filename.into());
         self
     }
 }

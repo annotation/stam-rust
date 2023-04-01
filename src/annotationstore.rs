@@ -634,9 +634,15 @@ impl Configurable for AnnotationStore {
         &self.config
     }
 
+    fn config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
+    /// Sets the configuration, this will also overwrite all underlying configurations for annotation data sets and resources!
     fn set_config(&mut self, config: Config) -> &mut Self {
         set_global_config(config.clone()); //we need this trick to inject state for serde's deserializer
         self.config = config;
+        self.propagate_full_config();
         self
     }
 }
@@ -697,38 +703,6 @@ impl AnnotationStore {
         Ok(self)
     }
 
-    //Set the associated filename for this annotation store. Also sets the working directory. Builder pattern.
-    pub fn with_filename(mut self, filename: &str) -> Self {
-        self.set_filename(filename);
-        self
-    }
-
-    //Set the associated filename for this annotation store. Also resets the working directory accordingly if needed.
-    pub fn set_filename(&mut self, filename: &str) -> &mut Self {
-        debug(self.config(), || {
-            format!("AnnotationStore.set_filename: {}", filename)
-        });
-        self.filename = Some(filename.into());
-        if let Some(mut workdir) = self.filename.clone() {
-            workdir.pop();
-            if !workdir.to_str().expect("path to string").is_empty() {
-                debug(self.config(), || {
-                    format!("AnnotationStore.set_filename: workdir={:?}", workdir)
-                });
-                self.config.workdir = Some(workdir);
-                set_global_config(self.config.clone());
-                //propagate to all children
-                self.update_config();
-            }
-        }
-        self
-    }
-
-    /// Returns the filename associated with this annotation store
-    pub fn filename(&self) -> Option<&Path> {
-        self.filename.as_ref().map(|x| x.as_path())
-    }
-
     /// Returns the filename associated with this annotation store for storage of annotations
     /// Only used for STAM CSV, not for STAM JSON.
     pub fn annotations_filename(&self) -> Option<&Path> {
@@ -748,6 +722,79 @@ impl AnnotationStore {
             self.annotate(builder)?;
         }
         Ok(self)
+    }
+
+    /// Changes the output dataformat, this function will set the external files with appropriate filenames (extensions) that are to be written on serialisation
+    /// They will be derived from the existing filenames, if any
+    pub fn set_dataformat(&mut self, dataformat: DataFormat) -> Result<(), StamError> {
+        //first the children
+        for resource in self.resources.iter_mut() {
+            if let Some(resource) = resource.as_mut() {
+                let basename = if let Some(basename) = resource.filename_without_extension() {
+                    basename.to_owned()
+                } else if let Some(id) = resource.id() {
+                    Self::sanitize_filename(id)
+                } else {
+                    return Err(StamError::SerializationError(format!(
+                        "Unable to infer a filename for resource {:?}. Has neither filename nor ID.",
+                        resource
+                    )));
+                };
+
+                //always prefer external plain text for CSV
+                #[cfg(feature = "csv")]
+                if dataformat == DataFormat::Csv {
+                    resource.set_filename(format!("{}.txt", basename).as_str());
+                }
+            }
+        }
+        for annotationset in self.annotationsets.iter_mut() {
+            if let Some(annotationset) = annotationset.as_mut() {
+                let basename = if let Some(basename) = annotationset.filename_without_extension() {
+                    basename.to_owned()
+                } else if let Some(id) = annotationset.id() {
+                    Self::sanitize_filename(id)
+                } else {
+                    return Err(StamError::SerializationError(format!(
+                        "Unable to infer a filename for annotationset. Has neither filename nor ID.",
+                    )));
+                };
+
+                if let DataFormat::Json { .. } = dataformat {
+                    annotationset
+                        .set_filename(format!("{}.annotationset.stam.json", basename).as_str());
+                }
+
+                #[cfg(feature = "csv")]
+                if dataformat == DataFormat::Csv {
+                    annotationset
+                        .set_filename(format!("{}.annotationset.stam.csv", basename).as_str());
+                }
+            }
+        }
+
+        let basename = if let Some(basename) = self.filename_without_extension() {
+            basename.to_owned()
+        } else if let Some(id) = self.id() {
+            Self::sanitize_filename(id)
+        } else {
+            return Err(StamError::SerializationError(format!(
+                "Unable to infer a filename for AnnotationStore. Has neither filename nor ID.",
+            )));
+        };
+
+        if let DataFormat::Json { .. } = dataformat {
+            self.set_filename(format!("{}.store.stam.json", basename).as_str());
+        }
+
+        #[cfg(feature = "csv")]
+        if let DataFormat::Csv = dataformat {
+            self.set_filename(format!("{}.store.stam.json", basename).as_str());
+            self.annotations_filename = Some(format!("{}.annotations.stam.json", basename).into());
+        }
+
+        self.update_config(|config| config.dataformat = dataformat);
+        Ok(())
     }
 
     /// Merge another annotation store, represented by a builder, into this one
@@ -816,17 +863,38 @@ impl AnnotationStore {
         }
     }
 
-    /// Propagate the changed configuration to all children
-    fn update_config(&mut self) {
-        let config = self.config().clone();
+    /// Propagate the entire configuration to all children, will overwrite customized configurations
+    fn propagate_full_config(&mut self) {
+        if self.resources_len() > 0 || self.annotationsets_len() > 0 {
+            let config = self.config().clone();
+            for resource in self.resources.iter_mut() {
+                if let Some(resource) = resource.as_mut() {
+                    resource.set_config(config.clone());
+                }
+            }
+            for annotationset in self.annotationsets.iter_mut() {
+                if let Some(annotationset) = annotationset.as_mut() {
+                    annotationset.set_config(config.clone());
+                }
+            }
+        }
+    }
+
+    /// Recursively update the configurate for self and all children, the actual update is in a closure
+    fn update_config<F>(&mut self, f: F)
+    where
+        F: Fn(&mut Config),
+    {
+        f(self.config_mut());
+
         for resource in self.resources.iter_mut() {
             if let Some(resource) = resource.as_mut() {
-                resource.set_config(config.clone());
+                f(resource.config_mut());
             }
         }
         for annotationset in self.annotationsets.iter_mut() {
             if let Some(annotationset) = annotationset.as_mut() {
-                annotationset.set_config(config.clone());
+                f(annotationset.config_mut());
             }
         }
     }
@@ -1370,6 +1438,42 @@ impl AnnotationStore {
                 })
                 .flatten(),
         )
+    }
+}
+
+#[sealed]
+impl AssociatedFile for AnnotationStore {
+    //Set the associated filename for this annotation store. Also sets the working directory. Builder pattern.
+    fn with_filename(mut self, filename: &str) -> Self {
+        self.set_filename(filename);
+        self
+    }
+
+    //Set the associated filename for this annotation store. Also resets the working directory accordingly if needed.
+    fn set_filename(&mut self, filename: &str) -> &mut Self {
+        debug(self.config(), || {
+            format!("AnnotationStore.set_filename: {}", filename)
+        });
+        self.filename = Some(filename.into());
+        if let Some(mut workdir) = self.filename.clone() {
+            workdir.pop();
+            if !workdir.to_str().expect("path to string").is_empty() {
+                debug(self.config(), || {
+                    format!("AnnotationStore.set_filename: workdir={:?}", workdir)
+                });
+                let workdir = &workdir;
+                self.update_config(|config| config.workdir = Some(workdir.clone()));
+                set_global_config(self.config.clone());
+            }
+        }
+        self
+    }
+
+    /// Returns the filename associated with this annotation store
+    fn filename(&self) -> Option<&str> {
+        self.filename
+            .as_ref()
+            .map(|x| x.to_str().expect("valid utf-8"))
     }
 }
 
