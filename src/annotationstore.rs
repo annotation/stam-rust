@@ -736,7 +736,7 @@ impl AnnotationStore {
                     let basename = if let Some(basename) = resource.filename_without_extension() {
                         basename.to_owned()
                     } else if let Some(id) = resource.id() {
-                        Self::sanitize_filename(id)
+                        sanitize_id_to_filename(id)
                     } else {
                         return Err(StamError::SerializationError(format!(
                             "Unable to infer a filename for resource {:?}. Has neither filename nor ID.",
@@ -761,7 +761,7 @@ impl AnnotationStore {
                     {
                         basename.to_owned()
                     } else if let Some(id) = annotationset.id() {
-                        Self::sanitize_filename(id)
+                        sanitize_id_to_filename(id)
                     } else {
                         return Err(StamError::SerializationError(format!(
                         "Unable to infer a filename for annotationset. Has neither filename nor ID.",
@@ -787,7 +787,7 @@ impl AnnotationStore {
         let basename = if let Some(basename) = self.filename_without_extension() {
             basename.to_owned()
         } else if let Some(id) = self.id() {
-            Self::sanitize_filename(id)
+            sanitize_id_to_filename(id)
         } else {
             return Err(StamError::SerializationError(format!(
                 "Unable to infer a filename for AnnotationStore. Has neither filename nor ID.",
@@ -800,8 +800,8 @@ impl AnnotationStore {
 
         #[cfg(feature = "csv")]
         if let DataFormat::Csv = dataformat {
-            self.set_filename(format!("{}.store.stam.json", basename).as_str());
-            self.annotations_filename = Some(format!("{}.annotations.stam.json", basename).into());
+            self.set_filename(format!("{}.store.stam.csv", basename).as_str());
+            self.annotations_filename = Some(format!("{}.annotations.stam.csv", basename).into());
         }
 
         self.update_config(|config| config.dataformat = dataformat);
@@ -850,18 +850,13 @@ impl AnnotationStore {
     /// Use [`AnnotationStore.to_file`] instead if you want to write elsewhere.
     pub fn save(&self) -> Result<(), StamError> {
         debug(self.config(), || format!("AnnotationStore.save"));
-        if let Some(filepath) = &self.filename {
+        if self.filename.is_some() {
             match self.config().dataformat {
-                DataFormat::Json { .. } => self.to_json_file(
-                    filepath.to_str().expect("filename must be valid unicode"),
-                    self.config(),
-                ),
+                DataFormat::Json { .. } => {
+                    self.to_json_file(self.filename().unwrap(), self.config()) //may produce 1 or multiple files
+                }
                 #[cfg(feature = "csv")]
-                DataFormat::Csv => self.to_csv_file(
-                    filepath.to_str().expect("filename must be valid unicode"),
-                    self.config(),
-                    None,
-                ),
+                DataFormat::Csv => self.to_csv_files(self.filename().unwrap()), //always produces multiple files
             }
         } else {
             Err(StamError::SerializationError(

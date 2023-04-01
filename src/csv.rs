@@ -216,16 +216,17 @@ where
 
     /// Writes this structure to a file
     /// The actual dataformat can be set via `config`, the default is STAM JSON.
+    /// Note: This only writes a single table! Just use [`AnnotationStore.save()`] to write everything.
     fn to_csv_file(
         &self,
         filename: &str,
         config: &Config,
-        table: Option<CsvTable>,
+        table: CsvTable,
     ) -> Result<(), StamError> {
         debug(config, || {
             format!("{}.to_csv_file: filename={:?}", Self::typeinfo(), filename)
         });
-        if table == Some(CsvTable::StoreManifest) && config.dataformat != DataFormat::Csv {
+        if table == CsvTable::StoreManifest && config.dataformat != DataFormat::Csv {
             return Err(StamError::SerializationError(format!(
                 "Unable to serialize to CSV for {} when config dataformat is set to {}",
                 Self::typeinfo(),
@@ -233,8 +234,7 @@ where
             )));
         }
         let writer = open_file_writer(filename, &config)?;
-        let result = self.to_csv_writer(writer, table.unwrap_or_default());
-        result
+        self.to_csv_writer(writer, table)
     }
 
     fn to_csv_string(&self, table: Option<CsvTable>) -> Result<String, StamError> {
@@ -245,8 +245,69 @@ where
     }
 }
 
+impl AnnotationStore {
+    /// Saves all files as CSV. It is better to use [`AnnotationStore::save()`] instead, setting
+    /// [`AnnotationStore::set_dataformat(DataFormat::Csv)`] before invocation.
+    pub fn to_csv_files(&self, filename: &str) -> Result<(), StamError> {
+        let basename = strip_known_extension(filename);
+        self.to_csv_file(filename, self.config(), CsvTable::StoreManifest)?;
+        self.to_csv_file(
+            self.annotations_filename()
+                .map(|x| x.to_str().expect("valid utf-8").to_owned())
+                .unwrap_or_else(|| format!("{}.annotation.csv", basename))
+                .as_str(),
+            self.config(),
+            CsvTable::Annotation,
+        )?;
+        for annotationset in self.annotationsets() {
+            if annotationset.changed() {
+                annotationset.to_csv_file(
+                    annotationset
+                        .filename()
+                        .map(|x| x.to_owned())
+                        .unwrap_or_else(|| {
+                            // no filename is associated with the resource yet, try to infer one from the ID
+                            let basename =
+                                sanitize_id_to_filename(self.id().expect("resource must have id"));
+                            format!("{}.annotationset.stam.csv", basename)
+                        })
+                        .as_str(),
+                    annotationset.config(),
+                    CsvTable::AnnotationDataSet,
+                )?;
+                if annotationset.filename().is_some() {
+                    annotationset.mark_unchanged();
+                }
+            }
+        }
+        for resource in self.resources() {
+            if resource.changed() {
+                resource.to_txt_file(
+                    resource
+                        .filename()
+                        .map(|x| x.to_owned())
+                        .unwrap_or_else(|| {
+                            // no filename is associated with the resource yet, try to infer one from the ID
+                            let basename =
+                                sanitize_id_to_filename(self.id().expect("resource must have id"));
+                            format!("{}.txt", basename)
+                        })
+                        .as_str(),
+                )?;
+                if resource.filename().is_some() {
+                    resource.mark_unchanged();
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[sealed]
-impl ToCsv for AnnotationStore {
+impl ToCsv for AnnotationStore
+where
+    Self: TypeInfo,
+{
     /// Writes CSV output, for the specified table, to the writer
     fn to_csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
     where

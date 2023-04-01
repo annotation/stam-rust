@@ -838,7 +838,19 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 }
 
-const KNOWN_EXTENSIONS: &[&str; 4] = &[".stam.json", ".stam.csv", ".json", ".csv"];
+const KNOWN_EXTENSIONS: &[&str; 11] = &[
+    ".store.stam.json",
+    ".annotationset.stam.json",
+    ".stam.json",
+    ".store.stam.csv",
+    ".annotationset.stam.csv",
+    ".annotations.stam.csv",
+    ".stam.csv",
+    ".json",
+    ".csv",
+    ".txt",
+    ".md",
+];
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait ToJson
@@ -1385,6 +1397,29 @@ where
     }
 }
 
+/// Returns the filename without (known!) extension. The extension must be a known extension used by STAM for this to work.
+pub(crate) fn strip_known_extension(s: &str) -> &str {
+    for extension in KNOWN_EXTENSIONS.iter() {
+        if s.ends_with(extension) {
+            return &s[0..s.len() - extension.len()];
+        }
+    }
+    s
+}
+
+/// Helper function to replace some symbols that may not be valid in a filename
+/// Only the actual file name part, without any directories, should be passed here.
+/// It is mainly useful in converting public IDs to filenames
+pub(crate) fn sanitize_id_to_filename(id: &str) -> String {
+    let mut id = id.replace("://", ".").replace(&['/', '\\', ':', '?'], ".");
+    for extension in KNOWN_EXTENSIONS.iter() {
+        if id.ends_with(extension) {
+            id.truncate(id.len() - extension.len());
+        }
+    }
+    id
+}
+
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait AssociatedFile {
     fn filename(&self) -> Option<&str>;
@@ -1401,23 +1436,13 @@ pub trait AssociatedFile {
         self
     }
 
-    /// Returns the filename without extension
+    /// Returns the filename without (known!) extension. The extension must be a known extension used by STAM for this to work.
     fn filename_without_extension(&self) -> Option<&str> {
         if let Some(filename) = self.filename() {
-            for extension in KNOWN_EXTENSIONS.iter() {
-                if filename.ends_with(extension) {
-                    return Some(&filename[0..filename.len() - extension.len()]);
-                }
-            }
+            Some(strip_known_extension(filename))
+        } else {
+            None
         }
-        None
-    }
-
-    /// Helper function to replace some symbols that may not be valid in a filename
-    /// Only the actual file name part, without any directories, should be passed here.
-    /// It is mainly useful in converting public IDs to filenames
-    fn sanitize_filename(s: &str) -> String {
-        s.replace("://", ".").replace(&['/', '\\', ':', '?'], ".")
     }
 }
 

@@ -335,6 +335,16 @@ impl TextResource {
         self
     }
 
+    /// Writes a plain text file
+    pub fn to_txt_file(&self, filename: &str) -> Result<(), StamError> {
+        let mut f = create_file(filename, self.config())?;
+        write!(f, "{}", self.text());
+        if Some(filename) == self.filename() {
+            self.mark_unchanged();
+        }
+        Ok(())
+    }
+
     /// Check if there is already text associated, if so, this is a mutation and some indices will be invalidated
     fn check_mutation(&mut self) -> bool {
         if !self.text.is_empty() {
