@@ -1,15 +1,17 @@
 use csv;
 use sealed::sealed;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 
 use crate::types::*;
 use crate::{
-    Annotation, AnnotationDataBuilder, AnnotationDataSet, AnnotationDataSetBuilder,
-    AnnotationStore, AnnotationStoreBuilder, Config, DataKey, DataValue, Selector, SelectorKind,
-    SerializeMode, StamError, TextResource, TextResourceBuilder,
+    Annotation, AnnotationBuilder, AnnotationDataBuilder, AnnotationDataSet,
+    AnnotationDataSetBuilder, AnnotationStore, AnnotationStoreBuilder, Config, DataKey, DataValue,
+    Offset, Selector, SelectorBuilder, SelectorKind, SerializeMode, StamError, TextResource,
+    TextResourceBuilder,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -577,13 +579,146 @@ where
     }
 }
 
+impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
+    type Error = StamError;
+    fn try_into(self) -> Result<AnnotationBuilder, Self::Error> {
+        let mut builder = AnnotationBuilder::new();
+        if let Some(id) = self.id {
+            builder = builder.with_id(id.to_string());
+        }
+        if !self.data_ids.is_empty() {
+            let set_ids: SmallVec<[&str; 1]> = self.set_ids.split(";").collect();
+            if set_ids.is_empty() {
+                return Err(StamError::CsvError(
+                    format!("AnnotationDataSet column may not be empty",),
+                    "",
+                ));
+            }
+            for (i, data_id) in self.data_ids.split(";").enumerate() {
+                let set_id = set_ids.get(i).unwrap_or(set_ids.last().unwrap());
+                builder = builder.with_data_by_id(AnyId::from(*set_id), AnyId::from(data_id));
+            }
+            let mut selectortypes: SmallVec<[SelectorKind; 1]> = SmallVec::new();
+            let mut complex = false;
+            for (i, selectortype) in self.selectortype.split(";").enumerate() {
+                let selectortype: SelectorKind = selectortype.try_into()?;
+                if i == 0 {
+                    complex = selectortype.is_complex();
+                }
+                selectortypes.push(selectortype);
+            }
+            if complex && selectortypes.len() == 1 {
+                return Err(StamError::CsvError(
+                    format!("A complex selector can not be defined without any subselectors"),
+                    "",
+                ));
+            } else if selectortypes.is_empty() {
+                return Err(StamError::CsvError(
+                    format!("The SelectorType column can not be empty"),
+                    "",
+                ));
+            }
+            let selectorbuilder = if !complex {
+                //validation to ensure all fields have only a single value
+                if self.targetresource.find(";").is_some() {
+                    return Err(StamError::CsvError(
+                        format!("Multiple target resources were specified, but without a complex selector"),
+                        "",
+                    ));
+                }
+                if self.targetdataset.find(";").is_some() {
+                    return Err(StamError::CsvError(
+                        format!("Multiple target annotation datasets were specified, but without a complex selector"),
+                        "",
+                    ));
+                }
+                if self.targetannotation.find(";").is_some() {
+                    return Err(StamError::CsvError(
+                        format!("Multiple target annotations were specified, but without a complex selector"),
+                        "",
+                    ));
+                }
+                if self.begin.find(";").is_some() {
+                    return Err(StamError::CsvError(
+                        format!(
+                            "Multiple begin offsets were specified, but without a complex selector"
+                        ),
+                        "",
+                    ));
+                }
+                if self.end.find(";").is_some() {
+                    return Err(StamError::CsvError(
+                        format!(
+                            "Multiple end offsets were specified, but without a complex selector"
+                        ),
+                        "",
+                    ));
+                }
+                match selectortypes[0] {
+                    SelectorKind::TextSelector => {
+                        let resource = self.targetresource;
+                        let begin: Cursor = self.begin.as_str().try_into()?;
+                        let end: Cursor = self.end.as_str().try_into()?;
+                        SelectorBuilder::TextSelector(
+                            AnyId::Id(resource.to_string()),
+                            Offset::new(begin, end),
+                        )
+                    }
+                    SelectorKind::AnnotationSelector => {
+                        let annotation = self.targetannotation;
+                        let offset =
+                            if !self.begin.as_str().is_empty() && !self.end.as_str().is_empty() {
+                                let begin: Cursor = self.begin.as_str().try_into()?;
+                                let end: Cursor = self.end.as_str().try_into()?;
+                                Some(Offset::new(begin, end))
+                            } else {
+                                None
+                            };
+                        SelectorBuilder::AnnotationSelector(
+                            AnyId::Id(annotation.to_string()),
+                            offset,
+                        )
+                    }
+                    SelectorKind::ResourceSelector => {
+                        let resource = self.targetresource;
+                        SelectorBuilder::ResourceSelector(AnyId::Id(resource.to_string()))
+                    }
+                    SelectorKind::DataSetSelector => {
+                        let dataset = self.targetdataset;
+                        SelectorBuilder::DataSetSelector(AnyId::Id(dataset.to_string()))
+                    }
+                    _ => unreachable!(),
+                }
+            } else {
+                let mut targetresources: SmallVec<[&str; 1]> =
+                    self.targetresource.split(";").collect();
+                let mut targetdatasets: SmallVec<[&str; 1]> =
+                    self.targetdataset.split(";").collect();
+                let mut targetannotations: SmallVec<[&str; 1]> =
+                    self.targetannotation.split(";").collect();
+                let mut beginoffsets: SmallVec<[&str; 1]> = self.begin.split(";").collect();
+                let mut endoffsets: SmallVec<[&str; 1]> = self.end.split(";").collect();
+                //TODO: implement complex selector parsing
+                selectorbuilder
+            };
+            builder = builder.with_target(selectorbuilder);
+        }
+
+        //self.data_ids
+        //self.set_ids
+        //self.selectortype
+        //self.targetresource
+        Ok(builder)
+    }
+}
+
 impl AnnotationStoreBuilder {
     fn from_csv_annotations_reader(&mut self, reader: Box<dyn BufRead>) -> Result<(), StamError> {
         let mut reader = csv::Reader::from_reader(reader);
         for result in reader.deserialize() {
             let record: AnnotationCsv = result
                 .map_err(|e| StamError::CsvError(format!("{}", e), "while parsing Annotation"))?;
-            //TODO
+            self.annotations.push(record.try_into()?);
         }
         Ok(())
     }
@@ -593,7 +728,7 @@ impl AnnotationStoreBuilder {
 impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
-        filename: Option<&str>,
+        _filename: Option<&str>,
         config: Config,
     ) -> Result<Self, StamError> {
         let mut reader = csv::Reader::from_reader(reader);

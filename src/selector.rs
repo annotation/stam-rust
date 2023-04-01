@@ -191,12 +191,7 @@ impl Selector {
 
     /// A complex selector targets multiple targets. Note the internal ranged selector is not counted as part of this category.
     pub fn is_complex(&self) -> bool {
-        match self.kind() {
-            SelectorKind::MultiSelector => true,
-            SelectorKind::DirectionalSelector => true,
-            SelectorKind::CompositeSelector => true,
-            _ => false,
-        }
+        self.kind().is_complex()
     }
 
     /// Writes a Selector to a STAM JSON string, with appropriate formatting
@@ -253,6 +248,33 @@ impl SelectorKind {
             Self::InternalRangedSelector => "InternalRangedSelector",
         }
     }
+
+    pub fn is_complex(&self) -> bool {
+        match self {
+            Self::MultiSelector => true,
+            Self::DirectionalSelector => true,
+            Self::CompositeSelector => true,
+            _ => false,
+        }
+    }
+}
+
+impl TryFrom<&str> for SelectorKind {
+    type Error = StamError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "ResourceSelector" | "resourceselector" | "resource" => Ok(Self::ResourceSelector),
+            "AnnotationSelector" | "annotationselector" | "annotation"  => Ok(Self::AnnotationSelector),
+            "TextSelector" | "textselector" | "text" => Ok(Self::TextSelector),
+            "DataSetSelector" | "datasetselector" | "set" | "annotationset"  => Ok(Self::DataSetSelector),
+            "MultiSelector" | "multiselector" | "multi"  => Ok(Self::MultiSelector),
+            "CompositeSelector" | "compositeselector" | "composite"  => Ok(Self::CompositeSelector),
+            "DirectionalSelector" | "directionalselector" | "directional"  => Ok(Self::DirectionalSelector),
+            _ => Err(StamError::ValueError(value.to_string(), "Expected a valid SelectorKind"))
+        }
+    }
+
 }
 
 impl From<&Selector> for SelectorKind {
@@ -328,12 +350,7 @@ impl SelectorBuilder {
 
     /// A complex selector targets multiple targets. Note the internal ranged selector is not counted as part of this category.
     pub fn is_complex(&self) -> bool {
-        match self.kind() {
-            SelectorKind::MultiSelector => true,
-            SelectorKind::DirectionalSelector => true,
-            SelectorKind::CompositeSelector => true,
-            _ => false,
-        }
+        self.kind().is_complex()
     }
 }
 

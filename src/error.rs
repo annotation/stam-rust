@@ -84,6 +84,9 @@ pub enum StamError {
     /// This error is raised when the information supplied during build is incomplete
     IncompleteError(String, &'static str),
 
+    /// Unexpected value error
+    ValueError(String, &'static str),
+
     /// Category for other errors, try to use this sparingly
     OtherError(&'static str),
 }
@@ -174,6 +177,9 @@ impl From<&StamError> for String {
                     "IncompleteError: Not enough data to build {} ({})",
                     data, contextmsg
                 )
+            }
+            StamError::ValueError(value, contextmsg) => {
+                format!("ValueError: Unexpected value {} - ({})", value, contextmsg)
             }
             StamError::OtherError(contextmsg) => {
                 format!("OtherError: {}", contextmsg)
