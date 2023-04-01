@@ -732,45 +732,54 @@ impl AnnotationStore {
         //first the children
         for resource in self.resources.iter_mut() {
             if let Some(resource) = resource.as_mut() {
-                let basename = if let Some(basename) = resource.filename_without_extension() {
-                    basename.to_owned()
-                } else if let Some(id) = resource.id() {
-                    Self::sanitize_filename(id)
-                } else {
-                    return Err(StamError::SerializationError(format!(
-                        "Unable to infer a filename for resource {:?}. Has neither filename nor ID.",
-                        resource
-                    )));
-                };
+                if resource.config().dataformat != dataformat {
+                    let basename = if let Some(basename) = resource.filename_without_extension() {
+                        basename.to_owned()
+                    } else if let Some(id) = resource.id() {
+                        Self::sanitize_filename(id)
+                    } else {
+                        return Err(StamError::SerializationError(format!(
+                            "Unable to infer a filename for resource {:?}. Has neither filename nor ID.",
+                            resource
+                        )));
+                    };
 
-                //always prefer external plain text for CSV
-                #[cfg(feature = "csv")]
-                if dataformat == DataFormat::Csv {
-                    resource.set_filename(format!("{}.txt", basename).as_str());
+                    //always prefer external plain text for CSV
+                    #[cfg(feature = "csv")]
+                    if dataformat == DataFormat::Csv {
+                        resource.set_filename(format!("{}.txt", basename).as_str());
+                        resource.mark_changed()
+                    }
                 }
             }
         }
         for annotationset in self.annotationsets.iter_mut() {
             if let Some(annotationset) = annotationset.as_mut() {
-                let basename = if let Some(basename) = annotationset.filename_without_extension() {
-                    basename.to_owned()
-                } else if let Some(id) = annotationset.id() {
-                    Self::sanitize_filename(id)
-                } else {
-                    return Err(StamError::SerializationError(format!(
+                if annotationset.config().dataformat != dataformat {
+                    let basename = if let Some(basename) =
+                        annotationset.filename_without_extension()
+                    {
+                        basename.to_owned()
+                    } else if let Some(id) = annotationset.id() {
+                        Self::sanitize_filename(id)
+                    } else {
+                        return Err(StamError::SerializationError(format!(
                         "Unable to infer a filename for annotationset. Has neither filename nor ID.",
                     )));
-                };
+                    };
 
-                if let DataFormat::Json { .. } = dataformat {
-                    annotationset
-                        .set_filename(format!("{}.annotationset.stam.json", basename).as_str());
-                }
+                    if let DataFormat::Json { .. } = dataformat {
+                        annotationset
+                            .set_filename(format!("{}.annotationset.stam.json", basename).as_str());
+                        annotationset.mark_changed()
+                    }
 
-                #[cfg(feature = "csv")]
-                if dataformat == DataFormat::Csv {
-                    annotationset
-                        .set_filename(format!("{}.annotationset.stam.csv", basename).as_str());
+                    #[cfg(feature = "csv")]
+                    if dataformat == DataFormat::Csv {
+                        annotationset
+                            .set_filename(format!("{}.annotationset.stam.csv", basename).as_str());
+                        annotationset.mark_changed()
+                    }
                 }
             }
         }

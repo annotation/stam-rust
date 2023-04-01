@@ -210,9 +210,7 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     #[allow(unused_variables)]
     fn inserted(&mut self, handle: DataKeyHandle) -> Result<(), StamError> {
         // called after the key is inserted in the store
-        if let Ok(mut changed) = self.changed.write() {
-            *changed = true;
-        }
+        self.mark_changed();
         Ok(())
     }
 
@@ -228,9 +226,7 @@ impl StoreFor<DataKey> for AnnotationDataSet {
             }
         }
         self.key_data_map.data.remove(handle.unwrap());
-        if let Ok(mut changed) = self.changed.write() {
-            *changed = true;
-        }
+        self.mark_changed();
         Ok(())
     }
 }
@@ -298,9 +294,7 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
             self.get(handle).expect("item must exist after insertion");
 
         self.key_data_map.insert(annotationdata.key, handle);
-        if let Ok(mut changed) = self.changed.write() {
-            *changed = true;
-        }
+        self.mark_changed();
         Ok(())
     }
 
@@ -312,9 +306,7 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
             return Err(StamError::InUse("Refusing to remove annotationdata because AnnotationDataSet is bound and we can't guarantee it's not used"));
         }
         self.key_data_map.remove(data.key, handle);
-        if let Ok(mut changed) = self.changed.write() {
-            *changed = true;
-        }
+        self.mark_changed();
         Ok(())
     }
 }
@@ -356,16 +348,11 @@ impl Serialize for AnnotationDataSet {
             state.serialize_field("@include", &filename)?;
 
             //if there are any changes, we write to the standoff file
-            if let Ok(changed) = self.changed.read() {
-                if *changed {
-                    //we trigger the standoff flag, this is the only way we can parametrize the serializer
-                    let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
-                    result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
-                }
-            }
-            if let Ok(mut changed) = self.changed.write() {
-                //reset
-                *changed = false;
+            if self.changed() {
+                //we trigger the standoff flag, this is the only way we can parametrize the serializer
+                let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
+                result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
+                self.mark_unchanged();
             }
         } else {
             if self.id().is_some() {
@@ -376,6 +363,13 @@ impl Serialize for AnnotationDataSet {
             state.serialize_field("data", &wrappedstore)?;
         }
         state.end()
+    }
+}
+
+#[sealed]
+impl ChangeMarker for AnnotationDataSet {
+    fn change_marker(&self) -> &Arc<RwLock<bool>> {
+        &self.changed
     }
 }
 

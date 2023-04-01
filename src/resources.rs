@@ -180,27 +180,29 @@ impl Serialize for TextResource {
             }
             state.serialize_field("@include", &filename)?;
             //if there are any changes, we write to the standoff file
-            if let Ok(changed) = self.changed.read() {
-                if *changed {
-                    if filename.ends_with(".json") {
-                        let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
-                        result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
-                    } else {
-                        //plain text
-                        std::fs::write(filename, &self.text)
-                            .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
-                    }
+            if self.changed() {
+                if filename.ends_with(".json") {
+                    let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
+                    result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
+                } else {
+                    //plain text
+                    std::fs::write(filename, &self.text)
+                        .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
                 }
-            }
-            if let Ok(mut changed) = self.changed.write() {
-                //reset
-                *changed = false;
+                self.mark_unchanged();
             }
         } else {
             state.serialize_field("@id", &self.id())?;
             state.serialize_field("text", &self.text())?;
         }
         state.end()
+    }
+}
+
+#[sealed]
+impl ChangeMarker for TextResource {
+    fn change_marker(&self) -> &Arc<RwLock<bool>> {
+        &self.changed
     }
 }
 
@@ -337,10 +339,8 @@ impl TextResource {
     fn check_mutation(&mut self) -> bool {
         if !self.text.is_empty() {
             // in case we change an existing text
-            // 1. mark has changed
-            if let Ok(mut changed) = self.changed.write() {
-                *changed = true;
-            }
+            // 1. mark as changed
+            self.mark_changed();
             // 2. invalidate all the reverse indices
             if !self.positionindex.0.is_empty() {
                 self.positionindex = PositionIndex::default();

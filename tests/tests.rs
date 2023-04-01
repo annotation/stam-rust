@@ -1299,3 +1299,17 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
     assert_eq!(count, 1);
     Ok(())
 }
+
+#[test]
+fn serialize_csv() -> Result<(), StamError> {
+    let mut store = AnnotationStore::from_file(
+        "tests/test.store.stam.json",
+        Config {
+            debug: true,
+            ..Config::default()
+        },
+    )?;
+    store.set_dataformat(DataFormat::Csv)?;
+    store.save()?;
+    Ok(())
+}

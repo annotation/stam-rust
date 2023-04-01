@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::slice::{Iter, IterMut};
+use std::sync::{Arc, RwLock};
 
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
@@ -1417,5 +1418,30 @@ pub trait AssociatedFile {
     /// It is mainly useful in converting public IDs to filenames
     fn sanitize_filename(s: &str) -> String {
         s.replace("://", ".").replace(&['/', '\\', ':', '?'], ".")
+    }
+}
+
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
+pub(crate) trait ChangeMarker {
+    fn change_marker(&self) -> &Arc<RwLock<bool>>;
+
+    fn changed(&self) -> bool {
+        let mut result = true;
+        if let Ok(changed) = self.change_marker().read() {
+            result = *changed;
+        }
+        result
+    }
+
+    fn mark_changed(&self) {
+        if let Ok(mut changed) = self.change_marker().write() {
+            *changed = true;
+        }
+    }
+
+    fn mark_unchanged(&self) {
+        if let Ok(mut changed) = self.change_marker().write() {
+            *changed = false;
+        }
     }
 }
