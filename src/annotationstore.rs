@@ -201,6 +201,13 @@ impl TypeInfo for AnnotationStore {
     }
 }
 
+#[sealed]
+impl TypeInfo for AnnotationStoreBuilder {
+    fn typeinfo() -> Type {
+        Type::AnnotationStore
+    }
+}
+
 //An AnnotationStore is a StoreFor TextResource
 #[sealed]
 impl StoreFor<TextResource> for AnnotationStore {
@@ -587,10 +594,11 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
     }
 }
 
-impl AnnotationStoreBuilder {
+#[sealed]
+impl<'a> FromJson<'a> for AnnotationStoreBuilder {
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!("AnnotationStoreBuilder::from_file: filename={:?}", filename)
         });
@@ -612,7 +620,7 @@ impl AnnotationStoreBuilder {
 
     /// Loads an AnnotationStore from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationStore"
-    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
+    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!("AnnotationStoreBuilder::from_json: string={:?}", string)
         });
@@ -681,7 +689,7 @@ impl AnnotationStore {
                 config.workdir = Some(workdir);
             }
         }
-        let builder = AnnotationStoreBuilder::from_file(filename, config)?;
+        let builder = AnnotationStoreBuilder::from_json_file(filename, config)?;
         Self::from_builder(builder)
     }
 
@@ -694,13 +702,13 @@ impl AnnotationStore {
                 string, config
             )
         });
-        let builder = AnnotationStoreBuilder::from_json(string, config)?;
+        let builder = AnnotationStoreBuilder::from_json_str(string, config)?;
         Self::from_builder(builder)
     }
 
     /// Merge another annotation store STAM JSON file into this one
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
-        let builder = AnnotationStoreBuilder::from_file(filename, self.config.clone())?;
+        let builder = AnnotationStoreBuilder::from_json_file(filename, self.config.clone())?;
         self.merge_from_builder(builder)?;
         Ok(self)
     }

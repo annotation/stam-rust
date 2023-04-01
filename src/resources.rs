@@ -141,6 +141,13 @@ impl TypeInfo for TextResource {
 }
 
 #[sealed]
+impl TypeInfo for TextResourceBuilder {
+    fn typeinfo() -> Type {
+        Type::TextResource
+    }
+}
+
+#[sealed]
 impl ToJson for TextResource {}
 
 #[sealed]
@@ -212,53 +219,30 @@ impl PartialEq<TextResource> for TextResource {
     }
 }
 
-impl TextResourceBuilder {
+#[sealed]
+impl<'a> FromJson<'a> for TextResourceBuilder {
     /// Loads a Text Resource from a STAM JSON  or plain text file file.
     /// If the file is JSON, it file must contain a single object which has "@type": "TextResource"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        if filename.ends_with(".json") {
-            let reader = open_file_reader(filename, &config)?;
-            let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-            let mut result: Result<TextResourceBuilder, _> =
-                serde_path_to_error::deserialize(deserializer);
-            if result.is_ok() && config.use_include {
-                let result = result.as_mut().unwrap();
-                result.include = Some(filename.to_string()); //always uses the original filename (not the found one)
-                result.mode = SerializeMode::NoInclude;
-                result.config = config;
-            }
-            result.map_err(|e| {
-                StamError::JsonError(e, filename.to_string(), "Reading text resource from file")
-            })
-        } else {
-            //plain text
-            let mut f = open_file(filename, &config)?;
-            let mut text: String = String::new();
-            if let Err(err) = f.read_to_string(&mut text) {
-                return Err(StamError::IOError(
-                    err,
-                    filename.to_owned(),
-                    "TextResource::from_file",
-                ));
-            }
-            Ok(Self {
-                id: Some(filename.to_string()),
-                text: Some(text),
-                include: if config.use_include {
-                    Some(filename.to_string())
-                } else {
-                    None
-                }, //may be overridden in with_file
-                mode: SerializeMode::NoInclude, //we just processed the include, this instructs the deserialiser not to do it again
-                config,
-            })
+    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        let reader = open_file_reader(filename, &config)?;
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+        let mut result: Result<TextResourceBuilder, _> =
+            serde_path_to_error::deserialize(deserializer);
+        if result.is_ok() && config.use_include {
+            let result = result.as_mut().unwrap();
+            result.include = Some(filename.to_string()); //always uses the original filename (not the found one)
+            result.mode = SerializeMode::NoInclude;
+            result.config = config;
         }
+        result.map_err(|e| {
+            StamError::JsonError(e, filename.to_string(), "Reading text resource from file")
+        })
     }
 
     /// Loads a text resource from a STAM JSON string
     /// The string must contain a single object which has "@type": "TextResource"
-    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
+    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
         let mut result: Result<TextResourceBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
@@ -269,6 +253,41 @@ impl TextResourceBuilder {
         result.map_err(|e| {
             StamError::JsonError(e, string.to_string(), "Reading text resource from string")
         })
+    }
+}
+
+impl TextResourceBuilder {
+    pub fn from_txt_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        //plain text
+        let mut f = open_file(filename, &config)?;
+        let mut text: String = String::new();
+        if let Err(err) = f.read_to_string(&mut text) {
+            return Err(StamError::IOError(
+                err,
+                filename.to_owned(),
+                "TextResource::from_file",
+            ));
+        }
+        Ok(Self {
+            id: Some(filename.to_string()),
+            text: Some(text),
+            include: if config.use_include {
+                Some(filename.to_string())
+            } else {
+                None
+            }, //may be overridden in with_file
+            mode: SerializeMode::NoInclude, //we just processed the include, this instructs the deserialiser not to do it again
+            config,
+        })
+    }
+
+    /// Load a resource from file. The extension determines the type.
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        if filename.ends_with(".json") {
+            Self::from_json_file(filename, config)
+        } else {
+            Self::from_txt_file(filename, config)
+        }
     }
 }
 

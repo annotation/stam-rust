@@ -135,6 +135,13 @@ impl TypeInfo for AnnotationDataSet {
 }
 
 #[sealed]
+impl TypeInfo for AnnotationDataSetBuilder {
+    fn typeinfo() -> Type {
+        Type::AnnotationDataSet
+    }
+}
+
+#[sealed]
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
 
@@ -389,14 +396,18 @@ impl PartialEq<AnnotationDataSet> for AnnotationDataSet {
     }
 }
 
-impl AnnotationDataSetBuilder {
+#[sealed]
+impl<'a> FromJson<'a> for AnnotationDataSetBuilder {
     /// Loads an AnnotationDataSet from a STAM JSON file, as a builder
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
     /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
-            format!("AnnotationDataSetBuilder::from_file: filename={}", filename)
+            format!(
+                "AnnotationDataSetBuilder::from_json_file: filename={}",
+                filename
+            )
         });
         let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
@@ -419,7 +430,7 @@ impl AnnotationDataSetBuilder {
 
     /// Loads an AnnotationDataSet from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
+    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
         let mut result: Result<AnnotationDataSetBuilder, _> =
             serde_path_to_error::deserialize(deserializer);
@@ -437,6 +448,30 @@ impl AnnotationDataSetBuilder {
     }
 }
 
+#[sealed]
+impl<'a> FromJson<'a> for AnnotationDataSet {
+    /// Loads an AnnotationDataSet from a STAM JSON file
+    /// The file must contain a single object which has "@type": "AnnotationDataSet"
+    /// If `workdir` is set, the file will be searched for in the workdir if needed
+    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!(
+                "AnnotationDataSet::from_json_file: filename={:?} config={:?}",
+                filename, config
+            )
+        });
+        let builder = AnnotationDataSetBuilder::from_json_file(filename, config)?;
+        Ok(Self::from_builder(builder)?)
+    }
+
+    /// Loads an AnnotationDataSet from a STAM JSON string
+    /// The string must contain a single object which has "@type": "AnnotationDataSet"
+    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
+        let builder = AnnotationDataSetBuilder::from_json_str(string, config)?;
+        Self::from_builder(builder)
+    }
+}
+
 impl AnnotationDataSet {
     pub fn new(config: Config) -> Self {
         AnnotationDataSet {
@@ -451,29 +486,8 @@ impl AnnotationDataSet {
         Ok(set)
     }
 
-    /// Loads an AnnotationDataSet from a STAM JSON file
-    /// The file must contain a single object which has "@type": "AnnotationDataSet"
-    /// If `workdir` is set, the file will be searched for in the workdir if needed
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        debug(&config, || {
-            format!(
-                "AnnotationDataSet::from_file: filename={:?} config={:?}",
-                filename, config
-            )
-        });
-        let builder = AnnotationDataSetBuilder::from_file(filename, config)?;
-        Ok(Self::from_builder(builder)?)
-    }
-
-    /// Loads an AnnotationDataSet from a STAM JSON string
-    /// The string must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_json(string: &str, config: Config) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_json(string, config)?;
-        Self::from_builder(builder)
-    }
-
-    /// Loads an AnnotationDataSet from a STAM JSON file and merges it into the current     one.
-    /// The file must contain a single object which has "@type": "AnnotationDataSet"
+    /// Loads an AnnotationDataSet from file (STAM JSON or other supported format) and merges it into the current one.
+    /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
     /// The ID will be ignored (existing one takes precendence).
     pub fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
@@ -482,9 +496,32 @@ impl AnnotationDataSet {
                 filename, config
             )
         });
-        let builder = AnnotationDataSetBuilder::from_file(filename, self.config().clone())?;
+
+        #[cfg(feature = "csv")]
+        if filename.ends_with("csv") {
+            config.dataformat = DataFormat::Csv;
+            let builder = AnnotationDataSetBuilder::from_csv_file(filename, config)?;
+            self.merge_from_builder(builder)?;
+            return Ok(self);
+        }
+
+        let builder = AnnotationDataSetBuilder::from_json_file(filename, config)?;
         self.merge_from_builder(builder)?;
         Ok(self)
+    }
+
+    /// Loads an AnnotationDataSet from file (STAM JSON or other supported format).
+    /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        #[cfg(feature = "csv")]
+        if filename.ends_with("csv") {
+            config.dataformat = DataFormat::Csv;
+            let builder = AnnotationDataSetBuilder::from_csv_file(filename, config)?;
+            return Self::from_builder(builder);
+        }
+
+        let builder = AnnotationDataSetBuilder::from_json_file(filename, config)?;
+        Self::from_builder(builder)
     }
 
     /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting

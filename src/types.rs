@@ -954,6 +954,16 @@ where
     }
 }
 
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
+pub trait FromJson<'a>
+where
+    Self: TypeInfo + serde::Deserialize<'a>,
+{
+    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError>;
+
+    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError>;
+}
+
 //  generic iterator implementations, these take care of skipping over deleted items (None)
 
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
