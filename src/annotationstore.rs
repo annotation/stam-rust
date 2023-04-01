@@ -15,6 +15,8 @@ use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
 use crate::config::{set_global_config, Config, SerializeMode};
+#[cfg(feature = "csv")]
+use crate::csv::ToCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::error::*;
 use crate::resources::{SearchTextMatch, TextResource, TextResourceBuilder, TextResourceHandle};
@@ -840,10 +842,18 @@ impl AnnotationStore {
     pub fn save(&self) -> Result<(), StamError> {
         debug(self.config(), || format!("AnnotationStore.save"));
         if let Some(filepath) = &self.filename {
-            self.to_json_file(
-                filepath.to_str().expect("filename must be valid unicode"),
-                self.config(),
-            )
+            match self.config().dataformat {
+                DataFormat::Json { .. } => self.to_json_file(
+                    filepath.to_str().expect("filename must be valid unicode"),
+                    self.config(),
+                ),
+                #[cfg(feature = "csv")]
+                DataFormat::Csv => self.to_csv_file(
+                    filepath.to_str().expect("filename must be valid unicode"),
+                    self.config(),
+                    None,
+                ),
+            }
         } else {
             Err(StamError::SerializationError(
                 "No filename associated with the store".to_owned(),
