@@ -136,7 +136,7 @@ impl TypeInfo for AnnotationDataSet {
 
 #[cfg(not(feature = "csv"))]
 #[sealed]
-impl Writable for AnnotationDataSet {}
+impl ToJson for AnnotationDataSet {}
 
 #[sealed]
 impl Storable for AnnotationDataSet {
@@ -318,6 +318,9 @@ impl Default for AnnotationDataSet {
     }
 }
 
+#[sealed]
+impl ToJson for AnnotationDataSet {}
+
 impl Serialize for AnnotationDataSet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -338,7 +341,7 @@ impl Serialize for AnnotationDataSet {
             if let Ok(changed) = self.changed.read() {
                 if *changed {
                     //we trigger the standoff flag, this is the only way we can parametrize the serializer
-                    let result = self.to_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
+                    let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
                     result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
                 }
             }

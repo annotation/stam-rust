@@ -141,7 +141,7 @@ impl TypeInfo for TextResource {
 }
 
 #[sealed]
-impl Writable for TextResource {}
+impl ToJson for TextResource {}
 
 #[sealed]
 impl Storable for TextResource {
@@ -183,7 +183,7 @@ impl Serialize for TextResource {
             if let Ok(changed) = self.changed.read() {
                 if *changed {
                     if filename.ends_with(".json") {
-                        let result = self.to_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
+                        let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
                         result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
                     } else {
                         //plain text

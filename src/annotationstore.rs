@@ -245,9 +245,9 @@ impl StoreFor<TextResource> for AnnotationStore {
     }
 }
 
-#[cfg(not(feature = "csv"))]
 #[sealed]
-impl Writable for AnnotationStore {}
+impl ToJson for AnnotationStore {}
+
 //An AnnotationStore is a StoreFor Annotation
 #[sealed]
 impl StoreFor<Annotation> for AnnotationStore {
@@ -793,7 +793,7 @@ impl AnnotationStore {
     pub fn save(&self) -> Result<(), StamError> {
         debug(self.config(), || format!("AnnotationStore.save"));
         if let Some(filepath) = &self.filename {
-            self.to_file(
+            self.to_json_file(
                 filepath.to_str().expect("filename must be valid unicode"),
                 self.config(),
             )

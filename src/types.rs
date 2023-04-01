@@ -347,18 +347,41 @@ where
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum DataFormat {
     Json {
         compact: bool,
     },
 
     #[cfg(feature = "csv")]
-    Csv {
-        table: CsvTable,
-    },
+    Csv,
 }
 
+impl std::fmt::Display for DataFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Json { .. } => write!(f, "json"),
+
+            #[cfg(feature = "csv")]
+            Self::Csv => write!(f, "csv"),
+        }
+    }
+}
+
+impl TryFrom<&str> for DataFormat {
+    type Error = StamError;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "json" | "Json" | "JSON" => Ok(Self::Json { compact: false }),
+            "json-compact" | "Json-compact" | "JSON-compact" => Ok(Self::Json { compact: true }),
+
+            #[cfg(feature = "csv")]
+            "csv" | "Csv" | "CSV" => Ok(Self::Csv),
+
+            _ => Err(StamError::OtherError("Invalid value for DataFormat")),
+        }
+    }
+}
 // ************** The following are high-level abstractions so we only have to implement a certain logic once ***********************
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
@@ -814,42 +837,37 @@ pub trait StoreFor<T: Storable>: Configurable {
 const KNOWN_EXTENSIONS: &[&str; 4] = &[".stam.json", ".stam.csv", ".json", ".csv"];
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait Writable
+pub trait ToJson
 where
     Self: TypeInfo + serde::Serialize,
 {
     /// Writes a serialisation (choose a dataformat) to any writer
     /// Lower-level function
-    fn to_writer<W>(&self, writer: W, dataformat: &DataFormat) -> Result<(), StamError>
+    fn to_json_writer<W>(&self, writer: W, compact: bool) -> Result<(), StamError>
     where
         W: std::io::Write,
     {
-        match dataformat {
-            DataFormat::Json { compact: false } => serde_json::to_writer_pretty(writer, &self)
-                .map_err(|e| {
-                    StamError::SerializationError(format!(
-                        "Writing {} to file: {}",
-                        Self::typeinfo(),
-                        e
-                    ))
-                }),
-            DataFormat::Json { compact: true } => {
-                serde_json::to_writer(writer, &self).map_err(|e| {
-                    StamError::SerializationError(format!(
-                        "Writing {} to file: {}",
-                        Self::typeinfo(),
-                        e
-                    ))
-                })
-            }
-            #[cfg(feature = "csv")]
-            DataFormat::Csv { table } => self.csv_writer(writer, *table),
+        match compact {
+            false => serde_json::to_writer_pretty(writer, &self).map_err(|e| {
+                StamError::SerializationError(format!(
+                    "Writing {} to file: {}",
+                    Self::typeinfo(),
+                    e
+                ))
+            }),
+            true => serde_json::to_writer(writer, &self).map_err(|e| {
+                StamError::SerializationError(format!(
+                    "Writing {} to file: {}",
+                    Self::typeinfo(),
+                    e
+                ))
+            }),
         }
     }
 
     /// Writes this structure to a file
     /// The actual dataformat can be set via `config`, the default is STAM JSON.
-    fn to_file(&self, filename: &str, config: &Config) -> Result<(), StamError> {
+    fn to_json_file(&self, filename: &str, config: &Config) -> Result<(), StamError> {
         debug(config, || {
             format!("{}.to_file: filename={:?}", Self::typeinfo(), filename)
         });
@@ -857,8 +875,23 @@ where
             //introspection to detect whether type can do @include
             config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
         }
+        let compact = match config.dataformat {
+            DataFormat::Json { compact } => compact,
+            _ => {
+                if let Type::AnnotationStore = Self::typeinfo() {
+                    return Err(StamError::SerializationError(format!(
+                        "Unable to serialize to JSON for {} (filename {}) when config dataformat is set to {}",
+                        Self::typeinfo(),
+                        filename,
+                        config.dataformat
+                    )));
+                } else {
+                    false
+                }
+            }
+        };
         let writer = open_file_writer(filename, &config)?;
-        let result = self.to_writer(writer, &config.dataformat);
+        let result = self.to_json_writer(writer, compact);
         if let Type::TextResource | Type::AnnotationDataSet = Self::typeinfo() {
             //introspection to detect whether type can do @include
             config.set_serialize_mode(SerializeMode::AllowInclude); //set standoff mode, what we're about the write is the standoff file
@@ -869,7 +902,7 @@ where
     /// Serializes this structure to one string.
     /// The actual dataformat can be set via `config`, the default is STAM JSON.
     /// If `config` not not specified, an attempt to fetch the AnnotationStore's initial config is made
-    fn serialize_to_string(&self, config: &Config) -> Result<String, StamError> {
+    fn to_json_string(&self, config: &Config) -> Result<String, StamError> {
         if let Type::TextResource | Type::AnnotationDataSet = Self::typeinfo() {
             //introspection to detect whether type can do @include
             config.set_serialize_mode(SerializeMode::NoInclude); //set standoff mode, what we're about the write is the standoff file
@@ -891,13 +924,11 @@ where
                     e
                 ))
             }),
-            #[cfg(feature = "csv")]
-            DataFormat::Csv { table } => {
-                let mut writer = BufWriter::new(Vec::new());
-                self.csv_writer(&mut writer, table)?;
-                let bytes = writer.into_inner().expect("unwrapping buffer");
-                Ok(String::from_utf8(bytes).expect("valid utf-8"))
-            }
+            _ => Err(StamError::SerializationError(format!(
+                "Unable to serialize to JSON for {} when config dataformat is set to {}",
+                Self::typeinfo(),
+                config.dataformat
+            ))),
         };
         if let Type::TextResource | Type::AnnotationDataSet = Self::typeinfo() {
             //introspection to detect whether type can do @include
@@ -914,18 +945,6 @@ where
             }
         }
         return filename;
-    }
-
-    #[cfg(feature = "csv")]
-    fn csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
-    where
-        W: std::io::Write,
-    {
-        //default trait implementation returns an error
-        Err(StamError::SerializationError(format!(
-            "No csv_writer implementation for {}",
-            Self::typeinfo(),
-        )))
     }
 }
 

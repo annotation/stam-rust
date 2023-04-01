@@ -2,11 +2,12 @@ use csv;
 use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::io::BufWriter;
 
 use crate::types::*;
 use crate::{
-    Annotation, AnnotationDataSet, AnnotationStore, DataValue, Selector, SelectorKind, StamError,
-    TextResource,
+    Annotation, AnnotationDataSet, AnnotationStore, Config, DataValue, Selector, SelectorKind,
+    StamError, TextResource,
 };
 
 #[derive(Serialize)]
@@ -204,10 +205,50 @@ impl Default for CsvTable {
     }
 }
 
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
+pub trait ToCsv
+where
+    Self: TypeInfo + serde::Serialize,
+{
+    fn to_csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
+    where
+        W: std::io::Write;
+
+    /// Writes this structure to a file
+    /// The actual dataformat can be set via `config`, the default is STAM JSON.
+    fn to_csv_file(
+        &self,
+        filename: &str,
+        config: &Config,
+        table: Option<CsvTable>,
+    ) -> Result<(), StamError> {
+        debug(config, || {
+            format!("{}.to_csv_file: filename={:?}", Self::typeinfo(), filename)
+        });
+        if table == Some(CsvTable::StoreManifest) && config.dataformat != DataFormat::Csv {
+            return Err(StamError::SerializationError(format!(
+                "Unable to serialize to CSV for {} when config dataformat is set to {}",
+                Self::typeinfo(),
+                config.dataformat
+            )));
+        }
+        let writer = open_file_writer(filename, &config)?;
+        let result = self.to_csv_writer(writer, table.unwrap_or_default());
+        result
+    }
+
+    fn to_csv_string(&self, table: Option<CsvTable>) -> Result<String, StamError> {
+        let mut writer = BufWriter::new(Vec::new());
+        self.to_csv_writer(&mut writer, table.unwrap_or_default())?;
+        let bytes = writer.into_inner().expect("unwrapping buffer");
+        Ok(String::from_utf8(bytes).expect("valid utf-8"))
+    }
+}
+
 #[sealed]
-impl Writable for AnnotationStore {
+impl ToCsv for AnnotationStore {
     /// Writes CSV output, for the specified table, to the writer
-    fn csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
+    fn to_csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
     where
         W: std::io::Write,
     {
@@ -391,9 +432,9 @@ impl Writable for AnnotationStore {
 }
 
 #[sealed]
-impl Writable for AnnotationDataSet {
+impl ToCsv for AnnotationDataSet {
     /// Writes CSV output, for the specified table, to the writer
-    fn csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
+    fn to_csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
     where
         W: std::io::Write,
     {
