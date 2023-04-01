@@ -733,7 +733,8 @@ impl AnnotationStore {
         for resource in self.resources.iter_mut() {
             if let Some(resource) = resource.as_mut() {
                 if resource.config().dataformat != dataformat {
-                    let basename = if let Some(basename) = resource.filename_without_extension() {
+                    let mut basename = if let Some(basename) = resource.filename_without_extension()
+                    {
                         basename.to_owned()
                     } else if let Some(id) = resource.id() {
                         sanitize_id_to_filename(id)
@@ -743,6 +744,19 @@ impl AnnotationStore {
                             resource
                         )));
                     };
+
+                    if basename.find("/").is_none() {
+                        if let Some(workdir) = resource.config().workdir() {
+                            if workdir.ends_with("/") {
+                                basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                    + &basename;
+                            } else {
+                                basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                    + "/"
+                                    + &basename;
+                            }
+                        }
+                    }
 
                     //always prefer external plain text for CSV
                     #[cfg(feature = "csv")]
@@ -756,7 +770,7 @@ impl AnnotationStore {
         for annotationset in self.annotationsets.iter_mut() {
             if let Some(annotationset) = annotationset.as_mut() {
                 if annotationset.config().dataformat != dataformat {
-                    let basename = if let Some(basename) =
+                    let mut basename = if let Some(basename) =
                         annotationset.filename_without_extension()
                     {
                         basename.to_owned()
@@ -767,6 +781,19 @@ impl AnnotationStore {
                         "Unable to infer a filename for annotationset. Has neither filename nor ID.",
                     )));
                     };
+
+                    if basename.find("/").is_none() {
+                        if let Some(workdir) = annotationset.config().workdir() {
+                            if workdir.ends_with("/") {
+                                basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                    + &basename;
+                            } else {
+                                basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                    + "/"
+                                    + &basename;
+                            }
+                        }
+                    }
 
                     if let DataFormat::Json { .. } = dataformat {
                         annotationset
