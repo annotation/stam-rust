@@ -44,12 +44,41 @@ impl From<usize> for Cursor {
 }
 
 impl TryFrom<isize> for Cursor {
-    type Error = &'static str;
+    type Error = StamError;
     fn try_from(cursor: isize) -> Result<Self, Self::Error> {
         if cursor > 0 {
-            Err("Cursor is a signed integer and converts to EndAlignedCursor, expected a value <= 0. Convert from an unsigned integer for a normal BeginAlignedCursor")
+            Err(StamError::InvalidCursor(format!("{}", cursor), "Cursor is a signed integer and converts to EndAlignedCursor, expected a value <= 0. Convert from an unsigned integer for a normal BeginAlignedCursor"))
         } else {
             Ok(Self::EndAligned(cursor))
+        }
+    }
+}
+
+impl TryFrom<&str> for Cursor {
+    type Error = StamError;
+    fn try_from(cursor: &str) -> Result<Self, Self::Error> {
+        if cursor.starts_with('-') {
+            //EndAligned
+            let cursor: isize = isize::from_str_radix(cursor, 10).map_err(|e| {
+                StamError::InvalidCursor(cursor.to_owned(), "Invalid EndAlignedCursor")
+            })?;
+            Cursor::try_from(cursor)
+        } else {
+            //BeginAligned
+            let cursor: usize = usize::from_str_radix(cursor, 10).map_err(|e| {
+                StamError::InvalidCursor(cursor.to_owned(), "Invalid BeginAlignedCursor")
+            })?;
+            Ok(Cursor::from(cursor))
+        }
+    }
+}
+
+impl std::fmt::Display for Cursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::EndAligned(0) => write!(f, "-0"), //add sign
+            Self::BeginAligned(x) => write!(f, "{}", x),
+            Self::EndAligned(x) => write!(f, "{}", x), //sign already included
         }
     }
 }

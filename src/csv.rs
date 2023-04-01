@@ -38,11 +38,64 @@ struct AnnotationCsv<'a> {
     set_ids: Cow<'a, str>,
     #[serde(rename = "SelectorType")]
     selectortype: Cow<'a, str>,
+    #[serde(rename = "BeginOffset")]
+    begin: String,
+    #[serde(rename = "EndOffset")]
+    end: String,
 }
 
 impl<'a> AnnotationCsv<'a> {
     fn set_selectortype(selector: &Selector) -> Cow<'a, str> {
-        Cow::Borrowed(selector.kind().as_str())
+        if selector.is_complex() {
+            let mut selectortype: String = selector.kind().as_str().to_string();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    selectortype.push(';'); //delimiter
+                    selectortype += subselector.kind().as_str();
+                }
+            }
+            Cow::Owned(selectortype)
+        } else {
+            Cow::Borrowed(selector.kind().as_str())
+        }
+    }
+
+    fn set_beginoffset(selector: &Selector) -> String {
+        if selector.is_complex() {
+            let mut out: String = String::new();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    out.push(';'); //delimiter
+                    out += Self::set_beginoffset(subselector).as_str();
+                }
+            }
+            out
+        } else {
+            match selector {
+                Selector::TextSelector(_, offset)
+                | Selector::AnnotationSelector(_, Some(offset)) => format!("{}", offset.begin),
+                _ => String::new(),
+            }
+        }
+    }
+
+    fn set_endoffset(selector: &Selector) -> String {
+        if selector.is_complex() {
+            let mut out: String = String::new();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    out.push(';'); //delimiter
+                    out += Self::set_endoffset(subselector).as_str();
+                }
+            }
+            out
+        } else {
+            match selector {
+                Selector::TextSelector(_, offset)
+                | Selector::AnnotationSelector(_, Some(offset)) => format!("{}", offset.end),
+                _ => String::new(),
+            }
+        }
     }
 }
 
@@ -141,6 +194,8 @@ impl Writable for AnnotationStore {
                             data_ids: Cow::Borrowed(""),
                             set_ids: Cow::Borrowed(""),
                             selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            begin: AnnotationCsv::set_beginoffset(annotation.target()),
+                            end: AnnotationCsv::set_endoffset(annotation.target()),
                         }
                     } else if annotation.len() == 1 {
                         //only one data item, we needn't make any copies
@@ -159,7 +214,9 @@ impl Writable for AnnotationStore {
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
                             data_ids: Cow::Borrowed(data.id().unwrap()),
                             set_ids: Cow::Borrowed(set.id().unwrap()),
-                            selectortype,
+                            selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            begin: AnnotationCsv::set_beginoffset(annotation.target()),
+                            end: AnnotationCsv::set_endoffset(annotation.target()),
                         }
                     } else {
                         let mut data_ids = String::new();
@@ -186,7 +243,9 @@ impl Writable for AnnotationStore {
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
                             data_ids: Cow::Owned(data_ids),
                             set_ids: Cow::Owned(set_ids),
-                            selectortype,
+                            selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            begin: AnnotationCsv::set_beginoffset(annotation.target()),
+                            end: AnnotationCsv::set_endoffset(annotation.target()),
                         }
                     };
                     writer.serialize(out).map_err(|e| {

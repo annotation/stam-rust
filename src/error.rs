@@ -65,6 +65,9 @@ pub enum StamError {
     /// This error indicates the offset is invalid, the end precedes the beginning. It wraps the begin and end cursors, respectively
     InvalidOffset(Cursor, Cursor, &'static str),
 
+    /// This error indicates the cursor is invalid
+    InvalidCursor(String, &'static str),
+
     /// Annotation has no target
     NoTarget(&'static str),
 
@@ -145,6 +148,9 @@ impl From<&StamError> for String {
                 "InvalidOffset: begin cursor {:?} must be before end cursor {:?} ({}) ",
                 begincursor, endcursor, contextmsg
             ),
+            StamError::InvalidCursor(s, contextmsg) => {
+                format!("InvalidCursor: {:?} ({}) ", s, contextmsg)
+            }
             StamError::NoTarget(contextmsg) => {
                 format!("NoTarget: Annotation has no target ({})", contextmsg)
             }

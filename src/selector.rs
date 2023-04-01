@@ -216,6 +216,15 @@ impl Selector {
             StamError::SerializationError(format!("Writing selector to string: {}", e))
         })
     }
+
+    /// Returns all subselectors. Use ['iter()`] instead if you want an iterator
+    /// with more functionality.
+    pub fn subselectors(&self) -> Option<&Vec<Selector>> {
+        match self {
+            Selector::MultiSelector(v) | Selector::CompositeSelector(v) | Selector::DirectionalSelector(v) => Some(v),
+            _ => None,
+        }
+    }   
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize,Deserialize)]
@@ -234,14 +243,14 @@ pub enum SelectorKind {
 impl SelectorKind {
     pub fn as_str(&self) -> &'static str {
         match self {
-            ResourceSelector => "ResourceSelector",
-            AnnotationSelector => "AnnotationSelector",
-            TextSelector => "TextSelector",
-            DataSetSelector => "DataSetSelector",
-            MultiSelector => "MultiSelector",
-            CompositeSelector => "CompositeSelector",
-            DirectionalSelector => "DirectionalSelector",
-            InternalRangedSelector => "InternalRangedSelector",
+            Self::ResourceSelector => "ResourceSelector",
+            Self::AnnotationSelector => "AnnotationSelector",
+            Self::TextSelector => "TextSelector",
+            Self::DataSetSelector => "DataSetSelector",
+            Self::MultiSelector => "MultiSelector",
+            Self::CompositeSelector => "CompositeSelector",
+            Self::DirectionalSelector => "DirectionalSelector",
+            Self::InternalRangedSelector => "InternalRangedSelector",
         }
     }
 }
