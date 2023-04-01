@@ -20,6 +20,7 @@ use crate::types::*;
 ///
 /// Once instantiated, instances of this type are, by design, largely immutable.
 /// The key and value can not be changed. Create a new AnnotationData and new Annotation for edits.
+#[derive(Debug)]
 pub struct AnnotationData {
     /// Public identifier
     id: Option<String>,

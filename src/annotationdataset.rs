@@ -134,10 +134,6 @@ impl TypeInfo for AnnotationDataSet {
     }
 }
 
-#[cfg(not(feature = "csv"))]
-#[sealed]
-impl ToJson for AnnotationDataSet {}
-
 #[sealed]
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;

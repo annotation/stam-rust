@@ -10,7 +10,7 @@ use crate::{
     StamError, TextResource,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct AnnotationStoreCsv<'a> {
     #[serde(rename = "Type")]
     tp: Type,
@@ -20,7 +20,7 @@ struct AnnotationStoreCsv<'a> {
     filename: Option<Cow<'a, str>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct AnnotationDataCsv<'a> {
     #[serde(rename = "Id")]
     id: Option<Cow<'a, str>>,
@@ -29,10 +29,10 @@ struct AnnotationDataCsv<'a> {
 
     //TODO: Add Type
     #[serde(rename = "Value")]
-    value: Option<&'a DataValue>,
+    value: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct AnnotationCsv<'a> {
     #[serde(rename = "Id")]
     id: Option<Cow<'a, str>>,
@@ -249,6 +249,9 @@ impl AnnotationStore {
     /// Saves all files as CSV. It is better to use [`AnnotationStore::save()`] instead, setting
     /// [`AnnotationStore::set_dataformat(DataFormat::Csv)`] before invocation.
     pub fn to_csv_files(&self, filename: &str) -> Result<(), StamError> {
+        debug(self.config(), || {
+            format!("{}.to_csv_files: filename={:?}", Self::typeinfo(), filename)
+        });
         let basename = strip_known_extension(filename);
         self.to_csv_file(filename, self.config(), CsvTable::StoreManifest)?;
         self.to_csv_file(
@@ -261,6 +264,12 @@ impl AnnotationStore {
         )?;
         for annotationset in self.annotationsets() {
             if annotationset.changed() {
+                debug(self.config(), || {
+                    format!(
+                        "{}.to_csv_files: writing AnnotationDataSet",
+                        Self::typeinfo()
+                    )
+                });
                 annotationset.to_csv_file(
                     annotationset
                         .filename()
@@ -508,10 +517,13 @@ impl ToCsv for AnnotationDataSet {
                         .id()
                         .map(|x| Cow::Borrowed(x))
                         .expect("key must have ID"),
-                    value: None,
+                    value: String::new(),
                 })
                 .map_err(|e| {
-                    StamError::SerializationError(format!("Failure serializing CSV: {:?}", e))
+                    StamError::SerializationError(format!(
+                        "Failure serializing CSV for key {:?}: {:?}",
+                        key, e
+                    ))
                 })?;
         }
         for data in self.data() {
@@ -528,10 +540,13 @@ impl ToCsv for AnnotationDataSet {
                         .id()
                         .map(|x| Cow::Borrowed(x))
                         .expect("key must have a public ID"),
-                    value: Some(data.value()),
+                    value: data.value().to_string(),
                 })
                 .map_err(|e| {
-                    StamError::SerializationError(format!("Failure serializing CSV: {:?}", e))
+                    StamError::SerializationError(format!(
+                        "Failure serializing CSV for data {:?}: {:?}",
+                        data, e
+                    ))
                 })?;
         }
         Ok(())
