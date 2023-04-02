@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::io::{BufRead, BufReader, BufWriter};
+use std::ops::Deref;
 use std::path::PathBuf;
 
 use crate::types::*;
@@ -690,24 +691,136 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                     _ => unreachable!(),
                 }
             } else {
-                let mut targetresources: SmallVec<[&str; 1]> =
-                    self.targetresource.split(";").collect();
-                let mut targetdatasets: SmallVec<[&str; 1]> =
-                    self.targetdataset.split(";").collect();
-                let mut targetannotations: SmallVec<[&str; 1]> =
+                let targetresources: SmallVec<[&str; 1]> = self.targetresource.split(";").collect();
+                let targetdatasets: SmallVec<[&str; 1]> = self.targetdataset.split(";").collect();
+                let targetannotations: SmallVec<[&str; 1]> =
                     self.targetannotation.split(";").collect();
-                let mut beginoffsets: SmallVec<[&str; 1]> = self.begin.split(";").collect();
-                let mut endoffsets: SmallVec<[&str; 1]> = self.end.split(";").collect();
-                //TODO: implement complex selector parsing
-                selectorbuilder
+                let beginoffsets: SmallVec<[&str; 1]> = self.begin.split(";").collect();
+                let endoffsets: SmallVec<[&str; 1]> = self.end.split(";").collect();
+                let mut maxlen = selectortypes.len();
+                if targetresources.len() > maxlen {
+                    maxlen = targetresources.len()
+                };
+                if targetdatasets.len() > maxlen {
+                    maxlen = targetdatasets.len()
+                };
+                if targetannotations.len() > maxlen {
+                    maxlen = targetannotations.len()
+                };
+                if beginoffsets.len() > maxlen {
+                    maxlen = beginoffsets.len()
+                };
+                if endoffsets.len() > maxlen {
+                    maxlen = endoffsets.len()
+                };
+                let mut subselectors = Vec::new();
+                for i in 1..maxlen {
+                    //first one can be skipped because it's the complex selector
+                    subselectors.push(match selectortypes.get(i).unwrap_or(selectortypes.last().unwrap()) {
+                        SelectorKind::TextSelector => {
+                            let resource = targetresources.get(i).unwrap_or(targetresources.last().unwrap());
+                            if resource.is_empty() {
+                                return Err(StamError::CsvError(
+                                format!(
+                                    "No resource specified for subselector #{}", i
+                                ),
+                                "TextSelector",
+                                ));
+                            }
+                            let begin: Cursor = beginoffsets.get(i).ok_or_else(|| StamError::CsvError(
+                                format!(
+                                    "No begin offset found for subselector #{}", i
+                                ),
+                                "TextSelector",
+                            ))?.deref().try_into()?;
+                            let end: Cursor = endoffsets.get(i).ok_or_else(|| StamError::CsvError(
+                                format!(
+                                    "No end offset found for subselector #{}", i
+                                ),
+                                "TextSelector",
+                            ))?.deref().try_into()?;
+                            SelectorBuilder::TextSelector(
+                                AnyId::Id(resource.to_string()),
+                                Offset::new(begin, end),
+                            )
+                        }
+                        SelectorKind::AnnotationSelector => {
+                            let annotation = targetannotations.get(i).unwrap_or(targetannotations.last().unwrap());
+                            if annotation.is_empty() {
+                                return Err(StamError::CsvError(
+                                format!(
+                                    "No annotation specified for subselector #{}", i
+                                ),
+                                "AnnotationSelector",
+                                ));
+                            }
+                            let offset: Option<Offset> = if beginoffsets.get(i).is_some() && !beginoffsets.get(i).unwrap().is_empty() {
+                                if endoffsets.get(i).is_none() && !endoffsets.get(i).unwrap().is_empty() {
+                                    return Err(StamError::CsvError(
+                                    format!(
+                                        "No end offset specified for subselector #{}", i
+                                    ),
+                                    "AnnotationSelector",
+                                    ));
+                                }
+                                let begin: Cursor = beginoffsets.get(i).unwrap().deref().try_into()?;
+                                let end: Cursor = endoffsets.get(i).unwrap().deref().try_into()?;
+                                Some(Offset::new(begin, end))
+                            } else {
+                                None
+                            };
+                            SelectorBuilder::AnnotationSelector(
+                                AnyId::Id(annotation.to_string()),
+                                offset,
+                            )
+                        }
+                        SelectorKind::ResourceSelector => {
+                            let resource = targetresources.get(i).unwrap_or(targetresources.last().unwrap());
+                            if resource.is_empty() {
+                                return Err(StamError::CsvError(
+                                format!(
+                                    "No resource specified for subselector #{}", i
+                                ),
+                                "ResourceSelector",
+                                ));
+                            }
+                            SelectorBuilder::ResourceSelector(AnyId::Id(resource.to_string()))
+                        }
+                        SelectorKind::DataSetSelector => {
+                            let dataset = targetdatasets.get(i).unwrap_or(targetdatasets.last().unwrap());
+                            if dataset.is_empty() {
+                                return Err(StamError::CsvError(
+                                format!(
+                                    "No dataset specified for subselector #{}", i
+                                ),
+                                "DataSetSelector",
+                                ));
+                            }
+                            SelectorBuilder::DataSetSelector(AnyId::Id(dataset.to_string()))
+                        }
+                        x =>
+                            return Err(StamError::CsvError(
+                                format!(
+                                    "SelectorType can't be a subselector under a complex selector: {:?}", x
+                                ),
+                                "",
+                            ))
+                    });
+                }
+
+                match selectortypes[0] {
+                    SelectorKind::CompositeSelector => {
+                        SelectorBuilder::CompositeSelector(subselectors)
+                    }
+                    SelectorKind::MultiSelector => SelectorBuilder::MultiSelector(subselectors),
+                    SelectorKind::DirectionalSelector => {
+                        SelectorBuilder::DirectionalSelector(subselectors)
+                    }
+                    _ => unreachable!(),
+                }
             };
             builder = builder.with_target(selectorbuilder);
         }
-
-        //self.data_ids
-        //self.set_ids
-        //self.selectortype
-        //self.targetresource
         Ok(builder)
     }
 }
