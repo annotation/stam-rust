@@ -489,6 +489,16 @@ impl AnnotationDataSetBuilder {
 
         AnnotationDataSetBuilder::from_json_file(filename, config)
     }
+
+    pub fn with_id(mut self, id: String) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    pub fn with_filename(mut self, filename: String) -> Self {
+        self.filename = Some(filename);
+        self
+    }
 }
 
 impl AnnotationDataSet {
@@ -502,9 +512,12 @@ impl AnnotationDataSet {
     ///Builds a new annotation store from [`AnnotationDataSetBuilder'].
     pub fn from_builder(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
         debug(&builder.config, || {
-            format!("AnnotationDataSet::from_builder")
+            format!("AnnotationDataSet::from_builder: start")
         });
         let set: Self = builder.try_into()?;
+        debug(set.config(), || {
+            format!("AnnotationDataSet::from_builder: done")
+        });
         Ok(set)
     }
 

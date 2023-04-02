@@ -884,10 +884,14 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
                                 record.filename
                             )
                         });
-                        let setbuilder = AnnotationDataSetBuilder::from_csv_file(
+                        let mut setbuilder = AnnotationDataSetBuilder::from_csv_file(
                             &record.filename,
                             config.clone(),
                         )?;
+                        if record.id.is_some() {
+                            setbuilder =
+                                setbuilder.with_id(record.id.map(|x| x.to_string()).unwrap());
+                        }
                         builder.annotationsets.push(setbuilder);
                     }
                     Type::TextResource => {
