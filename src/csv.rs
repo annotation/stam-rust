@@ -870,8 +870,12 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
                         builder.annotationsets.push(setbuilder);
                     }
                     Type::TextResource => {
-                        let resourcebuilder =
+                        let mut resourcebuilder =
                             TextResourceBuilder::from_txt_file(&record.filename, config.clone())?;
+                        if record.id.is_some() {
+                            resourcebuilder =
+                                resourcebuilder.with_id(record.id.map(|x| x.to_string()).unwrap());
+                        }
                         builder.resources.push(resourcebuilder);
                     }
                     Type::AnnotationStore => {

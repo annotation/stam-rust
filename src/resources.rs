@@ -289,6 +289,21 @@ impl TextResourceBuilder {
             Self::from_txt_file(filename, config)
         }
     }
+
+    pub fn with_id(mut self, id: String) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    pub fn with_filename(mut self, filename: String) -> Self {
+        self.filename = Some(filename);
+        self
+    }
+
+    pub fn with_text(mut self, text: String) -> Self {
+        self.text = Some(text);
+        self
+    }
 }
 
 impl TextResource {
