@@ -752,6 +752,15 @@ impl AnnotationStore {
         Ok(self)
     }
 
+    /// Write the annotation store and all files below it to file (STAM JSON or other supported formats likes STAM CSV)
+    /// The filetype is determined by the extension.
+    pub fn to_file(&mut self, filename: &str) -> Result<(), StamError> {
+        if self.filename() != Some(filename) {
+            self.set_filename(filename);
+        }
+        self.save()
+    }
+
     /// Changes the output dataformat, this function will set the external files with appropriate filenames (extensions) that are to be written on serialisation
     /// They will be derived from the existing filenames, if any.
     /// End user should just use [`AnnotationStore.set_filename`] with a recognized extension (json, csv)
