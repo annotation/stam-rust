@@ -477,6 +477,20 @@ impl<'a> FromJson<'a> for AnnotationDataSet {
     }
 }
 
+impl AnnotationDataSetBuilder {
+    /// Loads an AnnotationDataSetBuilder from file (STAM JSON or other supported format).
+    /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
+    pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
+        #[cfg(feature = "csv")]
+        if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
+            config.dataformat = DataFormat::Csv;
+            return AnnotationDataSetBuilder::from_csv_file(filename, config);
+        }
+
+        AnnotationDataSetBuilder::from_json_file(filename, config)
+    }
+}
+
 impl AnnotationDataSet {
     pub fn new(config: Config) -> Self {
         AnnotationDataSet {
@@ -520,15 +534,14 @@ impl AnnotationDataSet {
 
     /// Loads an AnnotationDataSet from file (STAM JSON or other supported format).
     /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
-        #[cfg(feature = "csv")]
-        if filename.ends_with("csv") {
-            config.dataformat = DataFormat::Csv;
-            let builder = AnnotationDataSetBuilder::from_csv_file(filename, config)?;
-            return Self::from_builder(builder);
-        }
-
-        let builder = AnnotationDataSetBuilder::from_json_file(filename, config)?;
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!(
+                "AnnotationDataSet.from_file: filename={:?} config={:?}",
+                filename, config
+            )
+        });
+        let builder = AnnotationDataSetBuilder::from_file(filename, config)?;
         Self::from_builder(builder)
     }
 

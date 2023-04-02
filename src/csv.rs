@@ -573,7 +573,12 @@ where
 
     fn from_csv_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
-            format!("{}::from_csv_file: filename={}", Self::typeinfo(), filename)
+            format!(
+                "{}::from_csv_file: filename={}, config={:?}",
+                Self::typeinfo(),
+                filename,
+                config
+            )
         });
         let reader = open_file_reader(filename, &config)?;
         Self::from_csv_reader(reader, Some(filename), config)
@@ -932,8 +937,9 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
             builder.from_csv_annotations_reader(reader, &config)?;
         }
         debug(&config, || {
-            format!("AnnotationStoreBuilder::from_csv_reader: finished processing annotations, entire builder ready, returning")
+            format!("AnnotationStoreBuilder::from_csv_reader: finished processing annotations, entire builder ready, returning, ")
         });
+        builder.config = config;
         Ok(builder)
     }
 }
