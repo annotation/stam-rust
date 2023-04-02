@@ -1302,14 +1302,20 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
 
 #[test]
 fn serialize_csv() -> Result<(), StamError> {
+    let mut store = AnnotationStore::from_file("tests/test.store.stam.json", Config::default())?;
+    store.set_dataformat(DataFormat::Csv)?;
+    store.save()?;
+    Ok(())
+}
+
+#[test]
+fn parse_csv() -> Result<(), StamError> {
     let mut store = AnnotationStore::from_file(
-        "tests/test.store.stam.json",
+        "tests/test.store.stam.csv",
         Config {
             debug: true,
             ..Config::default()
         },
     )?;
-    store.set_dataformat(DataFormat::Csv)?;
-    store.save()?;
     Ok(())
 }
