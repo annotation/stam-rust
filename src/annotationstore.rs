@@ -16,7 +16,7 @@ use crate::annotationdataset::{
 };
 use crate::config::{get_global_config, set_global_config, Config, SerializeMode};
 #[cfg(feature = "csv")]
-use crate::csv::{FromCsv, ToCsv};
+use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::error::*;
 use crate::resources::{SearchTextMatch, TextResource, TextResourceBuilder, TextResourceHandle};

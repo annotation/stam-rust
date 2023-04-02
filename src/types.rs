@@ -15,9 +15,6 @@ use serde::{Deserialize, Serialize};
 use crate::config::{Config, SerializeMode};
 use crate::error::StamError;
 
-#[cfg(feature = "csv")]
-use crate::csv::CsvTable;
-
 /// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
 pub type Store<T> = Vec<Option<T>>;
 //                       ^------- may be None when an element getssubtype: tabled
