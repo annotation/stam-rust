@@ -1,0 +1,5 @@
+Id,Key,Value
+,pos,
+PosNoun,pos,noun
+PosVerb,pos,verb
+PosInterjection,pos,interjection
