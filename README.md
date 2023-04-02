@@ -128,6 +128,12 @@ store.to_file("example.stam.json")?;
 
 See [here](https://docs.rs/stam)
 
+## Extensions
+
+This library implements the following STAM extensions:
+
+* [STAM-CSV](https://github.com/annotation/stam/tree/master/extensions/stam-csv) - Defines an alternative serialisation format using CSV.
+
 ## Python binding
 
 This library comes with a binding for Python, see [here](https://github.com/annotation/stam-python)
