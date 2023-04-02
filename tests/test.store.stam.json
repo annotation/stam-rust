@@ -1,63 +1,71 @@
 {
-    "@type": "AnnotationStore",
-    "@id": "Example A",
-    "annotationsets": [
-        {
-            "@type": "AnnotationDataSet",
-            "@id": "https://example.org/test/",
-            "@include": "test.annotationset.stam.json"
+  "@type": "AnnotationStore",
+  "@id": "Example A",
+  "resources": [
+    {
+      "@type": "TextResource",
+      "@include": "hello.txt"
+    }
+  ],
+  "annotationsets": [
+    {
+      "@type": "AnnotationDataSet",
+      "@id": "https://example.org/test/",
+      "@include": "test.annotationset.stam.json"
+    }
+  ],
+  "annotations": [
+    {
+      "@type": "Annotation",
+      "@id": "A1",
+      "target": {
+        "@type": "TextSelector",
+        "resource": "hello.txt",
+        "offset": {
+          "@type": "Offset",
+          "begin": {
+            "@type": "BeginAlignedCursor",
+            "value": 0
+          },
+          "end": {
+            "@type": "BeginAlignedCursor",
+            "value": 5
+          }
         }
-    ],
-    "resources":  [{
-        "@type": "TextResource",
-        "@include": "hello.txt"
-    }],
-    "annotations": [
+      },
+      "data": [
         {
-            "@type": "Annotation",
-            "@id": "A1",
-            "data": [ {
-                "@type": "AnnotationData",
-                "@id": "PosInterjection",
-                "set": "https://example.org/test/"
-            }],
-            "target": {
-                "@type": "TextSelector",
-                "resource": "hello.txt",
-                "offset": {
-                    "begin": {
-                        "@type": "BeginAlignedCursor",
-                        "value": 0
-                    },
-                    "end":  {
-                        "@type": "BeginAlignedCursor",
-                        "value": 5
-                    }
-                }
-            }
-        },
-        {
-            "@type": "Annotation",
-            "@id": "A2",
-            "data": [ {
-                "@type": "AnnotationData",
-                "@id": "PosNoun",
-                "set": "https://example.org/test/"
-            }],
-            "target": {
-                "@type": "TextSelector",
-                "resource": "hello.txt",
-                "offset": {
-                    "begin": {
-                        "@type": "BeginAlignedCursor",
-                        "value": 6
-                    },
-                    "end":  {
-                        "@type": "BeginAlignedCursor",
-                        "value": 13
-                    }
-                }
-            }
+          "@type": "AnnotationData",
+          "@id": "PosInterjection",
+          "set": "https://example.org/test/"
         }
-    ]
+      ]
+    },
+    {
+      "@type": "Annotation",
+      "@id": "A2",
+      "target": {
+        "@type": "TextSelector",
+        "resource": "hello.txt",
+        "offset": {
+          "@type": "Offset",
+          "begin": {
+            "@type": "BeginAlignedCursor",
+            "value": 6
+          },
+          "end": {
+            "@type": "BeginAlignedCursor",
+            "value": 13
+          }
+        }
+      },
+      "data": [
+        {
+          "@type": "AnnotationData",
+          "@id": "PosNoun",
+          "set": "https://example.org/test/"
+        }
+      ]
+    }
+  ]
 }

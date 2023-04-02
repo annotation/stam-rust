@@ -1335,8 +1335,14 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
 
 #[test]
 fn serialize_csv() -> Result<(), StamError> {
-    let mut store = AnnotationStore::from_file("tests/test.store.stam.json", Config::default())?;
-    store.set_dataformat(DataFormat::Csv)?;
+    let mut store = AnnotationStore::from_file(
+        "tests/test.store.stam.json",
+        Config {
+            debug: true,
+            ..Config::default()
+        },
+    )?;
+    store.set_filename("tests/test.store.stam.csv");
     store.save()?;
     Ok(())
 }

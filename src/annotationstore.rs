@@ -753,8 +753,9 @@ impl AnnotationStore {
     }
 
     /// Changes the output dataformat, this function will set the external files with appropriate filenames (extensions) that are to be written on serialisation
-    /// They will be derived from the existing filenames, if any
-    pub fn set_dataformat(&mut self, dataformat: DataFormat) -> Result<(), StamError> {
+    /// They will be derived from the existing filenames, if any.
+    /// End user should just use [`AnnotationStore.set_filename`] with a recognized extension (json, csv)
+    pub(crate) fn set_dataformat(&mut self, dataformat: DataFormat) -> Result<(), StamError> {
         //first the children
         for resource in self.resources.iter_mut() {
             if let Some(resource) = resource.as_mut() {
@@ -848,12 +849,13 @@ impl AnnotationStore {
         };
 
         if let DataFormat::Json { .. } = dataformat {
-            self.set_filename(format!("{}.store.stam.json", basename).as_str());
+            // we don't use set_filename because that might recurse back to us
+            self.filename = Some(format!("{}.store.stam.json", basename).into());
         }
 
         #[cfg(feature = "csv")]
         if let DataFormat::Csv = dataformat {
-            self.set_filename(format!("{}.store.stam.csv", basename).as_str());
+            self.filename = Some(format!("{}.store.stam.csv", basename).into());
             self.annotations_filename = Some(format!("{}.annotations.stam.csv", basename).into());
         }
 
@@ -1519,9 +1521,14 @@ impl AssociatedFile for AnnotationStore {
     //Set the associated filename for this annotation store. Also resets the working directory accordingly if needed.
     fn set_filename(&mut self, filename: &str) -> &mut Self {
         debug(self.config(), || {
-            format!("AnnotationStore.set_filename: {}", filename)
+            format!(
+                "AnnotationStore.set_filename: {}, current dataformat={:?}",
+                filename,
+                self.config().dataformat
+            )
         });
         self.filename = Some(filename.into());
+        let mut update_global_config = false;
         if let Some(mut workdir) = self.filename.clone() {
             workdir.pop();
             if !workdir.to_str().expect("path to string").is_empty() {
@@ -1530,8 +1537,40 @@ impl AssociatedFile for AnnotationStore {
                 });
                 let workdir = &workdir;
                 self.update_config(|config| config.workdir = Some(workdir.clone()));
-                set_global_config(self.config.clone());
+                update_global_config = true;
             }
+        }
+
+        debug(self.config(), || {
+            format!(
+                "EXTRA DEBUG: {:?}  - {:?}",
+                self.filename, self.config.dataformat
+            )
+        });
+        //check if the dataformat changed, and update all other files accordingly then (via set_dataformat())
+        #[cfg(feature = "csv")]
+        match self.config.dataformat {
+            //OLD dataformat
+            DataFormat::Csv => {
+                if self.filename().unwrap().ends_with(".json") {
+                    debug(&self.config, || {
+                        format!("AnnotationStore.set_filename: Changing dataformat to JSON")
+                    });
+                    self.set_dataformat(DataFormat::Json { compact: false })
+                        .unwrap_or_default(); //ignores errors!
+                }
+            }
+            DataFormat::Json { .. } => {
+                if self.filename().unwrap().ends_with(".csv") {
+                    debug(&self.config, || {
+                        format!("AnnotationStore.set_filename: Changing dataformat to CSV")
+                    });
+                    self.set_dataformat(DataFormat::Csv).unwrap_or_default(); //ignores errors!
+                }
+            }
+        }
+        if update_global_config {
+            set_global_config(self.config.clone());
         }
         self
     }

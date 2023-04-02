@@ -1,39 +1,39 @@
 {
-    "@type": "AnnotationDataSet",
-    "@id": "test",
-    "keys": [
-        {
-            "@type": "DataKey",
-            "@id": "pos"
-        }
-    ],
-    "data": [
-        {
-            "@type": "AnnotationData",
-            "@id": "PosNoun",
-            "key": "pos",
-            "value": {
-                "@type": "String",
-                "value": "noun"
-            }
-        },
-        {
-            "@type": "AnnotationData",
-            "@id": "PosVerb",
-            "key": "pos",
-            "value": {
-                "@type": "String",
-                "value": "verb"
-            }
-        },
-        {
-            "@type": "AnnotationData",
-            "@id": "PosInterjection",
-            "key": "pos",
-            "value": {
-                "@type": "String",
-                "value": "interjection"
-            }
-        }
-    ]
+  "@type": "AnnotationDataSet",
+  "@id": "https://example.org/test/",
+  "keys": [
+    {
+      "@type": "DataKey",
+      "@id": "pos"
+    }
+  ],
+  "data": [
+    {
+      "@type": "AnnotationData",
+      "@id": "PosNoun",
+      "key": "pos",
+      "value": {
+        "@type": "String",
+        "value": "noun"
+      }
+    },
+    {
+      "@type": "AnnotationData",
+      "@id": "PosVerb",
+      "key": "pos",
+      "value": {
+        "@type": "String",
+        "value": "verb"
+      }
+    },
+    {
+      "@type": "AnnotationData",
+      "@id": "PosInterjection",
+      "key": "pos",
+      "value": {
+        "@type": "String",
+        "value": "interjection"
+      }
+    }
+  ]
 }
