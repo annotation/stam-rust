@@ -14,7 +14,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
-use crate::config::{set_global_config, Config, SerializeMode};
+use crate::config::{get_global_config, set_global_config, Config, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::{FromCsv, ToCsv};
 use crate::datakey::{DataKey, DataKeyHandle};
@@ -89,7 +89,7 @@ pub struct AnnotationStoreBuilder {
 
     pub resources: Vec<TextResourceBuilder>,
 
-    #[serde(skip)]
+    #[serde(skip, default = "get_global_config")]
     pub config: Config,
 
     #[serde(skip)]
@@ -548,7 +548,7 @@ impl Default for AnnotationStore {
             resource_annotation_map: RelationMap::new(),
             annotation_annotation_map: RelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
-            config: Config::default(),
+            config: get_global_config(),
             filename: None,
             annotations_filename: None,
         }
@@ -678,6 +678,7 @@ impl AnnotationStore {
                 filename, config
             )
         });
+        set_global_config(config.clone());
         //extract work directory add add it to the config (if it does not already specify a working directory)
         if config.workdir().is_none() {
             let mut workdir: PathBuf = filename.into();
@@ -710,6 +711,7 @@ impl AnnotationStore {
                 string, config
             )
         });
+        set_global_config(config.clone());
         let builder = AnnotationStoreBuilder::from_json_str(string, config)?;
         Self::from_builder(builder)
     }

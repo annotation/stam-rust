@@ -826,7 +826,14 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
 }
 
 impl AnnotationStoreBuilder {
-    fn from_csv_annotations_reader(&mut self, reader: Box<dyn BufRead>) -> Result<(), StamError> {
+    fn from_csv_annotations_reader(
+        &mut self,
+        reader: Box<dyn BufRead>,
+        config: &Config,
+    ) -> Result<(), StamError> {
+        debug(&config, || {
+            format!("AnnotationStoreBuilder::from_csv_annotations_reader")
+        });
         let mut reader = csv::Reader::from_reader(reader);
         for result in reader.deserialize() {
             let record: AnnotationCsv = result
@@ -844,6 +851,9 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
         _filename: Option<&str>,
         config: Config,
     ) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!("AnnotationStoreBuilder::from_csv_reader: processing store manifest")
+        });
         let mut reader = csv::Reader::from_reader(reader);
         let mut first = true;
         let mut builder = AnnotationStoreBuilder::default();
@@ -863,6 +873,12 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
             } else {
                 match record.tp {
                     Type::AnnotationDataSet => {
+                        debug(&config, || {
+                            format!(
+                                "AnnotationStoreBuilder::from_csv_reader: processing dataset {}",
+                                record.filename
+                            )
+                        });
                         let setbuilder = AnnotationDataSetBuilder::from_csv_file(
                             &record.filename,
                             config.clone(),
@@ -870,6 +886,9 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
                         builder.annotationsets.push(setbuilder);
                     }
                     Type::TextResource => {
+                        debug(&config, || {
+                            format!("AnnotationStoreBuilder::from_csv_reader: processing textresource {}", record.filename)
+                        });
                         let mut resourcebuilder =
                             TextResourceBuilder::from_txt_file(&record.filename, config.clone())?;
                         if record.id.is_some() {
@@ -897,12 +916,24 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
             }
             first = false;
         }
+        debug(&config, || {
+            format!("AnnotationStoreBuilder::from_csv_reader: finished processing store manifest")
+        });
         if builder.annotations_filename.is_some() {
             let filename = builder.annotations_filename.as_ref().unwrap();
             let filename = filename.to_str().expect("valid utf-8");
+            debug(&config, || {
+                format!(
+                    "AnnotationStoreBuilder::from_csv_reader: processing annotations {}",
+                    filename
+                )
+            });
             let reader = open_file_reader(filename, &config)?;
-            builder.from_csv_annotations_reader(reader)?;
+            builder.from_csv_annotations_reader(reader, &config)?;
         }
+        debug(&config, || {
+            format!("AnnotationStoreBuilder::from_csv_reader: finished processing annotations, entire builder ready, returning")
+        });
         Ok(builder)
     }
 }

@@ -87,7 +87,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
 
     fn try_from(builder: TextResourceBuilder) -> Result<Self, StamError> {
         debug(&builder.config, || {
-            format!("TryFrom<TextResourceBuilder for TextResource>: Creation of TextResource from builder")
+            format!("TryFrom<TextResourceBuilder for TextResource>: Creation of TextResource from builder (done)")
         });
         let textlen = if let Some(text) = &builder.text {
             text.chars().count()
@@ -259,24 +259,23 @@ impl<'a> FromJson<'a> for TextResourceBuilder {
 impl TextResourceBuilder {
     pub fn from_txt_file(filename: &str, config: Config) -> Result<Self, StamError> {
         //plain text
+        debug(&config, || {
+            format!("TextResourceBuilder::from_txt_file: filename={}", filename)
+        });
         let mut f = open_file(filename, &config)?;
         let mut text: String = String::new();
         if let Err(err) = f.read_to_string(&mut text) {
             return Err(StamError::IOError(
                 err,
                 filename.to_owned(),
-                "TextResource::from_file",
+                "TextResourceBuilder::from_txt_file",
             ));
         }
         Ok(Self {
             id: Some(filename.to_string()),
             text: Some(text),
-            filename: if config.use_include {
-                Some(filename.to_string())
-            } else {
-                None
-            }, //may be overridden in with_file
-            mode: SerializeMode::NoInclude, //we just processed the include, this instructs the deserialiser not to do it again
+            filename: Some(filename.to_string()),
+            mode: SerializeMode::NoInclude, //we just processed the include, this instructs the JSON deserialiser not to do it again
             config,
         })
     }
@@ -325,6 +324,7 @@ impl TextResource {
 
     ///Builds a new text resource from [`TextResourceBuilder'].
     pub fn from_builder(builder: TextResourceBuilder) -> Result<Self, StamError> {
+        debug(&builder.config, || format!("TextResource::from_builder"));
         let mut res: Self = builder.try_into()?;
         res.textlen = res.text.chars().count();
         if res.config().milestone_interval > 0 {

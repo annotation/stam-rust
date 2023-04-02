@@ -83,7 +83,7 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
 
     fn try_from(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
         debug(&builder.config, || {
-            format!("TryFrom<AnnotationBuilder for AnnotationDataSet>: Creation of AnnotationDataSet from builder")
+            format!("TryFrom<AnnotationDataSetBuilder for AnnotationDataSet>: Creation of AnnotationDataSet from builder")
         });
         let mut set = Self {
             id: builder.id,
@@ -113,6 +113,9 @@ impl TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet {
                 set.build_insert_data(dataitem, true)?;
             }
         }
+        debug(&set.config, || {
+            format!("TryFrom<AnnotationDataSetBuilder for AnnotationDataSet>: done")
+        });
         Ok(set)
     }
 }
@@ -328,7 +331,7 @@ impl Default for AnnotationDataSet {
             key_idmap: IdMap::new("K".to_string()),
             data_idmap: IdMap::new("D".to_string()),
             key_data_map: RelationMap::new(),
-            config: Config::default(),
+            config: get_global_config(),
         }
     }
 }
@@ -484,6 +487,9 @@ impl AnnotationDataSet {
 
     ///Builds a new annotation store from [`AnnotationDataSetBuilder'].
     pub fn from_builder(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
+        debug(&builder.config, || {
+            format!("AnnotationDataSet::from_builder")
+        });
         let set: Self = builder.try_into()?;
         Ok(set)
     }
@@ -666,7 +672,11 @@ impl AnnotationDataSet {
 
         let public_id: Option<String> = id.to_string();
 
-        self.insert(AnnotationData::new(public_id, datakey_handle, value))
+        let result = self.insert(AnnotationData::new(public_id, datakey_handle, value));
+        debug(self.config(), || {
+            format!("AnnotationDataSet.insert_data: done, result={:?}", result)
+        });
+        result
     }
 
     /// Build and insert data into the dataset, similar to [`Self.insert_data()`] and [`Self.with_data()`], but takes a prepared `AnnotationDataBuilder` instead.
