@@ -361,7 +361,7 @@ where
                     writer
                         .serialize(StoreManifestCsv {
                             tp: Type::AnnotationDataSet,
-                            id: self.id().map(|x| Cow::Borrowed(x)),
+                            id: dataset.id().map(|x| Cow::Borrowed(x)),
                             filename: dataset.filename().map(|x| Cow::Borrowed(x)).unwrap(),
                         })
                         .map_err(|e| {
