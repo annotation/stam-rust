@@ -321,7 +321,7 @@ impl AnnotationStore {
 #[sealed]
 impl ToCsv for AnnotationStore
 where
-    Self: TypeInfo,
+    Self: TypeInfo + Configurable,
 {
     /// Writes CSV output, for the specified table, to the writer
     fn to_csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
@@ -340,10 +340,13 @@ where
                     .serialize(StoreManifestCsv {
                         tp: Type::AnnotationStore,
                         id: self.id().map(|x| Cow::Borrowed(x)),
-                        filename: self
-                            .annotations_filename()
-                            .map(|x| Cow::Borrowed(x.to_str().expect("valid utf-8 filename")))
-                            .unwrap(),
+                        filename: Cow::Borrowed(filename_without_workdir(
+                            &self
+                                .annotations_filename()
+                                .map(|x| Cow::Borrowed(x.to_str().expect("valid utf-8 filename")))
+                                .unwrap(),
+                            self.config(),
+                        )),
                     })
                     .map_err(|e| {
                         StamError::SerializationError(format!("Failure serializing CSV: {:?}", e))
@@ -362,7 +365,10 @@ where
                         .serialize(StoreManifestCsv {
                             tp: Type::AnnotationDataSet,
                             id: dataset.id().map(|x| Cow::Borrowed(x)),
-                            filename: dataset.filename().map(|x| Cow::Borrowed(x)).unwrap(),
+                            filename: dataset
+                                .filename_without_workdir()
+                                .map(|x| Cow::Borrowed(x))
+                                .unwrap(),
                         })
                         .map_err(|e| {
                             StamError::SerializationError(format!(
@@ -385,7 +391,10 @@ where
                         .serialize(StoreManifestCsv {
                             tp: Type::TextResource,
                             id: resource.id().map(|x| Cow::Borrowed(x)),
-                            filename: resource.filename().map(|x| Cow::Borrowed(x)).unwrap(),
+                            filename: resource
+                                .filename_without_workdir()
+                                .map(|x| Cow::Borrowed(x))
+                                .unwrap(),
                         })
                         .map_err(|e| {
                             StamError::SerializationError(format!(
@@ -853,7 +862,7 @@ impl AnnotationStoreBuilder {
 impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
-        _filename: Option<&str>,
+        filename: Option<&str>,
         config: Config,
     ) -> Result<Self, StamError> {
         debug(&config, || {
@@ -943,6 +952,9 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
         debug(&config, || {
             format!("AnnotationStoreBuilder::from_csv_reader: finished processing annotations, entire builder ready, returning, ")
         });
+        if let Some(filename) = filename {
+            builder.filename = Some(PathBuf::from(filename));
+        }
         builder.config = config;
         Ok(builder)
     }

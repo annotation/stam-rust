@@ -1,4 +1,4 @@
 Type,Id,Filename
-AnnotationStore,Example A,tests/test.annotations.stam.csv
-AnnotationDataSet,https://example.org/test/,tests/test.annotationset.stam.csv
-TextResource,hello.txt,tests/hello.txt
+AnnotationStore,Example A,test.annotations.stam.csv
+AnnotationDataSet,https://example.org/test/,test.annotationset.stam.csv
+TextResource,hello.txt,hello.txt

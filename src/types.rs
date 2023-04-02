@@ -1430,8 +1430,20 @@ pub(crate) fn sanitize_id_to_filename(id: &str) -> String {
     id
 }
 
+pub(crate) fn filename_without_workdir<'a>(filename: &'a str, config: &Config) -> &'a str {
+    if let Some(workdir) = config.workdir().map(|x| x.to_str().expect("valid utf-8")) {
+        let filename = &filename[workdir.len()..];
+        if filename.starts_with(&['/', '\\']) {
+            return &filename[1..];
+        } else {
+            return filename;
+        }
+    }
+    filename
+}
+
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait AssociatedFile {
+pub trait AssociatedFile: Configurable {
     fn filename(&self) -> Option<&str>;
 
     //Set the associated filename for this structure.
@@ -1450,6 +1462,16 @@ pub trait AssociatedFile {
     fn filename_without_extension(&self) -> Option<&str> {
         if let Some(filename) = self.filename() {
             Some(strip_known_extension(filename))
+        } else {
+            None
+        }
+    }
+
+    /// Serializes the filename ready for use with STAM JSON's @include or STAM CSV.
+    /// It basically only strips the workdir component, if any.
+    fn filename_without_workdir(&self) -> Option<&str> {
+        if let Some(filename) = self.filename() {
+            Some(filename_without_workdir(filename, self.config()))
         } else {
             None
         }
