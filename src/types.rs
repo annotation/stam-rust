@@ -12,7 +12,7 @@ use std::sync::{Arc, RwLock};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{get_global_config, Config, SerializeMode};
+use crate::config::{Config, SerializeMode};
 use crate::error::StamError;
 
 #[cfg(feature = "csv")]
@@ -124,7 +124,7 @@ impl TryFrom<&str> for Type {
             "annotation" | "annotations" => Ok(Self::Annotation),
             "annotationdataset" | "dataset" | "annotationset" | "annotationdatasets"
             | "datasets" | "annotationsets" => Ok(Self::AnnotationDataSet),
-            "data" | "annotationdata" | "datavalue" | "datavalues" => Ok(Self::AnnotationData),
+            "data" | "annotationdata" => Ok(Self::AnnotationData),
             "datakey" | "datakeys" | "key" | "keys" => Ok(Self::DataKey),
             "datavalue" | "value" | "values" => Ok(Self::DataValue),
             "resource" | "textresource" | "resources" | "textresources" => Ok(Self::TextResource),

@@ -3,15 +3,15 @@ use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::borrow::Cow;
-use std::io::{BufRead, BufReader, BufWriter};
+use std::io::{BufRead, BufWriter};
 use std::ops::Deref;
 use std::path::PathBuf;
 
 use crate::types::*;
 use crate::{
     Annotation, AnnotationBuilder, AnnotationDataBuilder, AnnotationDataSet,
-    AnnotationDataSetBuilder, AnnotationStore, AnnotationStoreBuilder, Config, DataKey, DataValue,
-    Offset, Selector, SelectorBuilder, SelectorKind, SerializeMode, StamError, TextResource,
+    AnnotationDataSetBuilder, AnnotationStore, AnnotationStoreBuilder, Config, DataKey, Offset,
+    Selector, SelectorBuilder, SelectorKind, SerializeMode, StamError, TextResource,
     TextResourceBuilder,
 };
 
@@ -511,7 +511,7 @@ where
 #[sealed]
 impl ToCsv for AnnotationDataSet {
     /// Writes CSV output, for the specified table, to the writer
-    fn to_csv_writer<W>(&self, writer: W, table: CsvTable) -> Result<(), StamError>
+    fn to_csv_writer<W>(&self, writer: W, _table: CsvTable) -> Result<(), StamError>
     where
         W: std::io::Write,
     {

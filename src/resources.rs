@@ -372,7 +372,9 @@ impl TextResource {
     /// Writes a plain text file
     pub fn to_txt_file(&self, filename: &str) -> Result<(), StamError> {
         let mut f = create_file(filename, self.config())?;
-        write!(f, "{}", self.text());
+        write!(f, "{}", self.text()).map_err(|err| {
+            StamError::IOError(err, filename.to_owned(), "TextResource::to_txt_file")
+        })?;
         if Some(filename) == self.filename() {
             self.mark_unchanged();
         }
