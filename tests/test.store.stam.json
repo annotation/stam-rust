@@ -15,6 +15,7 @@
     "annotations": [
         {
             "@type": "Annotation",
+            "@id": "A1",
             "data": [ {
                 "@type": "AnnotationData",
                 "@id": "PosInterjection",
@@ -37,6 +38,7 @@
         },
         {
             "@type": "Annotation",
+            "@id": "A2",
             "data": [ {
                 "@type": "AnnotationData",
                 "@id": "PosNoun",

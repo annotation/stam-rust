@@ -1,3 +1,3 @@
 Id,AnnotationData,AnnotationDataSet,SelectorType,TargetResource,TargetAnnotation,TargetDataSet,BeginOffset,EndOffset
-AYu8UmkJR5NuEHX_VxyROB,PosInterjection,https://example.org/test/,TextSelector,hello.txt,,,0,5
-AxTQ_3fl8hqnWJOSYny0SJ,PosNoun,https://example.org/test/,TextSelector,hello.txt,,,6,13
+A1,PosInterjection,https://example.org/test/,TextSelector,hello.txt,,,0,5
+A2,PosNoun,https://example.org/test/,TextSelector,hello.txt,,,6,13
