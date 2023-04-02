@@ -1541,12 +1541,6 @@ impl AssociatedFile for AnnotationStore {
             }
         }
 
-        debug(self.config(), || {
-            format!(
-                "EXTRA DEBUG: {:?}  - {:?}",
-                self.filename, self.config.dataformat
-            )
-        });
         //check if the dataformat changed, and update all other files accordingly then (via set_dataformat())
         #[cfg(feature = "csv")]
         match self.config.dataformat {
