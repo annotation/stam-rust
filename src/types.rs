@@ -718,7 +718,10 @@ pub trait StoreFor<T: Storable>: Configurable {
             if let Some(handle) = idmap.data.get(id) {
                 Ok(*handle)
             } else {
-                Err(StamError::IdError(id.to_string(), Self::store_typeinfo()))
+                Err(StamError::IdNotFoundError(
+                    id.to_string(),
+                    Self::store_typeinfo(),
+                ))
             }
         } else {
             Err(StamError::NoIdError(Self::store_typeinfo()))
@@ -1066,7 +1069,7 @@ where
     pub fn error(&self, contextmsg: &'static str) -> StamError {
         match self {
             Self::Handle(_) => StamError::HandleError(contextmsg),
-            Self::Id(id) => StamError::IdError(id.to_string(), contextmsg),
+            Self::Id(id) => StamError::IdNotFoundError(id.to_string(), contextmsg),
             Self::None => StamError::Unbound("Supplied AnyId is not bound to anything!"),
         }
     }

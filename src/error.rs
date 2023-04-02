@@ -12,7 +12,7 @@ pub enum StamError {
 
     /// This error is raised when the specified public ID does not exist
     /// The first parameter is the requested public ID
-    IdError(String, &'static str),
+    IdNotFoundError(String, &'static str),
 
     /// This error is raised when an item has no public ID but one is expected
     NoIdError(&'static str),
@@ -98,7 +98,7 @@ impl From<&StamError> for String {
             StamError::HandleError(contextmsg) => {
                 format!("IntIdError: No such internal ID: ({})", contextmsg)
             }
-            StamError::IdError(id, contextmsg) => {
+            StamError::IdNotFoundError(id, contextmsg) => {
                 format!("IdError: No such ID: {} ({})", id, contextmsg)
             }
             StamError::Unbound(contextmsg) => format!(

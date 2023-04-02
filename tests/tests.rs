@@ -1197,13 +1197,14 @@ fn test_read_single() -> Result<(), StamError> {
 
 #[test]
 fn test_read_include() -> Result<(), StamError> {
-    AnnotationStore::from_file(
+    let store = AnnotationStore::from_file(
         "tests/test.store.stam.json",
         Config {
             debug: true,
             ..Config::default()
         },
     )?;
+    test_example_a_sanity(&store)?;
     Ok(())
 }
 
@@ -1300,6 +1301,38 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
     Ok(())
 }
 
+fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
+    // Instantiate the store
+    let resource: &TextResource = store.get_by_id("hello.txt")?;
+    assert_eq!(resource.text(), "Hallå världen\n");
+
+    let annotation: &Annotation = store.get_by_id("A1")?;
+    assert_eq!(
+        store.text_by_annotation(annotation).next().unwrap(),
+        "Hallå"
+    );
+    for (key, data, set) in store.data_by_annotation(annotation) {
+        assert_eq!(key.id(), Some("pos"));
+        assert_eq!(data.id(), Some("PosInterjection"));
+        assert_eq!(set.id(), Some("https://example.org/test/"));
+        assert_eq!(data.value(), "interjection");
+    }
+
+    let annotation: &Annotation = store.get_by_id("A2")?;
+    assert_eq!(
+        store.text_by_annotation(annotation).next().unwrap(),
+        "världen"
+    );
+    for (key, data, set) in store.data_by_annotation(annotation) {
+        assert_eq!(key.id(), Some("pos"));
+        assert_eq!(data.id(), Some("PosNoun"));
+        assert_eq!(set.id(), Some("https://example.org/test/"));
+        assert_eq!(data.value(), "noun");
+    }
+
+    Ok(())
+}
+
 #[test]
 fn serialize_csv() -> Result<(), StamError> {
     let mut store = AnnotationStore::from_file("tests/test.store.stam.json", Config::default())?;
@@ -1310,12 +1343,13 @@ fn serialize_csv() -> Result<(), StamError> {
 
 #[test]
 fn parse_csv() -> Result<(), StamError> {
-    let mut store = AnnotationStore::from_file(
+    let store = AnnotationStore::from_file(
         "tests/test.store.stam.csv",
         Config {
             debug: true,
             ..Config::default()
         },
     )?;
+    test_example_a_sanity(&store)?;
     Ok(())
 }
