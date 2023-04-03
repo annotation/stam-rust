@@ -83,22 +83,22 @@ pub struct AnnotationStore {
 #[derive(Deserialize, Default)]
 pub struct AnnotationStoreBuilder {
     #[serde(rename = "@id")]
-    pub id: Option<String>,
+    pub(crate) id: Option<String>,
 
-    pub annotationsets: Vec<AnnotationDataSetBuilder>,
+    pub(crate) annotationsets: Vec<AnnotationDataSetBuilder>,
 
-    pub annotations: Vec<AnnotationBuilder>,
+    pub(crate) annotations: Vec<AnnotationBuilder>,
 
-    pub resources: Vec<TextResourceBuilder>,
+    pub(crate) resources: Vec<TextResourceBuilder>,
 
     #[serde(skip, default = "get_global_config")]
-    pub config: Config,
+    pub(crate) config: Config,
 
     #[serde(skip)]
-    pub filename: Option<PathBuf>,
+    pub(crate) filename: Option<PathBuf>,
 
     #[serde(skip)]
-    pub annotations_filename: Option<PathBuf>,
+    pub(crate) annotations_filename: Option<PathBuf>,
 }
 
 impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
@@ -656,16 +656,80 @@ impl Configurable for AnnotationStore {
     }
 }
 
+impl AnnotationStoreBuilder {
+    /// Start a new [`AnnotationStoreBuilder`] to build an [`AnnotationStore`]. Chain various `with_*()` methods and call `build()` in the end fo produce the actual [`AnnotationStore`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the public ID for the [`AnnotationStore`] that will be built.
+    pub fn with_id(mut self, id: String) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    /// Add an [`AnnotationDataSet`] to the store (in the form of a builder). Can be called multiple times.
+    pub fn with_annotationset(mut self, annotationset: AnnotationDataSetBuilder) -> Self {
+        self.annotationsets.push(annotationset);
+        self
+    }
+
+    /// Adds multiple annotation sets at once, this can only be called once as it will overwrite existing builders.
+    pub fn with_annotationsets(mut self, annotationsets: Vec<AnnotationDataSetBuilder>) -> Self {
+        self.annotationsets = annotationsets;
+        self
+    }
+
+    /// Add an [`TextResource`] to the store (in the form of a builder). Can be called multiple times.
+    pub fn with_resource(mut self, resource: TextResourceBuilder) -> Self {
+        self.resources.push(resource);
+        self
+    }
+
+    /// Adds multiple resource builders at once, this can only be called once as it will overwrite existing builders.
+    pub fn with_resources(mut self, resources: Vec<TextResourceBuilder>) -> Self {
+        self.resources = resources;
+        self
+    }
+
+    /// Adds an annotation builder, can be called multiple times.
+    pub fn with_annotation(mut self, annotation: AnnotationBuilder) -> Self {
+        self.annotations.push(annotation);
+        self
+    }
+
+    /// Adds multiple annotation builders, this can only be called once as it will overwrite existing annotation builders.
+    pub fn with_annotations(mut self, annotations: Vec<AnnotationBuilder>) -> Self {
+        self.annotations = annotations;
+        self
+    }
+
+    /// Set the filename for the [`AnnotationStore`] that will be built. This does not load from file. Use [`AnnotationStore::from_file()`] instead of this builder if that's what you want.
+    pub fn with_filename(mut self, filename: &str) -> Self {
+        if filename.is_empty() {
+            self.filename = None
+        } else {
+            self.filename = Some(filename.into());
+        }
+        self
+    }
+
+    pub fn with_config(mut self, config: Config) -> Self {
+        self.config = config;
+        self
+    }
+
+    ///Builds a new annotation store from [`AnnotationStoreBuilder'].
+    pub fn build(self) -> Result<AnnotationStore, StamError> {
+        debug(&self.config, || format!("AnnotationStore::from_builder"));
+        self.try_into()
+    }
+}
+
 impl AnnotationStore {
     ///Creates a new empty annotation store with a default configuraton, add the [`AnnotationStore.with_config()`] to provide a custom one
     pub fn new() -> Self {
         AnnotationStore::default()
-    }
-
-    ///Builds a new annotation store from [`AnnotationStoreBuilder'].
-    pub fn from_builder(builder: AnnotationStoreBuilder) -> Result<Self, StamError> {
-        debug(&builder.config, || format!("AnnotationStore::from_builder"));
-        Ok(builder.try_into()?)
     }
 
     /// Loads an AnnotationStore from a file (STAM JSON or another supported format)
@@ -693,12 +757,10 @@ impl AnnotationStore {
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
             config.dataformat = DataFormat::Csv;
-            let builder = AnnotationStoreBuilder::from_csv_file(filename, config)?;
-            return Self::from_builder(builder);
+            return AnnotationStoreBuilder::from_csv_file(filename, config)?.build();
         }
 
-        let builder = AnnotationStoreBuilder::from_json_file(filename, config)?;
-        Self::from_builder(builder)
+        AnnotationStoreBuilder::from_json_file(filename, config)?.build()
     }
 
     /// Loads an AnnotationStore from a STAM JSON string
@@ -711,8 +773,7 @@ impl AnnotationStore {
             )
         });
         set_global_config(config.clone());
-        let builder = AnnotationStoreBuilder::from_json_str(string, config)?;
-        Self::from_builder(builder)
+        AnnotationStoreBuilder::from_json_str(string, config)?.build()
     }
 
     /// Merge another annotation store STAM JSON file into this one
@@ -721,8 +782,7 @@ impl AnnotationStore {
         if filename.ends_with("csv") || self.config().dataformat == DataFormat::Csv {
             let mut config = self.config.clone();
             config.dataformat = DataFormat::Csv;
-            let builder = AnnotationStoreBuilder::from_csv_file(filename, config)?;
-            return Self::from_builder(builder);
+            return AnnotationStoreBuilder::from_csv_file(filename, config)?.build();
         }
 
         let builder = AnnotationStoreBuilder::from_json_file(filename, self.config.clone())?;
@@ -745,8 +805,7 @@ impl AnnotationStore {
             StamError::JsonError(e, filename.to_string(), "Reading annotations from file")
         })?;
         for annotation in result.0.into_iter() {
-            let builder: AnnotationBuilder = annotation.into();
-            self.annotate(builder)?;
+            self.annotate(annotation.into())?;
         }
         Ok(self)
     }

@@ -100,9 +100,9 @@ impl PartialEq<Annotation> for Annotation {
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
 pub struct AnnotationBuilder {
-    id: AnyId<AnnotationHandle>,
-    data: Vec<AnnotationDataBuilder>,
-    target: WithAnnotationTarget,
+    pub(crate) id: AnyId<AnnotationHandle>,
+    pub(crate) data: Vec<AnnotationDataBuilder>,
+    pub(crate) target: WithAnnotationTarget,
 }
 
 #[derive(Debug)]
@@ -136,19 +136,10 @@ impl Default for AnnotationBuilder {
 
 impl Annotation {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
-    pub fn to_json(&self, store: &AnnotationStore) -> Result<String, StamError> {
+    pub fn to_json_string(&self, store: &AnnotationStore) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
         let wrapped: WrappedStorable<Self, AnnotationStore> = WrappedStorable::new(self, store)?;
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
-            StamError::SerializationError(format!("Writing annotation to string: {}", e))
-        })
-    }
-
-    /// Writes an Annotation to one big STAM JSON string, without indentation
-    pub fn to_json_compact(&self, store: &AnnotationStore) -> Result<String, StamError> {
-        //note: this function is not invoked during regular serialisation via the store
-        let wrapped: WrappedStorable<Self, AnnotationStore> = WrappedStorable::new(self, store)?;
-        serde_json::to_string(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation to string: {}", e))
         })
     }
@@ -238,7 +229,7 @@ impl AnnotationBuilder {
         })
     }
 
-    /// Lower level method if you want to create and pass [`AnnotationDataBuilder'] yourself.
+    /// Lower level method if you want to create and pass [`AnnotationDataBuilder'] yourself rather than use the other ``with_data_*()`` shortcut methods.
     pub fn with_data_builder(mut self, builder: AnnotationDataBuilder) -> Self {
         self.data.push(builder);
         self

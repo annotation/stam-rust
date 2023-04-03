@@ -526,7 +526,7 @@ impl AnnotationDataSetBuilder {
         self
     }
 
-    /// Set the filename for the [`AnnotationDataSet`] that will be built.
+    /// Set the filename for the [`AnnotationDataSet`] that will be built. This does not load from file. Use [`AnnotationDataSet::from_file()`] instead of this builder if that's what you want.
     pub fn with_filename(mut self, filename: &str) -> Self {
         if filename.is_empty() {
             self.filename = None
@@ -546,8 +546,7 @@ impl AnnotationDataSetBuilder {
         debug(&self.config, || {
             format!("AnnotationDataSetBuilder::build()")
         });
-        let result: AnnotationDataSet = self.try_into()?;
-        Ok(result)
+        self.try_into()
     }
 }
 
