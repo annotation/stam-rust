@@ -70,7 +70,7 @@ impl std::fmt::Display for Cursor {
 }
 
 /// The handle trait is implemented on various handle types. They have in common that refer to the internal id
-/// of a [`Storable`] item in a [`Store`] by index. Types implementing this are lightweight and do not borrow anything, they can be passed and copied freely.
+/// of a [`crate::store::Storable`] item in a struct implementing [`crate::store::StoreFor`] by index. Types implementing this are lightweight and do not borrow anything, they can be passed and copied freely.
 // To get an actual reference to the item from a handle type, call the `get()`` method on the store that holds it.
 /// This is a sealed trait, not implementable outside this crate.
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait

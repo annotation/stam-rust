@@ -246,7 +246,7 @@ impl<'t, 'r> SearchTextMatch<'t, 'r> {
 
     /// This returns a vector of texts and is mainly useful in case multiple
     /// patterns were captured.
-    /// Use [`as_str()`] instead if you expect only a single text item.
+    /// Use [`Self::as_str()`] instead if you expect only a single text item.
     pub fn text(&self) -> Vec<&str> {
         self.textselections
             .iter()

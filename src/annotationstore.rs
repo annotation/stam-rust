@@ -1215,7 +1215,7 @@ impl AnnotationStore {
     }
 
     /// Returns all annotations that reference any text selection in the resource.
-    /// Use [`annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
+    /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
     pub fn annotations_by_resource(
         &self,
         resource_handle: TextResourceHandle,
@@ -1322,7 +1322,7 @@ impl AnnotationStore {
     }
 
     /// Returns all annotations that reference any keys/data in an annotationset
-    /// Use [`annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
+    /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
     pub fn annotations_by_annotationset(
         &self,
         annotationset_handle: AnnotationDataSetHandle,

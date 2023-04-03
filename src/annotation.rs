@@ -94,8 +94,7 @@ impl PartialEq<Annotation> for Annotation {
             && self.data == other.data
     }
 }
-/// This is the build recipe for [`Annotation`]. It contains public IDs or handles that will be resolved
-/// when the actual Annotation is built. The building is done by passing this to [`AnnotationStore::annotate()`].
+/// This is the builder that builds [`Annotation`]. The actual building is done by passing this structure to [`AnnotationStore::annotate()`], there is no `build()` method for this builder.
 #[derive(Deserialize, Debug)]
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
@@ -106,7 +105,7 @@ pub struct AnnotationBuilder {
 }
 
 #[derive(Debug)]
-pub enum WithAnnotationTarget {
+pub(crate) enum WithAnnotationTarget {
     Unset,
     FromSelector(Selector),
     FromSelectorBuilder(SelectorBuilder),
@@ -199,7 +198,7 @@ impl AnnotationBuilder {
         })
     }
 
-    /// Use this method instead of [`with_data()`]  if you want to assign a public identifier (last argument)
+    /// Use this method instead of [`Self::with_data()`]  if you want to assign a public identifier (last argument)
     pub fn with_data_with_id(
         self,
         dataset: AnyId<AnnotationDataSetHandle>,
@@ -236,7 +235,7 @@ impl AnnotationBuilder {
     }
 
     /// Reads a single annotation in STAM JSON from file
-    pub fn from_file(filename: &str, config: &Config) -> Result<Self, StamError> {
+    pub fn from_json_file(filename: &str, config: &Config) -> Result<Self, StamError> {
         let reader = open_file_reader(filename, config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
@@ -246,7 +245,7 @@ impl AnnotationBuilder {
     }
 
     /// Reads a single annotation in STAM JSON from string
-    pub fn from_str(string: &str) -> Result<Self, StamError> {
+    pub fn from_json_str(string: &str) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
         let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
         result.map_err(|e| {

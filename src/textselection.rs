@@ -25,7 +25,7 @@ use crate::types::*;
 /// The actual reference to the [`crate::TextResource`] is not stored in this structure but should
 /// accompany it explicitly when needed
 ///
-/// On the lowest-level, this struct is obtain by a call to [`crate::annotationstore::AnnotationStore::text_selection()`], which
+/// On the lowest-level, this struct is obtain by a call to [`crate::annotationstore::AnnotationStore::textselection()`], which
 /// resolves a [`crate::Selector::TextSelector`]  to a [`TextSelection`]. Such calls are often abstracted away by higher level methods such as [`crate::annotationstore::AnnotationStore::textselections_by_annotation()`].
 pub struct TextSelection {
     pub(crate) intid: Option<TextSelectionHandle>,

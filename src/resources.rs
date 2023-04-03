@@ -349,7 +349,7 @@ impl TextResource {
     }
 
     /// Loads a text for the TextResource from file (STAM JSON or plain text), the text will be loaded into memory entirely
-    /// The use of [`from_file()`] is preferred instead. This method can be dangerous
+    /// The use of [`Self.from_file()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
     #[allow(unused_assignments)]
     pub fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
@@ -359,7 +359,7 @@ impl TextResource {
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely
-    /// The use of [`from_string()`] is preferred instead. This method can be dangerous
+    /// The use of [`Self.from_string()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
     pub fn with_string(mut self, text: String) -> Self {
         self.check_mutation();
@@ -459,7 +459,7 @@ impl TextResource {
     /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// Use [`find_textselection()`] instead if you want to limit to existing text selections only.
+    /// Use [`Self::find_textselection()`] instead if you want to limit to existing text selections only.
     pub fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
         match self.find_textselection(offset) {
             Ok(Some(handle)) => {
@@ -643,7 +643,7 @@ impl TextResource {
     }
 
     /// Returns an unsorted iterator over all textselections in this resource
-    /// Use this only if order doesn't matter for. For a sorted version, used [`iter()`] or [`range()`] instead.
+    /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
     pub fn textselections(&self) -> Box<impl Iterator<Item = &TextSelection>> {
         Box::new(self.store().iter().filter_map(|item| item.as_ref()))
     }
@@ -664,7 +664,7 @@ impl TextResource {
     }
 
     /// Returns a sorted double-ended iterator over all textselections in this resource
-    /// For unsorted (slightly more performant), use [`textselections()`] instead.
+    /// For unsorted (slightly more performant), use [`TextResource::textselections()`] instead.
     pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
         self.range(0, self.textlen())
     }

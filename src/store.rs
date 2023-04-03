@@ -10,7 +10,7 @@ use crate::config::Configurable;
 use crate::error::StamError;
 use crate::types::*;
 
-/// Type for Store elements. The struct that owns a field of this type should implement the trait StoreFor<T>.
+/// Type for Store elements. The struct that owns a field of this type should implement the trait [`StoreFor<T>`]
 pub type Store<T> = Vec<Option<T>>;
 
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
@@ -209,7 +209,7 @@ where
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait Storable: PartialEq + TypeInfo {
     type HandleType: Handle;
-    /// Retrieve the internal (numeric) id. For any type T uses in StoreFor<T>, this may be None only in the initial
+    /// Retrieve the internal (numeric) id. For any type T uses in `StoreFor<T>`, this may be None only in the initial
     /// stage when it is still unbounded to a store.
     fn handle(&self) -> Option<Self::HandleType> {
         None
@@ -290,7 +290,6 @@ pub trait Storable: PartialEq + TypeInfo {
 }
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
-/// It requires the types to also implemnet GetStore<T> and HasIdMap<T>
 /// It is a sealed trait, not implementable outside this crate.
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait StoreFor<T: Storable>: Configurable {
