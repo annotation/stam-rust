@@ -35,16 +35,7 @@ impl TextResource {
         debug(self.config(), || {
             format!("search_text: expressions={:?}", expressions)
         });
-        let (text, begincharpos, beginbytepos) = if let Some(offset) = offset {
-            let selection = self.textselection(&offset)?;
-            (
-                self.text_by_textselection(&selection)?,
-                selection.begin(),
-                self.utf8byte(selection.begin())?,
-            )
-        } else {
-            (self.text(), 0, 0)
-        };
+        let (text, begincharpos, beginbytepos) = self.extract_text_by_offset(offset)?;
         let selectexpressions = if expressions.len() > 2 {
             //we have multiple expressions, first we do a pass to see WHICH of the regular expression matche (taking them all into account in a single pass!).
             //then afterwards we find for each of the matching expressions WHERE they are found
@@ -79,6 +70,47 @@ impl TextResource {
             beginbytepos,
             allow_overlap,
         })
+    }
+
+    /// Searchs for the text fragment and returns a TextSelection to it
+    ///
+    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
+    pub fn find(&self, fragment: &str, offset: Option<&Offset>) -> Option<TextSelection> {
+        if let Ok((text, begincharpos, beginbytepos)) = self.extract_text_by_offset(offset) {
+            text.find(fragment).map(|foundbytepos| {
+                let endbytepos = foundbytepos + fragment.len();
+                TextSelection {
+                    intid: None,
+                    begin: begincharpos
+                        + self
+                            .utf8byte_to_charpos(beginbytepos + foundbytepos)
+                            .expect("utf-8 byte must resolve to valid charpos"),
+                    end: begincharpos
+                        + self
+                            .utf8byte_to_charpos(beginbytepos + endbytepos)
+                            .expect("utf-8 byte must resolve to valid charpos"),
+                }
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Returns (text,begincharpos, beginbytepos)
+    fn extract_text_by_offset(
+        &self,
+        offset: Option<&Offset>,
+    ) -> Result<(&str, usize, usize), StamError> {
+        if let Some(offset) = offset {
+            let selection = self.textselection(&offset)?;
+            Ok((
+                self.text_by_textselection(&selection)?,
+                selection.begin(),
+                self.utf8byte(selection.begin())?,
+            ))
+        } else {
+            Ok((self.text(), 0, 0))
+        }
     }
 }
 

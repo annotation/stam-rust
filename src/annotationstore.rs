@@ -432,7 +432,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                                     //we already have handle, don't insert anew
                                     textselection_handle
                                 } else {
-                                    match resource.find_textselection(&textselection.into()) {
+                                    match resource.has_textselection(&textselection.into()) {
                                         Ok(Some(found_textselectionhandle)) => {
                                             //we have just been inserted and found a handle
                                             found_textselectionhandle

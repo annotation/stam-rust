@@ -459,9 +459,9 @@ impl TextResource {
     /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// Use [`Self::find_textselection()`] instead if you want to limit to existing text selections only.
+    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections only.
     pub fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
-        match self.find_textselection(offset) {
+        match self.has_textselection(offset) {
             Ok(Some(handle)) => {
                 //existing textselection
                 let textselection: &TextSelection = self.get(handle)?; //shouldn't fail here anymore
@@ -492,7 +492,7 @@ impl TextResource {
     /// Finds an **existing** text selection**, as specified by the offset. Returns a handle.
     /// by the offset. Use the higher-level method [`Self.textselection()`] instead if you
     /// in most circumstances.
-    pub fn find_textselection(
+    pub fn has_textselection(
         &self,
         offset: &Offset,
     ) -> Result<Option<TextSelectionHandle>, StamError> {

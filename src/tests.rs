@@ -443,3 +443,12 @@ fn utf82unicode() {
         13
     );
 }
+
+#[test]
+fn find() {
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let textselection = resource.find("världen", None).unwrap();
+    assert_eq!(textselection.begin(), 6);
+    assert_eq!(textselection.end(), 13);
+}
