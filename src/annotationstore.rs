@@ -36,10 +36,10 @@ use crate::types::*;
 #[derive(Deserialize)]
 #[serde(try_from = "AnnotationStoreBuilder")]
 pub struct AnnotationStore {
-    id: Option<String>,
+    pub(crate) id: Option<String>,
 
     /// Configuration with interior mutability
-    config: Config,
+    pub(crate) config: Config,
 
     pub(crate) annotations: Store<Annotation>,
     pub(crate) annotationsets: Store<AnnotationDataSet>,
@@ -54,30 +54,31 @@ pub struct AnnotationStore {
 
     //reverse indices:
     /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores IntIds.
-    dataset_data_annotation_map:
+    pub(crate) dataset_data_annotation_map:
         TripleRelationMap<AnnotationDataSetHandle, AnnotationDataHandle, AnnotationHandle>,
 
     // Note there is no AnnotationDataSet => DataKey => Annotation map, that relationship
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
     //
     /// This is the reverse index for text, it maps TextResource => TextSelection => Annotation
-    textrelationmap: TripleRelationMap<TextResourceHandle, TextSelectionHandle, AnnotationHandle>,
+    pub(crate) textrelationmap:
+        TripleRelationMap<TextResourceHandle, TextSelectionHandle, AnnotationHandle>,
 
     /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
-    resource_annotation_map: RelationMap<TextResourceHandle, AnnotationHandle>,
+    pub(crate) resource_annotation_map: RelationMap<TextResourceHandle, AnnotationHandle>,
 
     /// Reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
-    dataset_annotation_map: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
+    pub(crate) dataset_annotation_map: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
 
     /// Reverse index for annotations that reference other annotations
-    annotation_annotation_map: RelationMap<AnnotationHandle, AnnotationHandle>,
+    pub(crate) annotation_annotation_map: RelationMap<AnnotationHandle, AnnotationHandle>,
 
     /// path associated with this store
-    filename: Option<PathBuf>,
+    pub(crate) filename: Option<PathBuf>,
 
     #[cfg(feature = "csv")]
     /// path associated with the stand-off files holding annotations (only used for STAM CSV)
-    annotations_filename: Option<PathBuf>,
+    pub(crate) annotations_filename: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Default)]
