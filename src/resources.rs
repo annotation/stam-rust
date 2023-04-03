@@ -64,7 +64,7 @@ pub struct TextResource {
     config: Config,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 pub struct TextResourceBuilder {
     /// Public identifier for the text resource (often the filename/URL)
     #[serde(rename = "@id")]
@@ -257,6 +257,10 @@ impl<'a> FromJson<'a> for TextResourceBuilder {
 }
 
 impl TextResourceBuilder {
+    pub fn new() -> Self {
+        TextResourceBuilder::default()
+    }
+
     pub fn from_txt_file(filename: &str, config: Config) -> Result<Self, StamError> {
         //plain text
         debug(&config, || {

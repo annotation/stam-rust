@@ -20,7 +20,7 @@ pub(crate) enum SerializeMode {
 
 impl Default for SerializeMode {
     fn default() -> Self {
-        Self::AllowInclude
+        Self::NoInclude
     }
 }
 
