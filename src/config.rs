@@ -10,7 +10,7 @@ use crate::json::*;
 use crate::types::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SerializeMode {
+pub(crate) enum SerializeMode {
     /// Allow serialisation of stand-off files (which means we allow @include)
     AllowInclude,
 

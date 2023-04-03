@@ -13,8 +13,8 @@ use crate::types::*;
 use crate::{
     Annotation, AnnotationBuilder, AnnotationDataBuilder, AnnotationDataSet,
     AnnotationDataSetBuilder, AnnotationStore, AnnotationStoreBuilder, Config, Configurable,
-    DataKey, Offset, Selector, SelectorBuilder, SelectorKind, SerializeMode, StamError,
-    TextResource, TextResourceBuilder,
+    DataKey, Offset, Selector, SelectorBuilder, SelectorKind, StamError, TextResource,
+    TextResourceBuilder,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -998,13 +998,11 @@ impl<'a> FromCsv<'a> for AnnotationDataSetBuilder {
                 });
             }
         }
-        Ok(AnnotationDataSetBuilder {
-            id: None, //determined by StoreManifest rather than the set itself
-            keys: Some(keys),
-            data: Some(databuilders),
-            filename: filename.map(|x| x.to_string()),
-            config,
-            mode: SerializeMode::NoInclude,
-        })
+        Ok(AnnotationDataSetBuilder::new()
+            .with_keys(keys)
+            .with_data_builders(databuilders)
+            .with_config(config)
+            .with_filename(filename.unwrap_or("")))
+        //Note: ID is determined by StoreManifest rather than the set itself and will be associated later
     }
 }

@@ -64,12 +64,12 @@ pub struct AnnotationDataSet {
     config: Config,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct AnnotationDataSetBuilder {
     #[serde(rename = "@id")]
-    pub id: Option<String>,
-    pub keys: Option<Vec<DataKey>>, //this is an Option because it can be omitted if @include is used
-    pub data: Option<Vec<AnnotationDataBuilder>>,
+    pub(crate) id: Option<String>,
+    pub(crate) keys: Option<Vec<DataKey>>, //this is an Option because it can be omitted if @include is used
+    pub(crate) data: Option<Vec<AnnotationDataBuilder>>,
     #[serde(rename = "@include")]
     pub(crate) filename: Option<String>,
 
@@ -464,19 +464,22 @@ impl<'a> FromJson<'a> for AnnotationDataSet {
                 filename, config
             )
         });
-        let builder = AnnotationDataSetBuilder::from_json_file(filename, config)?;
-        Ok(Self::from_builder(builder)?)
+        AnnotationDataSetBuilder::from_json_file(filename, config)?.build()
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationDataSet"
     fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
-        let builder = AnnotationDataSetBuilder::from_json_str(string, config)?;
-        Self::from_builder(builder)
+        AnnotationDataSetBuilder::from_json_str(string, config)?.build()
     }
 }
 
 impl AnnotationDataSetBuilder {
+    /// Start a new builder to build an [`AnnotationDataSet`]. You can chain various with_* methods and subsequently call `build()` to produce the actual [`AnnotationDataSet`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Loads an AnnotationDataSetBuilder from file (STAM JSON or other supported format).
     /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
     pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
@@ -489,14 +492,62 @@ impl AnnotationDataSetBuilder {
         AnnotationDataSetBuilder::from_json_file(filename, config)
     }
 
+    /// Set the public ID for the [`AnnotationDataSet`] that will be built.
     pub fn with_id(mut self, id: String) -> Self {
         self.id = Some(id);
         self
     }
 
-    pub fn with_filename(mut self, filename: String) -> Self {
-        self.filename = Some(filename);
+    /// Adds multiple keys at once. This can only be called once (it will override any prior set keys)
+    pub fn with_keys(mut self, keys: Vec<DataKey>) -> Self {
+        self.keys = Some(keys);
         self
+    }
+
+    /// Adds a data key. This can be called multiple times.
+    pub fn with_key(mut self, key: DataKey) -> Self {
+        if let Some(keys) = self.keys.as_mut() {
+            keys.push(key);
+        }
+        self
+    }
+
+    /// Adds multiple data builder at once. This can only be called once (it will override any prior set keys)
+    pub fn with_data_builders(mut self, data: Vec<AnnotationDataBuilder>) -> Self {
+        self.data = Some(data);
+        self
+    }
+
+    /// Adds a data builder. This can be called multiple times.
+    pub fn with_data(mut self, data: AnnotationDataBuilder) -> Self {
+        if let Some(datavec) = self.data.as_mut() {
+            datavec.push(data);
+        }
+        self
+    }
+
+    /// Set the filename for the [`AnnotationDataSet`] that will be built.
+    pub fn with_filename(mut self, filename: &str) -> Self {
+        if filename.is_empty() {
+            self.filename = None
+        } else {
+            self.filename = Some(filename.to_string());
+        }
+        self
+    }
+
+    pub fn with_config(mut self, config: Config) -> Self {
+        self.config = config;
+        self
+    }
+
+    /// Final builder method, constructs the ['AnnotationDataSet`], consuming the builder
+    pub fn build(self) -> Result<AnnotationDataSet, StamError> {
+        debug(&self.config, || {
+            format!("AnnotationDataSetBuilder::build()")
+        });
+        let result: AnnotationDataSet = self.try_into()?;
+        Ok(result)
     }
 }
 
@@ -506,18 +557,6 @@ impl AnnotationDataSet {
             config,
             ..Self::default()
         }
-    }
-
-    ///Builds a new annotation store from [`AnnotationDataSetBuilder'].
-    pub fn from_builder(builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
-        debug(&builder.config, || {
-            format!("AnnotationDataSet::from_builder: start")
-        });
-        let set: Self = builder.try_into()?;
-        debug(set.config(), || {
-            format!("AnnotationDataSet::from_builder: done")
-        });
-        Ok(set)
     }
 
     /// Loads an AnnotationDataSet from file (STAM JSON or other supported format) and merges it into the current one.
@@ -553,8 +592,7 @@ impl AnnotationDataSet {
                 filename, config
             )
         });
-        let builder = AnnotationDataSetBuilder::from_file(filename, config)?;
-        Self::from_builder(builder)
+        AnnotationDataSetBuilder::from_file(filename, config)?.build()
     }
 
     /// Merge another AnnotationDataSet, represented by an AnnotationDataSetBuilder, into this one.

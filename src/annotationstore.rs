@@ -928,18 +928,6 @@ impl AnnotationStore {
         }
     }
 
-    /// Used to set the serialization mode, determines whether to output @include statements and standoff files
-    /// This should be used prior to calling [`AnnotationStore.to_file()`] or [`AnnotationStore.to_string()`]
-    pub fn set_serialize_mode(&self, mode: SerializeMode) {
-        self.config.set_serialize_mode(mode);
-        for resource in self.resources() {
-            resource.config().set_serialize_mode(mode);
-        }
-        for annotationset in self.annotationsets() {
-            annotationset.config().set_serialize_mode(mode);
-        }
-    }
-
     /// Propagate the entire configuration to all children, will overwrite customized configurations
     fn propagate_full_config(&mut self) {
         if self.resources_len() > 0 || self.annotationsets_len() > 0 {
