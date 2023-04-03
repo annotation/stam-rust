@@ -294,14 +294,25 @@ impl TextResourceBuilder {
         self
     }
 
-    pub fn with_filename(mut self, filename: String) -> Self {
-        self.filename = Some(filename);
+    pub fn with_filename(mut self, filename: &str) -> Self {
+        self.filename = Some(filename.to_string());
         self
     }
 
     pub fn with_text(mut self, text: String) -> Self {
         self.text = Some(text);
         self
+    }
+
+    ///Builds a new [`TextResource`] from [`TextResourceBuilder'], consuming the latter
+    pub fn build(self) -> Result<TextResource, StamError> {
+        debug(&self.config, || format!("TextResourceBuilder::build"));
+        let mut res: TextResource = self.try_into()?;
+        res.textlen = res.text.chars().count();
+        if res.config().milestone_interval > 0 {
+            res.create_milestones(res.config().milestone_interval)
+        }
+        Ok(res)
     }
 }
 
@@ -322,17 +333,6 @@ impl TextResource {
         }
     }
 
-    ///Builds a new text resource from [`TextResourceBuilder'].
-    pub fn from_builder(builder: TextResourceBuilder) -> Result<Self, StamError> {
-        debug(&builder.config, || format!("TextResource::from_builder"));
-        let mut res: Self = builder.try_into()?;
-        res.textlen = res.text.chars().count();
-        if res.config().milestone_interval > 0 {
-            res.create_milestones(res.config().milestone_interval)
-        }
-        Ok(res)
-    }
-
     /// Create a new TextResource from file, the text will be loaded into memory entirely
     pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
@@ -341,8 +341,7 @@ impl TextResource {
                 filename, config
             )
         });
-        let builder = TextResourceBuilder::from_file(filename, config)?;
-        Ok(Self::from_builder(builder)?)
+        TextResourceBuilder::from_file(filename, config)?.build()
     }
 
     /// Loads a text for the TextResource from file (STAM JSON or plain text), the text will be loaded into memory entirely
@@ -351,8 +350,7 @@ impl TextResource {
     #[allow(unused_assignments)]
     pub fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
         self.check_mutation();
-        let builder = TextResourceBuilder::from_file(filename, config)?;
-        self = Self::from_builder(builder)?;
+        self = TextResourceBuilder::from_file(filename, config)?.build()?;
         Ok(self)
     }
 
