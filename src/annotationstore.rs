@@ -19,7 +19,7 @@ use crate::config::{get_global_config, set_global_config, Config, SerializeMode}
 use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::error::*;
-use crate::resources::{SearchTextMatch, TextResource, TextResourceBuilder, TextResourceHandle};
+use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{
     AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
 };
@@ -1488,33 +1488,6 @@ impl AnnotationStore {
             self.resource_annotation_map.totalcount(),
             self.dataset_annotation_map.totalcount(),
             self.annotation_annotation_map.totalcount(),
-        )
-    }
-
-    /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// See [`TextResource.search_text()`].
-    /// Note that this method, unlike its counterpart on TextResource, silently ignores any deeper errors that might occur
-    pub fn search_text<'t, 'r>(
-        &'t self,
-        expressions: &'r [Regex],
-        offset: &'r Option<Offset>,
-        precompiledset: &'r Option<RegexSet>,
-        allow_overlap: bool,
-    ) -> Box<impl Iterator<Item = SearchTextMatch<'t, 'r>>> {
-        Box::new(
-            self.resources()
-                .filter_map(move |resource| {
-                    //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
-                    resource
-                        .search_text(
-                            expressions,
-                            offset.as_ref(),
-                            precompiledset.as_ref(),
-                            allow_overlap,
-                        )
-                        .ok() //ignore errors!
-                })
-                .flatten(),
         )
     }
 }

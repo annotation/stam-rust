@@ -8,6 +8,7 @@ mod datavalue;
 mod error;
 mod resources;
 mod selector;
+mod textsearch;
 mod textselection;
 mod types;
 
@@ -33,6 +34,7 @@ pub use resources::{
 pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };
+pub use textsearch::{SearchTextIter, SearchTextMatch};
 pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;
 
