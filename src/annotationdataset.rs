@@ -6,13 +6,16 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
-use crate::config::{get_global_config, Config, SerializeMode};
+use crate::config::{get_global_config, Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
+use crate::file::*;
+use crate::json::{FromJson, ToJson};
 use crate::selector::{Selector, SelfSelector};
+use crate::store::*;
 use crate::types::*;
 
 /// An `AnnotationDataSet` stores the keys [`DataKey`] and values
@@ -239,7 +242,6 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     }
 }
 
-#[sealed]
 impl Configurable for AnnotationDataSet {
     fn config(&self) -> &Config {
         &self.config
@@ -336,7 +338,6 @@ impl Default for AnnotationDataSet {
     }
 }
 
-#[sealed]
 impl ToJson for AnnotationDataSet {}
 
 impl Serialize for AnnotationDataSet {
@@ -401,7 +402,6 @@ impl PartialEq<AnnotationDataSet> for AnnotationDataSet {
     }
 }
 
-#[sealed]
 impl<'a> FromJson<'a> for AnnotationDataSetBuilder {
     /// Loads an AnnotationDataSet from a STAM JSON file, as a builder
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
@@ -453,7 +453,6 @@ impl<'a> FromJson<'a> for AnnotationDataSetBuilder {
     }
 }
 
-#[sealed]
 impl<'a> FromJson<'a> for AnnotationDataSet {
     /// Loads an AnnotationDataSet from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationDataSet"

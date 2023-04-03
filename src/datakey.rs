@@ -6,6 +6,7 @@ use std::fmt;
 
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::error::StamError;
+use crate::store::*;
 use crate::types::*;
 
 /// The DataKey class defines a vocabulary field, it

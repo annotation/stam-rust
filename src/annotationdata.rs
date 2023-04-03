@@ -8,6 +8,7 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
+use crate::store::*;
 use crate::types::*;
 
 /// AnnotationData holds the actual content of an annotation; a key/value pair. (the

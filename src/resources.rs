@@ -10,9 +10,12 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
-use crate::config::{get_global_config, Config, SerializeMode};
+use crate::config::{get_global_config, Config, Configurable, SerializeMode};
 use crate::error::StamError;
+use crate::file::*;
+use crate::json::{FromJson, ToJson};
 use crate::selector::{Offset, Selector, SelfSelector};
+use crate::store::*;
 use crate::textselection::PositionIndexItem;
 use crate::textselection::{PositionIndex, TextSelection, TextSelectionHandle};
 use crate::types::*;
@@ -146,7 +149,6 @@ impl TypeInfo for TextResourceBuilder {
     }
 }
 
-#[sealed]
 impl ToJson for TextResource {}
 
 #[sealed]
@@ -218,7 +220,6 @@ impl PartialEq<TextResource> for TextResource {
     }
 }
 
-#[sealed]
 impl<'a> FromJson<'a> for TextResourceBuilder {
     /// Loads a Text Resource from a STAM JSON  or plain text file file.
     /// If the file is JSON, it file must contain a single object which has "@type": "TextResource"
@@ -711,7 +712,6 @@ pub enum PositionMode {
     Both,
 }
 
-#[sealed]
 impl Configurable for TextResource {
     fn config(&self) -> &Config {
         &self.config

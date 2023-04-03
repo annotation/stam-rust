@@ -12,6 +12,7 @@ use crate::annotationstore::{TargetIter, TargetIterItem};
 use crate::error::StamError;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Offset, Selector};
+use crate::store::*;
 use crate::types::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]

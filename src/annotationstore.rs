@@ -1,4 +1,3 @@
-use regex::{Regex, RegexSet};
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -14,15 +13,18 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
-use crate::config::{get_global_config, set_global_config, Config, SerializeMode};
+use crate::config::{get_global_config, set_global_config, Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::error::*;
+use crate::file::*;
+use crate::json::{FromJson, ToJson};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{
     AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
 };
+use crate::store::*;
 use crate::textselection::{
     TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };
@@ -254,7 +256,6 @@ impl StoreFor<TextResource> for AnnotationStore {
     }
 }
 
-#[sealed]
 impl ToJson for AnnotationStore {}
 
 //An AnnotationStore is a StoreFor Annotation
@@ -594,7 +595,6 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
     }
 }
 
-#[sealed]
 impl<'a> FromJson<'a> for AnnotationStoreBuilder {
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
@@ -637,7 +637,6 @@ impl<'a> FromJson<'a> for AnnotationStoreBuilder {
     }
 }
 
-#[sealed]
 impl Configurable for AnnotationStore {
     /// Return the associated configuration
     fn config(&self) -> &Config {

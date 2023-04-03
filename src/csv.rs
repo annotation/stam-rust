@@ -7,12 +7,14 @@ use std::io::{BufRead, BufWriter};
 use std::ops::Deref;
 use std::path::PathBuf;
 
+use crate::file::*;
+use crate::store::*;
 use crate::types::*;
 use crate::{
     Annotation, AnnotationBuilder, AnnotationDataBuilder, AnnotationDataSet,
-    AnnotationDataSetBuilder, AnnotationStore, AnnotationStoreBuilder, Config, DataKey, Offset,
-    Selector, SelectorBuilder, SelectorKind, SerializeMode, StamError, TextResource,
-    TextResourceBuilder,
+    AnnotationDataSetBuilder, AnnotationStore, AnnotationStoreBuilder, Config, Configurable,
+    DataKey, Offset, Selector, SelectorBuilder, SelectorKind, SerializeMode, StamError,
+    TextResource, TextResourceBuilder,
 };
 
 #[derive(Serialize, Deserialize, Debug)]

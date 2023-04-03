@@ -11,6 +11,7 @@ use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
+use crate::store::*;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.

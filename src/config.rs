@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use crate::error::StamError;
+use crate::file::*;
 use crate::types::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,6 +20,23 @@ impl Default for SerializeMode {
     fn default() -> Self {
         Self::AllowInclude
     }
+}
+
+pub trait Configurable: Sized {
+    //// Obtain the configuration
+    fn config(&self) -> &Config;
+
+    //// Obtain the configuration mutably
+    fn config_mut(&mut self) -> &mut Config;
+
+    ///Builder pattern to associate a configuration
+    fn with_config(mut self, config: Config) -> Self {
+        self.set_config(config);
+        self
+    }
+
+    ///Setter to associate a configuration
+    fn set_config(&mut self, config: Config) -> &mut Self;
 }
 
 /// This holds the configuration for the annotationstore

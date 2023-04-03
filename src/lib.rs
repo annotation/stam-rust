@@ -6,8 +6,11 @@ mod config;
 mod datakey;
 mod datavalue;
 mod error;
+mod file;
+mod json;
 mod resources;
 mod selector;
+mod store;
 mod textsearch;
 mod textselection;
 mod types;
@@ -24,16 +27,19 @@ pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
 pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle};
 pub use annotationstore::{AnnotationStore, AnnotationStoreBuilder, TargetIter, TargetIterItem};
-pub use config::{Config, SerializeMode};
+pub use config::{Config, Configurable, SerializeMode};
 pub use datakey::{DataKey, DataKeyHandle};
 pub use datavalue::DataValue;
 pub use error::StamError;
+pub use file::*;
+pub use json::{FromJson, ToJson};
 pub use resources::{
     PositionMode, TextResource, TextResourceBuilder, TextResourceHandle, TextSelectionIter,
 };
 pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };
+pub use store::*;
 pub use textsearch::{SearchTextIter, SearchTextMatch};
 pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;
