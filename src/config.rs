@@ -171,10 +171,39 @@ impl Config {
         self.generate_ids
     }
 
+    /// Use @include mechanism for STAM JSON, or output all to a single file?
+    pub fn with_use_include(mut self, value: bool) -> Self {
+        self.use_include = value;
+        self
+    }
+
+    /// Use @include mechanism for STAM JSON, or output all to a single file?
+    pub fn use_include(&self) -> bool {
+        self.use_include
+    }
+
+    /// Set the configured milestone interval
+    /// The Milestone placement interval (in unicode codepoints) is used in indexing text resources. A low number above zero increases search performance at the cost of memory and increased initialisation time.
+    pub fn with_milestone_interval(mut self, value: usize) -> Self {
+        self.milestone_interval = value;
+        self
+    }
+
+    /// Return the configured milestone interval
+    /// The Milestone placement interval (in unicode codepoints) is used in indexing text resources. A low number above zero increases search performance at the cost of memory and increased initialisation time.
+    pub fn milestone_interval(&self) -> usize {
+        self.milestone_interval
+    }
+
     /// Enable or disable debug mode. In debug mode, verbose output will be printed to standard error output
     pub fn with_debug(mut self, value: bool) -> Self {
         self.debug = value;
         self
+    }
+
+    /// Is debug mode enabled or not?
+    pub fn debug(&self) -> bool {
+        self.debug
     }
 
     /// Sets the mode for (de)serialization. This is a low-level method that you won't need directly.
