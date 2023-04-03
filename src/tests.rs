@@ -452,3 +452,15 @@ fn find() {
     assert_eq!(textselection.begin(), 6);
     assert_eq!(textselection.end(), 13);
 }
+
+#[test]
+fn find_all() {
+    let resource = TextResource::new("testres".into(), Config::default())
+        .with_string("To be or not to be, that's the question".into());
+    let textselections = resource.find_all("be", None);
+    assert_eq!(textselections.len(), 2);
+    assert_eq!(textselections[0].begin(), 3);
+    assert_eq!(textselections[0].end(), 5);
+    assert_eq!(textselections[1].begin(), 21);
+    assert_eq!(textselections[1].end(), 23);
+}

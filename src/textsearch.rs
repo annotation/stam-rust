@@ -72,9 +72,9 @@ impl TextResource {
         })
     }
 
-    /// Searchs for the text fragment and returns a TextSelection to it
+    /// Searchs for the text fragment and returns a [`TextSelection`] to the first match.
     ///
-    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
+    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing [`TextSelection`]).
     pub fn find(&self, fragment: &str, offset: Option<&Offset>) -> Option<TextSelection> {
         if let Ok((text, begincharpos, beginbytepos)) = self.extract_text_by_offset(offset) {
             text.find(fragment).map(|foundbytepos| {
@@ -94,6 +94,31 @@ impl TextResource {
         } else {
             None
         }
+    }
+
+    /// Searches for the text fragment and returns a vector with all matching [`TextSelection`]
+    ///
+    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
+    pub fn find_all(&self, fragment: &str, offset: Option<&Offset>) -> Vec<TextSelection> {
+        //MAYBE TODO: rewrite to iterator
+        let mut offset = if let Some(offset) = offset {
+            offset.clone()
+        } else {
+            Offset::whole()
+        };
+        let mut results = Vec::new();
+        if let Ok(absend) = self.absolute_cursor(&offset.end) {
+            while let Some(found) = self.find(fragment, Some(&offset)) {
+                if found.end() <= absend {
+                    offset = Offset {
+                        begin: Cursor::BeginAligned(found.end()),
+                        end: Cursor::BeginAligned(absend),
+                    };
+                }
+                results.push(found);
+            }
+        }
+        results
     }
 
     /// Returns (text,begincharpos, beginbytepos)
