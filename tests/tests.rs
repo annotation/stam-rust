@@ -1199,10 +1199,7 @@ fn test_read_single() -> Result<(), StamError> {
 fn test_read_include() -> Result<(), StamError> {
     let store = AnnotationStore::from_file(
         "tests/test.store.stam.json",
-        Config {
-            debug: true,
-            ..Config::default()
-        },
+        Config::default().with_debug(true),
     )?;
     test_example_a_sanity(&store)?;
     Ok(())
@@ -1337,10 +1334,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
 fn serialize_csv() -> Result<(), StamError> {
     let mut store = AnnotationStore::from_file(
         "tests/test.store.stam.json",
-        Config {
-            debug: true,
-            ..Config::default()
-        },
+        Config::default().with_debug(true),
     )?;
     store.set_filename("tests/test.store.stam.csv");
     store.save()?;
@@ -1351,10 +1345,7 @@ fn serialize_csv() -> Result<(), StamError> {
 fn parse_csv() -> Result<(), StamError> {
     let store = AnnotationStore::from_file(
         "tests/test.store.stam.csv",
-        Config {
-            debug: true,
-            ..Config::default()
-        },
+        Config::default().with_debug(true),
     )?;
     test_example_a_sanity(&store)?;
     Ok(())

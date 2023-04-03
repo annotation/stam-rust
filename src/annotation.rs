@@ -94,13 +94,12 @@ impl PartialEq<Annotation> for Annotation {
             && self.data == other.data
     }
 }
-/// This is the build recipe for `Annotation`. It contains public IDs or handles that will be resolved
+/// This is the build recipe for [`Annotation`]. It contains public IDs or handles that will be resolved
 /// when the actual Annotation is built. The building is done by passing this to [`AnnotationStore::annotate()`].
 #[derive(Deserialize, Debug)]
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
 pub struct AnnotationBuilder {
-    ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     id: AnyId<AnnotationHandle>,
     data: Vec<AnnotationDataBuilder>,
     target: WithAnnotationTarget,
@@ -190,7 +189,7 @@ impl AnnotationBuilder {
     }
 
     /// Associate data with the annotation.
-    /// If you provide a public key ID that does not exist yet, it's ([`crate::DataKey`] will be created).
+    /// If you provide a public key ID that does not exist yet, it's [`crate::DataKey`] will be created.
     ///
     /// You may use this (and similar methods) multiple times.
     /// Do note that multiple data associated with the same annotation is considered *inter-dependent*,
@@ -209,7 +208,7 @@ impl AnnotationBuilder {
         })
     }
 
-    /// Use this method instead of [`Self.with_data()`]  if you want to assign a public identifier (last argument)
+    /// Use this method instead of [`with_data()`]  if you want to assign a public identifier (last argument)
     pub fn with_data_with_id(
         self,
         dataset: AnyId<AnnotationDataSetHandle>,

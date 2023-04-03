@@ -1,3 +1,4 @@
+use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -5,6 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::error::StamError;
 use crate::file::*;
+use crate::json::*;
 use crate::types::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -39,39 +41,40 @@ pub trait Configurable: Sized {
     fn set_config(&mut self, config: Config) -> &mut Self;
 }
 
-/// This holds the configuration for the annotationstore
+/// This holds the configuration. It is not limited to configuring a single part of the model, but unifies all in a single configuration.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Config {
     /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
-    pub textrelationmap: bool,
-    /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
-    pub resource_annotation_map: bool,
-    /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
-    pub dataset_annotation_map: bool,
+    pub(crate) textrelationmap: bool,
+    /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
+    pub(crate) resource_annotation_map: bool,
+    /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
+    pub(crate) dataset_annotation_map: bool,
     /// Enable/disable index for annotations that reference other annotations
-    pub annotation_annotation_map: bool,
+    pub(crate) annotation_annotation_map: bool,
 
     ///generate ids when missing
-    pub generate_ids: bool,
+    pub(crate) generate_ids: bool,
 
-    ///use the @include mechanism to point to external files, if unset, all data will be kept in a single STAM JSON file
-    pub use_include: bool,
+    ///use the `@include` mechanism to point to external files, if unset, all data will be kept in a single STAM JSON file.
+    pub(crate) use_include: bool,
 
     /// The working directory
-    pub workdir: Option<PathBuf>,
+    pub(crate) workdir: Option<PathBuf>,
 
     /// Milestone placement interval (in unicode codepoints) in indexing text resources. A low number above zero increases search performance at the cost of memory and increased initialisation time.
-    pub milestone_interval: usize,
+    pub(crate) milestone_interval: usize,
 
-    pub dataformat: DataFormat,
+    /// The chosen dataformat for serialisation, defaults to STAM JSON.
+    pub(crate) dataformat: DataFormat,
 
     /// Debug mode
-    pub debug: bool,
+    pub(crate) debug: bool,
 
     /// This flag can be flagged on or off (using internal mutability) to indicate whether we are serializing for the standoff include mechanism
-    /// TODO: move this out of the config?
+    // TODO: move this out of the config?
     #[serde(skip)]
-    pub serialize_mode: Arc<RwLock<SerializeMode>>,
+    pub(crate) serialize_mode: Arc<RwLock<SerializeMode>>,
 }
 
 impl Default for Config {
@@ -97,15 +100,92 @@ impl Config {
         Self::default()
     }
 
-    /// Sets the mode for (de)serialization
-    pub fn set_serialize_mode(&self, mode: SerializeMode) {
+    /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
+    /// Do not change this on a configuration that is already in use!
+    pub fn with_textrelationmap(mut self, value: bool) -> Self {
+        self.textrelationmap = value;
+        self
+    }
+
+    /// Is the reverse index for text enabled? It maps TextResource => TextSelection => Annotation
+    pub fn textrelationmap(&self) -> bool {
+        self.textrelationmap
+    }
+
+    /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
+    /// Do not change this on a configuration that is already in use!
+    pub fn with_resource_annotation_map(mut self, value: bool) -> Self {
+        self.resource_annotation_map = value;
+        self
+    }
+
+    /// Is the reverse index for TextResource => Annotation enabled? Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
+    pub fn resource_annotation_map(&self) -> bool {
+        self.resource_annotation_map
+    }
+
+    /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
+    /// Do not change this on a configuration that is already in use!
+    pub fn with_dataset_annotation_map(mut self, value: bool) -> Self {
+        self.dataset_annotation_map = value;
+        self
+    }
+
+    /// Is the reverse index for AnnotationDataSet => Annotation enabled?. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
+    pub fn dataset_annotation_map(&self) -> bool {
+        self.dataset_annotation_map
+    }
+
+    /// Enable/disable index for annotations that reference other annotations
+    /// Do not change this on a configuration that is already in use!
+    pub fn with_annotation_annotation_map(mut self, value: bool) -> Self {
+        self.annotation_annotation_map = value;
+        self
+    }
+
+    /// Is the index for annotations that reference other annotations enabled?
+    pub fn annotation_annotation_map(&self) -> bool {
+        self.annotation_annotation_map
+    }
+
+    /// Sets chosen dataformat for serialisation, defaults to STAM JSON.
+    /// Do not change this on a configuration that is already in use! Use [`AnnotationStore.set_filename()`] instead.
+    pub fn with_dataformat(mut self, value: DataFormat) -> Self {
+        self.dataformat = value;
+        self
+    }
+
+    /// Returns the configured dataformat for serialisation.
+    pub fn dataformat(&self) -> DataFormat {
+        self.dataformat
+    }
+
+    /// Generate public IDs when missing.
+    pub fn with_generate_ids(mut self, value: bool) -> Self {
+        self.generate_ids = value;
+        self
+    }
+
+    /// Is generation of public IDs when missing enabled or not?
+    pub fn generate_ids(&self) -> bool {
+        self.generate_ids
+    }
+
+    /// Enable or disable debug mode. In debug mode, verbose output will be printed to standard error output
+    pub fn with_debug(mut self, value: bool) -> Self {
+        self.debug = value;
+        self
+    }
+
+    /// Sets the mode for (de)serialization. This is a low-level method that you won't need directly.
+    pub(crate) fn set_serialize_mode(&self, mode: SerializeMode) {
         if let Ok(mut serialize_mode) = self.serialize_mode.write() {
             *serialize_mode = mode;
         }
     }
 
-    /// Gets the mdoe for (de)serialization
-    pub fn serialize_mode(&self) -> SerializeMode {
+    /// Gets the mode for (de)serialization. This is a low-level method that you won't need directly.
+    pub(crate) fn serialize_mode(&self) -> SerializeMode {
         if let Ok(serialize_mode) = self.serialize_mode.read() {
             *serialize_mode
         } else {
@@ -113,12 +193,12 @@ impl Config {
         }
     }
 
-    ///  Return the working directory
+    ///  Return the working directory, if set
     pub fn workdir(&self) -> Option<&Path> {
         self.workdir.as_ref().map(|x| x.as_path())
     }
 
-    /// Loads configuration a JSON file
+    /// Loads configuration from a JSON file
     pub fn from_file(filename: &str) -> Result<Self, StamError> {
         let reader = open_file_reader(filename, &Config::default())?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
@@ -126,13 +206,16 @@ impl Config {
         result
             .map_err(|e| StamError::JsonError(e, filename.to_string(), "Reading config from file"))
     }
+}
 
-    /// Writes an AnnotationStore to one big STAM JSON string, with appropriate formatting
-    pub fn to_json(&self) -> Result<String, StamError> {
-        serde_json::to_string_pretty(&self)
-            .map_err(|e| StamError::SerializationError(format!("Writing config to string: {}", e)))
+#[sealed]
+impl TypeInfo for Config {
+    fn typeinfo() -> Type {
+        Type::Config
     }
 }
+
+impl ToJson for Config {}
 
 // below is a fairly ugly solution needed to get the Config into Builder structure deserialised with Serde,
 // which itself has no means to propagate state.. We abuse a global variable to accomplish
