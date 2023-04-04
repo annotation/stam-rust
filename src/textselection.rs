@@ -904,28 +904,64 @@ impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
                         None
                     }
                 }
-                TextSelectionOperator::Overlaps => {
+                TextSelectionOperator::Overlaps | TextSelectionOperator::Embeds => {
                     if self.textseliter.is_none() {
                         self.textseliter = Some(
+                            //we can restrict to a small subrange (= more efficient)
                             self.resource
                                 .range(reftextselection.begin(), reftextselection.end()),
                         );
                     }
                     if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle() {
+                        if textselection.handle() != reftextselection.handle() //do not include the item itself
+                            && textselection.test(self.operator, reftextselection)
+                        {
                             return Some(textselection.handle().expect("handle must exist"));
                         }
+                    } else {
+                        return None;
                     }
                     //else:
                     self.next() //recurse
                 }
-                TextSelectionOperator::OverlapsAll => {
+                TextSelectionOperator::OverlapsAll | TextSelectionOperator::EmbedsAll => {
                     let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
                     for textselection in self
                         .resource
                         .range(reftextselection.begin(), reftextselection.end())
                     {
-                        if textselection.intid != reftextselection.intid {
+                        if textselection.intid != reftextselection.intid //do not include the item itself
+                            && textselection.test(self.operator, reftextselection)
+                        {
+                            buffer2.push(textselection.handle().expect("handle must exist"))
+                        }
+                    }
+                    self.update_buffer(buffer2);
+                    self.next() //recurse
+                }
+                TextSelectionOperator::Embedded => {
+                    if self.textseliter.is_none() {
+                        // we can't restrict to a subrange but iterate over all (= less efficient)
+                        self.textseliter = Some(self.resource.iter());
+                    }
+                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle()
+                            && textselection.test(self.operator, reftextselection)
+                        {
+                            return Some(textselection.handle().expect("handle must exist"));
+                        }
+                    } else {
+                        return None;
+                    }
+                    //else:
+                    self.next() //recurse
+                }
+                TextSelectionOperator::EmbeddedAll => {
+                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
+                    for textselection in self.resource.iter() {
+                        if textselection.intid != reftextselection.intid
+                            && textselection.test(self.operator, reftextselection)
+                        {
                             //do not include the item itself
                             buffer2.push(textselection.handle().expect("handle must exist"))
                         }
@@ -933,38 +969,41 @@ impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
                     self.update_buffer(buffer2);
                     self.next() //recurse
                 }
-                TextSelectionOperator::Embeds => {
+                TextSelectionOperator::Precedes => {
                     if self.textseliter.is_none() {
                         self.textseliter = Some(
-                            self.resource
-                                .range(reftextselection.begin(), reftextselection.end()),
+                            //we can restrict to a small subrange (= more efficient)
+                            self.resource.range(0, reftextselection.begin()),
                         );
                     }
                     if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle()
-                            && reftextselection.begin() >= textselection.begin()
-                            && reftextselection.end() <= textselection.end()
+                        if textselection.handle() != reftextselection.handle() //do not include the item itself
+                            && textselection.test(self.operator, reftextselection)
                         {
                             return Some(textselection.handle().expect("handle must exist"));
                         }
+                    } else {
+                        return None;
                     }
                     //else:
                     self.next() //recurse
                 }
-                TextSelectionOperator::Embedded => {
+                TextSelectionOperator::Succeeds => {
                     if self.textseliter.is_none() {
                         self.textseliter = Some(
+                            //we can restrict to a small subrange (= more efficient)
                             self.resource
-                                .range(reftextselection.begin(), reftextselection.end()),
+                                .range(reftextselection.end(), self.resource.textlen()),
                         );
                     }
                     if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle()
-                            && textselection.begin() >= reftextselection.begin()
-                            && textselection.end() <= reftextselection.end()
+                        if textselection.handle() != reftextselection.handle() //do not include the item itself
+                            && textselection.test(self.operator, reftextselection)
                         {
                             return Some(textselection.handle().expect("handle must exist"));
                         }
+                    } else {
+                        return None;
                     }
                     //else:
                     self.next() //recurse

@@ -1353,3 +1353,65 @@ fn parse_csv() -> Result<(), StamError> {
     test_example_a_sanity(&store)?;
     Ok(())
 }
+
+const EXAMPLE5_TEXT: &str = "
+Article 1
+
+All human beings are born free and equal in dignity and rights. They are endowed with reason and conscience and should act towards one another in a spirit of brotherhood.
+
+Article 2
+
+Everyone is entitled to all the rights and freedoms set forth in this Declaration, without distinction of any kind, such as race, colour, sex, language, religion, political or other opinion, national or social origin, property, birth or other status. Furthermore, no distinction shall be made on the basis of the political, jurisdictional or international status of the country or territory to which a person belongs, whether it be independent, trust, non-self-governing or under any other limitation of sovereignty.
+
+Article 3
+
+Everyone has the right to life, liberty and security of person.
+
+Article 4
+
+No one shall be held in slavery or servitude; slavery and the slave trade shall be prohibited in all their forms.
+";
+
+pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
+    let mut store = AnnotationStore::new()
+        .with_id("example5".into())
+        .add(TextResource::from_string(
+            "humanrights".into(),
+            EXAMPLE5_TEXT.to_string(),
+            Config::default(),
+        ))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?;
+    Ok(store)
+}
+
+pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
+    let resource = store.resource(&"humanrights".into()).unwrap();
+    store.annotate_builders(
+        resource
+            .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, None, true)?
+            .into_iter()
+            .map(|foundmatch| {
+                let offset: Offset = foundmatch.textselections().first().unwrap().into();
+                AnnotationBuilder::new()
+                    .with_target(SelectorBuilder::TextSelector(
+                        resource.handle().into(),
+                        offset,
+                    ))
+                    .with_data("myset".into(), "type".into(), "header".into())
+            })
+            .collect(),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn test_annotate_regex_single2() -> Result<(), StamError> {
+    let mut store = setup_example_5()?;
+    annotate_regex(&mut store)?;
+
+    let set = store.annotationset(&"myset".into()).unwrap();
+    let data = set.find_data("type".into(), &"header".into()).unwrap();
+    store.annotations_by_data(set.handle().unwrap(), data.handle().unwrap());
+
+    Ok(())
+}

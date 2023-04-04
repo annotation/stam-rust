@@ -342,6 +342,12 @@ impl AnnotationStore {
         Ok(self)
     }
 
+    /// Builds and adds multiple annotations
+    pub fn with_annotations(mut self, builders: Vec<AnnotationBuilder>) -> Result<Self, StamError> {
+        self.annotate_builders(builders)?;
+        Ok(self)
+    }
+
     /// Builds and inserts an AnnotationData item
     pub fn insert_data(
         &mut self,
@@ -413,6 +419,14 @@ impl AnnotationStore {
 
         // Add the annotation to the store
         self.insert(Annotation::new(public_id, target, data))
+    }
+
+    /// Builds and inserts using multiple annotation builders
+    pub fn annotate_builders(&mut self, builders: Vec<AnnotationBuilder>) -> Result<(), StamError> {
+        for builder in builders {
+            self.annotate(builder)?;
+        }
+        Ok(())
     }
 }
 
