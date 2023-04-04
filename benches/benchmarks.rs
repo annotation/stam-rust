@@ -24,7 +24,7 @@ pub fn bench_textresource(c: &mut Criterion) {
         b.iter(|| {
             let singleexpression = black_box(&singleexpression).clone();
             let mut sumlen = 0;
-            for item in black_box(store.search_text(&[singleexpression], &None, &None, false)) {
+            for item in black_box(store.find_text_regex(&[singleexpression], &None, &None, false)) {
                 sumlen += item.text().len(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);
@@ -35,7 +35,7 @@ pub fn bench_textresource(c: &mut Criterion) {
         b.iter(|| {
             let expressions = black_box(&expressions).clone();
             let mut sumlen = 0;
-            for item in black_box(store.search_text(&expressions, &None, &None, false)) {
+            for item in black_box(store.find_text_regex(&expressions, &None, &None, false)) {
                 sumlen += item.text().len(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);
