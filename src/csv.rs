@@ -124,7 +124,8 @@ impl<'a> AnnotationCsv<'a> {
                     out.push(';'); //delimiter
                     match subselector {
                         Selector::ResourceSelector(res) | Selector::TextSelector(res, _) => {
-                            let res: &TextResource = store.get(*res).expect("resource must exist");
+                            let res: &TextResource =
+                                store.get(&res.into()).expect("resource must exist");
                             out += res.id().expect("resource must have an id");
                         }
                         _ => {}
@@ -135,7 +136,7 @@ impl<'a> AnnotationCsv<'a> {
         } else {
             match selector {
                 Selector::ResourceSelector(res) | Selector::TextSelector(res, _) => {
-                    let res: &TextResource = store.get(*res).expect("resource must exist");
+                    let res: &TextResource = store.get(&res.into()).expect("resource must exist");
                     Cow::Borrowed(res.id().expect("resource must have an id"))
                 }
                 _ => Cow::Borrowed(""),
@@ -152,7 +153,7 @@ impl<'a> AnnotationCsv<'a> {
                     match subselector {
                         Selector::DataSetSelector(dataset) => {
                             let dataset: &AnnotationDataSet =
-                                store.get(*dataset).expect("dataset must exist");
+                                store.get(&dataset.into()).expect("dataset must exist");
                             out += dataset.id().expect("dataset must have an id");
                         }
                         _ => {}
@@ -164,7 +165,7 @@ impl<'a> AnnotationCsv<'a> {
             match selector {
                 Selector::DataSetSelector(dataset) => {
                     let dataset: &AnnotationDataSet =
-                        store.get(*dataset).expect("dataset must exist");
+                        store.get(&dataset.into()).expect("dataset must exist");
                     Cow::Borrowed(dataset.id().expect("dataset must have an id"))
                 }
                 _ => Cow::Borrowed(""),
@@ -180,7 +181,8 @@ impl<'a> AnnotationCsv<'a> {
                     out.push(';'); //delimiter
                     match subselector {
                         Selector::AnnotationSelector(ann, _) => {
-                            let ann: &Annotation = store.get(*ann).expect("annotation must exist");
+                            let ann: &Annotation =
+                                store.get(&ann.into()).expect("annotation must exist");
                             out += ann.id().expect("annotation must have an id");
                         }
                         _ => {}
@@ -191,7 +193,7 @@ impl<'a> AnnotationCsv<'a> {
         } else {
             match selector {
                 Selector::AnnotationSelector(ann, _) => {
-                    let ann: &Annotation = store.get(*ann).expect("annotation must exist");
+                    let ann: &Annotation = store.get(&ann.into()).expect("annotation must exist");
                     Cow::Borrowed(ann.id().expect("annotation must have an id"))
                 }
                 _ => Cow::Borrowed(""),
@@ -550,7 +552,7 @@ impl ToCsv for AnnotationDataSet {
                     "All AnnotationData must have a public ID for CSV serialization to work",
                 )));
             }
-            let key = self.key(&AnyId::from(data.key())).expect("key must exist");
+            let key = self.key(&Item::from(data.key())).expect("key must exist");
             writer
                 .serialize(AnnotationDataCsv {
                     id: data.id().map(|x| Cow::Borrowed(x)),
@@ -572,9 +574,9 @@ impl ToCsv for AnnotationDataSet {
 }
 
 #[sealed] //<-- this ensures nobody outside this crate can implement the trait
-pub trait FromCsv<'a>
+pub trait FromCsv<'c>
 where
-    Self: TypeInfo + serde::Deserialize<'a>,
+    Self: TypeInfo + serde::Deserialize<'c>,
 {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
@@ -596,9 +598,9 @@ where
     }
 }
 
-impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
+impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
     type Error = StamError;
-    fn try_into(self) -> Result<AnnotationBuilder, Self::Error> {
+    fn try_into(self) -> Result<AnnotationBuilder<'a>, Self::Error> {
         let mut builder = AnnotationBuilder::new();
         if let Some(id) = self.id {
             builder = builder.with_id(id.to_string());
@@ -612,8 +614,11 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                 ));
             }
             for (i, data_id) in self.data_ids.split(";").enumerate() {
-                let set_id = set_ids.get(i).unwrap_or(set_ids.last().unwrap());
-                builder = builder.with_data_by_id(AnyId::from(*set_id), AnyId::from(data_id));
+                let set_id = set_ids.get(i).unwrap_or(set_ids.last().unwrap()).deref();
+                builder = builder.with_data_by_id(
+                    Item::from(set_id.to_owned()), //had to make it owned because of borrow checker, would rather have kept reference
+                    Item::from(data_id.to_owned()),
+                );
             }
             let mut selectortypes: SmallVec<[SelectorKind; 1]> = SmallVec::new();
             let mut complex = false;
@@ -677,7 +682,7 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                         let begin: Cursor = self.begin.as_str().try_into()?;
                         let end: Cursor = self.end.as_str().try_into()?;
                         SelectorBuilder::TextSelector(
-                            AnyId::Id(resource.to_string()),
+                            Item::Id(resource.to_string()),
                             Offset::new(begin, end),
                         )
                     }
@@ -692,17 +697,17 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                                 None
                             };
                         SelectorBuilder::AnnotationSelector(
-                            AnyId::Id(annotation.to_string()),
+                            Item::Id(annotation.to_string()),
                             offset,
                         )
                     }
                     SelectorKind::ResourceSelector => {
                         let resource = self.targetresource;
-                        SelectorBuilder::ResourceSelector(AnyId::Id(resource.to_string()))
+                        SelectorBuilder::ResourceSelector(Item::Id(resource.to_string()))
                     }
                     SelectorKind::DataSetSelector => {
                         let dataset = self.targetdataset;
-                        SelectorBuilder::DataSetSelector(AnyId::Id(dataset.to_string()))
+                        SelectorBuilder::DataSetSelector(Item::Id(dataset.to_string()))
                     }
                     _ => unreachable!(),
                 }
@@ -756,7 +761,7 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                                 "TextSelector",
                             ))?.deref().try_into()?;
                             SelectorBuilder::TextSelector(
-                                AnyId::Id(resource.to_string()),
+                                Item::Id(resource.to_string()),
                                 Offset::new(begin, end),
                             )
                         }
@@ -786,7 +791,7 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                                 None
                             };
                             SelectorBuilder::AnnotationSelector(
-                                AnyId::Id(annotation.to_string()),
+                                Item::Id(annotation.to_string()),
                                 offset,
                             )
                         }
@@ -800,7 +805,7 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                                 "ResourceSelector",
                                 ));
                             }
-                            SelectorBuilder::ResourceSelector(AnyId::Id(resource.to_string()))
+                            SelectorBuilder::ResourceSelector(Item::Id(resource.to_string()))
                         }
                         SelectorKind::DataSetSelector => {
                             let dataset = targetdatasets.get(i).unwrap_or(targetdatasets.last().unwrap());
@@ -812,7 +817,7 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
                                 "DataSetSelector",
                                 ));
                             }
-                            SelectorBuilder::DataSetSelector(AnyId::Id(dataset.to_string()))
+                            SelectorBuilder::DataSetSelector(Item::Id(dataset.to_string()))
                         }
                         x =>
                             return Err(StamError::CsvError(
@@ -841,7 +846,7 @@ impl<'a> TryInto<AnnotationBuilder> for AnnotationCsv<'a> {
     }
 }
 
-impl AnnotationStoreBuilder {
+impl<'a> AnnotationStoreBuilder<'a> {
     fn from_csv_annotations_reader(
         &mut self,
         reader: Box<dyn BufRead>,
@@ -861,7 +866,7 @@ impl AnnotationStoreBuilder {
 }
 
 #[sealed]
-impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
+impl<'c, 'a> FromCsv<'c> for AnnotationStoreBuilder<'a> {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
         filename: Option<&str>,
@@ -963,7 +968,7 @@ impl<'a> FromCsv<'a> for AnnotationStoreBuilder {
 }
 
 #[sealed]
-impl<'a> FromCsv<'a> for AnnotationDataSetBuilder {
+impl<'c, 'a> FromCsv<'c> for AnnotationDataSetBuilder<'a> {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
         filename: Option<&str>,
@@ -984,16 +989,16 @@ impl<'a> FromCsv<'a> for AnnotationDataSetBuilder {
             } else {
                 databuilders.push(AnnotationDataBuilder {
                     id: if record.id.is_none() || record.id.as_ref().unwrap().is_empty() {
-                        AnyId::None
+                        Item::None
                     } else {
-                        AnyId::Id(record.id.as_ref().unwrap().to_string())
+                        Item::Id(record.id.as_ref().unwrap().to_string())
                     },
                     key: if record.key.is_empty() {
-                        AnyId::None //will produce an error later on
+                        Item::None //will produce an error later on
                     } else {
-                        AnyId::Id(record.key.to_string())
+                        Item::Id(record.key.to_string())
                     },
-                    annotationset: AnyId::None, //we're confined to a single set so don't need this
+                    annotationset: Item::None, //we're confined to a single set so don't need this
                     value: record.value.into(),
                 });
             }

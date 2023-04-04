@@ -1,4 +1,5 @@
 use sealed::sealed;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -54,6 +55,7 @@ where
 }
 
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
+#[derive(Debug)]
 pub struct RelationMap<A, B> {
     /// The actual map
     pub(crate) data: Vec<Vec<B>>,
@@ -132,6 +134,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct TripleRelationMap<A, B, C> {
     /// The actual map
     pub(crate) data: Vec<RelationMap<B, C>>,
@@ -324,16 +327,22 @@ pub trait StoreFor<T: Storable>: Configurable {
         };
 
         if T::carries_id() {
-            //insert a mapping from the public ID to the numeric ID in the idmap
+            //insert a mapping from the public ID to the internal numeric ID in the idmap
             if let Some(id) = item.id() {
                 //check if public ID does not already exist
-                if self.has_id(id) {
+                if self.has(&id.into()) {
                     //ok. the already ID exists, now is the existing item exactly the same as the item we're about to insert?
                     //in that case we can discard this error and just return the existing handle without actually inserting a new one
-                    let existing_item = self.get_by_id(id).unwrap();
+                    let existing_item = self.get(&id.into()).unwrap();
                     if *existing_item == item {
                         return Ok(existing_item.handle().unwrap());
                     }
+                    eprintln!(
+                        "DEBUG: existing {:p} ({:?}) vs provide ({:?})",
+                        existing_item,
+                        existing_item.id(),
+                        item.id()
+                    );
                     //in all other cases, we return an error
                     return Err(StamError::DuplicateIdError(
                         id.to_string(),
@@ -413,46 +422,36 @@ pub trait StoreFor<T: Storable>: Configurable {
         Ok(self)
     }
 
-    /// Returns true if the store contains the item
-    fn contains(&self, item: &T) -> bool {
-        if let (Some(intid), Some(true)) = (item.handle(), self.owns(item)) {
-            self.has(intid)
-        } else if let Some(id) = item.id() {
-            self.has_id(id)
-        } else {
-            false
-        }
-    }
-
-    /// Retrieves the internal id for the item as it occurs in the store. The passed item and reference item may be distinct instances.
-    fn find(&self, item: &T) -> Option<T::HandleType> {
-        if let (Some(intid), Some(true)) = (item.handle(), self.owns(item)) {
-            Some(intid)
-        } else if let Some(id) = item.id() {
-            if let Some(idmap) = self.idmap() {
-                idmap.data.get(id).copied() //note, only the handle is copied (=cheap)
-            } else {
-                None
+    /// Returns true if the store has the item
+    fn has<'a, 'b>(&'a self, item: &Item<'b, T>) -> bool {
+        match item {
+            Item::Handle(handle) => self.store().get(handle.unwrap()).is_some(),
+            Item::Id(id) => {
+                if let Some(idmap) = self.idmap() {
+                    idmap.data.contains_key(id)
+                } else {
+                    false
+                }
             }
-        } else {
-            None
+            Item::IdRef(id) => {
+                if let Some(idmap) = self.idmap() {
+                    idmap.data.contains_key(*id)
+                } else {
+                    false
+                }
+            }
+            Item::Ref(instance) => {
+                if let (Some(idmap), Some(id)) = (self.idmap(), instance.id()) {
+                    idmap.data.contains_key(id)
+                } else {
+                    false
+                }
+            }
+            Item::None => false,
         }
     }
 
-    /// Returns true if the store has the item with the specified internal id
-    fn has(&self, handle: T::HandleType) -> bool {
-        self.store().len() > handle.unwrap()
-    }
-
-    /// Returns true if the store has the item with the specified global id
-    fn has_id(&self, id: &str) -> bool {
-        if let Some(idmap) = self.idmap() {
-            idmap.data.contains_key(id)
-        } else {
-            false
-        }
-    }
-
+    /*
     /// Get a reference to an item from the store by its global ID
     fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T, StamError> {
         let handle = self.resolve_id(id)?;
@@ -465,7 +464,6 @@ pub trait StoreFor<T: Storable>: Configurable {
         self.get_mut(handle)
     }
 
-    /// Get a reference to an item from the store by internal ID
     fn get(&self, handle: T::HandleType) -> Result<&T, StamError> {
         if let Some(Some(item)) = self.store().get(handle.unwrap()) {
             Ok(item)
@@ -473,14 +471,26 @@ pub trait StoreFor<T: Storable>: Configurable {
             Err(StamError::HandleError(Self::store_typeinfo()))
         }
     }
+    */
+
+    /// Get a reference to an item from the store
+    fn get<'a, 'b>(&'a self, item: &Item<'b, T>) -> Result<&'a T, StamError> {
+        if let Some(handle) = item.to_handle(self) {
+            if let Some(Some(item)) = self.store().get(handle.unwrap()) {
+                return Ok(item);
+            }
+        }
+        Err(StamError::HandleError(Self::store_typeinfo()))
+    }
 
     /// Get a mutable reference to an item from the store by internal ID
-    fn get_mut(&mut self, handle: T::HandleType) -> Result<&mut T, StamError> {
-        if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
-            Ok(item)
-        } else {
-            Err(StamError::HandleError("StoreFor::get_mut")) //MAYBE TODO: self.introspect_type didn't work here (cannot borrow `*self` as immutable because it is also borrowed as mutable)
+    fn get_mut<'a, 'b>(&mut self, item: &Item<'b, T>) -> Result<&mut T, StamError> {
+        if let Some(handle) = item.to_handle(self) {
+            if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
+                return Ok(item);
+            }
         }
+        Err(StamError::HandleError(Self::store_typeinfo()))
     }
 
     /// Removes an item by handle, returns an error if the item has dependencies and can't be removed
@@ -489,12 +499,17 @@ pub trait StoreFor<T: Storable>: Configurable {
         self.preremove(handle)?;
 
         //remove item from idmap
-        let item: &T = self.get(handle)?;
-        let id: Option<String> = item.id().map(|x| x.to_string());
-        if let Some(id) = id {
-            if let Some(idmap) = self.idmap_mut() {
-                idmap.data.remove(id.as_str());
+        if let Some(Some(item)) = self.store().get(handle.unwrap()) {
+            let id: Option<String> = item.id().map(|x| x.to_string());
+            if let Some(id) = id {
+                if let Some(idmap) = self.idmap_mut() {
+                    idmap.data.remove(id.as_str());
+                }
             }
+        } else {
+            return Err(StamError::HandleError(
+                "Unable to remove non-existing handle",
+            ));
         }
 
         //now remove the actual item, removing means just setting its previously occupied index to None
@@ -555,18 +570,6 @@ pub trait StoreFor<T: Storable>: Configurable {
         }
     }
 
-    /// Get the item from the store if it already exists, if not, add it
-    fn get_or_add(&mut self, item: T) -> Result<&T, StamError> {
-        if let Some(intid) = self.find(&item) {
-            self.get(intid)
-        } else {
-            match self.insert(item) {
-                Ok(intid) => self.get(intid),
-                Err(err) => Err(err),
-            }
-        }
-    }
-
     /// Return the internal id that will be assigned for the next item to the store
     fn next_handle(&self) -> T::HandleType {
         T::HandleType::new(self.store().len()) //this is one of the very few places in the code where we create a handle from scratch
@@ -588,38 +591,6 @@ pub trait StoreFor<T: Storable>: Configurable {
             item.set_handle(self.next_handle());
             item.bound();
             Ok(item)
-        }
-    }
-
-    /// Get a reference to an item from the store by any ID
-    /// The advantage of AnyId is that you can coerce strings, references and handles to it using `into()`.
-    /// If the item does not exist, None will be returned
-    fn get_by_anyid(&self, anyid: &AnyId<T::HandleType>) -> Option<&T> {
-        match anyid {
-            AnyId::None => None,
-            AnyId::Handle(handle) => self.get(*handle).ok(),
-            AnyId::Id(id) => self.get_by_id(id).ok(),
-        }
-    }
-
-    /// Get a reference to an item from the store by any ID. Returns an error on failure.
-    /// The advantage of AnyId is that you can coerce strings, references and handles to it using `into()`.
-    /// If the item does not exist, None will be returned
-    fn get_by_anyid_or_err(&self, anyid: &AnyId<T::HandleType>) -> Result<&T, StamError> {
-        match anyid {
-            AnyId::None => Err(anyid.error("")),
-            AnyId::Handle(handle) => self.get(*handle),
-            AnyId::Id(id) => self.get_by_id(id),
-        }
-    }
-
-    /// Get a reference to an item from the store by any ID
-    /// If the item does not exist, None will be returned
-    fn get_mut_by_anyid(&mut self, anyid: &AnyId<T::HandleType>) -> Option<&mut T> {
-        match anyid {
-            AnyId::None => None,
-            AnyId::Handle(handle) => self.get_mut(*handle).ok(),
-            AnyId::Id(id) => self.get_mut_by_id(id).ok(),
         }
     }
 
@@ -776,5 +747,399 @@ where
 {
     pub fn parent(&self) -> &S {
         self.parent
+    }
+}
+
+///////////////////////////////// Any
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+/// `Any` offers various ways of referring to a data structure of type `T` in the core STAM model
+/// It abstracts over public IDs, handles, and references.
+pub enum Item<'a, T>
+where
+    T: Storable,
+{
+    Id(String), //for deserialisation only this variant is available
+
+    #[serde(skip)]
+    IdRef(&'a str),
+
+    #[serde(skip)]
+    Ref(&'a T),
+
+    #[serde(skip)]
+    Handle(T::HandleType),
+
+    #[serde(skip)]
+    None,
+}
+
+impl<'a, T> Default for Item<'a, T>
+where
+    T: Storable,
+{
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl<'a, T> PartialEq for Item<'a, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Handle(x), Self::Handle(y)) => x == y,
+            (Self::Id(x), Self::Id(y)) => x == y,
+            (Self::IdRef(x), Self::IdRef(y)) => x == y,
+            (Self::Id(x), Self::IdRef(y)) => x.as_str() == *y,
+            (Self::IdRef(x), Self::Id(y)) => *x == y.as_str(),
+            (Self::Ref(x), Self::Ref(y)) => x == y,
+            (Self::Ref(x), Self::Id(y)) => x.id() == Some(y.as_str()),
+            (Self::Ref(x), Self::IdRef(y)) => x.id() == Some(y),
+            (Self::Id(x), Self::Ref(y)) => Some(x.as_str()) == y.id(),
+            (Self::IdRef(x), Self::Ref(y)) => Some(*x) == y.id(),
+            _ => false,
+        }
+    }
+}
+
+impl<'a, T> Item<'a, T>
+where
+    T: Storable,
+{
+    pub fn is_handle(&self) -> bool {
+        matches!(self, Self::Handle(_))
+    }
+
+    pub fn is_id(&self) -> bool {
+        match self {
+            Self::Id(_) => true,
+            Self::IdRef(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    pub fn is_some(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    // raises an ID error
+    pub fn error(&self, contextmsg: &'static str) -> StamError {
+        match self {
+            Self::Handle(_) => StamError::HandleError(contextmsg),
+            Self::Id(id) => StamError::IdNotFoundError(id.to_string(), contextmsg),
+            Self::IdRef(id) => StamError::IdNotFoundError(id.to_string(), contextmsg),
+            Self::Ref(instance) => StamError::IdNotFoundError(
+                instance.id().unwrap_or("(no id)").to_string(),
+                contextmsg,
+            ),
+            Self::None => StamError::Unbound("Supplied AnyId is not bound to anything!"),
+        }
+    }
+
+    /// Returns the ID as a new string, returns None if only handle is contained
+    pub fn to_string(self) -> Option<String> {
+        if let Self::Id(s) = self {
+            Some(s)
+        } else if let Self::IdRef(s) = self {
+            Some(s.to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Returns the ID as str, returns None if only handle is contained
+    pub fn as_str(&'a self) -> Option<&'a str> {
+        if let Self::Id(s) = self {
+            Some(s.as_str())
+        } else if let Self::IdRef(s) = self {
+            Some(s)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T> From<&'a str> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(id: &'a str) -> Self {
+        if id.is_empty() {
+            Self::None
+        } else {
+            Self::IdRef(id)
+        }
+    }
+}
+impl<'a, T> From<Option<&'a str>> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(id: Option<&'a str>) -> Self {
+        if let Some(id) = id {
+            if id.is_empty() {
+                Self::None
+            } else {
+                Self::IdRef(id)
+            }
+        } else {
+            Self::None
+        }
+    }
+}
+
+impl<'a, T> From<String> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(id: String) -> Self {
+        if id.is_empty() {
+            Self::None
+        } else {
+            Self::Id(id)
+        }
+    }
+}
+
+impl<'a, T> From<&'a String> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(id: &'a String) -> Self {
+        if id.is_empty() {
+            Self::None
+        } else {
+            Self::IdRef(id.as_str())
+        }
+    }
+}
+
+impl<'a, T> From<Option<String>> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(id: Option<String>) -> Self {
+        if let Some(id) = id {
+            if id.is_empty() {
+                Self::None
+            } else {
+                Self::Id(id)
+            }
+        } else {
+            Self::None
+        }
+    }
+}
+
+impl<'a, T> From<&'a T> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(instance: &'a T) -> Self {
+        Self::Ref(instance)
+    }
+}
+
+/* //this doesn't work:
+        conflicting implementation in crate `core`:
+                    - impl<T> From<T> for T;
+
+impl<'a, T> From<<T as Storable>::HandleType> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(handle: <T as Storable>::HandleType) -> Self {
+        Self::Handle(handle)
+    }
+}
+
+//this works but not if made generic over the handle
+impl<'a, T> From<&AnnotationHandle> for Item<'a, T>
+where
+    T: Storable<HandleType = AnnotationHandle>,
+{
+    fn from(handle: &H) -> Self {
+        Self::Handle(handle)
+    }
+}
+*/
+
+impl<'a, T> From<usize> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(handle: usize) -> Self {
+        Self::Handle(T::HandleType::new(handle))
+    }
+}
+
+impl<'a, T> From<Option<usize>> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn from(handle: Option<usize>) -> Self {
+        if let Some(handle) = handle {
+            Self::Handle(T::HandleType::new(handle))
+        } else {
+            Self::None
+        }
+    }
+}
+
+impl<'a, T> Item<'a, T>
+where
+    T: Storable,
+{
+    pub fn to_handle<S>(&self, store: &S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        match self {
+            Item::Id(id) => store.resolve_id(id.as_str()).ok(),
+            Item::IdRef(id) => store.resolve_id(id).ok(),
+            Item::Handle(handle) => Some(*handle),
+            Item::Ref(instance) => instance.handle(),
+            Item::None => None,
+        }
+    }
+
+    pub fn to_id<S>(&'a self, store: &'a S) -> Option<&'a str>
+    where
+        S: StoreFor<T>,
+    {
+        match self {
+            Item::Id(id) => Some(id.as_str()),
+            Item::IdRef(id) => Some(id),
+            Item::Handle(_) => {
+                if let Some(instance) = self.to_ref(store) {
+                    instance.id()
+                } else {
+                    None
+                }
+            }
+            Item::Ref(instance) => instance.id(),
+            Item::None => None,
+        }
+    }
+
+    pub fn to_ref<'s, S>(&'a self, store: &'s S) -> Option<&'s T>
+    where
+        S: StoreFor<T>,
+    {
+        store.get(&self).ok()
+    }
+}
+
+/*
+impl<'a, T> From<Option<T::HandleType>> for Any<'a, T>
+where
+    T: Storable,
+{
+    fn from(handle: Option<HandleType>) -> Self {
+        if let Some(handle) = handle {
+            Self::Handle(handle)
+        } else {
+            Self::None
+        }
+    }
+}
+
+impl<HandleType> From<Option<&str>> for Any<HandleType>
+where
+    HandleType: Handle,
+{
+    fn from(id: Option<&str>) -> Self {
+        if let Some(id) = id {
+            if id.is_empty() {
+                Self::None
+            } else {
+                Self::Id(id.to_string())
+            }
+        } else {
+            Self::None
+        }
+    }
+}
+
+impl<HandleType> From<Option<String>> for Any<HandleType>
+where
+    HandleType: Handle,
+{
+    fn from(id: Option<String>) -> Self {
+        if let Some(id) = id {
+            if id.is_empty() {
+                Self::None
+            } else {
+                Self::Id(id)
+            }
+        } else {
+            Self::None
+        }
+    }
+}
+*/
+
+/// This allows us to pass a reference to any stored item and get back the best AnyId for it
+/// Will panic on totally unbounded that also don't have a public ID
+
+/*impl<HandleType> From<&dyn Storable<HandleType = HandleType>> for AnyId<HandleType>
+where
+    HandleType: Handle,
+{
+    fn from(item: &dyn Storable<HandleType = HandleType>) -> Self {
+        if let Some(handle) = item.handle() {
+            Self::Handle(handle)
+        } else if let Some(id) = item.id() {
+            Self::Id(id.into())
+        } else {
+            panic!("Passed a reference to an unbound item without a public ID! Unable to convert to AnyId");
+        }
+    }
+}*/
+
+impl<'a, T> PartialEq<&str> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            Self::Id(v) => v.as_str() == *other,
+            _ => false,
+        }
+    }
+}
+
+impl<'a, T> PartialEq<str> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &str) -> bool {
+        match self {
+            Self::Id(v) => v.as_str() == other,
+            Self::IdRef(v) => *v == other,
+            Self::Ref(r) => r.id() == Some(other),
+            _ => false,
+        }
+    }
+}
+
+impl<'a, T> PartialEq<String> for Item<'a, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &String) -> bool {
+        match self {
+            Self::Id(v) => v == other,
+            Self::IdRef(v) => *v == other.as_str(),
+            Self::Ref(r) => r.id() == Some(other),
+            _ => false,
+        }
     }
 }

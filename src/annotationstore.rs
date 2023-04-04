@@ -82,13 +82,13 @@ pub struct AnnotationStore {
 }
 
 #[derive(Deserialize, Default)]
-pub struct AnnotationStoreBuilder {
+pub struct AnnotationStoreBuilder<'a> {
     #[serde(rename = "@id")]
     pub(crate) id: Option<String>,
 
-    pub(crate) annotationsets: Vec<AnnotationDataSetBuilder>,
+    pub(crate) annotationsets: Vec<AnnotationDataSetBuilder<'a>>,
 
-    pub(crate) annotations: Vec<AnnotationBuilder>,
+    pub(crate) annotations: Vec<AnnotationBuilder<'a>>,
 
     pub(crate) resources: Vec<TextResourceBuilder>,
 
@@ -102,7 +102,7 @@ pub struct AnnotationStoreBuilder {
     pub(crate) annotations_filename: Option<PathBuf>,
 }
 
-impl TryFrom<AnnotationStoreBuilder> for AnnotationStore {
+impl<'a> TryFrom<AnnotationStoreBuilder<'a>> for AnnotationStore {
     type Error = StamError;
 
     fn try_from(builder: AnnotationStoreBuilder) -> Result<Self, StamError> {
@@ -205,7 +205,7 @@ impl TypeInfo for AnnotationStore {
 }
 
 #[sealed]
-impl TypeInfo for AnnotationStoreBuilder {
+impl<'a> TypeInfo for AnnotationStoreBuilder<'a> {
     fn typeinfo() -> Type {
         Type::AnnotationStore
     }
@@ -461,7 +461,7 @@ impl StoreFor<Annotation> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationHandle) -> Result<(), StamError> {
-        let annotation: &Annotation = self.get(handle)?;
+        let annotation: &Annotation = self.get(&handle.into())?;
         let resource_handle: Option<TextResourceHandle> = match annotation.target() {
             Selector::ResourceSelector(res_handle) => Some(*res_handle),
             _ => None,
@@ -596,7 +596,7 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
     }
 }
 
-impl<'a> FromJson<'a> for AnnotationStoreBuilder {
+impl<'j, 'a> FromJson<'j> for AnnotationStoreBuilder<'a> {
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
     fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
@@ -657,7 +657,7 @@ impl Configurable for AnnotationStore {
     }
 }
 
-impl AnnotationStoreBuilder {
+impl<'a> AnnotationStoreBuilder<'a> {
     /// Start a new [`AnnotationStoreBuilder`] to build an [`AnnotationStore`]. Chain various `with_*()` methods and call `build()` in the end fo produce the actual [`AnnotationStore`].
     pub fn new() -> Self {
         Self::default()
@@ -670,13 +670,16 @@ impl AnnotationStoreBuilder {
     }
 
     /// Add an [`AnnotationDataSet`] to the store (in the form of a builder). Can be called multiple times.
-    pub fn with_annotationset(mut self, annotationset: AnnotationDataSetBuilder) -> Self {
+    pub fn with_annotationset(mut self, annotationset: AnnotationDataSetBuilder<'a>) -> Self {
         self.annotationsets.push(annotationset);
         self
     }
 
     /// Adds multiple annotation sets at once, this can only be called once as it will overwrite existing builders.
-    pub fn with_annotationsets(mut self, annotationsets: Vec<AnnotationDataSetBuilder>) -> Self {
+    pub fn with_annotationsets(
+        mut self,
+        annotationsets: Vec<AnnotationDataSetBuilder<'a>>,
+    ) -> Self {
         self.annotationsets = annotationsets;
         self
     }
@@ -694,13 +697,13 @@ impl AnnotationStoreBuilder {
     }
 
     /// Adds an annotation builder, can be called multiple times.
-    pub fn with_annotation(mut self, annotation: AnnotationBuilder) -> Self {
+    pub fn with_annotation(mut self, annotation: AnnotationBuilder<'a>) -> Self {
         self.annotations.push(annotation);
         self
     }
 
     /// Adds multiple annotation builders, this can only be called once as it will overwrite existing annotation builders.
-    pub fn with_annotations(mut self, annotations: Vec<AnnotationBuilder>) -> Self {
+    pub fn with_annotations(mut self, annotations: Vec<AnnotationBuilder<'a>>) -> Self {
         self.annotations = annotations;
         self
     }
@@ -943,12 +946,10 @@ impl AnnotationStore {
         //this is very much like TryFrom<AnnotationStoreBuilder> for AnnotationStore
         for dataset in builder.annotationsets {
             if let Some(dataset_id) = dataset.id.as_ref() {
-                if let Ok(basedataset) =
-                    <AnnotationStore as StoreFor<AnnotationDataSet>>::get_mut_by_id(
-                        self,
-                        &dataset_id,
-                    )
-                {
+                if let Ok(basedataset) = <AnnotationStore as StoreFor<AnnotationDataSet>>::get_mut(
+                    self,
+                    &dataset_id.into(),
+                ) {
                     basedataset.merge_from_builder(dataset)?;
                     //done, skip the rest
                     continue;
@@ -1077,36 +1078,6 @@ impl AnnotationStore {
         self.iter()
     }
 
-    // Low-level shortcut function to get an annotation by index
-    pub fn annotation_by_index(&self, index: usize) -> Option<&Annotation> {
-        let annotation: Result<&Annotation, _> = self.get(AnnotationHandle::new(index));
-        if let Ok(annotation) = annotation {
-            Some(annotation)
-        } else {
-            None
-        }
-    }
-
-    // Low-level shortcut function to get an annotation data set by index
-    pub fn annotationset_by_index(&self, index: usize) -> Option<&AnnotationDataSet> {
-        let dataset: Result<&AnnotationDataSet, _> = self.get(AnnotationDataSetHandle::new(index));
-        if let Ok(dataset) = dataset {
-            Some(dataset)
-        } else {
-            None
-        }
-    }
-
-    // Low-level shortcut function to get a resource by index
-    pub fn resource_by_index(&self, index: usize) -> Option<&TextResource> {
-        let resource: Result<&TextResource, _> = self.get(TextResourceHandle::new(index));
-        if let Ok(resource) = resource {
-            Some(resource)
-        } else {
-            None
-        }
-    }
-
     /// Returns the number of annotations in the store (deletions are not substracted)
     pub fn annotations_len(&self) -> usize {
         self.annotations.len()
@@ -1128,10 +1099,10 @@ impl AnnotationStore {
         &'a self,
         annotation_handle: AnnotationHandle,
     ) -> Result<&'a TextResource, StamError> {
-        let annotation: &Annotation = self.get(annotation_handle)?;
+        let annotation: &Annotation = self.get(&annotation_handle.into())?;
         match annotation.target() {
             Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                let resource: &TextResource = self.get(*res_id)?;
+                let resource: &TextResource = self.get(&res_id.into())?;
                 Ok(resource)
             }
             Selector::AnnotationSelector(a_id, _) => self.resource_for(*a_id),
@@ -1206,7 +1177,8 @@ impl AnnotationStore {
         Box::new(
             self.textselections_by_annotation(annotation)
                 .map(|(reshandle, selection)| {
-                    let resource: &TextResource = self.get(reshandle).expect("resource must exist");
+                    let resource: &TextResource =
+                        self.get(&reshandle.into()).expect("resource must exist");
                     resource
                         .text_by_textselection(&selection)
                         .expect("selection must be valid")
@@ -1284,7 +1256,7 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
-        if let Some(resource) = self.resource(&AnyId::from(resource_handle)) {
+        if let Some(resource) = self.resource(&Item::from(resource_handle)) {
             if let Ok(textselection) = resource.textselection(&offset) {
                 if let Some(textselection_handle) = textselection.handle() {
                     return self
@@ -1302,7 +1274,7 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         offset: &TextRelationOperator,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
-        let resource: Option<&TextResource> = self.get(resource_handle).ok();
+        let resource: Option<&TextResource> = self.get(&resource_handle.into()).ok();
         resource?;
         if let Ok(textselection) = resource.unwrap().textselection(&offset.offset()) {
             //TODO: implement
@@ -1368,9 +1340,9 @@ impl AnnotationStore {
         annotationset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
     ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
-        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
+        let dataset: Option<&AnnotationDataSet> = self.get(&annotationset_handle.into()).ok();
         if let Some(dataset) = dataset {
-            if let Some(data) = dataset.data_by_key(datakey_handle) {
+            if let Some(data) = dataset.data_by_key(&datakey_handle.into()) {
                 Some(Box::new(
                     data.iter()
                         .filter_map(move |dataitem| {
@@ -1397,7 +1369,7 @@ impl AnnotationStore {
     ) -> Result<TextSelection, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(*res_id)?;
+                let resource: &TextResource = self.get(&res_id.into())?;
                 let mut textselection = resource.textselection(offset)?;
                 for selector in subselectors {
                     if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
@@ -1431,22 +1403,22 @@ impl AnnotationStore {
     pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
         match item {
             SelectorBuilder::ResourceSelector(id) => {
-                let resource: &TextResource = self.get_by_anyid_or_err(&id)?;
+                let resource: &TextResource = self.get(&id.into())?;
                 Ok(Selector::ResourceSelector(resource.handle_or_err()?))
             }
             SelectorBuilder::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get_by_anyid_or_err(&res_id)?;
+                let resource: &TextResource = self.get(&res_id.into())?;
                 Ok(Selector::TextSelector(resource.handle_or_err()?, offset))
             }
             SelectorBuilder::AnnotationSelector(a_id, offset) => {
-                let annotation: &Annotation = self.get_by_anyid_or_err(&a_id)?;
+                let annotation: &Annotation = self.get(&a_id.into())?;
                 Ok(Selector::AnnotationSelector(
                     annotation.handle_or_err()?,
                     offset,
                 ))
             }
             SelectorBuilder::DataSetSelector(id) => {
-                let resource: &AnnotationDataSet = self.get_by_anyid_or_err(&id)?;
+                let resource: &AnnotationDataSet = self.get(&id.into())?;
                 Ok(Selector::DataSetSelector(resource.handle_or_err()?))
             }
             SelectorBuilder::MultiSelector(v) => {
@@ -1488,38 +1460,35 @@ impl AnnotationStore {
         }
     }
 
-    /// Shortcut method to get an annotation by any id
-    pub fn annotation(&self, annotation: &AnyId<AnnotationHandle>) -> Option<&Annotation> {
-        self.get_by_anyid(annotation)
+    /// Shortcut method to get an annotation
+    pub fn annotation(&self, annotation: &Item<Annotation>) -> Option<&Annotation> {
+        self.get(annotation).ok()
     }
 
-    /// Shortcut method to get an annotationset by any id
+    /// Shortcut method to get an annotationset
     pub fn annotationset(
         &self,
-        annotationset: &AnyId<AnnotationDataSetHandle>,
+        annotationset: &Item<AnnotationDataSet>,
     ) -> Option<&AnnotationDataSet> {
-        self.get_by_anyid(annotationset)
+        self.get(annotationset).ok()
     }
 
-    /// Shortcut method to get an resource by any id
-    pub fn resource(&self, resource: &AnyId<TextResourceHandle>) -> Option<&TextResource> {
-        self.get_by_anyid(resource)
+    /// Shortcut method to get a resource
+    pub fn resource(&self, resource: &Item<TextResource>) -> Option<&TextResource> {
+        self.get(resource).ok()
     }
 
     /// Shortcut method to get an annotationset (mutable) by any id
     pub fn annotationset_mut(
         &mut self,
-        annotationset: &AnyId<AnnotationDataSetHandle>,
+        annotationset: &Item<AnnotationDataSet>,
     ) -> Option<&mut AnnotationDataSet> {
-        self.get_mut_by_anyid(annotationset)
+        self.get_mut(annotationset).ok()
     }
 
     /// Shortcut method to get an annotation by any id
-    pub fn annotation_mut(
-        &mut self,
-        annotation: &AnyId<AnnotationHandle>,
-    ) -> Option<&mut Annotation> {
-        self.get_mut_by_anyid(annotation)
+    pub fn annotation_mut(&mut self, annotation: &Item<Annotation>) -> Option<&mut Annotation> {
+        self.get_mut(annotation).ok()
     }
 
     /// Returns total counts for each of the reverse indices
@@ -1619,13 +1588,13 @@ impl<'a> Iterator for AnnotationDataIter<'a> {
             Some((annotationset_handle, annotationdata_intid)) => {
                 let annotationset: &AnnotationDataSet = self
                     .store
-                    .get(*annotationset_handle)
+                    .get(&annotationset_handle.into())
                     .expect("Getting dataset for annotation");
                 let annotationdata: &AnnotationData = annotationset
-                    .get(*annotationdata_intid)
+                    .get(&annotationdata_intid.into())
                     .expect("Getting annotationdata for annotation");
                 let datakey: &DataKey = annotationset
-                    .get(annotationdata.key())
+                    .get(&annotationdata.key().into())
                     .expect("Getting datakey for annotation");
                 Some((datakey, annotationdata, annotationset))
             }
@@ -1683,8 +1652,11 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
         if let Some(selectoritem) = selectoritem {
             match selectoritem.selector().as_ref() {
                 Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                    let resource: &TextResource =
-                        self.iter.store.get(*res_id).expect("Resource must exist");
+                    let resource: &TextResource = self
+                        .iter
+                        .store
+                        .get(&res_id.into())
+                        .expect("Resource must exist");
                     Some(TargetIterItem {
                         item: resource,
                         selectoriteritem: selectoritem,
@@ -1706,8 +1678,11 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
         if let Some(selectoritem) = selectoritem {
             match selectoritem.selector().as_ref() {
                 Selector::DataSetSelector(set_id) => {
-                    let annotationset: &AnnotationDataSet =
-                        self.iter.store.get(*set_id).expect("Dataset must exist");
+                    let annotationset: &AnnotationDataSet = self
+                        .iter
+                        .store
+                        .get(&set_id.into())
+                        .expect("Dataset must exist");
                     Some(TargetIterItem {
                         item: annotationset,
                         selectoriteritem: selectoritem,
@@ -1729,8 +1704,11 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
         if let Some(selectoritem) = selectoritem {
             match selectoritem.selector().as_ref() {
                 Selector::AnnotationSelector(a_id, _) => {
-                    let annotation: &Annotation =
-                        self.iter.store.get(*a_id).expect("Annotation must exist");
+                    let annotation: &Annotation = self
+                        .iter
+                        .store
+                        .get(&a_id.into())
+                        .expect("Annotation must exist");
                     Some(TargetIterItem {
                         item: annotation,
                         selectoriteritem: selectoritem,

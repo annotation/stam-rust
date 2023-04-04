@@ -37,6 +37,36 @@ pub struct TextSelection {
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord)]
 pub struct TextSelectionHandle(u32);
 
+// I tried making this generic but failed, so let's spell it out for the handle
+impl<'a> From<&TextSelectionHandle> for Item<'a, TextSelection> {
+    fn from(handle: &TextSelectionHandle) -> Self {
+        Item::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&TextSelectionHandle>> for Item<'a, TextSelection> {
+    fn from(handle: Option<&TextSelectionHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(*handle)
+        } else {
+            Item::None
+        }
+    }
+}
+impl<'a> From<TextSelectionHandle> for Item<'a, TextSelection> {
+    fn from(handle: TextSelectionHandle) -> Self {
+        Item::Handle(handle)
+    }
+}
+impl<'a> From<Option<TextSelectionHandle>> for Item<'a, TextSelection> {
+    fn from(handle: Option<TextSelectionHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(handle)
+        } else {
+            Item::None
+        }
+    }
+}
+
 impl From<&TextSelection> for Offset {
     fn from(textselection: &TextSelection) -> Offset {
         Offset {
@@ -1116,10 +1146,13 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
                     resource,
                     textselection,
                 } => {
-                    let resource: &TextResource =
-                        self.iter.store.get(*resource).expect("Resource must exist");
+                    let resource: &TextResource = self
+                        .iter
+                        .store
+                        .get(&resource.into())
+                        .expect("Resource must exist");
                     let textselection: &TextSelection = resource
-                        .get(*textselection)
+                        .get(&textselection.into())
                         .expect("TextSelection must exist");
                     Some(TargetIterItem {
                         item: textselection,

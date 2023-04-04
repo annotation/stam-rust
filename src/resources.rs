@@ -135,6 +135,36 @@ impl Handle for TextResourceHandle {
     }
 }
 
+// I tried making this generic but failed, so let's spell it out for the handle
+impl<'a> From<&TextResourceHandle> for Item<'a, TextResource> {
+    fn from(handle: &TextResourceHandle) -> Self {
+        Item::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&TextResourceHandle>> for Item<'a, TextResource> {
+    fn from(handle: Option<&TextResourceHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(*handle)
+        } else {
+            Item::None
+        }
+    }
+}
+impl<'a> From<TextResourceHandle> for Item<'a, TextResource> {
+    fn from(handle: TextResourceHandle) -> Self {
+        Item::Handle(handle)
+    }
+}
+impl<'a> From<Option<TextResourceHandle>> for Item<'a, TextResource> {
+    fn from(handle: Option<TextResourceHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(handle)
+        } else {
+            Item::None
+        }
+    }
+}
+
 #[sealed]
 impl TypeInfo for TextResource {
     fn typeinfo() -> Type {
@@ -337,6 +367,10 @@ impl TextResource {
         }
     }
 
+    pub fn builder() -> TextResourceBuilder {
+        TextResourceBuilder::default()
+    }
+
     /// Create a new TextResource from file, the text will be loaded into memory entirely
     pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
@@ -464,7 +498,7 @@ impl TextResource {
         match self.has_textselection(offset) {
             Ok(Some(handle)) => {
                 //existing textselection
-                let textselection: &TextSelection = self.get(handle)?; //shouldn't fail here anymore
+                let textselection: &TextSelection = self.get(&handle.into())?; //shouldn't fail here anymore
                 Ok(textselection.clone()) //clone is relatively cheap
             }
             Ok(None) => {
@@ -769,7 +803,7 @@ impl StoreFor<TextSelection> for TextResource {
     fn inserted(&mut self, handle: TextSelectionHandle) -> Result<(), StamError> {
         //called after a TextSelection gets inserted into this Store
         //update the PositionIndex
-        let textselection: &TextSelection = self.get(handle)?;
+        let textselection: &TextSelection = self.get(&handle.into())?;
         let begin = textselection.begin();
         let end = textselection.end();
         let beginbyte = self.utf8byte(begin)?; //MAYBE TODO: move this inside closure? (not done now because it violates borrow checker)
@@ -833,8 +867,10 @@ impl<'a> Iterator for TextSelectionIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(begin2enditer) = &mut self.begin2enditer {
             if let Some((_end, handle)) = begin2enditer.next() {
-                let textselection: &TextSelection =
-                    self.resource.get(*handle).expect("handle must exist");
+                let textselection: &TextSelection = self
+                    .resource
+                    .get(&handle.into())
+                    .expect("handle must exist");
                 return Some(textselection);
             }
             //fall back to final clause
@@ -856,8 +892,10 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if let Some(end2beginiter) = &mut self.end2beginiter {
             if let Some((_begin, handle)) = end2beginiter.next() {
-                let textselection: &TextSelection =
-                    self.resource.get(*handle).expect("handle must exist");
+                let textselection: &TextSelection = self
+                    .resource
+                    .get(&handle.into())
+                    .expect("handle must exist");
                 return Some(textselection);
             }
             //fall back to final clause

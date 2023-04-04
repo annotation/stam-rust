@@ -311,8 +311,8 @@ impl From<&Selector> for SelectorKind {
     }
 }
 
-impl From<&SelectorBuilder> for SelectorKind {
-    fn from(selector: &SelectorBuilder) -> Self {
+impl<'a> From<&SelectorBuilder<'a>> for SelectorKind {
+    fn from(selector: &SelectorBuilder<'a>) -> Self {
         match selector {
             SelectorBuilder::ResourceSelector(_) => Self::ResourceSelector,
             SelectorBuilder::AnnotationSelector(_, _) => Self::AnnotationSelector,
@@ -331,19 +331,19 @@ impl From<&SelectorBuilder> for SelectorKind {
 /// A `SelectorBuilder` can refer to anything and is not validated yet, a `Selector` is and should not fail.
 ///
 /// There are multiple types of selectors, all captured in this enum.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(from = "SelectorJson")]
-pub enum SelectorBuilder {
-    ResourceSelector(AnyId<TextResourceHandle>),
-    AnnotationSelector(AnyId<AnnotationHandle>, Option<Offset>),
-    TextSelector(AnyId<TextResourceHandle>, Offset),
-    DataSetSelector(AnyId<AnnotationDataSetHandle>),
-    MultiSelector(Vec<SelectorBuilder>),
-    CompositeSelector(Vec<SelectorBuilder>),
-    DirectionalSelector(Vec<SelectorBuilder>),
+pub enum SelectorBuilder<'a> {
+    ResourceSelector(Item<'a,TextResource>),
+    AnnotationSelector(Item<'a,Annotation>, Option<Offset>),
+    TextSelector(Item<'a,TextResource>, Offset),
+    DataSetSelector(Item<'a,AnnotationDataSet>),
+    MultiSelector(Vec<SelectorBuilder<'a>>),
+    CompositeSelector(Vec<SelectorBuilder<'a>>),
+    DirectionalSelector(Vec<SelectorBuilder<'a>>),
 }
 
-impl SelectorBuilder {
+impl<'a> SelectorBuilder<'a> {
     /// Returns a [`SelectorKind`]
     pub fn kind(&self) -> SelectorKind {
         self.into()
@@ -359,47 +359,49 @@ impl SelectorBuilder {
 
 
 /// Helper structure for Json deserialisation, we need named fields for the serde tag macro to work
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(tag = "@type")]
-enum SelectorJson {
+enum SelectorJson where
+    {
     ResourceSelector {
-        resource: AnyId<TextResourceHandle>,
+        resource: String,
     },
     AnnotationSelector {
-        annotation: AnyId<AnnotationHandle>,
+        annotation: String,
         offset: Option<Offset>,
     },
     TextSelector {
-        resource: AnyId<TextResourceHandle>,
+        resource: String,
         offset: Offset,
     },
     DataSetSelector {
-        dataset: AnyId<AnnotationDataSetHandle>,
+        dataset: String,
     },
-    MultiSelector { selectors: Vec<SelectorBuilder> },
-    CompositeSelector { selectors: Vec<SelectorBuilder>},
-    DirectionalSelector{ selectors: Vec<SelectorBuilder>},
+    MultiSelector { selectors: Vec<SelectorJson> },
+    CompositeSelector { selectors: Vec<SelectorJson>},
+    DirectionalSelector{ selectors: Vec<SelectorJson>},
 }
 
-impl From<SelectorJson> for SelectorBuilder {
+impl<'a> From<SelectorJson> for SelectorBuilder<'a> {
     fn from(helper: SelectorJson) -> Self {
         match helper {
-            SelectorJson::ResourceSelector { resource: res } => Self::ResourceSelector(res),
+            SelectorJson::ResourceSelector { resource: res } => Self::ResourceSelector(res.into()),
             SelectorJson::TextSelector {
                 resource: res,
                 offset: o,
-            } => Self::TextSelector(res, o),
+            } => Self::TextSelector(res.into(), o),
             SelectorJson::AnnotationSelector {
                 annotation: a,
                 offset: o,
-            } => Self::AnnotationSelector(a, o),
-            SelectorJson::DataSetSelector { dataset: s } => Self::DataSetSelector(s),
-            SelectorJson::MultiSelector { selectors: v } => Self::MultiSelector(v),
-            SelectorJson::CompositeSelector { selectors: v } => Self::CompositeSelector(v),
-            SelectorJson::DirectionalSelector { selectors: v } => Self::DirectionalSelector(v),
+            } => Self::AnnotationSelector(a.into(), o),
+            SelectorJson::DataSetSelector { dataset: s } => Self::DataSetSelector(s.into()),
+            SelectorJson::MultiSelector { selectors: v } => Self::MultiSelector(v.into_iter().map(|j| j.into()).collect()),
+            SelectorJson::CompositeSelector { selectors: v } => Self::CompositeSelector(v.into_iter().map(|j| j.into()).collect()),
+            SelectorJson::DirectionalSelector { selectors: v } => Self::DirectionalSelector(v.into_iter().map(|j| j.into()).collect()),
         }
     }
 }
+
 
 /// This trait is implemented by types that can return a Selector to themselves
 pub trait SelfSelector {
@@ -475,7 +477,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
     {
         match self.selector {
             Selector::ResourceSelector(res_handle) => {
-                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
+                let textresource: Result<&TextResource, _> = self.store().get(&res_handle.into());
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 2)?;
                 state.serialize_field("@type", "ResourceSelector")?;
@@ -488,7 +490,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 state.end()
             }
             Selector::TextSelector(res_handle, offset) => {
-                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
+                let textresource: Result<&TextResource, _> = self.store().get(&res_handle.into());
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "TextSelector")?;
@@ -503,7 +505,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
             }
             Selector::DataSetSelector(dataset_handle) => {
                 let annotationset: Result<&AnnotationDataSet, _> =
-                    self.store().get(*dataset_handle);
+                    self.store().get(&dataset_handle.into());
                 let annotationset = annotationset.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 2)?;
                 state.serialize_field("@type", "DataSetSelector")?;
@@ -516,7 +518,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 state.end()
             }
             Selector::AnnotationSelector(annotation_handle, offset) => {
-                let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
+                let annotation: Result<&Annotation, _> = self.store().get(&annotation_handle.into());
                 let annotation = annotation.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "AnnotationSelector")?;
@@ -536,7 +538,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 resource: _res_handle,
                 textselection: _textselection_handle,
             } => {
-                let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
+                let annotation: Result<&Annotation, _> = self.store().get(&annotation_handle.into());
                 let annotation = annotation.map_err(serde::ser::Error::custom)?;
 
                 let mut state = serializer.serialize_struct("Selector", 3)?;
@@ -554,10 +556,10 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 resource: res_handle,
                 textselection: textselection_handle,
             } => {
-                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
+                let textresource: Result<&TextResource, _> = self.store().get(&res_handle.into());
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let textselection: &TextSelection = textresource
-                    .get(*textselection_handle)
+                    .get(&textselection_handle.into())
                     .map_err(serde::ser::Error::custom)?;
 
                 let mut state = serializer.serialize_struct("Selector", 3)?;
@@ -727,7 +729,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                             leaf = false;
                             let annotation: &Annotation = self
                                 .store
-                                .get(*a_handle)
+                                .get(&a_handle.into())
                                 .expect("referenced annotation must exist");
                             self.subiterstack.push(SelectorIter {
                                 selector: annotation.target(),

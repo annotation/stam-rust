@@ -50,6 +50,36 @@ impl Handle for AnnotationDataHandle {
     }
 }
 
+// I tried making this generic but failed, so let's spell it out for the handle
+impl<'a> From<&AnnotationDataHandle> for Item<'a, AnnotationData> {
+    fn from(handle: &AnnotationDataHandle) -> Self {
+        Item::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&AnnotationDataHandle>> for Item<'a, AnnotationData> {
+    fn from(handle: Option<&AnnotationDataHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(*handle)
+        } else {
+            Item::None
+        }
+    }
+}
+impl<'a> From<AnnotationDataHandle> for Item<'a, AnnotationData> {
+    fn from(handle: AnnotationDataHandle) -> Self {
+        Item::Handle(handle)
+    }
+}
+impl<'a> From<Option<AnnotationDataHandle>> for Item<'a, AnnotationData> {
+    fn from(handle: Option<AnnotationDataHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(handle)
+        } else {
+            Item::None
+        }
+    }
+}
+
 #[sealed]
 impl TypeInfo for AnnotationData {
     fn typeinfo() -> Type {
@@ -172,6 +202,11 @@ impl AnnotationData {
         }
     }
 
+    /// Returns an Annotation data builder to build new annotationdata
+    pub fn builder<'a>() -> AnnotationDataBuilder<'a> {
+        AnnotationDataBuilder::default()
+    }
+
     pub fn key(&self) -> DataKeyHandle {
         self.key
     }
@@ -201,65 +236,65 @@ impl<'a> WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
 
     /// Return a reference to the DataKey used by this data
     pub fn key_as_ref(&'a self) -> Result<&'a DataKey, StamError> {
-        self.store().get(self.key())
+        self.store().get(&self.key().into())
     }
 }
 
 /// This is the builder for `AnnotationData`. It contains public IDs or handles that will be resolved.
 /// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] methods.
 /// It also does not have its own `build()` method but is resolved via the aforementioned methods.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "AnnotationData")]
 #[serde(from = "AnnotationDataJson")]
-pub struct AnnotationDataBuilder {
+pub struct AnnotationDataBuilder<'a> {
     #[serde(rename = "@id")]
-    pub(crate) id: AnyId<AnnotationDataHandle>,
+    pub(crate) id: Item<'a, AnnotationData>,
     #[serde(rename = "set")]
-    pub(crate) annotationset: AnyId<AnnotationDataSetHandle>,
-    pub(crate) key: AnyId<DataKeyHandle>,
+    pub(crate) annotationset: Item<'a, AnnotationDataSet>,
+    pub(crate) key: Item<'a, DataKey>,
     pub(crate) value: DataValue,
 }
 
-impl Default for AnnotationDataBuilder {
+impl<'a> Default for AnnotationDataBuilder<'a> {
     fn default() -> Self {
         Self {
-            id: AnyId::None,
-            annotationset: AnyId::None,
-            key: AnyId::None,
+            id: Item::None,
+            annotationset: Item::None,
+            key: Item::None,
             value: DataValue::Null,
         }
     }
 }
 
-impl AnnotationDataBuilder {
+impl<'a> AnnotationDataBuilder<'a> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn with_id(mut self, id: AnyId<AnnotationDataHandle>) -> Self {
+    pub fn with_id(mut self, id: Item<'a, AnnotationData>) -> Self {
         self.id = id;
         self
     }
 
-    pub fn id(&self) -> &AnyId<AnnotationDataHandle> {
+    pub fn id(&self) -> &Item<AnnotationData> {
         &self.id
     }
 
-    pub fn with_annotationset(mut self, annotationset: AnyId<AnnotationDataSetHandle>) -> Self {
+    pub fn with_annotationset(mut self, annotationset: Item<'a, AnnotationDataSet>) -> Self {
         self.annotationset = annotationset;
         self
     }
 
-    pub fn annotationset(&self) -> &AnyId<AnnotationDataSetHandle> {
+    pub fn annotationset(&self) -> &Item<AnnotationDataSet> {
         &self.annotationset
     }
 
-    pub fn with_key(mut self, key: AnyId<DataKeyHandle>) -> Self {
+    pub fn with_key(mut self, key: Item<'a, DataKey>) -> Self {
         self.key = key;
         self
     }
 
-    pub fn key(&self) -> &AnyId<DataKeyHandle> {
+    pub fn key(&self) -> &Item<DataKey> {
         &self.key
     }
 
@@ -283,7 +318,7 @@ pub(crate) struct AnnotationDataJson {
     value: Option<DataValue>,
 }
 
-impl From<AnnotationDataJson> for AnnotationDataBuilder {
+impl<'a> From<AnnotationDataJson> for AnnotationDataBuilder<'a> {
     fn from(helper: AnnotationDataJson) -> Self {
         Self {
             id: helper.id.into(),

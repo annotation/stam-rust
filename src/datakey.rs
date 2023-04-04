@@ -52,6 +52,35 @@ impl Handle for DataKeyHandle {
         self.0 as usize
     }
 }
+// I tried making this generic but failed, so let's spell it out for the handle
+impl<'a> From<&DataKeyHandle> for Item<'a, DataKey> {
+    fn from(handle: &DataKeyHandle) -> Self {
+        Item::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&DataKeyHandle>> for Item<'a, DataKey> {
+    fn from(handle: Option<&DataKeyHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(*handle)
+        } else {
+            Item::None
+        }
+    }
+}
+impl<'a> From<DataKeyHandle> for Item<'a, DataKey> {
+    fn from(handle: DataKeyHandle) -> Self {
+        Item::Handle(handle)
+    }
+}
+impl<'a> From<Option<DataKeyHandle>> for Item<'a, DataKey> {
+    fn from(handle: Option<DataKeyHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(handle)
+        } else {
+            Item::None
+        }
+    }
+}
 
 #[sealed]
 impl TypeInfo for DataKey {

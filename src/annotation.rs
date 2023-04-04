@@ -10,11 +10,11 @@ use crate::annotationdata::{
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::config::{Config, Configurable};
-use crate::datakey::DataKeyHandle;
+use crate::datakey::DataKey;
 use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
-use crate::resources::TextResourceHandle;
+use crate::resources::TextResource;
 use crate::selector::{Offset, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
 use crate::store::*;
 use crate::types::*;
@@ -27,7 +27,7 @@ use crate::types::*;
 /// Moreover, an `Annotation` can have multiple annotation data associated.
 /// The result is that multiple annotations with the exact same content require less storage
 /// space, and searching and indexing is facilitated.  
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Annotation {
     /// Public identifier for this annotation
     id: Option<String>,
@@ -52,6 +52,36 @@ impl Handle for AnnotationHandle {
     }
     fn unwrap(&self) -> usize {
         self.0 as usize
+    }
+}
+
+// I tried making this generic but failed, so let's spell it out for the handle
+impl<'a> From<&AnnotationHandle> for Item<'a, Annotation> {
+    fn from(handle: &AnnotationHandle) -> Self {
+        Item::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&AnnotationHandle>> for Item<'a, Annotation> {
+    fn from(handle: Option<&AnnotationHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(*handle)
+        } else {
+            Item::None
+        }
+    }
+}
+impl<'a> From<AnnotationHandle> for Item<'a, Annotation> {
+    fn from(handle: AnnotationHandle) -> Self {
+        Item::Handle(handle)
+    }
+}
+impl<'a> From<Option<AnnotationHandle>> for Item<'a, Annotation> {
+    fn from(handle: Option<AnnotationHandle>) -> Self {
+        if let Some(handle) = handle {
+            Item::Handle(handle)
+        } else {
+            Item::None
+        }
     }
 }
 
@@ -98,35 +128,35 @@ impl PartialEq<Annotation> for Annotation {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
-pub struct AnnotationBuilder {
-    pub(crate) id: AnyId<AnnotationHandle>,
-    pub(crate) data: Vec<AnnotationDataBuilder>,
-    pub(crate) target: WithAnnotationTarget,
+pub struct AnnotationBuilder<'a> {
+    pub(crate) id: Item<'a, Annotation>,
+    pub(crate) data: Vec<AnnotationDataBuilder<'a>>,
+    pub(crate) target: WithAnnotationTarget<'a>,
 }
 
 #[derive(Debug)]
-pub(crate) enum WithAnnotationTarget {
+pub(crate) enum WithAnnotationTarget<'a> {
     Unset,
     FromSelector(Selector),
-    FromSelectorBuilder(SelectorBuilder),
+    FromSelectorBuilder(SelectorBuilder<'a>),
 }
 
-impl From<Selector> for WithAnnotationTarget {
+impl<'a> From<Selector> for WithAnnotationTarget<'a> {
     fn from(other: Selector) -> Self {
         Self::FromSelector(other)
     }
 }
 
-impl From<SelectorBuilder> for WithAnnotationTarget {
-    fn from(other: SelectorBuilder) -> Self {
+impl<'a> From<SelectorBuilder<'a>> for WithAnnotationTarget<'a> {
+    fn from(other: SelectorBuilder<'a>) -> Self {
         Self::FromSelectorBuilder(other)
     }
 }
 
-impl Default for AnnotationBuilder {
+impl<'a> Default for AnnotationBuilder<'a> {
     fn default() -> Self {
         Self {
-            id: AnyId::None,
+            id: Item::None,
             target: WithAnnotationTarget::Unset,
             data: Vec::new(),
         }
@@ -144,13 +174,13 @@ impl Annotation {
     }
 }
 
-impl AnnotationBuilder {
+impl<'a> AnnotationBuilder<'a> {
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn with_id(mut self, id: String) -> Self {
-        self.id = AnyId::Id(id);
+        self.id = Item::Id(id);
         self
     }
 
@@ -162,18 +192,9 @@ impl AnnotationBuilder {
     }
 
     /// Set the target to be a [`crate::resources::TextResource`]. Creates a [`Selector::ResourceSelector`]
-    pub fn target_resource(self, resource: AnyId<TextResourceHandle>) -> Self {
-        self.with_target(SelectorBuilder::ResourceSelector(resource))
-    }
-
-    /// Set the target to be a text slice inside a [`crate::resources::TextResource`]. Creates a [`Selector::TextSelector`]
-    pub fn target_text(self, resource: AnyId<TextResourceHandle>, offset: Offset) -> Self {
-        self.with_target(SelectorBuilder::TextSelector(resource, offset))
-    }
-
     /// Sets the annotation target. Instantiates a new selector. Use [`Self.with_target()`] instead if you already have
     /// a selector. Under the hood, this will invoke `select()` to obtain a selector.
-    pub fn with_target(mut self, selector: SelectorBuilder) -> Self {
+    pub fn with_target(mut self, selector: SelectorBuilder<'a>) -> Self {
         self.target = WithAnnotationTarget::FromSelectorBuilder(selector);
         self
     }
@@ -186,8 +207,8 @@ impl AnnotationBuilder {
     /// use multiple annotations instead if each it interpretable independent of the others.
     pub fn with_data(
         self,
-        annotationset: AnyId<AnnotationDataSetHandle>,
-        key: AnyId<DataKeyHandle>,
+        annotationset: Item<'a, AnnotationDataSet>,
+        key: Item<'a, DataKey>,
         value: DataValue,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
@@ -201,10 +222,10 @@ impl AnnotationBuilder {
     /// Use this method instead of [`Self::with_data()`]  if you want to assign a public identifier (last argument)
     pub fn with_data_with_id(
         self,
-        dataset: AnyId<AnnotationDataSetHandle>,
-        key: AnyId<DataKeyHandle>,
+        dataset: Item<'a, AnnotationDataSet>,
+        key: Item<'a, DataKey>,
         value: DataValue,
-        id: AnyId<AnnotationDataHandle>,
+        id: Item<'a, AnnotationData>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id,
@@ -218,8 +239,8 @@ impl AnnotationBuilder {
     /// Useful if you have an Id or reference instance already.
     pub fn with_data_by_id(
         self,
-        dataset: AnyId<AnnotationDataSetHandle>,
-        id: AnyId<AnnotationDataHandle>,
+        dataset: Item<'a, AnnotationDataSet>,
+        id: Item<'a, AnnotationData>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id,
@@ -229,7 +250,7 @@ impl AnnotationBuilder {
     }
 
     /// Lower level method if you want to create and pass [`AnnotationDataBuilder'] yourself rather than use the other ``with_data_*()`` shortcut methods.
-    pub fn with_data_builder(mut self, builder: AnnotationDataBuilder) -> Self {
+    pub fn with_data_builder(mut self, builder: AnnotationDataBuilder<'a>) -> Self {
         self.data.push(builder);
         self
     }
@@ -305,10 +326,10 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
         for (datasethandle, datahandle) in self.annotation.data.iter() {
             let store: &AnnotationStore = self.annotation.store();
             let annotationset: &AnnotationDataSet = store
-                .get(*datasethandle)
+                .get(&datasethandle.into())
                 .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
             let annotationdata: &AnnotationData = annotationset
-                .get(*datahandle)
+                .get(&datahandle.into())
                 .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
             if annotationdata.id().is_none() {
                 //AnnotationData has no ID, we can't make a reference, therefore we serialize the whole thing (may lead to redundancy in the output)
@@ -358,21 +379,24 @@ impl AnnotationStore {
         });
         // Obtain the dataset for this data item
         let dataset: &mut AnnotationDataSet =
-            if let Some(dataset) = self.get_mut_by_anyid(&dataitem.annotationset) {
+            if let Ok(dataset) = self.get_mut(&dataitem.annotationset) {
                 dataset
             } else {
                 // this data referenced a dataset that does not exist yet, create it
-                let dataset_id: String = if let AnyId::Id(dataset_id) = dataitem.annotationset {
-                    dataset_id
-                } else {
-                    // if no dataset was specified at all, we create one named 'default'
+                let dataset_id: String = match dataitem.annotationset {
+                    Item::Id(dataset_id) => dataset_id,
+                    Item::IdRef(dataset_id) => dataset_id.to_string(),
+                    _ =>
+                    // if no dataset was specified at all, we create one named 'default-annotationset'
                     // the name is not prescribed by the STAM spec, the fact that we
                     // handle a missing set, however, is.
-                    "default".into()
+                    {
+                        "default-annotationset".into()
+                    }
                 };
                 let inserted_intid =
                     self.insert(AnnotationDataSet::new(self.config().clone()).with_id(dataset_id))?;
-                self.get_mut(inserted_intid)
+                self.get_mut(&inserted_intid.into())
                     .expect("must exist after insertion")
             };
 
@@ -413,7 +437,7 @@ impl AnnotationStore {
 
         // Has the caller set a public ID for this annotation?
         let public_id: Option<String> = match builder.id {
-            AnyId::Id(id) => Some(id),
+            Item::Id(id) => Some(id),
             _ => None,
         };
 
@@ -446,7 +470,7 @@ impl<'a> Annotation {
     }
 
     /// Returns an Annotation builder to build new annotations
-    pub fn builder() -> AnnotationBuilder {
+    pub fn builder() -> AnnotationBuilder<'a> {
         AnnotationBuilder::default()
     }
 
@@ -476,18 +500,18 @@ impl<'a> Annotation {
 
 /// Helper structure for deserialisation
 #[derive(Deserialize)]
-pub(crate) struct AnnotationJson {
+pub(crate) struct AnnotationJson<'a> {
     #[serde(rename = "@id")]
     id: Option<String>,
-    data: Vec<AnnotationDataBuilder>,
-    target: SelectorBuilder,
+    data: Vec<AnnotationDataBuilder<'a>>,
+    target: SelectorBuilder<'a>,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct AnnotationsJson(pub(crate) Vec<AnnotationJson>);
+pub(crate) struct AnnotationsJson<'a>(pub(crate) Vec<AnnotationJson<'a>>);
 
-impl From<AnnotationJson> for AnnotationBuilder {
-    fn from(helper: AnnotationJson) -> Self {
+impl<'a> From<AnnotationJson<'a>> for AnnotationBuilder<'a> {
+    fn from(helper: AnnotationJson<'a>) -> Self {
         Self {
             id: helper.id.into(),
             data: helper.data,
