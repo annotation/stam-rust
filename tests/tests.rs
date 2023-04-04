@@ -1214,7 +1214,7 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
     );
     let mut count = 0;
     for result in
-        resource.search_text(&[Regex::new(r"eavesdropping").unwrap()], None, None, true)?
+        resource.find_text_regex(&[Regex::new(r"eavesdropping").unwrap()], None, None, true)?
     {
         count += 1;
         assert_eq!(result.textselections().len(), 1);
@@ -1233,7 +1233,9 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
             .into(),
     );
     let mut count = 0;
-    for result in resource.search_text(&[Regex::new(r"\b\w{13}\b").unwrap()], None, None, true)? {
+    for result in
+        resource.find_text_regex(&[Regex::new(r"\b\w{13}\b").unwrap()], None, None, true)?
+    {
         count += 1;
         if count == 1 {
             assert_eq!(result.textselections().len(), 1);
@@ -1258,7 +1260,7 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
             .into(),
     );
     let mut count = 0;
-    for result in resource.search_text(
+    for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping").unwrap()],
         None,
         None,
@@ -1281,7 +1283,7 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
             .into(),
     );
     let mut count = 0;
-    for result in resource.search_text(
+    for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping\s(on\s\w+)\b").unwrap()],
         None,
         None,

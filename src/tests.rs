@@ -448,7 +448,7 @@ fn utf82unicode() {
 fn find() {
     let resource =
         TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
-    let textselection = resource.find("världen", None).unwrap();
+    let textselection = resource.find_text("världen", None).unwrap();
     assert_eq!(textselection.begin(), 6);
     assert_eq!(textselection.end(), 13);
 }
@@ -457,7 +457,7 @@ fn find() {
 fn find_all() {
     let resource = TextResource::new("testres".into(), Config::default())
         .with_string("To be or not to be, that's the question".into());
-    let textselections = resource.find_all("be", None);
+    let textselections = resource.find_all_text("be", None);
     assert_eq!(textselections.len(), 2);
     assert_eq!(textselections[0].begin(), 3);
     assert_eq!(textselections[0].end(), 5);

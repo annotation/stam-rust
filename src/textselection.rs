@@ -214,7 +214,7 @@ impl Ord for PositionIndexItem {
 }
 
 /// A TextSelectionSet holds one or more [`TextSelection`] items
-/// It may also optionally carry the TextResourceHandle and AnnotationHandle associated to reference the source of the TextSelection
+/// It may also optionally carry the TextResourceHandle and AnnotationHandle associated to reference the source of the [`TextSelection`]
 #[derive(Clone, Debug)]
 pub struct TextSelectionSet {
     data: SmallVec<
@@ -224,7 +224,7 @@ pub struct TextSelectionSet {
             Option<AnnotationHandle>,
         ); 8],
     >,
-    sorted: bool, //TODO implement
+    sorted: bool,
 }
 
 impl From<TextSelection> for TextSelectionSet {
@@ -288,12 +288,17 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
     }
 */
 
+impl TextResource {
+    /// Apply a [`TextSelectionOperator`] to find text selections
+    pub fn find_textselections(&self, operator: &TextSelectionOperator) {} //TODO
+}
+
 /// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection'] instances. It
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
 /// [`TextSelection`] instances can be.
 ///
 /// The implementation goes a bit further and acts on the basis of [`TextSelectionSet`] rather than
-/// `TextSelection`, allowing you to compare two sets, each containing possibly multiple
+/// [`TextSelection`], allowing you to compare two sets, each containing possibly multiple
 /// TextSelections, at once.
 ///
 /// This enum encapsulates both the operator as well the the object of the operation (a
@@ -568,8 +573,10 @@ impl TextSelectionSet {
 }
 
 impl TextSelection {
-    /// This methods is called to test whether a specific spatial relation (as expressed by the passed operator) holds between a [`TextSelection`] and another (or multiple) ([`TextSelectionSet`]).
-    /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
+    /// This method is called to test whether a specific spatial relation (as expressed by the
+    /// passed operator) holds between a [`TextSelection`] and another (or multiple)
+    /// ([`TextSelectionSet`]). The operator contains the other part of the equation that is tested
+    /// against. A boolean is returned with the test result.
     pub fn test(&self, operator: &TextSelectionOperator) -> bool {
         match operator {
             TextSelectionOperator::Equals(otherset) | TextSelectionOperator::InSet(otherset) => {
@@ -781,7 +788,7 @@ impl TextSelection {
         }
     }
 
-    //there are no to_json() methods here, but you can convert a TextSelection to an Offset, which does have them
+    //there are no to_json() methods etc here, but you can convert a TextSelection to an Offset, which does have them
 }
 
 impl Extend<TextSelection> for TextSelectionSet {
@@ -818,6 +825,8 @@ impl
     }
 }
 
+//TODO: -------------v   This is essentially a builder for TextSelectionOperator, do we really need it??
+
 /// The TextRelationOperator, simply put, allows comparison of two text regions, specified by their offset. It
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
 /// [`TextSelection`] instances (the realisation once an [`Offset`] is resolved) can be.
@@ -834,10 +843,10 @@ pub enum TextRelationOperator {
     /// Offset A that overlaps with offsets B (cf. textfabric's `&&`), commutative
     Overlaps(Offset),
 
-    /// Offset B is embedded in a offset in A (cf. textfabric's `[[`)
+    /// Offset B is embedded in an offset in A (cf. textfabric's `[[`)
     Embeds(Offset),
 
-    /// Offset A is embedded in a offset in B (cf. textfabric's `[[`)
+    /// Offset A is embedded in an offset in B (cf. textfabric's `[[`)
     Embedded(Offset),
 
     /// Offset A precedes offset B (come before) all offsets in B. There is no overlap (cf. textfabric's `<<`)

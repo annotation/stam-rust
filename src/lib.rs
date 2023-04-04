@@ -40,7 +40,7 @@ pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };
 pub use store::*;
-pub use textsearch::{SearchTextIter, SearchTextMatch};
+pub use textsearch::{FindRegexIter, FindRegexMatch};
 pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;
 
