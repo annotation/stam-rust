@@ -293,86 +293,86 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
 /// [`TextSelection`] instances can be.
 ///
-/// The implementation goes a bit further and acts on the basis of [`TextSelectionSet`] rather than
-/// [`TextSelection`], allowing you to compare two sets, each containing possibly multiple
-/// TextSelections, at once.
+/// Rather than operator on single [`TextSelection`] instances, te implementation goes a bit
+/// further and can act also on the basis of [`TextSelectionSet`] rather than [`TextSelection`],
+/// allowing you to compare two sets, each containing possibly multiple TextSelections, at once.
 ///
 /// This enum encapsulates both the operator as well the the object of the operation (a
 /// `TextSelectionSet`). As a whole, it can then be applied to another [`TextSelectionSet`] or
 /// [`TextSelection`] via its [`TextSelectionSet::test()`] method.
 #[derive(Debug, Clone)]
-pub enum TextSelectionOperator<'a> {
+pub enum TextSelectionOperator {
     /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
-    Equals(&'a TextSelectionSet),
+    Equals,
 
     /// All items in both sets must cover the exact same TextSelection. This would be fairly useless, it just means both sets contain only one TextSelection and it's the same one
     // EqualsAll(&'a TextSelectionSet),
 
     /// Each TextSelection in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
-    Overlaps(&'a TextSelectionSet),
+    Overlaps,
 
     /// Each TextSelection in A overlaps with all TextSelection in B (cf. textfabric's `&&`), commutative
-    OverlapsAll(&'a TextSelectionSet),
+    OverlapsAll,
 
     /// All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
-    Embeds(&'a TextSelectionSet),
+    Embeds,
 
     /// All TextSelections in B are embedded by all TextSelection in A (cf. textfabric's `[[`)
-    EmbedsAll(&'a TextSelectionSet),
+    EmbedsAll,
 
     /// All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
-    Embedded(&'a TextSelectionSet),
+    Embedded,
 
     /// All TextSelections in A are embedded by all TextSelection in B (cf. textfabric's `]]`)
-    EmbeddedAll(&'a TextSelectionSet),
+    EmbeddedAll,
 
     /// Each TextSelections in A precedes (comes before) a textselection in B
-    Precedes(&'a TextSelectionSet),
+    Precedes,
 
     /// All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
-    PrecedesAll(&'a TextSelectionSet),
+    PrecedesAll,
 
     /// Each TextSeleciton In A succeeds (comes after) a textselection in B
-    Succeeds(&'a TextSelectionSet),
+    Succeeds,
 
     /// All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
-    SucceedsAll(&'a TextSelectionSet),
+    SucceedsAll,
 
     /// Each TextSelection in A is ends where at least one TextSelection in B begins.
-    LeftAdjacent(&'a TextSelectionSet),
+    LeftAdjacent,
 
     /// The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
     //TODO: add mindistance,maxdistance arguments
-    LeftAdjacentAll(&'a TextSelectionSet),
+    LeftAdjacentAll,
 
     /// Each TextSelection in A is begis where at least one TextSelection in A ends.
-    RightAdjacent(&'a TextSelectionSet),
+    RightAdjacent,
 
     /// The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
     //TODO: add mindistance,maxdistance argument
-    RightAdjacentAll(&'a TextSelectionSet),
+    RightAdjacentAll,
 
     /// Each TextSelection in A starts where a TextSelection in B starts
-    SameBegin(&'a TextSelectionSet),
+    SameBegin,
 
     /// The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
-    SameBeginAll(&'a TextSelectionSet),
+    SameBeginAll,
 
     /// Each TextSelection in A ends where a TextSelection in B ends
-    SameEnd(&'a TextSelectionSet),
+    SameEnd,
 
     /// The rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `:=`)
-    SameEndAll(&'a TextSelectionSet),
+    SameEndAll,
 
     /// Each TextSelection in A is in B as well, this is similar to Equals but allows
     /// for set B having unmatched items
-    InSet(&'a TextSelectionSet),
+    InSet,
 
     /// The leftmost TextSelection in A starts where the leftmost TextSelection in A starts  and
     /// the rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `::`)
-    SameRangeAll(&'a TextSelectionSet),
+    SameRangeAll,
 
-    Not(Box<TextSelectionOperator<'a>>),
+    Not(Box<TextSelectionOperator>),
 }
 
 impl Default for TextSelectionSet {
@@ -384,48 +384,21 @@ impl Default for TextSelectionSet {
     }
 }
 
-impl<'a> TextSelectionOperator<'a> {
-    pub fn referenceset(&self) -> &TextSelectionSet {
-        match self {
-            Self::Equals(set)
-            | Self::Overlaps(set)
-            | Self::Embeds(set)
-            | Self::Embedded(set)
-            | Self::Precedes(set)
-            | Self::Succeeds(set)
-            | Self::LeftAdjacent(set)
-            | Self::RightAdjacent(set)
-            | Self::SameBegin(set)
-            | Self::SameEnd(set)
-            | Self::InSet(set)
-            | Self::OverlapsAll(set)
-            | Self::EmbedsAll(set)
-            | Self::EmbeddedAll(set)
-            | Self::LeftAdjacentAll(set)
-            | Self::PrecedesAll(set)
-            | Self::RightAdjacentAll(set)
-            | Self::SucceedsAll(set)
-            | Self::SameBeginAll(set)
-            | Self::SameEndAll(set)
-            | Self::SameRangeAll(set) => set,
-            TextSelectionOperator::Not(suboperator) => suboperator.referenceset(),
-        }
-    }
-
+impl TextSelectionOperator {
     // Is this operator an All variant?
     pub fn all(&self) -> bool {
         match self {
-            Self::OverlapsAll(_)
-            | Self::EmbedsAll(_)
-            | Self::EmbeddedAll(_)
-            | Self::LeftAdjacentAll(_)
-            | Self::PrecedesAll(_)
-            | Self::RightAdjacentAll(_)
-            | Self::SucceedsAll(_)
-            | Self::SameBeginAll(_)
-            | Self::SameEndAll(_)
-            | Self::SameRangeAll(_) => true,
-            TextSelectionOperator::Not(suboperator) => suboperator.all(),
+            Self::OverlapsAll
+            | Self::EmbedsAll
+            | Self::EmbeddedAll
+            | Self::LeftAdjacentAll
+            | Self::PrecedesAll
+            | Self::RightAdjacentAll
+            | Self::SucceedsAll
+            | Self::SameBeginAll
+            | Self::SameEndAll
+            | Self::SameRangeAll => true,
+            //TODO: what about Not?
             _ => false,
         }
     }
@@ -484,70 +457,143 @@ impl TextSelectionSet {
 
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
     /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
-    pub fn test(&self, operator: &TextSelectionOperator) -> bool {
+    pub fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
         if self.is_empty() {
             return false;
         }
         match operator {
-            TextSelectionOperator::Equals(otherset) => {
-                if self.len() != otherset.len() {
-                    //each item must have a counterpart so the sets must be equal length
-                    return false;
-                }
+            TextSelectionOperator::Equals => {
                 //ALL of the items in this set must match with ANY item in the otherset
                 for (item, _, _) in self.iter() {
-                    if !item.test(operator) {
+                    if !item.test(operator, reftextsel) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::Overlaps(_)
-            | TextSelectionOperator::Embeds(_)
-            | TextSelectionOperator::Embedded(_)
-            | TextSelectionOperator::Precedes(_)
-            | TextSelectionOperator::Succeeds(_)
-            | TextSelectionOperator::LeftAdjacent(_)
-            | TextSelectionOperator::RightAdjacent(_)
-            | TextSelectionOperator::SameBegin(_)
-            | TextSelectionOperator::SameEnd(_)
-            | TextSelectionOperator::InSet(_) => {
+            TextSelectionOperator::Overlaps
+            | TextSelectionOperator::Embeds
+            | TextSelectionOperator::Embedded
+            | TextSelectionOperator::Precedes
+            | TextSelectionOperator::Succeeds
+            | TextSelectionOperator::LeftAdjacent
+            | TextSelectionOperator::RightAdjacent
+            | TextSelectionOperator::SameBegin
+            | TextSelectionOperator::SameEnd
+            | TextSelectionOperator::InSet => {
                 // ALL of the items in this set must match with ANY item in the otherset
                 // This is a weaker form of Equals (could have also been called SameRange)
                 for (item, _, _) in self.iter() {
-                    if !item.test(operator) {
+                    if !item.test(operator, reftextsel) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::OverlapsAll(_)
-            | TextSelectionOperator::EmbedsAll(_)
-            | TextSelectionOperator::EmbeddedAll(_) => {
+            TextSelectionOperator::OverlapsAll
+            | TextSelectionOperator::EmbedsAll
+            | TextSelectionOperator::EmbeddedAll => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
                 for (item, _, _) in self.iter() {
-                    if !item.test(operator) {
+                    if !item.test(operator, reftextsel) {
                         return false;
                     }
                 }
                 true
             }
             //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
-            TextSelectionOperator::LeftAdjacentAll(_) | TextSelectionOperator::PrecedesAll(_) => {
-                self.rightmost().unwrap().test(operator)
+            TextSelectionOperator::LeftAdjacentAll | TextSelectionOperator::PrecedesAll => {
+                self.rightmost().unwrap().test(operator, reftextsel)
             }
-            TextSelectionOperator::RightAdjacentAll(_) | TextSelectionOperator::SucceedsAll(_) => {
-                self.leftmost().unwrap().test(operator)
+            TextSelectionOperator::RightAdjacentAll | TextSelectionOperator::SucceedsAll => {
+                self.leftmost().unwrap().test(operator, reftextsel)
             }
-            TextSelectionOperator::SameBeginAll(_) => self.leftmost().unwrap().test(operator),
-            TextSelectionOperator::SameEndAll(_) => self.rightmost().unwrap().test(operator),
-            TextSelectionOperator::SameRangeAll(_) => {
-                self.leftmost().unwrap().test(operator) && self.rightmost().unwrap().test(operator)
+            TextSelectionOperator::SameBeginAll => {
+                self.leftmost().unwrap().test(operator, reftextsel)
             }
-            TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
+            TextSelectionOperator::SameEndAll => {
+                self.rightmost().unwrap().test(operator, reftextsel)
+            }
+            TextSelectionOperator::SameRangeAll => {
+                self.leftmost().unwrap().test(operator, reftextsel)
+                    && self.rightmost().unwrap().test(operator, reftextsel)
+            }
+            TextSelectionOperator::Not(suboperator) => !self.test(suboperator, reftextsel),
         }
     }
 
+    /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
+    /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
+    pub fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
+        if self.is_empty() {
+            return false;
+        }
+        match operator {
+            TextSelectionOperator::Equals => {
+                if self.len() != refset.len() {
+                    //each item must have a counterpart so the sets must be equal length
+                    return false;
+                }
+                //ALL of the items in this set must match with ANY item in the otherset
+                for (item, _, _) in self.iter() {
+                    if !item.test_set(operator, refset) {
+                        return false;
+                    }
+                }
+                true
+            }
+            TextSelectionOperator::Overlaps
+            | TextSelectionOperator::Embeds
+            | TextSelectionOperator::Embedded
+            | TextSelectionOperator::Precedes
+            | TextSelectionOperator::Succeeds
+            | TextSelectionOperator::LeftAdjacent
+            | TextSelectionOperator::RightAdjacent
+            | TextSelectionOperator::SameBegin
+            | TextSelectionOperator::SameEnd
+            | TextSelectionOperator::InSet => {
+                // ALL of the items in this set must match with ANY item in the otherset
+                // This is a weaker form of Equals (could have also been called SameRange)
+                for (item, _, _) in self.iter() {
+                    if !item.test_set(operator, refset) {
+                        return false;
+                    }
+                }
+                true
+            }
+            TextSelectionOperator::OverlapsAll
+            | TextSelectionOperator::EmbedsAll
+            | TextSelectionOperator::EmbeddedAll => {
+                //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
+                for (item, _, _) in self.iter() {
+                    if !item.test_set(operator, refset) {
+                        return false;
+                    }
+                }
+                true
+            }
+            //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
+            TextSelectionOperator::LeftAdjacentAll | TextSelectionOperator::PrecedesAll => {
+                self.rightmost().unwrap().test_set(operator, refset)
+            }
+            TextSelectionOperator::RightAdjacentAll | TextSelectionOperator::SucceedsAll => {
+                self.leftmost().unwrap().test_set(operator, refset)
+            }
+            TextSelectionOperator::SameBeginAll => {
+                self.leftmost().unwrap().test_set(operator, refset)
+            }
+            TextSelectionOperator::SameEndAll => {
+                self.rightmost().unwrap().test_set(operator, refset)
+            }
+            TextSelectionOperator::SameRangeAll => {
+                self.leftmost().unwrap().test_set(operator, refset)
+                    && self.rightmost().unwrap().test_set(operator, refset)
+            }
+            TextSelectionOperator::Not(suboperator) => !self.test_set(suboperator, refset),
+        }
+    }
+
+    /*
     /// Intersect this set (A) with another (B). Modifies this set so only the elements
     /// present in both are left after the operation.
     pub fn intersect_mut(&mut self, other: &TextSelectionSet) {
@@ -557,12 +603,12 @@ impl TextSelectionSet {
     /// Intersect this set (A) with another (B) using a specific test operator (which also includes set B). Modifies this set so only the elements
     /// present in both are left after the operation.
     pub fn test_intersect_mut(&mut self, operator: &TextSelectionOperator) {
-        self.data.retain(|(item, _, _)| item.test(operator));
+        self.data.retain(|(item, _, _)| item.test_set(operator, refset));
     }
 
     /// Intersect this set (A) with another (B) and returns the new intersection set.
     pub fn intersect(&mut self, other: &TextSelectionSet) -> Self {
-        self.test_intersect(&TextSelectionOperator::InSet(other))
+        self.test_intersect(&TextSelectionOperator::InSet, other)
     }
 
     /// Intersect this set (A) with another (B) using a specific operator (which also includes set B) and returns the new intersection set.
@@ -578,6 +624,7 @@ impl TextSelectionSet {
         }
         intersection
     }
+    */
 
     /// Returns the left-most TextSelection (the one with the lowest start offset) in the set.
     pub fn leftmost(&self) -> Option<&TextSelection> {
@@ -629,205 +676,135 @@ impl TextSelectionSet {
 
 impl TextSelection {
     /// This method is called to test whether a specific spatial relation (as expressed by the
+    /// passed operator) holds between a [`TextSelection`] and another.
+    /// A boolean is returned with the test result.
+    pub fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
+        //note: at this level we deal with two singletons and there is no different between the *All variants
+        match operator {
+            TextSelectionOperator::Equals | TextSelectionOperator::InSet => self == reftextsel,
+            TextSelectionOperator::Overlaps | TextSelectionOperator::OverlapsAll => {
+                //item must be equal overlap with any of the items in the other set
+                (reftextsel.begin >= self.begin && reftextsel.begin < self.end)
+                    || (reftextsel.end > self.begin && reftextsel.end <= self.end)
+                    || (reftextsel.begin <= self.begin && reftextsel.end >= self.end)
+                    || (self.begin <= reftextsel.begin && self.end >= reftextsel.end)
+            }
+            TextSelectionOperator::Embeds | TextSelectionOperator::EmbedsAll => {
+                // TextSelection embeds reftextsel
+                reftextsel.begin >= self.begin && reftextsel.end <= self.end
+            }
+            TextSelectionOperator::Embedded | TextSelectionOperator::EmbeddedAll => {
+                // TextSelection is embedded reftextsel
+                self.begin >= reftextsel.begin && self.end <= reftextsel.end
+            }
+            TextSelectionOperator::Precedes | TextSelectionOperator::PrecedesAll => {
+                self.end <= reftextsel.begin
+            }
+            TextSelectionOperator::Succeeds | TextSelectionOperator::SucceedsAll => {
+                self.begin >= reftextsel.end
+            }
+            TextSelectionOperator::LeftAdjacent | TextSelectionOperator::LeftAdjacentAll => {
+                self.end == reftextsel.begin
+            }
+            TextSelectionOperator::RightAdjacent | TextSelectionOperator::RightAdjacentAll => {
+                reftextsel.end == self.begin
+            }
+            TextSelectionOperator::SameBegin | TextSelectionOperator::SameBeginAll => {
+                self.begin == reftextsel.begin
+            }
+            TextSelectionOperator::SameEnd | TextSelectionOperator::SameEndAll => {
+                self.end == reftextsel.end
+            }
+            TextSelectionOperator::SameRangeAll => {
+                self.begin == reftextsel.begin && self.end == reftextsel.end
+            }
+            TextSelectionOperator::Not(suboperator) => !self.test(suboperator, reftextsel),
+        }
+    }
+    /// This method is called to test whether a specific spatial relation (as expressed by the
     /// passed operator) holds between a [`TextSelection`] and another (or multiple)
     /// ([`TextSelectionSet`]). The operator contains the other part of the equation that is tested
     /// against. A boolean is returned with the test result.
-    pub fn test(&self, operator: &TextSelectionOperator) -> bool {
+    pub fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
         match operator {
-            TextSelectionOperator::Equals(otherset) | TextSelectionOperator::InSet(otherset) => {
-                //item must be equal to ANY of the items in the other set
-                for (other, _, _) in otherset.iter() {
-                    if self == other {
+            TextSelectionOperator::Equals
+            | TextSelectionOperator::InSet
+            | TextSelectionOperator::Overlaps
+            | TextSelectionOperator::Embeds
+            | TextSelectionOperator::Embedded
+            | TextSelectionOperator::Precedes
+            | TextSelectionOperator::Succeeds
+            | TextSelectionOperator::LeftAdjacent
+            | TextSelectionOperator::RightAdjacent
+            | TextSelectionOperator::SameBegin
+            | TextSelectionOperator::SameEnd
+            | TextSelectionOperator::InSet => {
+                for (reftextsel, _, _) in refset.iter() {
+                    if self.test(operator, reftextsel) {
                         return true;
                     }
                 }
                 false
             }
-            TextSelectionOperator::Overlaps(otherset) => {
-                //item must be equal overlap with any of the items in the other set
-                for (other, _, _) in otherset.iter() {
-                    if (other.begin >= self.begin && other.begin < self.end)
-                        || (other.end > self.begin && other.end <= self.end)
-                        || (other.begin <= self.begin && other.end >= self.end)
-                        || (self.begin <= other.begin && self.end >= other.end)
-                    {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::OverlapsAll(otherset) => {
-                //item must be equal overlap with all of the items in the other set
-                if otherset.is_empty() {
+            TextSelectionOperator::OverlapsAll
+            | TextSelectionOperator::EmbedsAll
+            | TextSelectionOperator::EmbeddedAll
+            | TextSelectionOperator::PrecedesAll
+            | TextSelectionOperator::SucceedsAll => {
+                if refset.is_empty() {
                     return false;
                 }
-                for (other, _, _) in otherset.iter() {
-                    if !((other.begin >= self.begin && other.begin < self.end)
-                        || (other.end > self.begin && other.end <= self.end)
-                        || (other.begin <= self.begin && other.end >= self.end)
-                        || (self.begin <= other.begin && self.end >= other.end))
-                    {
+                for (reftextsel, _, _) in refset.iter() {
+                    if !self.test(operator, reftextsel) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::Embeds(otherset) => {
-                // TextSelection embeds an item in other set
-                for (other, _, _) in otherset.iter() {
-                    if other.begin >= self.begin && other.end <= self.end {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::EmbedsAll(otherset) => {
-                // TextSelection embeds all items in other
-                if otherset.is_empty() {
-                    return false;
-                }
-                for (other, _, _) in otherset.iter() {
-                    if !(other.begin >= self.begin && other.end <= self.end) {
-                        return false;
-                    }
-                }
-                true
-            }
-            TextSelectionOperator::Embedded(otherset) => {
-                // TextSelection is embedded by an item in B
-                for (other, _, _) in otherset.iter() {
-                    if self.begin >= other.begin && self.end <= other.end {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::EmbeddedAll(otherset) => {
-                // each item in A is embedded by all items in B
-                if otherset.is_empty() {
-                    return false;
-                }
-                for (other, _, _) in otherset.iter() {
-                    if !(self.begin >= other.begin && self.end <= other.end) {
-                        return false;
-                    }
-                }
-                true
-            }
-            TextSelectionOperator::Precedes(otherset) => {
-                for (other, _, _) in otherset.iter() {
-                    if self.end <= other.begin {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::PrecedesAll(otherset) => {
-                if otherset.is_empty() {
-                    return false;
-                }
-                for (other, _, _) in otherset.iter() {
-                    if self.end > other.begin {
-                        return false;
-                    }
-                }
-                true
-            }
-            TextSelectionOperator::Succeeds(otherset) => {
-                for (other, _, _) in otherset.iter() {
-                    if self.begin >= other.end {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::SucceedsAll(otherset) => {
-                if otherset.is_empty() {
-                    return false;
-                }
-                for (other, _, _) in otherset.iter() {
-                    if self.begin < other.end {
-                        return false;
-                    }
-                }
-                true
-            }
-            TextSelectionOperator::LeftAdjacent(otherset) => {
-                for (other, _, _) in otherset.iter() {
-                    if self.end == other.begin {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::LeftAdjacentAll(otherset) => {
-                if otherset.is_empty() {
+            TextSelectionOperator::LeftAdjacentAll => {
+                if refset.is_empty() {
                     return false;
                 }
                 let mut leftmost = None;
-                for (other, _, _) in otherset.iter() {
+                for (other, _, _) in refset.iter() {
                     if leftmost.is_none() || other.begin < leftmost.unwrap() {
                         leftmost = Some(other.begin);
                     }
                 }
                 Some(self.end) == leftmost
             }
-            TextSelectionOperator::RightAdjacent(otherset) => {
-                for (other, _, _) in otherset.iter() {
-                    if other.end == self.begin {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::RightAdjacentAll(otherset) => {
-                if otherset.is_empty() {
+            TextSelectionOperator::RightAdjacentAll => {
+                if refset.is_empty() {
                     return false;
                 }
                 let mut rightmost = None;
-                for (other, _, _) in otherset.iter() {
+                for (other, _, _) in refset.iter() {
                     if rightmost.is_none() || other.end > rightmost.unwrap() {
                         rightmost = Some(other.end);
                     }
                 }
                 Some(self.begin) == rightmost
             }
-            TextSelectionOperator::SameBegin(otherset) => {
-                for (other, _, _) in otherset.iter() {
-                    if self.begin == other.begin {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::SameBeginAll(otherset) => {
-                if otherset.is_empty() {
+            TextSelectionOperator::SameBeginAll => {
+                if refset.is_empty() {
                     return false;
                 }
-                self.begin == otherset.leftmost().unwrap().begin()
+                self.begin == refset.leftmost().unwrap().begin()
             }
-            TextSelectionOperator::SameEnd(otherset) => {
-                for (other, _, _) in otherset.iter() {
-                    if self.end == other.end {
-                        return true;
-                    }
-                }
-                false
-            }
-            TextSelectionOperator::SameEndAll(otherset) => {
-                if otherset.is_empty() {
+            TextSelectionOperator::SameEndAll => {
+                if refset.is_empty() {
                     return false;
                 }
-                self.end == otherset.rightmost().unwrap().end()
+                self.end == refset.rightmost().unwrap().end()
             }
-            TextSelectionOperator::SameRangeAll(otherset) => {
-                if otherset.is_empty() {
+            TextSelectionOperator::SameRangeAll => {
+                if refset.is_empty() {
                     return false;
                 }
-                self.begin == otherset.leftmost().unwrap().begin()
-                    && self.end == otherset.rightmost().unwrap().end()
+                self.begin == refset.leftmost().unwrap().begin()
+                    && self.end == refset.rightmost().unwrap().end()
             }
-            TextSelectionOperator::Not(suboperator) => !self.test(suboperator),
+            TextSelectionOperator::Not(suboperator) => !self.test_set(suboperator, refset),
         }
     }
 
@@ -872,11 +849,13 @@ impl TextResource {
     /// Apply a [`TextSelectionOperator`] to find text selections
     pub fn find_textselections<'r, 's>(
         &'r self,
-        operator: &'s TextSelectionOperator<'s>,
+        operator: &'s TextSelectionOperator,
+        refset: &'s TextSelectionSet,
     ) -> FindTextSelectionsIter<'r, 's> {
         FindTextSelectionsIter {
             resource: self,
             operator,
+            refset,
             refiter: None,
             textseliter: None,
             buffer: VecDeque::new(),
@@ -887,7 +866,8 @@ impl TextResource {
 
 pub struct FindTextSelectionsIter<'r, 's> {
     resource: &'r TextResource,
-    operator: &'s TextSelectionOperator<'s>,
+    operator: &'s TextSelectionOperator,
+    refset: &'s TextSelectionSet,
 
     //Iterator over the reference text selections in the operator (first-level)
     refiter: Option<TextSelectionSetIter<'s>>,
@@ -907,7 +887,7 @@ impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.refiter.is_none() {
             //initialize iterator over reference text selections
-            self.refiter = Some(self.operator.referenceset().iter())
+            self.refiter = Some(self.refset.iter())
             //TODO: handle Not() operator differently!
         }
 
@@ -915,7 +895,7 @@ impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
             self.buffer.pop_front()
         } else if let Some((reftextselection, _, _)) = self.refiter.as_mut().unwrap().next() {
             match self.operator {
-                TextSelectionOperator::Equals(_) => {
+                TextSelectionOperator::Equals => {
                     if let Ok(Some(handle)) =
                         self.resource.has_textselection(&reftextselection.into())
                     {
@@ -924,7 +904,7 @@ impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
                         None
                     }
                 }
-                TextSelectionOperator::Overlaps(_) => {
+                TextSelectionOperator::Overlaps => {
                     if self.textseliter.is_none() {
                         self.textseliter = Some(
                             self.resource
@@ -939,7 +919,7 @@ impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
                     //else:
                     self.next() //recurse
                 }
-                TextSelectionOperator::OverlapsAll(_) => {
+                TextSelectionOperator::OverlapsAll => {
                     let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
                     for textselection in self
                         .resource
@@ -951,6 +931,42 @@ impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
                         }
                     }
                     self.update_buffer(buffer2);
+                    self.next() //recurse
+                }
+                TextSelectionOperator::Embeds => {
+                    if self.textseliter.is_none() {
+                        self.textseliter = Some(
+                            self.resource
+                                .range(reftextselection.begin(), reftextselection.end()),
+                        );
+                    }
+                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle()
+                            && reftextselection.begin() >= textselection.begin()
+                            && reftextselection.end() <= textselection.end()
+                        {
+                            return Some(textselection.handle().expect("handle must exist"));
+                        }
+                    }
+                    //else:
+                    self.next() //recurse
+                }
+                TextSelectionOperator::Embedded => {
+                    if self.textseliter.is_none() {
+                        self.textseliter = Some(
+                            self.resource
+                                .range(reftextselection.begin(), reftextselection.end()),
+                        );
+                    }
+                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle()
+                            && textselection.begin() >= reftextselection.begin()
+                            && textselection.end() <= reftextselection.end()
+                        {
+                            return Some(textselection.handle().expect("handle must exist"));
+                        }
+                    }
+                    //else:
                     self.next() //recurse
                 }
                 _ => panic!("not implemented yet!"), //TODO
