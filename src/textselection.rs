@@ -2,6 +2,7 @@ use sealed::sealed;
 use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
+use std::collections::VecDeque;
 use std::hash::{Hash, Hasher};
 use std::slice::Iter;
 
@@ -10,7 +11,7 @@ use smallvec::{smallvec, SmallVec};
 use crate::annotation::AnnotationHandle;
 use crate::annotationstore::{TargetIter, TargetIterItem};
 use crate::error::StamError;
-use crate::resources::{TextResource, TextResourceHandle};
+use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
 use crate::selector::{Offset, Selector};
 use crate::store::*;
 use crate::types::*;
@@ -288,11 +289,6 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
     }
 */
 
-impl TextResource {
-    /// Apply a [`TextSelectionOperator`] to find text selections
-    pub fn find_textselections(&self, operator: &TextSelectionOperator) {} //TODO
-}
-
 /// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection'] instances. It
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
 /// [`TextSelection`] instances can be.
@@ -309,13 +305,13 @@ pub enum TextSelectionOperator<'a> {
     /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
     Equals(&'a TextSelectionSet),
 
-    /// All items in both sets must cover the exact same TextSelection
-    EqualsAll(&'a TextSelectionSet),
+    /// All items in both sets must cover the exact same TextSelection. This would be fairly useless, it just means both sets contain only one TextSelection and it's the same one
+    // EqualsAll(&'a TextSelectionSet),
 
-    /// Each TextSelections in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
+    /// Each TextSelection in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
     Overlaps(&'a TextSelectionSet),
 
-    /// Each TextSelections in A overlaps with all TextSelection in B (cf. textfabric's `&&`), commutative
+    /// Each TextSelection in A overlaps with all TextSelection in B (cf. textfabric's `&&`), commutative
     OverlapsAll(&'a TextSelectionSet),
 
     /// All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
@@ -379,7 +375,67 @@ pub enum TextSelectionOperator<'a> {
     Not(Box<TextSelectionOperator<'a>>),
 }
 
+impl Default for TextSelectionSet {
+    fn default() -> Self {
+        Self {
+            data: SmallVec::new(),
+            sorted: false,
+        }
+    }
+}
+
+impl<'a> TextSelectionOperator<'a> {
+    pub fn referenceset(&self) -> &TextSelectionSet {
+        match self {
+            Self::Equals(set)
+            | Self::Overlaps(set)
+            | Self::Embeds(set)
+            | Self::Embedded(set)
+            | Self::Precedes(set)
+            | Self::Succeeds(set)
+            | Self::LeftAdjacent(set)
+            | Self::RightAdjacent(set)
+            | Self::SameBegin(set)
+            | Self::SameEnd(set)
+            | Self::InSet(set)
+            | Self::OverlapsAll(set)
+            | Self::EmbedsAll(set)
+            | Self::EmbeddedAll(set)
+            | Self::LeftAdjacentAll(set)
+            | Self::PrecedesAll(set)
+            | Self::RightAdjacentAll(set)
+            | Self::SucceedsAll(set)
+            | Self::SameBeginAll(set)
+            | Self::SameEndAll(set)
+            | Self::SameRangeAll(set) => set,
+            TextSelectionOperator::Not(suboperator) => suboperator.referenceset(),
+        }
+    }
+
+    // Is this operator an All variant?
+    pub fn all(&self) -> bool {
+        match self {
+            Self::OverlapsAll(_)
+            | Self::EmbedsAll(_)
+            | Self::EmbeddedAll(_)
+            | Self::LeftAdjacentAll(_)
+            | Self::PrecedesAll(_)
+            | Self::RightAdjacentAll(_)
+            | Self::SucceedsAll(_)
+            | Self::SameBeginAll(_)
+            | Self::SameEndAll(_)
+            | Self::SameRangeAll(_) => true,
+            TextSelectionOperator::Not(suboperator) => suboperator.all(),
+            _ => false,
+        }
+    }
+}
+
 impl TextSelectionSet {
+    pub fn new_empty() -> Self {
+        Self::default()
+    }
+
     pub fn new(
         textselection: TextSelection,
         resource: Option<TextResourceHandle>,
@@ -467,8 +523,7 @@ impl TextSelectionSet {
             }
             TextSelectionOperator::OverlapsAll(_)
             | TextSelectionOperator::EmbedsAll(_)
-            | TextSelectionOperator::EmbeddedAll(_)
-            | TextSelectionOperator::EqualsAll(_) => {
+            | TextSelectionOperator::EmbeddedAll(_) => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
                 for (item, _, _) in self.iter() {
                     if !item.test(operator) {
@@ -587,18 +642,6 @@ impl TextSelection {
                     }
                 }
                 false
-            }
-            TextSelectionOperator::EqualsAll(otherset) => {
-                //item must be equal to ALL of the items in the other set
-                if otherset.is_empty() {
-                    return false;
-                }
-                for (other, _, _) in otherset.iter() {
-                    if self == other {
-                        return false;
-                    }
-                }
-                true
             }
             TextSelectionOperator::Overlaps(otherset) => {
                 //item must be equal overlap with any of the items in the other set
@@ -821,6 +864,127 @@ impl
     {
         for (textselection, resource, annotation) in iter {
             self.insert(textselection, resource, annotation);
+        }
+    }
+}
+
+impl TextResource {
+    /// Apply a [`TextSelectionOperator`] to find text selections
+    pub fn find_textselections<'r, 's>(
+        &'r self,
+        operator: &'s TextSelectionOperator<'s>,
+    ) -> FindTextSelectionsIter<'r, 's> {
+        FindTextSelectionsIter {
+            resource: self,
+            operator,
+            refiter: None,
+            textseliter: None,
+            buffer: VecDeque::new(),
+            drain_buffer: false,
+        }
+    }
+}
+
+pub struct FindTextSelectionsIter<'r, 's> {
+    resource: &'r TextResource,
+    operator: &'s TextSelectionOperator<'s>,
+
+    //Iterator over the reference text selections in the operator (first-level)
+    refiter: Option<TextSelectionSetIter<'s>>,
+
+    /// Iterator over TextSelections in self (second-level)
+    textseliter: Option<TextSelectionIter<'r>>,
+
+    buffer: VecDeque<TextSelectionHandle>,
+
+    // once bufferiter is set, we simply drain the buffer
+    drain_buffer: bool,
+}
+
+impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
+    type Item = TextSelectionHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.refiter.is_none() {
+            //initialize iterator over reference text selections
+            self.refiter = Some(self.operator.referenceset().iter())
+            //TODO: handle Not() operator differently!
+        }
+
+        if self.drain_buffer {
+            self.buffer.pop_front()
+        } else if let Some((reftextselection, _, _)) = self.refiter.as_mut().unwrap().next() {
+            match self.operator {
+                TextSelectionOperator::Equals(_) => {
+                    if let Ok(Some(handle)) =
+                        self.resource.has_textselection(&reftextselection.into())
+                    {
+                        Some(handle)
+                    } else {
+                        None
+                    }
+                }
+                TextSelectionOperator::Overlaps(_) => {
+                    if self.textseliter.is_none() {
+                        self.textseliter = Some(
+                            self.resource
+                                .range(reftextselection.begin(), reftextselection.end()),
+                        );
+                    }
+                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle() {
+                            return Some(textselection.handle().expect("handle must exist"));
+                        }
+                    }
+                    //else:
+                    self.next() //recurse
+                }
+                TextSelectionOperator::OverlapsAll(_) => {
+                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
+                    for textselection in self
+                        .resource
+                        .range(reftextselection.begin(), reftextselection.end())
+                    {
+                        if textselection.intid != reftextselection.intid {
+                            //do not include the item itself
+                            buffer2.push(textselection.handle().expect("handle must exist"))
+                        }
+                    }
+                    self.update_buffer(buffer2);
+                    self.next() //recurse
+                }
+                _ => panic!("not implemented yet!"), //TODO
+            }
+        } else {
+            if self.operator.all() {
+                //This is for the *All variants  that use a buffer:
+                //iteration done, start draining buffer stage
+                self.drain_buffer = true;
+                self.next() //recurse
+            } else {
+                None
+            }
+        }
+    }
+}
+
+impl<'r, 's> FindTextSelectionsIter<'r, 's> {
+    fn update_buffer(&mut self, buffer2: Vec<TextSelectionHandle>) {
+        if self.buffer.is_empty() {
+            //initial population of buffer
+            self.buffer = buffer2.into_iter().collect();
+        } else {
+            //remove items from buffer that are not in buffer2  (I want to use Vec::drain_filter() here but that's nightly-only still)
+            self.buffer = self
+                .buffer
+                .iter()
+                .filter(|handle| buffer2.contains(handle))
+                .map(|x| *x)
+                .collect();
+        }
+        //if the buffer is still empty, it will never be filled and we move on to the draining stage (will which immediately return None becasue there is nothing)
+        if self.buffer.is_empty() {
+            self.drain_buffer = true;
         }
     }
 }
