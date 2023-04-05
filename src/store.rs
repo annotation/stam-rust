@@ -783,7 +783,7 @@ where
         match self {
             Self::Id(s) => Self::Id(s.clone()),
             Self::IdRef(s) => Self::Id(s.to_string()),
-            Self::Ref(r) => Self::Ref(r),
+            Self::Ref(r) => Self::Ref(*r),
             Self::Handle(h) => Self::Handle(*h),
             Self::None => Self::None,
         }
