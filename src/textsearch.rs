@@ -72,57 +72,27 @@ impl TextResource {
         })
     }
 
-    /// Searches for the text fragment and returns a [`TextSelection`] to the first match.
+    /// Searches for the text fragment. Returns an iterator to iterate over all matches
+    /// The iterator returns [`TextSelection`] items.
     ///
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
     /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing [`TextSelection`]).
-    pub fn find_text(&self, fragment: &str, offset: Option<&Offset>) -> Option<TextSelection> {
-        if let Ok((text, begincharpos, beginbytepos)) = self.extract_text_by_offset(offset) {
-            text.find(fragment).map(|foundbytepos| {
-                let endbytepos = foundbytepos + fragment.len();
-                TextSelection {
-                    intid: None,
-                    begin: begincharpos
-                        + self
-                            .utf8byte_to_charpos(beginbytepos + foundbytepos)
-                            .expect("utf-8 byte must resolve to valid charpos"),
-                    end: begincharpos
-                        + self
-                            .utf8byte_to_charpos(beginbytepos + endbytepos)
-                            .expect("utf-8 byte must resolve to valid charpos"),
-                }
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Searches for the text fragment and returns a vector with all matching [`TextSelection`]
-    ///
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
-    ///
-    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
-    pub fn find_all_text(&self, fragment: &str, offset: Option<&Offset>) -> Vec<TextSelection> {
-        //MAYBE TODO: rewrite to iterator
-        let mut offset = if let Some(offset) = offset {
-            offset.clone()
+    pub fn find_text<'a, 'b>(
+        &'a self,
+        fragment: &'b str,
+        offset: Option<Offset>,
+    ) -> FindTextIter<'a, 'b> {
+        let offset = if let Some(offset) = offset {
+            offset
         } else {
             Offset::whole()
         };
-        let mut results = Vec::new();
-        if let Ok(absend) = self.absolute_cursor(&offset.end) {
-            while let Some(found) = self.find_text(fragment, Some(&offset)) {
-                if found.end() <= absend {
-                    offset = Offset {
-                        begin: Cursor::BeginAligned(found.end()),
-                        end: Cursor::BeginAligned(absend),
-                    };
-                }
-                results.push(found);
-            }
+        FindTextIter {
+            resource: self,
+            fragment,
+            offset,
         }
-        results
     }
 
     /// Returns (text,begincharpos, beginbytepos)
@@ -458,6 +428,51 @@ impl<'t, 'r> FindRegexIter<'t, 'r> {
                     capturegroups,
                 }
             }
+        }
+    }
+}
+
+/// This iterator is produced by [`TextResource.find_text_regex()`] and searches a text based on regular expressions.
+pub struct FindTextIter<'a, 'b> {
+    resource: &'a TextResource,
+    fragment: &'b str,
+    offset: Offset,
+}
+
+impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
+    type Item = TextSelection;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((text, begincharpos, beginbytepos)) = self
+            .resource
+            .extract_text_by_offset(Some(&self.offset))
+            .ok()
+        {
+            text.find(self.fragment).map(|foundbytepos| {
+                let endbytepos = foundbytepos + self.fragment.len();
+                let newbegin = begincharpos
+                    + self
+                        .resource
+                        .utf8byte_to_charpos(beginbytepos + foundbytepos)
+                        .expect("utf-8 byte must resolve to valid charpos");
+                let newend = begincharpos
+                    + self
+                        .resource
+                        .utf8byte_to_charpos(beginbytepos + endbytepos)
+                        .expect("utf-8 byte must resolve to valid charpos");
+                //set offset for next run
+                self.offset = Offset {
+                    begin: Cursor::BeginAligned(newend),
+                    end: self.offset.end,
+                };
+
+                TextSelection {
+                    intid: None,
+                    begin: newbegin,
+                    end: newend,
+                }
+            })
+        } else {
+            None
         }
     }
 }

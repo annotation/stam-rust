@@ -445,19 +445,19 @@ fn utf82unicode() {
 }
 
 #[test]
-fn find() {
+fn find_text_single() {
     let resource =
         TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
-    let textselection = resource.find_text("världen", None).unwrap();
+    let textselection = resource.find_text("världen", None).next().unwrap();
     assert_eq!(textselection.begin(), 6);
     assert_eq!(textselection.end(), 13);
 }
 
 #[test]
-fn find_all() {
+fn find_text_multi() {
     let resource = TextResource::new("testres".into(), Config::default())
         .with_string("To be or not to be, that's the question".into());
-    let textselections = resource.find_all_text("be", None);
+    let textselections: Vec<_> = resource.find_text("be", None).collect();
     assert_eq!(textselections.len(), 2);
     assert_eq!(textselections[0].begin(), 3);
     assert_eq!(textselections[0].end(), 5);
