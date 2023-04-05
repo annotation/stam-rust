@@ -752,7 +752,7 @@ where
 
 ///////////////////////////////// Any
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(untagged)]
 /// `Any` offers various ways of referring to a data structure of type `T` in the core STAM model
 /// It abstracts over public IDs, handles, and references.
@@ -773,6 +773,21 @@ where
 
     #[serde(skip)]
     None,
+}
+
+impl<'a, T> Clone for Item<'a, T>
+where
+    T: Storable,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Id(s) => Self::Id(s.clone()),
+            Self::IdRef(s) => Self::Id(s.to_string()),
+            Self::Ref(r) => Self::Ref(r),
+            Self::Handle(h) => Self::Handle(*h),
+            Self::None => Self::None,
+        }
+    }
 }
 
 impl<'a, T> Default for Item<'a, T>
