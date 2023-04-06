@@ -454,6 +454,15 @@ fn find_text_single() {
 }
 
 #[test]
+fn find_text_single2() {
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let textselection = resource.find_text("Hallå", None).next().unwrap();
+    assert_eq!(textselection.begin(), 0);
+    assert_eq!(textselection.end(), 5);
+}
+
+#[test]
 fn find_text_multi() {
     let resource = TextResource::new("testres".into(), Config::default())
         .with_string("To be or not to be, that's the question".into());
@@ -463,4 +472,25 @@ fn find_text_multi() {
     assert_eq!(textselections[0].end(), 5);
     assert_eq!(textselections[1].begin(), 21);
     assert_eq!(textselections[1].end(), 23);
+}
+
+#[test]
+fn find_text_none() {
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let v: Vec<_> = resource.find_text("blah", None).collect();
+    assert!(v.is_empty());
+}
+
+#[test]
+fn split_text() {
+    let resource = TextResource::new("testres".into(), Config::default())
+        .with_string("To be or not to be".into());
+    let textselections: Vec<_> = resource.split_text(" ").collect();
+    eprintln!("{:?}", textselections);
+    assert_eq!(textselections.len(), 6);
+    assert_eq!(textselections[0].begin(), 0);
+    assert_eq!(textselections[0].end(), 2);
+    assert_eq!(textselections[5].begin(), 16);
+    assert_eq!(textselections[5].end(), 18);
 }

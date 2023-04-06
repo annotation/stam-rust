@@ -72,7 +72,7 @@ impl TextResource {
         })
     }
 
-    /// Searches for the text fragment. Returns an iterator to iterate over all matches
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
@@ -95,6 +95,31 @@ impl TextResource {
         }
     }
 
+    /// Returns an iterator of ['TextSelection`] instances that represent partitions
+    /// of the text given the specified delimiter.
+    ///
+    /// The iterator returns [`TextSelection`] items.
+    pub fn split_text<'a>(
+        &'a self,
+        delimiter: &'a str,
+    ) -> Box<dyn Iterator<Item = TextSelection> + 'a> {
+        Box::new(self.text().split(delimiter).map(|matchstr| {
+            let beginbyte = self
+                .subslice_utf8_offset(matchstr)
+                .expect("match must be found");
+            let endbyte = beginbyte + matchstr.len();
+            TextSelection {
+                intid: None,
+                begin: self
+                    .utf8byte_to_charpos(beginbyte)
+                    .expect("utf-8 byte must resolve to char pos"),
+                end: self
+                    .utf8byte_to_charpos(endbyte)
+                    .expect("utf-8 byte must resolve to char pos"),
+            }
+        }))
+    }
+
     /// Returns (text,begincharpos, beginbytepos)
     fn extract_text_by_offset(
         &self,
@@ -109,6 +134,16 @@ impl TextResource {
             ))
         } else {
             Ok((self.text(), 0, 0))
+        }
+    }
+
+    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
+        let self_begin = self.text().as_ptr() as usize;
+        let sub_begin = subslice.as_ptr() as usize;
+        if sub_begin < self_begin || sub_begin > self_begin.wrapping_add(self.text().len()) {
+            None
+        } else {
+            Some(sub_begin.wrapping_sub(self_begin))
         }
     }
 }
