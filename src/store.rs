@@ -451,27 +451,14 @@ pub trait StoreFor<T: Storable>: Configurable {
         }
     }
 
-    /*
-    /// Get a reference to an item from the store by its global ID
-    fn get_by_id<'a>(&'a self, id: &str) -> Result<&'a T, StamError> {
-        let handle = self.resolve_id(id)?;
-        self.get(handle)
+    /// Get a reference to an item from the store, by handle, without checking validity.
+    ///
+    /// ## Safety
+    /// Calling this method with an out-of-bounds index is [undefined behavior](https://doc.rust-lang.org/reference/behavior-considered-undefined.html)  │       
+    /// even if the resulting reference is not used.                                                                                                     │       
+    unsafe fn get_unchecked(&self, handle: T::HandleType) -> Option<&T> {
+        self.store().get_unchecked(handle.unwrap()).as_ref()
     }
-
-    /// Get a mutable reference to an item from the store by its global ID
-    fn get_mut_by_id<'a>(&'a mut self, id: &str) -> Result<&'a mut T, StamError> {
-        let handle = self.resolve_id(id)?;
-        self.get_mut(handle)
-    }
-
-    fn get(&self, handle: T::HandleType) -> Result<&T, StamError> {
-        if let Some(Some(item)) = self.store().get(handle.unwrap()) {
-            Ok(item)
-        } else {
-            Err(StamError::HandleError(Self::store_typeinfo()))
-        }
-    }
-    */
 
     /// Get a reference to an item from the store
     fn get<'a, 'b>(&'a self, item: &Item<'b, T>) -> Result<&'a T, StamError> {
