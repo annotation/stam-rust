@@ -121,7 +121,7 @@ impl PartialEq<AnnotationData> for AnnotationData {
     }
 }
 
-impl<'a> Serialize for WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
+impl<'a> Serialize for WrappedItem<'a, AnnotationData, AnnotationDataSet> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -145,7 +145,7 @@ impl<'a> Serialize for WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
 
 // This is just a newtype wrapping the one above, and used if one explicitly wants to serialize a set (needed if serialized from Annotation context)
 pub(crate) struct AnnotationDataRefWithSet<'a>(
-    pub(crate) WrappedStorable<'a, AnnotationData, AnnotationDataSet>,
+    pub(crate) WrappedItem<'a, AnnotationData, AnnotationDataSet>,
 );
 
 impl<'a> Serialize for AnnotationDataRefWithSet<'a> {
@@ -221,14 +221,14 @@ impl AnnotationData {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json(&self, store: &AnnotationDataSet) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: WrappedStorable<Self, AnnotationDataSet> = WrappedStorable::new(self, store)?;
+        let wrapped: WrappedItem<Self, AnnotationDataSet> = WrappedItem::new(self, store)?;
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation dataset to string: {}", e))
         })
     }
 }
 
-impl<'a> WrappedStorable<'a, AnnotationData, AnnotationDataSet> {
+impl<'a> WrappedItem<'a, AnnotationData, AnnotationDataSet> {
     /// Return a reference to the AnnotationDataSet that holds this data (and its key)
     pub fn dataset_as_ref(&'a self) -> &'a AnnotationDataSet {
         self.store()

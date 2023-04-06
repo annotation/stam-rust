@@ -167,7 +167,7 @@ impl Annotation {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json_string(&self, store: &AnnotationStore) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: WrappedStorable<Self, AnnotationStore> = WrappedStorable::new(self, store)?;
+        let wrapped: WrappedItem<Self, AnnotationStore> = WrappedItem::new(self, store)?;
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation to string: {}", e))
         })
@@ -275,7 +275,7 @@ impl<'a> AnnotationBuilder<'a> {
     }
 }
 
-impl<'a> Serialize for WrappedStorable<'a, Annotation, AnnotationStore> {
+impl<'a> Serialize for WrappedItem<'a, Annotation, AnnotationStore> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -295,7 +295,7 @@ impl<'a> Serialize for WrappedStorable<'a, Annotation, AnnotationStore> {
 
 //Helper for serialising annotationdata under annotations
 struct AnnotationDataRefSerializer<'a, 'b> {
-    annotation: &'b WrappedStorable<'a, Annotation, AnnotationStore>,
+    annotation: &'b WrappedItem<'a, Annotation, AnnotationStore>,
 }
 
 struct AnnotationDataRef<'a> {

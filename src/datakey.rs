@@ -174,7 +174,7 @@ impl DataKey {
     }
 }
 
-impl<'a> WrappedStorable<'a, DataKey, AnnotationDataSet> {
+impl<'a> WrappedItem<'a, DataKey, AnnotationDataSet> {
     /// Shortcut to return a reference to the dataset
     pub fn annotationset_as_ref(&'a self) -> &'a AnnotationDataSet {
         self.store()

@@ -251,11 +251,21 @@ pub trait Storable: PartialEq + TypeInfo {
     fn wrap_in<'a, S: StoreFor<Self>>(
         &'a self,
         store: &'a S,
-    ) -> Result<WrappedStorable<Self, S>, StamError>
+    ) -> Result<WrappedItem<Self, S>, StamError>
     where
         Self: Sized,
     {
         store.wrap(self)
+    }
+
+    /// Returns a wrapped reference to this item and the store that owns it. This allows for some
+    /// more introspection on the part of the item.
+    /// reverse of [`StoreFor<T>::wrap_owned()`]
+    fn wrap_owned_in<'a, S: StoreFor<Self>>(self, store: &'a S) -> WrappedOwnedItem<Self, S>
+    where
+        Self: Sized,
+    {
+        store.wrap_owned(self)
     }
 
     /// Set the internal ID. May only be called once (though currently not enforced).
@@ -581,16 +591,26 @@ pub trait StoreFor<T: Storable>: Configurable {
         }
     }
 
-    /// Wraps the reference with a reference to the store
-    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedStorable<T, Self>, StamError>
+    /// Wraps the item in a smart pointer that also holds a reference to this store
+    /// This method performs some extra checks to verify if the item is indeed owned by the store
+    /// and returns an error if not.
+    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedItem<T, Self>, StamError>
     where
         Self: Sized,
     {
-        WrappedStorable::new(item, self)
+        WrappedItem::new(item, self)
+    }
+
+    /// Wraps an owned item (i.e. not (yet) owned by the store) in a smart pointer that also holds a reference to this store
+    fn wrap_owned<'a>(&'a self, item: T) -> WrappedOwnedItem<T, Self>
+    where
+        Self: Sized,
+    {
+        WrappedOwnedItem::new(item, self)
     }
 
     /// Wraps the entire store along with a reference to self
-    fn wrappedstore<'a>(&'a self) -> WrappedStore<T, Self>
+    fn wrap_store<'a>(&'a self) -> WrappedStore<T, Self>
     where
         Self: Sized,
     {
@@ -658,7 +678,7 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
 #[derive(Clone, Copy, Debug)]
-pub struct WrappedStorable<'a, T, S: StoreFor<T>>
+pub struct WrappedItem<'a, T, S: StoreFor<T>>
 where
     T: Storable,
 {
@@ -666,7 +686,19 @@ where
     store: &'a S,
 }
 
-impl<'a, T, S> Deref for WrappedStorable<'a, T, S>
+/// This is a smart pointer that encapsulates both the item and the store that offers
+/// the required context to interpret it. Unlike ['WrappedItem`], this one holds an owned structure
+/// that is *not* part of the store. It is used mostly for [`TextSelection`].
+#[derive(Clone, Copy, Debug)]
+pub struct WrappedOwnedItem<'a, T, S: StoreFor<T>>
+where
+    T: Storable,
+{
+    item: T,
+    store: &'a S,
+}
+
+impl<'a, T, S> Deref for WrappedItem<'a, T, S>
 where
     T: Storable,
     S: StoreFor<T>,
@@ -678,12 +710,12 @@ where
     }
 }
 
-impl<'a, T, S> WrappedStorable<'a, T, S>
+impl<'a, T, S> WrappedItem<'a, T, S>
 where
     T: Storable,
     S: StoreFor<T>,
 {
-    //Create a new wrapped item
+    //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
     pub(crate) fn new(item: &'a T, store: &'a S) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
@@ -692,7 +724,22 @@ where
                 "Can't wrap an item in a store that doesn't own it!",
             ));
         }
-        Ok(WrappedStorable { item, store })
+        Ok(WrappedItem { item, store })
+    }
+
+    pub fn store(&self) -> &S {
+        self.store
+    }
+}
+
+impl<'a, T, S> WrappedOwnedItem<'a, T, S>
+where
+    T: Storable,
+    S: StoreFor<T>,
+{
+    //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
+    pub(crate) fn new(item: T, store: &'a S) -> Self {
+        Self { item, store }
     }
 
     pub fn store(&self) -> &S {

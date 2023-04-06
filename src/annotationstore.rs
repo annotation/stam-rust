@@ -569,7 +569,7 @@ impl Serialize for AnnotationStore {
         }
         state.serialize_field("resources", &self.resources)?;
         state.serialize_field("annotationsets", &self.annotationsets)?;
-        let wrappedstore: WrappedStore<Annotation, Self> = self.wrappedstore();
+        let wrappedstore: WrappedStore<Annotation, Self> = self.wrap_store();
         state.serialize_field("annotations", &wrappedstore)?;
         state.end()
     }

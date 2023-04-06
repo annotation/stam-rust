@@ -12,7 +12,7 @@ use crate::types::*;
 
 impl TextResource {
     /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`SearchTextMatch'] struct.
+    /// is held by the [`FindRegexMatch'] struct.
     ///
     /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
     /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
