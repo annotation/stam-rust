@@ -24,9 +24,10 @@ pub fn bench_textsearch(c: &mut Criterion) {
         Regex::new(r"[0-9]+(?:[,\.][0-9]+)").unwrap(),
     ];
 
+    let searchterm_regex = Regex::new("license").unwrap();
     let searchterm = "license";
 
-    c.bench_function("find_text_regex_single", |b| {
+    c.bench_function("textsearch/find_text_regex_single", |b| {
         b.iter(|| {
             let singleexpression = black_box(&singleexpression).clone();
             let mut sumlen = 0;
@@ -37,7 +38,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("find_text_regex_text_multi", |b| {
+    c.bench_function("textsearch/find_text_regex_text_multi", |b| {
         b.iter(|| {
             let expressions = black_box(&expressions).clone();
             let mut sumlen = 0;
@@ -48,7 +49,18 @@ pub fn bench_textsearch(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("find_text_all", |b| {
+    c.bench_function("textsearch/find_text_regex_single2", |b| {
+        b.iter(|| {
+            let singleexpression = black_box(&searchterm_regex).clone();
+            let mut sumlen = 0;
+            for item in black_box(store.find_text_regex(&[singleexpression], &None, &None, false)) {
+                sumlen += item.text().len(); //just so we have something silly to do with the item
+            }
+            assert!(sumlen > 0);
+        })
+    });
+
+    c.bench_function("textsearch/find_text_all", |b| {
         b.iter(|| {
             let mut sumlen = 0;
             for item in black_box(resource.find_text(&searchterm, None)) {
@@ -58,10 +70,10 @@ pub fn bench_textsearch(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("split_text", |b| {
+    c.bench_function("textsearch/split_text", |b| {
         b.iter(|| {
             let mut sumlen = 0;
-            for item in black_box(resource.split_text(" ")) {
+            for item in black_box(resource.split_text(&searchterm)) {
                 sumlen += item.begin(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);
