@@ -5,6 +5,7 @@ use std::ops::Bound::{Excluded, Included};
 use std::slice::Iter;
 use std::sync::{Arc, RwLock};
 
+use regex::{Regex, RegexSet};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ use crate::file::*;
 use crate::json::{FromJson, ToJson};
 use crate::selector::{Offset, Selector, SelfSelector};
 use crate::store::*;
+use crate::textsearch::*;
 use crate::textselection::PositionIndexItem;
 use crate::textselection::{PositionIndex, TextSelection, TextSelectionHandle};
 use crate::types::*;
@@ -439,12 +441,6 @@ impl TextResource {
         }
     }
 
-    /// Returns the length of the text in unicode points
-    /// For bytes, use `self.text().len()` instead.
-    pub fn textlen(&self) -> usize {
-        self.textlen
-    }
-
     /// Create a new TextResource from string, kept in memory entirely
     pub fn from_string(id: String, text: String, config: Config) -> Self {
         let textlen = text.chars().count();
@@ -484,45 +480,6 @@ impl TextResource {
         }
     }
 
-    /// Returns a reference to the full text of this resource
-    pub fn text(&self) -> &str {
-        self.text.as_str()
-    }
-
-    /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
-    /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
-    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
-    ///
-    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections only.
-    pub fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
-        match self.has_textselection(offset) {
-            Ok(Some(handle)) => {
-                //existing textselection
-                let textselection: &TextSelection = self.get(&handle.into())?; //shouldn't fail here anymore
-                Ok(textselection.clone()) //clone is relatively cheap
-            }
-            Ok(None) => {
-                //create a new one
-                let begin = self.absolute_cursor(&offset.begin)?; //this can't fail because it would have already in find_selection()
-                let end = self.absolute_cursor(&offset.end)?;
-                if end > begin {
-                    Ok(TextSelection {
-                        intid: None,
-                        begin,
-                        end,
-                    })
-                } else {
-                    Err(StamError::InvalidOffset(
-                        offset.begin,
-                        offset.end,
-                        "End must be greater than begin",
-                    ))
-                }
-            }
-            Err(err) => Err(err), //an error occured, propagate
-        }
-    }
-
     /// Finds an **existing** text selection**, as specified by the offset. Returns a handle.
     /// by the offset. Use the higher-level method [`Self.textselection()`] instead if you
     /// in most circumstances.
@@ -531,8 +488,8 @@ impl TextResource {
         offset: &Offset,
     ) -> Result<Option<TextSelectionHandle>, StamError> {
         let (begin, end) = (
-            self.absolute_cursor(&offset.begin)?,
-            self.absolute_cursor(&offset.end)?,
+            self.beginaligned_cursor(&offset.begin)?,
+            self.beginaligned_cursor(&offset.end)?,
         );
         if let Some(beginitem) = self.positionindex.0.get(&begin) {
             for (end2, handle) in beginitem.begin2end.iter() {
@@ -559,15 +516,15 @@ impl TextResource {
         Ok(&self.text()[beginbyte..endbyte])
     }
 
-    /// Resolves a cursor to an absolute position (by definition begin aligned)
-    pub fn absolute_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
+    /// Resolves a cursor to a being aligned cursor, resolving all relative end-aligned positions
+    pub fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
         match *cursor {
             Cursor::BeginAligned(cursor) => Ok(cursor),
             Cursor::EndAligned(cursor) => {
                 if cursor.abs() as usize > self.textlen {
                     Err(StamError::CursorOutOfBounds(
                         Cursor::EndAligned(cursor),
-                        "TextResource::absolute_cursor(): end aligned cursor ends up before the beginning",
+                        "TextResource::beginaligned_cursor(): end aligned cursor ends up before the beginning",
                     ))
                 } else {
                     Ok(self.textlen - cursor.abs() as usize)
@@ -576,8 +533,8 @@ impl TextResource {
         }
     }
 
-    /// Resolves an absolute cursor (by definition begin aligned) to UTF-8 byteposition
-    /// If you have a Cursor instance, pass it through [`Self.absolute_cursor()`] first.
+    /// Resolves a begin aligne cursor to UTF-8 byteposition
+    /// If you have a Cursor instance, pass it through [`Self.beginaligned_cursor()`] first.
     pub fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
         if let Some(posindexitem) = self.positionindex.0.get(&abscursor) {
             //exact position is in the position index, return the byte
@@ -736,6 +693,168 @@ impl TextResource {
     /// Returns the number of positions in the positionindex
     pub fn positionindex_len(&self) -> usize {
         self.positionindex.0.len()
+    }
+}
+
+impl HasText for TextResource {
+    /// Returns the length of the text in unicode points
+    /// For bytes, use `self.text().len()` instead.
+    fn textlen(&self) -> usize {
+        self.textlen
+    }
+
+    /// Returns a reference to the full text of this resource
+    fn text(&self) -> &str {
+        self.text.as_str()
+    }
+
+    /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
+    /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
+    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
+    ///
+    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections only.
+    fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
+        match self.has_textselection(offset) {
+            Ok(Some(handle)) => {
+                //existing textselection
+                let textselection: &TextSelection = self.get(&handle.into())?; //shouldn't fail here anymore
+                Ok(textselection.clone()) //clone is relatively cheap
+            }
+            Ok(None) => self.textselection_by_offset(offset),
+            Err(err) => Err(err), //an error occured, propagate
+        }
+    }
+
+    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
+    /// is held by the [`FindRegexMatch'] struct.
+    ///
+    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
+    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
+    /// the entire expression is returned.
+    ///
+    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
+    ///
+    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
+    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
+    /// false. All of this only matters if you supply multiple regular expressions.
+    ///
+    /// Results are returned in the exact order they are found in the text
+    fn find_text_regex<'a, 'b>(
+        &'a self,
+        expressions: &'b [Regex],
+        offset: Option<&Offset>,
+        precompiledset: Option<&RegexSet>,
+        allow_overlap: bool,
+    ) -> Result<FindRegexIter<'a, 'b>, StamError> {
+        debug(self.config(), || {
+            format!("search_text: expressions={:?}", expressions)
+        });
+        let (text, begincharpos, beginbytepos) = self.extract_text_by_offset(offset)?;
+        let selectexpressions = if expressions.len() > 2 {
+            //we have multiple expressions, first we do a pass to see WHICH of the regular expression matche (taking them all into account in a single pass!).
+            //then afterwards we find for each of the matching expressions WHERE they are found
+            let foundexpressions: Vec<_> = if let Some(regexset) = precompiledset {
+                regexset.matches(text).into_iter().collect()
+            } else {
+                RegexSet::new(expressions.iter().map(|x| x.as_str()))
+                    .map_err(|e| {
+                        StamError::RegexError(e, "Parsing regular expressions in search_text()")
+                    })?
+                    .matches(text)
+                    .into_iter()
+                    .collect()
+            };
+            foundexpressions
+        } else {
+            match expressions.len() {
+                1 => vec![0],
+                2 => vec![0, 1],
+                _ => unreachable!("Expected 1 or 2 expressions"),
+            }
+        };
+        //Returns an iterator that does the remainder of the actual searching
+        Ok(FindRegexIter {
+            resource: self,
+            expressions,
+            selectexpressions,
+            matchiters: Vec::new(),
+            nextmatches: Vec::new(),
+            text,
+            begincharpos,
+            beginbytepos,
+            allow_overlap,
+        })
+    }
+
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
+    fn find_text<'a, 'b>(
+        &'a self,
+        fragment: &'b str,
+        offset: Option<Offset>,
+    ) -> FindTextIter<'a, 'b> {
+        let offset = if let Some(offset) = offset {
+            offset
+        } else {
+            Offset::whole()
+        };
+        FindTextIter {
+            resource: self,
+            fragment,
+            offset,
+        }
+    }
+
+    /// Returns an iterator of ['TextSelection`] instances that represent partitions
+    /// of the text given the specified delimiter.
+    ///
+    /// The iterator returns [`TextSelection`] items.
+    fn split_text<'a>(
+        &'a self,
+        delimiter: &'a str,
+    ) -> Box<dyn Iterator<Item = TextSelection> + 'a> {
+        Box::new(self.text().split(delimiter).map(|matchstr| {
+            let beginbyte = self
+                .subslice_utf8_offset(matchstr)
+                .expect("match must be found");
+            let endbyte = beginbyte + matchstr.len();
+            TextSelection {
+                intid: None,
+                begin: self
+                    .utf8byte_to_charpos(beginbyte)
+                    .expect("utf-8 byte must resolve to char pos"),
+                end: self
+                    .utf8byte_to_charpos(endbyte)
+                    .expect("utf-8 byte must resolve to char pos"),
+            }
+        }))
+    }
+
+    fn extract_text_by_offset(
+        &self,
+        offset: Option<&Offset>,
+    ) -> Result<(&str, usize, usize), StamError> {
+        if let Some(offset) = offset {
+            let selection = self.textselection(&offset)?;
+            let text = self.text_by_textselection(&selection)?;
+            Ok((text, selection.begin(), self.utf8byte(selection.begin())?))
+        } else {
+            Ok((self.text(), 0, 0))
+        }
+    }
+
+    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
+        let self_begin = self.text().as_ptr() as usize;
+        let sub_begin = subslice.as_ptr() as usize;
+        if sub_begin < self_begin || sub_begin > self_begin.wrapping_add(self.text().len()) {
+            None
+        } else {
+            Some(sub_begin.wrapping_sub(self_begin))
+        }
     }
 }
 

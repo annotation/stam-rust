@@ -1374,8 +1374,8 @@ impl AnnotationStore {
                 for selector in subselectors {
                     if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
                         //each annotation selector selects a subslice of the previous textselection
-                        let begin = textselection.absolute_cursor(&suboffset.begin)?;
-                        let end = textselection.absolute_cursor(&suboffset.end)?;
+                        let begin = textselection.beginaligned_cursor(&suboffset.begin)?;
+                        let end = textselection.beginaligned_cursor(&suboffset.end)?;
                         textselection = TextSelection {
                             intid: None,
                             begin,

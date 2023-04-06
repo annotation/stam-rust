@@ -148,8 +148,8 @@ impl TextSelection {
         self.end
     }
 
-    /// Resolves a cursor that is formulated **relative to this text selection** to an absolute position (by definition begin aligned)
-    pub fn absolute_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
+    /// Resolves a cursor that is formulated **relative to this text selection** to a begin aligned position
+    pub fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
         let length = self.end() - self.begin();
         match *cursor {
             Cursor::BeginAligned(cursor) => Ok(self.begin + cursor),
@@ -157,7 +157,7 @@ impl TextSelection {
                 if cursor.abs() as usize > length {
                     Err(StamError::CursorOutOfBounds(
                         Cursor::EndAligned(cursor),
-                        "TextResource::absolute_cursor(): end aligned cursor ends up before the beginning",
+                        "TextResource::beginaligned_cursor(): end aligned cursor ends up before the beginning",
                     ))
                 } else {
                     Ok(self.begin + (length - cursor.abs() as usize))
