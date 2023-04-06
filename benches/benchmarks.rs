@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 
 use stam::{
     Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, Config, Handle, Item, Offset,
-    Regex, SelectorBuilder, StoreFor, TextResource,
+    Regex, SelectorBuilder, StoreFor, TextResource, TextSelection,
 };
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
@@ -13,7 +13,8 @@ pub fn bench_textsearch(c: &mut Criterion) {
 
     let mut store = AnnotationStore::new();
 
-    let handle = store.add_resource_from_file(filename).unwrap();
+    let resource_handle = store.add_resource_from_file(filename).unwrap();
+    let resource = store.resource(&resource_handle.into()).unwrap();
 
     let singleexpression = Regex::new(r"\w+(?:[-_]\w+)*").unwrap();
 
@@ -22,6 +23,8 @@ pub fn bench_textsearch(c: &mut Criterion) {
         Regex::new(r"[\.\?,/]+").unwrap(),
         Regex::new(r"[0-9]+(?:[,\.][0-9]+)").unwrap(),
     ];
+
+    let searchterm = "license";
 
     c.bench_function("find_text_regex_single", |b| {
         b.iter(|| {
@@ -34,12 +37,32 @@ pub fn bench_textsearch(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("finx_text_regex_text_multi", |b| {
+    c.bench_function("find_text_regex_text_multi", |b| {
         b.iter(|| {
             let expressions = black_box(&expressions).clone();
             let mut sumlen = 0;
             for item in black_box(store.find_text_regex(&expressions, &None, &None, false)) {
                 sumlen += item.text().len(); //just so we have something silly to do with the item
+            }
+            assert!(sumlen > 0);
+        })
+    });
+
+    c.bench_function("find_text_all", |b| {
+        b.iter(|| {
+            let mut sumlen = 0;
+            for item in black_box(resource.find_text(&searchterm, None)) {
+                sumlen += item.begin(); //just so we have something silly to do with the item
+            }
+            assert!(sumlen > 0);
+        })
+    });
+
+    c.bench_function("split_text", |b| {
+        b.iter(|| {
+            let mut sumlen = 0;
+            for item in black_box(resource.split_text(" ")) {
+                sumlen += item.begin(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);
         })
