@@ -480,10 +480,11 @@ impl TextResource {
         }
     }
 
-    /// Finds an **existing** text selection**, as specified by the offset. Returns a handle.
-    /// by the offset. Use the higher-level method [`Self.textselection()`] instead if you
-    /// in most circumstances.
-    pub fn has_textselection(
+    /// Finds a known text selection, as specified by the offset. Known textselections
+    /// are associated with an annotation. Returns a handle.
+    /// Use the higher-level method [`Self.textselection()`] instead if you want to
+    /// return a textselection regardless of whether it's known or not.
+    pub fn known_textselection(
         &self,
         offset: &Offset,
     ) -> Result<Option<TextSelectionHandle>, StamError> {
@@ -501,142 +502,15 @@ impl TextResource {
         Ok(None)
     }
 
-    /// Returns a string reference to a slice of text as specified by the offset
-    /// This is a higher-level variant of [`Self.text_by_textselection()`].
-    pub fn text_slice(&self, offset: &Offset) -> Result<&str, StamError> {
-        let textselection = self.textselection(offset)?;
-        self.text_by_textselection(&textselection)
-    }
-
-    /// Returns the text for a given [`TextSelection`]. Make sure the [`TextSelection`] applies to this resource, there are no further checks here.
-    /// Use [`Self.text_slice()`] for a higher-level method that takes an offset.
-    pub fn text_by_textselection(&self, selection: &TextSelection) -> Result<&str, StamError> {
-        let beginbyte = self.utf8byte(selection.begin)?;
-        let endbyte = self.utf8byte(selection.end)?;
-        Ok(&self.text()[beginbyte..endbyte])
-    }
-
-    /// Resolves a cursor to a being aligned cursor, resolving all relative end-aligned positions
-    pub fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
-        match *cursor {
-            Cursor::BeginAligned(cursor) => Ok(cursor),
-            Cursor::EndAligned(cursor) => {
-                if cursor.abs() as usize > self.textlen {
-                    Err(StamError::CursorOutOfBounds(
-                        Cursor::EndAligned(cursor),
-                        "TextResource::beginaligned_cursor(): end aligned cursor ends up before the beginning",
-                    ))
-                } else {
-                    Ok(self.textlen - cursor.abs() as usize)
-                }
-            }
-        }
-    }
-
-    /// Resolves a begin aligne cursor to UTF-8 byteposition
-    /// If you have a Cursor instance, pass it through [`Self.beginaligned_cursor()`] first.
-    pub fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
-        if let Some(posindexitem) = self.positionindex.0.get(&abscursor) {
-            //exact position is in the position index, return the byte
-            Ok(posindexitem.bytepos)
-        } else {
-            // Get the item previous to abscursor using a double ended range iterator
-            if let Some((before_pos, posindexitem)) = self
-                .positionindex
-                .0
-                .range((Included(&0), Excluded(&abscursor)))
-                .next_back()
-            {
-                let before_bytepos = posindexitem.bytepos;
-                let textslice = &self.text[before_bytepos..];
-                if self.textlen == abscursor {
-                    //non-inclusive end is also a valid point to return
-                    return Ok(before_bytepos + textslice.len());
-                }
-                // now we just count characters and keep track of the bytes they take,
-                // if everything went well, we have only a minimum amount to count
-                // at most the O(n) where n is config.milestone_interval
-                for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
-                    if before_pos + charpos == abscursor {
-                        return Ok(before_bytepos + bytepos);
-                    }
-                }
-            } else {
-                //fallback, position index has no useful entries (config.mileston_interval < textlen?), search from 0
-                if self.textlen == abscursor {
-                    //non-inclusive end is also a valid point to return
-                    return Ok(self.text().len());
-                }
-                for (charpos, (bytepos, _)) in self.text().char_indices().enumerate() {
-                    if charpos == abscursor {
-                        return Ok(bytepos);
-                    }
-                }
-            }
-            Err(StamError::CursorOutOfBounds(
-                Cursor::BeginAligned(abscursor),
-                "TextResource::utf8byte()",
-            ))
-        }
-    }
-
-    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in ['utf8byte()`]
-    pub fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
-        if let Some(charpos) = self.byte2charmap.get(&bytecursor) {
-            //exact byte position is in the index, return the position
-            Ok(*charpos)
-        } else {
-            // Get the item previous to bytecursor using a double ended range iterator
-            if let Some((before_bytepos, before_charpos)) = self
-                .byte2charmap
-                .range((Included(&0), Excluded(&bytecursor)))
-                .next_back()
-            {
-                let textslice = &self.text[*before_bytepos..];
-                if before_bytepos + textslice.len() == bytecursor {
-                    //non-inclusive end is also a valid point to return
-                    return Ok(self.textlen);
-                }
-                // now we just count characters and keep track of the bytes they take,
-                // if everything went well, we have only a minimum amount to count
-                // at most the O(n) where n is config.milestone_interval
-                for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
-                    if before_bytepos + bytepos == bytecursor {
-                        return Ok(before_charpos + charpos);
-                    }
-                }
-            } else {
-                //fallback, position index has no useful entries (config.mileston_interval < textlen?), search from 0
-                if self.text().len() == bytecursor {
-                    //non-inclusive end is also a valid point to return
-                    return Ok(self.textlen);
-                }
-                for (charpos, (bytepos, _)) in self.text().char_indices().enumerate() {
-                    if bytepos == bytecursor {
-                        return Ok(charpos);
-                    }
-                }
-            }
-            Err(StamError::CursorOutOfBounds(
-                Cursor::BeginAligned(bytecursor),
-                "TextResource::utf8byte_to_charpos() (cursor value in this error is to be interpreted as a utf-8 byte position in this rare context!!). It is also possible that the UTF-8 byte is not out of bounds but ends up in the middle of a unicodepoint.",
-            ))
-        }
-    }
-
-    /// Returns a text selector with the specified offset in this resource
-    pub fn text_selector(&self, begin: Cursor, end: Cursor) -> Result<Selector, StamError> {
-        if let Some(handle) = self.handle() {
-            Ok(Selector::TextSelector(handle, Offset { begin, end }))
-        } else {
-            Err(StamError::Unbound("TextResource::select_text()"))
-        }
-    }
-
     /// Returns an unsorted iterator over all textselections in this resource
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
-    pub fn textselections(&self) -> Box<impl Iterator<Item = &TextSelection>> {
-        Box::new(self.store().iter().filter_map(|item| item.as_ref()))
+    pub fn textselections(
+        &self,
+    ) -> Box<impl Iterator<Item = WrappedItem<TextSelection, TextResource>>> {
+        Box::new(self.store().iter().filter_map(|item| {
+            item.as_ref()
+                .map(|textselection| textselection.wrap_in(self).expect("Wrap must succeed"))
+        }))
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
@@ -694,9 +568,33 @@ impl TextResource {
     pub fn positionindex_len(&self) -> usize {
         self.positionindex.0.len()
     }
+
+    /// Returns a text selection by offset.
+    /// This is a lower-level method that does not check if the text selection exists, use [`textselection()`]. instead.
+    // this is deliberately NOT part of HasText if applied to e.g. TextSelection it would yield TextSelections with relative offsets
+    pub(crate) fn textselection_by_offset(
+        &self,
+        offset: &Offset,
+    ) -> Result<TextSelection, StamError> {
+        let begin = self.beginaligned_cursor(&offset.begin)?;
+        let end = self.beginaligned_cursor(&offset.end)?;
+        if end > begin {
+            Ok(TextSelection {
+                intid: None,
+                begin,
+                end,
+            })
+        } else {
+            Err(StamError::InvalidOffset(
+                offset.begin,
+                offset.end,
+                "End must be greater than begin",
+            ))
+        }
+    }
 }
 
-impl HasText for TextResource {
+impl<'store> Textual<'store, 'store> for TextResource {
     /// Returns the length of the text in unicode points
     /// For bytes, use `self.text().len()` instead.
     fn textlen(&self) -> usize {
@@ -704,23 +602,141 @@ impl HasText for TextResource {
     }
 
     /// Returns a reference to the full text of this resource
-    fn text(&self) -> &str {
+    fn text(&'store self) -> &'store str {
         self.text.as_str()
     }
 
+    /// Returns a string reference to a slice of text as specified by the offset
+    fn text_by_offset(&'store self, offset: &Offset) -> Result<&'store str, StamError> {
+        let beginbyte = self.utf8byte(self.beginaligned_cursor(&offset.begin)?)?;
+        let endbyte = self.utf8byte(self.beginaligned_cursor(&offset.end)?)?;
+        if endbyte < beginbyte {
+            Err(StamError::InvalidOffset(
+                Cursor::BeginAligned(beginbyte),
+                Cursor::BeginAligned(endbyte),
+                "End must be greater than begin. (Cursor should be interpreted as UTF-8 bytes in this error context only)",
+            ))
+        } else {
+            Ok(&self.text()[beginbyte..endbyte])
+        }
+    }
+
+    fn absolute_cursor(&self, cursor: usize) -> usize {
+        cursor
+    }
+
+    /// Resolves a begin aligne cursor to UTF-8 byteposition
+    /// If you have a Cursor instance, pass it through [`Self.beginaligned_cursor()`] first.
+    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
+        if let Some(posindexitem) = self.positionindex.0.get(&abscursor) {
+            //exact position is in the position index, return the byte
+            Ok(posindexitem.bytepos)
+        } else {
+            // Get the item previous to abscursor using a double ended range iterator
+            if let Some((before_pos, posindexitem)) = self
+                .positionindex
+                .0
+                .range((Included(&0), Excluded(&abscursor)))
+                .next_back()
+            {
+                let before_bytepos = posindexitem.bytepos;
+                let textslice = &self.text[before_bytepos..];
+                if self.textlen == abscursor {
+                    //non-inclusive end is also a valid point to return
+                    return Ok(before_bytepos + textslice.len());
+                }
+                // now we just count characters and keep track of the bytes they take,
+                // if everything went well, we have only a minimum amount to count
+                // at most the O(n) where n is config.milestone_interval
+                for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
+                    if before_pos + charpos == abscursor {
+                        return Ok(before_bytepos + bytepos);
+                    }
+                }
+            } else {
+                //fallback, position index has no useful entries (config.mileston_interval < textlen?), search from 0
+                if self.textlen == abscursor {
+                    //non-inclusive end is also a valid point to return
+                    return Ok(self.text().len());
+                }
+                for (charpos, (bytepos, _)) in self.text().char_indices().enumerate() {
+                    if charpos == abscursor {
+                        return Ok(bytepos);
+                    }
+                }
+            }
+            Err(StamError::CursorOutOfBounds(
+                Cursor::BeginAligned(abscursor),
+                "TextResource::utf8byte()",
+            ))
+        }
+    }
+
+    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in ['utf8byte()`]
+    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
+        if let Some(charpos) = self.byte2charmap.get(&bytecursor) {
+            //exact byte position is in the index, return the position
+            Ok(*charpos)
+        } else {
+            // Get the item previous to bytecursor using a double ended range iterator
+            if let Some((before_bytepos, before_charpos)) = self
+                .byte2charmap
+                .range((Included(&0), Excluded(&bytecursor)))
+                .next_back()
+            {
+                let textslice = &self.text[*before_bytepos..];
+                if before_bytepos + textslice.len() == bytecursor {
+                    //non-inclusive end is also a valid point to return
+                    return Ok(self.textlen);
+                }
+                // now we just count characters and keep track of the bytes they take,
+                // if everything went well, we have only a minimum amount to count
+                // at most the O(n) where n is config.milestone_interval
+                for (charpos, (bytepos, _)) in textslice.char_indices().enumerate() {
+                    if before_bytepos + bytepos == bytecursor {
+                        return Ok(before_charpos + charpos);
+                    }
+                }
+            } else {
+                //fallback, position index has no useful entries (config.mileston_interval < textlen?), search from 0
+                if self.text().len() == bytecursor {
+                    //non-inclusive end is also a valid point to return
+                    return Ok(self.textlen);
+                }
+                for (charpos, (bytepos, _)) in self.text().char_indices().enumerate() {
+                    if bytepos == bytecursor {
+                        return Ok(charpos);
+                    }
+                }
+            }
+            Err(StamError::CursorOutOfBounds(
+                Cursor::BeginAligned(bytecursor),
+                "TextResource::utf8byte_to_charpos() (cursor value in this error is to be interpreted as a utf-8 byte position in this rare context!!). It is also possible that the UTF-8 byte is not out of bounds but ends up in the middle of a unicodepoint.",
+            ))
+        }
+    }
+
     /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
-    /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
+    /// exists, the existing one will be returned.
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections only.
-    fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
-        match self.has_textselection(offset) {
+    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store.
+    ///
+    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections (i.e. those pertaining to annotations) only.
+    fn textselection(
+        &'store self,
+        offset: &Offset,
+    ) -> Result<WrappedItem<'store, TextSelection, TextResource>, StamError> {
+        match self.known_textselection(offset) {
             Ok(Some(handle)) => {
                 //existing textselection
                 let textselection: &TextSelection = self.get(&handle.into())?; //shouldn't fail here anymore
-                Ok(textselection.clone()) //clone is relatively cheap
+                textselection.wrap_in(self)
             }
-            Ok(None) => self.textselection_by_offset(offset),
+            Ok(None) => {
+                let textselection: TextSelection = self.textselection_by_offset(offset)?;
+                textselection.wrap_owned_in(self)
+            }
             Err(err) => Err(err), //an error occured, propagate
         }
     }
@@ -742,36 +758,14 @@ impl HasText for TextResource {
     fn find_text_regex<'a, 'b>(
         &'a self,
         expressions: &'b [Regex],
-        offset: Option<&Offset>,
         precompiledset: Option<&RegexSet>,
         allow_overlap: bool,
     ) -> Result<FindRegexIter<'a, 'b>, StamError> {
         debug(self.config(), || {
-            format!("search_text: expressions={:?}", expressions)
+            format!("find_text_regex: expressions={:?}", expressions)
         });
-        let (text, begincharpos, beginbytepos) = self.extract_text_by_offset(offset)?;
-        let selectexpressions = if expressions.len() > 2 {
-            //we have multiple expressions, first we do a pass to see WHICH of the regular expression matche (taking them all into account in a single pass!).
-            //then afterwards we find for each of the matching expressions WHERE they are found
-            let foundexpressions: Vec<_> = if let Some(regexset) = precompiledset {
-                regexset.matches(text).into_iter().collect()
-            } else {
-                RegexSet::new(expressions.iter().map(|x| x.as_str()))
-                    .map_err(|e| {
-                        StamError::RegexError(e, "Parsing regular expressions in search_text()")
-                    })?
-                    .matches(text)
-                    .into_iter()
-                    .collect()
-            };
-            foundexpressions
-        } else {
-            match expressions.len() {
-                1 => vec![0],
-                2 => vec![0, 1],
-                _ => unreachable!("Expected 1 or 2 expressions"),
-            }
-        };
+        let selectexpressions =
+            find_text_regex_select_expressions(self.text(), expressions, precompiledset)?;
         //Returns an iterator that does the remainder of the actual searching
         Ok(FindRegexIter {
             resource: self,
@@ -779,9 +773,9 @@ impl HasText for TextResource {
             selectexpressions,
             matchiters: Vec::new(),
             nextmatches: Vec::new(),
-            text,
-            begincharpos,
-            beginbytepos,
+            text: self.text(),
+            begincharpos: 0,
+            beginbytepos: 0,
             allow_overlap,
         })
     }
@@ -792,61 +786,23 @@ impl HasText for TextResource {
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
-    fn find_text<'a, 'b>(
-        &'a self,
-        fragment: &'b str,
-        offset: Option<Offset>,
-    ) -> FindTextIter<'a, 'b> {
-        let offset = if let Some(offset) = offset {
-            offset
-        } else {
-            Offset::whole()
-        };
+    fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b> {
         FindTextIter {
             resource: self,
             fragment,
-            offset,
+            offset: Offset::whole(),
         }
     }
 
-    /// Returns an iterator of ['TextSelection`] instances that represent partitions
-    /// of the text given the specified delimiter.
-    ///
-    /// The iterator returns [`TextSelection`] items.
-    fn split_text<'a>(
-        &'a self,
-        delimiter: &'a str,
-    ) -> Box<dyn Iterator<Item = TextSelection> + 'a> {
-        Box::new(self.text().split(delimiter).map(|matchstr| {
-            let beginbyte = self
-                .subslice_utf8_offset(matchstr)
-                .expect("match must be found");
-            let endbyte = beginbyte + matchstr.len();
-            TextSelection {
-                intid: None,
-                begin: self
-                    .utf8byte_to_charpos(beginbyte)
-                    .expect("utf-8 byte must resolve to char pos"),
-                end: self
-                    .utf8byte_to_charpos(endbyte)
-                    .expect("utf-8 byte must resolve to char pos"),
-            }
-        }))
-    }
-
-    fn extract_text_by_offset(
-        &self,
-        offset: Option<&Offset>,
-    ) -> Result<(&str, usize, usize), StamError> {
-        if let Some(offset) = offset {
-            let selection = self.textselection(&offset)?;
-            let text = self.text_by_textselection(&selection)?;
-            Ok((text, selection.begin(), self.utf8byte(selection.begin())?))
-        } else {
-            Ok((self.text(), 0, 0))
+    fn split_text<'b>(&'store self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
+        SplitTextIter {
+            resource: self,
+            iter: self.text().split(delimiter),
+            byteoffset: 0,
         }
     }
 
+    /// Finds the utf-8 byte position where the specified text subslice begins
     fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
         let self_begin = self.text().as_ptr() as usize;
         let sub_begin = subslice.as_ptr() as usize;
@@ -981,7 +937,7 @@ pub struct TextSelectionIter<'a> {
 }
 
 impl<'a> Iterator for TextSelectionIter<'a> {
-    type Item = &'a TextSelection;
+    type Item = WrappedItem<'a, TextSelection, TextResource>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(begin2enditer) = &mut self.begin2enditer {
@@ -990,7 +946,11 @@ impl<'a> Iterator for TextSelectionIter<'a> {
                     .resource
                     .get(&handle.into())
                     .expect("handle must exist");
-                return Some(textselection);
+                return Some(
+                    textselection
+                        .wrap_in(self.resource)
+                        .expect("wrap must succeed"),
+                );
             }
             //fall back to final clause
         } else {
@@ -1015,7 +975,11 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
                     .resource
                     .get(&handle.into())
                     .expect("handle must exist");
-                return Some(textselection);
+                return Some(
+                    textselection
+                        .wrap_in(self.resource)
+                        .expect("wrap must succeed"),
+                );
             }
             //fall back to final clause
         } else {

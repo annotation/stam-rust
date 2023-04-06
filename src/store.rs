@@ -248,14 +248,27 @@ pub trait Storable: PartialEq + TypeInfo {
     /// Returns a wrapped reference to this item and the store that owns it. This allows for some
     /// more introspection on the part of the item.
     /// reverse of [`StoreFor<T>::wrap()`]
-    fn wrap_in<'a, S: StoreFor<Self>>(
-        &'a self,
-        store: &'a S,
-    ) -> Result<WrappedItem<Self, S>, StamError>
+    fn wrap_in<'store, S: StoreFor<Self>>(
+        &'store self,
+        store: &'store S,
+    ) -> Result<WrappedItem<'store, Self, S>, StamError>
     where
         Self: Sized,
     {
         store.wrap(self)
+    }
+
+    /// Returns a wrapped reference to this item and the store that owns it. This allows for some
+    /// more introspection on the part of the item.
+    /// reverse of [`StoreFor<T>::wrap_owned()`]
+    fn wrap_owned_in<'store, S: StoreFor<Self>>(
+        self,
+        store: &'store S,
+    ) -> Result<WrappedItem<'store, Self, S>, StamError>
+    where
+        Self: Sized,
+    {
+        store.wrap_owned(self)
     }
 
     /// Set the internal ID. May only be called once (though currently not enforced).
@@ -671,9 +684,10 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
 #[derive(Clone, Debug)]
-pub enum WrappedItem<'a, T, S: StoreFor<T>>
+pub enum WrappedItem<'a, T, S>
 where
     T: Storable,
+    S: StoreFor<T>,
 {
     Borrowed { item: &'a T, store: &'a S },
     Owned { item: T, store: &'a S },
@@ -715,7 +729,7 @@ where
         Ok(WrappedItem::Owned { item, store })
     }
 
-    pub fn store(&self) -> &S {
+    pub fn store(&self) -> &'a S {
         match self {
             Self::Borrowed { store, .. } | Self::Owned { store, .. } => store,
         }

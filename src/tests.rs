@@ -448,7 +448,7 @@ fn utf82unicode() {
 fn find_text_single() {
     let resource =
         TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
-    let textselection = resource.find_text("världen", None).next().unwrap();
+    let textselection = resource.find_text("världen").next().unwrap();
     assert_eq!(textselection.begin(), 6);
     assert_eq!(textselection.end(), 13);
 }
@@ -457,7 +457,7 @@ fn find_text_single() {
 fn find_text_single2() {
     let resource =
         TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
-    let textselection = resource.find_text("Hallå", None).next().unwrap();
+    let textselection = resource.find_text("Hallå").next().unwrap();
     assert_eq!(textselection.begin(), 0);
     assert_eq!(textselection.end(), 5);
 }
@@ -466,7 +466,7 @@ fn find_text_single2() {
 fn find_text_multi() {
     let resource = TextResource::new("testres".into(), Config::default())
         .with_string("To be or not to be, that's the question".into());
-    let textselections: Vec<_> = resource.find_text("be", None).collect();
+    let textselections: Vec<_> = resource.find_text("be").collect();
     assert_eq!(textselections.len(), 2);
     assert_eq!(textselections[0].begin(), 3);
     assert_eq!(textselections[0].end(), 5);
@@ -478,7 +478,7 @@ fn find_text_multi() {
 fn find_text_none() {
     let resource =
         TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
-    let v: Vec<_> = resource.find_text("blah", None).collect();
+    let v: Vec<_> = resource.find_text("blah").collect();
     assert!(v.is_empty());
 }
 

@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 
 use stam::{
     Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, Config, Handle, Item, Offset,
-    Regex, SelectorBuilder, StoreFor, TextResource, TextSelection,
+    Regex, SelectorBuilder, StoreFor, TextResource, TextSelection, Textual,
 };
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
@@ -31,7 +31,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
         b.iter(|| {
             let singleexpression = black_box(&singleexpression).clone();
             let mut sumlen = 0;
-            for item in black_box(store.find_text_regex(&[singleexpression], &None, &None, false)) {
+            for item in black_box(store.find_text_regex(&[singleexpression], &None, false)) {
                 sumlen += item.text().len(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);
@@ -42,7 +42,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
         b.iter(|| {
             let expressions = black_box(&expressions).clone();
             let mut sumlen = 0;
-            for item in black_box(store.find_text_regex(&expressions, &None, &None, false)) {
+            for item in black_box(store.find_text_regex(&expressions, &None, false)) {
                 sumlen += item.text().len(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);
@@ -53,7 +53,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
         b.iter(|| {
             let singleexpression = black_box(&searchterm_regex).clone();
             let mut sumlen = 0;
-            for item in black_box(store.find_text_regex(&[singleexpression], &None, &None, false)) {
+            for item in black_box(store.find_text_regex(&[singleexpression], &None, false)) {
                 sumlen += item.text().len(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);
@@ -63,7 +63,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
     c.bench_function("textsearch/find_text_all", |b| {
         b.iter(|| {
             let mut sumlen = 0;
-            for item in black_box(resource.find_text(&searchterm, None)) {
+            for item in black_box(resource.find_text(&searchterm)) {
                 sumlen += item.begin(); //just so we have something silly to do with the item
             }
             assert!(sumlen > 0);

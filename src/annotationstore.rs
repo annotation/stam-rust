@@ -25,6 +25,7 @@ use crate::selector::{
     AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
 };
 use crate::store::*;
+use crate::textsearch::*;
 use crate::textselection::{
     TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };
@@ -341,7 +342,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                             textselection_handle
                         } else {
                             //new, insert... (it's important never to insert the same one twice!)
-                            resource.insert(textselection)?
+                            resource.insert(*textselection)?
                         };
                     self.textrelationmap
                         .insert(*res_handle, textselection_handle, handle);
@@ -401,7 +402,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                             Box::new(targetitem.ancestors().iter().map(|x| x.as_ref())),
                         ) {
                             Ok(textselection) => {
-                                extend_textrelationmap.push((res_handle, textselection, handle))
+                                extend_textrelationmap.push((res_handle, *textselection, handle))
                             }
                             Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
                         }
@@ -432,7 +433,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                                     //we already have handle, don't insert anew
                                     textselection_handle
                                 } else {
-                                    match resource.has_textselection(&textselection.into()) {
+                                    match resource.known_textselection(&textselection.into()) {
                                         Ok(Some(found_textselectionhandle)) => {
                                             //we have just been inserted and found a handle
                                             found_textselectionhandle
@@ -1155,17 +1156,14 @@ impl AnnotationStore {
     pub fn textselections_by_annotation<'a>(
         &'a self,
         annotation: &'a Annotation,
-    ) -> Box<dyn Iterator<Item = (TextResourceHandle, TextSelection)> + 'a> {
+    ) -> Box<dyn Iterator<Item = WrappedItem<'a, TextSelection, TextResource>> + 'a> {
         Box::new(self.resources_by_annotation(annotation).map(|targetitem| {
             //process offset relative offset
-            let res_handle = targetitem.handle().expect("resource must have a handle");
-            match self.textselection(
+            self.textselection(
                 targetitem.selector(),
                 Box::new(targetitem.ancestors().iter().map(|x| x.as_ref())),
-            ) {
-                Ok(textselection) => (res_handle, textselection),
-                Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
-            }
+            )
+            .expect("Resolving relative text failed") //TODO: panic is too strong here! handle more nicely
         }))
     }
 
@@ -1176,13 +1174,7 @@ impl AnnotationStore {
     ) -> Box<dyn Iterator<Item = &'a str> + 'a> {
         Box::new(
             self.textselections_by_annotation(annotation)
-                .map(|(reshandle, selection)| {
-                    let resource: &TextResource =
-                        self.get(&reshandle.into()).expect("resource must exist");
-                    resource
-                        .text_by_textselection(&selection)
-                        .expect("selection must be valid")
-                }),
+                .map(|textselection| textselection.text()),
         )
     }
 
@@ -1358,7 +1350,9 @@ impl AnnotationStore {
         }
     }
 
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`] instead for those.
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
+    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
+    /// instead for those.
     ///
     /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
     /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
@@ -1366,7 +1360,7 @@ impl AnnotationStore {
         &self,
         selector: &Selector,
         subselectors: Box<impl Iterator<Item = &'b Selector>>,
-    ) -> Result<TextSelection, StamError> {
+    ) -> Result<WrappedItem<TextSelection, TextResource>, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get(&res_id.into())?;
@@ -1374,13 +1368,7 @@ impl AnnotationStore {
                 for selector in subselectors {
                     if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
                         //each annotation selector selects a subslice of the previous textselection
-                        let begin = textselection.beginaligned_cursor(&suboffset.begin)?;
-                        let end = textselection.beginaligned_cursor(&suboffset.end)?;
-                        textselection = TextSelection {
-                            intid: None,
-                            begin,
-                            end,
-                        };
+                        textselection = textselection.textselection(&suboffset)?;
                     }
                 }
                 Ok(textselection)

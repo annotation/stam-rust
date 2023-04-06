@@ -8,61 +8,56 @@ use crate::selector::Offset;
 use crate::textselection::TextSelection;
 
 use crate::config::Configurable;
+use crate::store::*;
 use crate::types::*;
 
-pub trait HasText {
-    fn find_text_regex<'a, 'b>(
-        &'a self,
-        expressions: &'b [Regex],
-        offset: Option<&Offset>,
-        precompiledset: Option<&RegexSet>,
-        allow_overlap: bool,
-    ) -> Result<FindRegexIter<'a, 'b>, StamError>;
-
-    fn find_text<'a, 'b>(
-        &'a self,
-        fragment: &'b str,
-        offset: Option<Offset>,
-    ) -> FindTextIter<'a, 'b>;
-
-    fn split_text<'a>(&'a self, delimiter: &'a str)
-        -> Box<dyn Iterator<Item = TextSelection> + 'a>;
-
+/// This trait provides methods that operate on structures that hold or represent text content.
+pub trait Textual<'store, 'slf>
+where
+    'store: 'slf,
+{
     /// Returns a reference to the text
-    fn text(&self) -> &str;
+    fn text(&'slf self) -> &'store str;
 
     /// Returns the length of the text in unicode points
     /// For bytes, use `Self.text().len()` instead.
     fn textlen(&self) -> usize;
 
+    fn text_by_offset(&'slf self, offset: &Offset) -> Result<&'store str, StamError>;
+
+    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize>;
+
+    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError>;
+    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError>;
+
+    fn find_text_regex<'a, 'b>(
+        &'a self,
+        expressions: &'b [Regex],
+        precompiledset: Option<&RegexSet>,
+        allow_overlap: bool,
+    ) -> Result<FindRegexIter<'a, 'b>, StamError>;
+
+    fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b>;
+
+    /// Returns an iterator of ['TextSelection`] instances that represent partitions
+    /// of the text given the specified delimiter.
+    ///
+    /// The iterator returns wrapped [`TextSelection`] items.
+    fn split_text<'b>(&'slf self, delimiter: &'b str) -> SplitTextIter<'store, 'b>;
+
     /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
     /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
 
+    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store.
     ///
     /// Use [`Resource::has_textselection()`] instead if you want to limit to existing text selections on resources.
-    fn textselection(&self, offset: &Offset) -> Result<TextSelection, StamError>;
+    fn textselection(
+        &'slf self,
+        offset: &Offset,
+    ) -> Result<WrappedItem<'store, TextSelection, TextResource>, StamError>;
 
-    /// Returns a text selection by offset, does not check if it exists or not
-    fn textselection_by_offset(&self, offset: &Offset) -> Result<TextSelection, StamError> {
-        let begin = self.beginaligned_cursor(&offset.begin)?; //this can't fail because it would have already in find_selection()
-        let end = self.beginaligned_cursor(&offset.end)?;
-        if end > begin {
-            Ok(TextSelection {
-                intid: None,
-                begin,
-                end,
-            })
-        } else {
-            Err(StamError::InvalidOffset(
-                offset.begin,
-                offset.end,
-                "End must be greater than begin",
-            ))
-        }
-    }
-
-    /// Resolves a cursor to a being aligned cursor, resolving all relative end-aligned positions
+    /// Resolves a cursor to a begin aligned cursor, resolving all relative end-aligned positions
     fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
         match *cursor {
             Cursor::BeginAligned(cursor) => Ok(cursor),
@@ -79,25 +74,47 @@ pub trait HasText {
         }
     }
 
-    /// Directly extract a part of the text by offset.
-    ///
-    /// If you want to do operations on the text, you're better of using [`Self.textselection()`] instead.
-    fn text_by_offset(&self, offset: Option<&Offset>) -> Result<(&str, usize, usize), StamError> {
-        if let Some(offset) = offset {
-            let selection = self.textselection(&offset)?;
-            let text = self.text_by_textselection(&selection)?;
-            Ok((text, selection.begin(), self.utf8byte(selection.begin())?))
-        } else {
-            Ok((self.text(), 0, 0))
-        }
+    /// Resolves a begin-aligned cursor to an absolute cursor (i.e. relative to the TextResource).
+    fn absolute_cursor(&self, cursor: usize) -> usize;
+
+    fn absolute_offset(&self, offset: &Offset) -> Result<Offset, StamError> {
+        Ok(Offset::simple(
+            self.absolute_cursor(self.beginaligned_cursor(&offset.begin)?),
+            self.absolute_cursor(self.beginaligned_cursor(&offset.end)?),
+        ))
     }
+}
 
-    fn extract_text_by_offset(
-        &self,
-        offset: Option<&Offset>,
-    ) -> Result<(&str, usize, usize), StamError>;
-
-    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize>;
+/// Auxiliary function used by find_text_regex(). This method does, if needed, a single initial pass
+/// over the regular expression set, identifying which regular expressions match and are to be searched
+/// for in subsequent passes to find WHERE they match.
+pub(crate) fn find_text_regex_select_expressions<'a, 'b>(
+    text: &'a str,
+    expressions: &'b [Regex],
+    precompiledset: Option<&RegexSet>,
+) -> Result<Vec<usize>, StamError> {
+    Ok(if expressions.len() > 2 {
+        //we have multiple expressions, first we do a pass to see WHICH of the regular expression matche (taking them all into account in a single pass!).
+        //then afterwards we find for each of the matching expressions WHERE they are found
+        let foundexpressions: Vec<_> = if let Some(regexset) = precompiledset {
+            regexset.matches(text).into_iter().collect()
+        } else {
+            RegexSet::new(expressions.iter().map(|x| x.as_str()))
+                .map_err(|e| {
+                    StamError::RegexError(e, "Parsing regular expressions in search_text()")
+                })?
+                .matches(text)
+                .into_iter()
+                .collect()
+        };
+        foundexpressions
+    } else {
+        match expressions.len() {
+            1 => vec![0],
+            2 => vec![0, 1],
+            _ => unreachable!("Expected 1 or 2 expressions"),
+        }
+    })
 }
 
 impl AnnotationStore {
@@ -107,7 +124,6 @@ impl AnnotationStore {
     pub fn find_text_regex<'t, 'r>(
         &'t self,
         expressions: &'r [Regex],
-        offset: &'r Option<Offset>,
         precompiledset: &'r Option<RegexSet>,
         allow_overlap: bool,
     ) -> Box<impl Iterator<Item = FindRegexMatch<'t, 'r>>> {
@@ -116,12 +132,7 @@ impl AnnotationStore {
                 .filter_map(move |resource| {
                     //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
                     resource
-                        .find_text_regex(
-                            expressions,
-                            offset.as_ref(),
-                            precompiledset.as_ref(),
-                            allow_overlap,
-                        )
+                        .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
                         .ok() //ignore errors!
                 })
                 .flatten(),
@@ -130,13 +141,13 @@ impl AnnotationStore {
 }
 
 /// Wrapper over iterator regex Matches or CaptureMatches
-enum Matches<'r, 't> {
+pub(crate) enum Matches<'r, 't> {
     NoCapture(regex::Matches<'r, 't>),
     WithCapture(regex::CaptureMatches<'r, 't>),
 }
 
 /// Wrapper over regex Match or Captures (as returned by the iterator)
-enum Match<'t> {
+pub(crate) enum Match<'t> {
     NoCapture(regex::Match<'t>),
     WithCapture(regex::Captures<'t>),
 }
@@ -207,7 +218,7 @@ impl<'r, 't> Iterator for Matches<'r, 't> {
 pub struct FindRegexMatch<'t, 'r> {
     expression: &'r Regex,
     expression_index: usize,
-    textselections: SmallVec<[TextSelection; 2]>,
+    textselections: SmallVec<[WrappedItem<'t, TextSelection, TextResource>; 2]>,
     //Records the numbers of the capture that match (1-indexed)
     capturegroups: SmallVec<[usize; 2]>,
     resource: &'t TextResource,
@@ -230,7 +241,7 @@ impl<'t, 'r> FindRegexMatch<'t, 'r> {
         self.expression_index
     }
 
-    pub fn textselections(&self) -> &[TextSelection] {
+    pub fn textselections(&self) -> &[WrappedItem<'t, TextSelection, TextResource>] {
         &self.textselections
     }
 
@@ -246,21 +257,15 @@ impl<'t, 'r> FindRegexMatch<'t, 'r> {
     }
 
     /// Return the text of the match, this only works
-    /// if there the regular expression targets a single
+    /// if the regular expression targets a single
     /// consecutive text, i.e. by not using multiple capture groups.
     pub fn as_str(&self) -> Option<&'t str> {
         if self.multi() {
             None
         } else {
-            Some(
-                self.resource
-                    .text_by_textselection(
-                        self.textselections
-                            .first()
-                            .expect("there must be a textselection"),
-                    )
-                    .expect("textselection should exist"),
-            )
+            self.textselections
+                .first()
+                .map(|textselection| textselection.text())
         }
     }
 
@@ -270,26 +275,22 @@ impl<'t, 'r> FindRegexMatch<'t, 'r> {
     pub fn text(&self) -> Vec<&str> {
         self.textselections
             .iter()
-            .map(|textselection| {
-                self.resource
-                    .text_by_textselection(textselection)
-                    .expect("textselection should exist")
-            })
+            .map(|textselection| textselection.text())
             .collect()
     }
 }
 
 /// This iterator is produced by [`TextResource.find_text_regex()`] and searches a text based on regular expressions.
 pub struct FindRegexIter<'t, 'r> {
-    resource: &'t TextResource,
-    expressions: &'r [Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
-    selectexpressions: Vec<usize>, //points at an expression, not used directly but via selectionexpression() method
-    matchiters: Vec<Matches<'r, 't>>, //each expression (from selectexpressions) has its own interator  (same length as above vec)
-    nextmatches: Vec<Option<Match<'t>>>, //this buffers the next match for each expression (from selectexpressions, same length as above vec)
-    text: &'t str,
-    begincharpos: usize,
-    beginbytepos: usize,
-    allow_overlap: bool,
+    pub(crate) resource: &'t TextResource,
+    pub(crate) expressions: &'r [Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
+    pub(crate) selectexpressions: Vec<usize>, //points at an expression, not used directly but via selectionexpression() method
+    pub(crate) matchiters: Vec<Matches<'r, 't>>, //each expression (from selectexpressions) has its own interator  (same length as above vec)
+    pub(crate) nextmatches: Vec<Option<Match<'t>>>, //this buffers the next match for each expression (from selectexpressions, same length as above vec)
+    pub(crate) text: &'t str,
+    pub(crate) begincharpos: usize,
+    pub(crate) beginbytepos: usize,
+    pub(crate) allow_overlap: bool,
 }
 
 impl<'t, 'r> Iterator for FindRegexIter<'t, 'r> {
@@ -363,19 +364,21 @@ impl<'t, 'r> FindRegexIter<'t, 'r> {
         let expression_index = self.selectexpressions[selectexpression_index];
         match m {
             Match::NoCapture(m) => {
-                let textselection = TextSelection {
-                    intid: None,
-                    begin: self.begincharpos
-                        + self
-                            .resource
-                            .utf8byte_to_charpos(self.beginbytepos + m.start())
-                            .expect("byte to pos conversion must succeed"),
-                    end: self.begincharpos
-                        + self
-                            .resource
-                            .utf8byte_to_charpos(self.beginbytepos + m.end())
-                            .expect("byte to pos conversion must succeed"),
-                };
+                let textselection = self
+                    .resource
+                    .textselection(&Offset::simple(
+                        self.begincharpos
+                            + self
+                                .resource
+                                .utf8byte_to_charpos(self.beginbytepos + m.start())
+                                .expect("byte to pos conversion must succeed"),
+                        self.begincharpos
+                            + self
+                                .resource
+                                .utf8byte_to_charpos(self.beginbytepos + m.end())
+                                .expect("byte to pos conversion must succeed"),
+                    ))
+                    .expect("textselection from offset must succeed");
                 FindRegexMatch {
                     expression: &self.expressions[expression_index],
                     expression_index,
@@ -387,24 +390,27 @@ impl<'t, 'r> FindRegexIter<'t, 'r> {
             Match::WithCapture(m) => {
                 let mut groupiter = m.iter();
                 groupiter.next(); //The first match always corresponds to the overall match of the regex, we can ignore it
-                let mut textselections: SmallVec<[TextSelection; 2]> = SmallVec::new();
+                let mut textselections: SmallVec<_> = SmallVec::new();
                 let mut capturegroups: SmallVec<[usize; 2]> = SmallVec::new();
                 for (i, group) in groupiter.enumerate() {
                     if let Some(group) = group {
                         capturegroups.push(i + 1); //1-indexed
-                        textselections.push(TextSelection {
-                            intid: None,
-                            begin: self.begincharpos
-                                + self
-                                    .resource
-                                    .utf8byte_to_charpos(self.beginbytepos + group.start())
-                                    .expect("byte to pos conversion must succeed"),
-                            end: self.begincharpos
-                                + self
-                                    .resource
-                                    .utf8byte_to_charpos(self.beginbytepos + group.end())
-                                    .expect("byte to pos conversion must succeed"),
-                        });
+                        textselections.push(
+                            self.resource
+                                .textselection(&Offset::simple(
+                                    self.begincharpos
+                                        + self
+                                            .resource
+                                            .utf8byte_to_charpos(self.beginbytepos + group.start())
+                                            .expect("byte to pos conversion must succeed"),
+                                    self.begincharpos
+                                        + self
+                                            .resource
+                                            .utf8byte_to_charpos(self.beginbytepos + group.end())
+                                            .expect("byte to pos conversion must succeed"),
+                                ))
+                                .expect("textselection from offset must succeed"),
+                        )
                     }
                 }
                 FindRegexMatch {
@@ -419,21 +425,25 @@ impl<'t, 'r> FindRegexIter<'t, 'r> {
     }
 }
 
-/// This iterator is produced by [`TextResource.find_text_regex()`] and searches a text based on regular expressions.
+/// This iterator is produced by [`TextResource.find_text()`] and searches a text for a single fragment
 pub struct FindTextIter<'a, 'b> {
-    resource: &'a TextResource,
-    fragment: &'b str,
-    offset: Offset,
+    pub(crate) resource: &'a TextResource,
+    pub(crate) fragment: &'b str,
+    pub(crate) offset: Offset,
 }
 
 impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
-    type Item = TextSelection;
+    type Item = WrappedItem<'a, TextSelection, TextResource>;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((text, begincharpos, beginbytepos)) = self
-            .resource
-            .extract_text_by_offset(Some(&self.offset))
-            .ok()
-        {
+        if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
+            let begincharpos = self
+                .resource
+                .beginaligned_cursor(&self.offset.begin)
+                .expect("charpos must be valid");
+            let beginbytepos = self
+                .resource
+                .subslice_utf8_offset(text)
+                .expect("bytepos must be valid");
             text.find(self.fragment).map(|foundbytepos| {
                 let endbytepos = foundbytepos + self.fragment.len();
                 let newbegin = begincharpos
@@ -451,13 +461,45 @@ impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
                     begin: Cursor::BeginAligned(newend),
                     end: self.offset.end,
                 };
-
-                TextSelection {
-                    intid: None,
-                    begin: newbegin,
-                    end: newend,
-                }
+                self.resource
+                    .textselection(&Offset::simple(newbegin, newend))
+                    .expect("textselection must be returned")
             })
+        } else {
+            None
+        }
+    }
+}
+
+/// This iterator is produced by [`TextResource.split_text()`] and searches a text based on regular expressions.
+pub struct SplitTextIter<'store, 'b> {
+    pub(crate) resource: &'store TextResource,
+    pub(crate) iter: std::str::Split<'store, &'b str>,
+    pub(crate) byteoffset: usize,
+}
+
+impl<'store, 'b> Iterator for SplitTextIter<'store, 'b> {
+    type Item = WrappedItem<'store, TextSelection, TextResource>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(matchstr) = self.iter.next() {
+            let beginbyte = self
+                .resource
+                .subslice_utf8_offset(matchstr)
+                .expect("match must be found")
+                - self.byteoffset;
+            let endbyte = (beginbyte + matchstr.len()) - self.byteoffset;
+            Some(
+                self.resource
+                    .textselection(&Offset::simple(
+                        self.resource
+                            .utf8byte_to_charpos(beginbyte)
+                            .expect("utf-8 byte must resolve to char pos"),
+                        self.resource
+                            .utf8byte_to_charpos(endbyte)
+                            .expect("utf-8 byte must resolve to char pos"),
+                    ))
+                    .expect("text selection must succeed"),
+            )
         } else {
             None
         }

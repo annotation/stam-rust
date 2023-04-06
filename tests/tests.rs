@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
+use std::ops::Deref;
 
 use stam::*;
 
@@ -266,32 +267,34 @@ fn resource_text() -> Result<(), StamError> {
 fn store_get_text_slice() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let resource: &TextResource = store.get(&Item::from("testres"))?;
-    let text = resource.text_slice(&Offset::new(
+    let text = resource.text_by_offset(&Offset::new(
         Cursor::BeginAligned(0),
         Cursor::BeginAligned(5),
     ))?;
     assert_eq!(text, "Hello", "testing slice 0:5 (1)");
-    let text = resource.text_slice(&Offset::simple(0, 5))?; //same as above, shorthand
+    let text = resource.text_by_offset(&Offset::simple(0, 5))?; //same as above, shorthand
     assert_eq!(text, "Hello", "testing slice 0:5 (2)");
-    let text = resource.text_slice(&Offset::simple(6, 11))?;
+    let text = resource.text_by_offset(&Offset::simple(6, 11))?;
     assert_eq!(text, "world", "testing slice 6:11");
-    let text = resource.text_slice(&Offset::new(Cursor::EndAligned(-5), Cursor::EndAligned(0)))?;
+    let text =
+        resource.text_by_offset(&Offset::new(Cursor::EndAligned(-5), Cursor::EndAligned(0)))?;
     assert_eq!(text, "world", "testing slice -5:-0");
-    let text = resource.text_slice(&Offset::new(Cursor::EndAligned(-11), Cursor::EndAligned(0)))?;
+    let text =
+        resource.text_by_offset(&Offset::new(Cursor::EndAligned(-11), Cursor::EndAligned(0)))?;
     assert_eq!(text, "Hello world", "testing slice -11:-0");
-    let text = resource.text_slice(&Offset::new(
+    let text = resource.text_by_offset(&Offset::new(
         Cursor::EndAligned(-11),
         Cursor::EndAligned(-6),
     ))?;
     assert_eq!(text, "Hello", "testing slice -11:-6");
     //these should produce an InvalidOffset error (begin >= end)
     assert!(
-        resource.text_slice(&Offset::simple(11, 7)).is_err(),
+        resource.text_by_offset(&Offset::simple(11, 7)).is_err(),
         "testing invalid slice 11:7"
     );
     assert!(
         resource
-            .text_slice(&Offset::new(
+            .text_by_offset(&Offset::new(
                 Cursor::EndAligned(-9),
                 Cursor::EndAligned(-11)
             ))
@@ -321,10 +324,7 @@ fn store_get_text_selection() -> Result<(), StamError> {
         5,
         "testing utf-8 end byte"
     );
-    assert_eq!(
-        resource.text_by_textselection(&textselection).unwrap(),
-        "Hello"
-    );
+    assert_eq!(textselection.text(), "Hello");
     Ok(())
 }
 
@@ -796,12 +796,8 @@ fn loop_annotations() -> Result<(), StamError> {
 fn textselection() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let sentence: &Annotation = store.get(&"sentence2".into())?;
-    for (resourcehandle, textselection) in store.textselections_by_annotation(&sentence) {
-        let resource: &TextResource = store.get(&resourcehandle.into())?;
-        assert_eq!(
-            resource.text_by_textselection(&textselection).unwrap(),
-            "I am only passionately curious."
-        )
+    for textselection in store.textselections_by_annotation(&sentence) {
+        assert_eq!(textselection.text(), "I am only passionately curious.")
     }
     Ok(())
 }
@@ -830,12 +826,8 @@ fn selectoriter() -> Result<(), StamError> {
 fn textselection_relative() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let word: &Annotation = store.get(&"sentence2word2".into())?;
-    for (resourcehandle, textselection) in store.textselections_by_annotation(&word) {
-        let resource: &TextResource = store.get(&resourcehandle.into())?;
-        assert_eq!(
-            resource.text_by_textselection(&textselection).unwrap(),
-            "am"
-        )
+    for textselection in store.textselections_by_annotation(&word) {
+        assert_eq!(textselection.text(), "am")
     }
     Ok(())
 }
@@ -852,14 +844,8 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
             .with_data("testdataset".into(), "type".into(), "word".into()),
     )?;
     let word: &Annotation = store.get(&"sentence2lastword".into())?;
-    for (resourcehandle, textselection) in store.textselections_by_annotation(&word) {
-        let resource: &TextResource = store.get(&resourcehandle.into())?;
-        eprintln!(
-            "Textselection: {:?}, textlen: {}",
-            textselection,
-            resource.textlen()
-        );
-        assert_eq!(resource.text_by_textselection(&textselection)?, "curious")
+    for textselection in store.textselections_by_annotation(&word) {
+        assert_eq!(textselection.text(), "curious")
     }
     Ok(())
 }
@@ -900,9 +886,8 @@ fn textselections_by_annotation() -> Result<(), StamError> {
     let annotation: &Annotation = store.get(&"A1".into())?;
     let reference_res_handle = store.resolve_resource_id("testres")?;
     let mut count = 0;
-    for (res_handle, textselection) in store.textselections_by_annotation(annotation) {
+    for textselection in store.textselections_by_annotation(annotation) {
         count += 1;
-        assert_eq!(reference_res_handle, res_handle);
         assert_eq!(textselection.begin(), 6);
         assert_eq!(textselection.end(), 11);
     }
@@ -914,7 +899,7 @@ fn textselections_by_annotation() -> Result<(), StamError> {
 fn textselections_by_resource_unsorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
     let resource: &TextResource = store.get(&"testres".into())?;
-    let v: Vec<&TextSelection> = resource.textselections().collect();
+    let v: Vec<_> = resource.textselections().collect();
     assert_eq!(v[0].begin(), 6);
     assert_eq!(v[0].end(), 11);
     assert_eq!(v[1].begin(), 0);
@@ -927,7 +912,7 @@ fn textselections_by_resource_unsorted() -> Result<(), StamError> {
 fn textselections_by_resource_sorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
     let resource: &TextResource = store.get(&"testres".into())?;
-    let v: Vec<&TextSelection> = resource.iter().collect();
+    let v: Vec<_> = resource.iter().collect();
     assert_eq!(v.len(), 2);
     assert_eq!(v[0].begin(), 0);
     assert_eq!(v[0].end(), 5);
@@ -990,7 +975,7 @@ fn positionindex_mode_begins() -> Result<(), StamError> {
 fn textselections_by_resource_range() -> Result<(), StamError> {
     let store = setup_example_4()?;
     let resource: &TextResource = store.get(&"testres".into())?;
-    let v: Vec<&TextSelection> = resource.range(6, 11).collect();
+    let v: Vec<_> = resource.range(6, 11).collect();
     assert_eq!(v.len(), 1);
     assert_eq!(v[0].begin(), 6);
     assert_eq!(v[0].end(), 11);
@@ -1212,9 +1197,7 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
             .into(),
     );
     let mut count = 0;
-    for result in
-        resource.find_text_regex(&[Regex::new(r"eavesdropping").unwrap()], None, None, true)?
-    {
+    for result in resource.find_text_regex(&[Regex::new(r"eavesdropping").unwrap()], None, true)? {
         count += 1;
         assert_eq!(result.textselections().len(), 1);
         assert_eq!(result.textselections()[0].begin(), 25);
@@ -1232,9 +1215,7 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
             .into(),
     );
     let mut count = 0;
-    for result in
-        resource.find_text_regex(&[Regex::new(r"\b\w{13}\b").unwrap()], None, None, true)?
-    {
+    for result in resource.find_text_regex(&[Regex::new(r"\b\w{13}\b").unwrap()], None, true)? {
         count += 1;
         if count == 1 {
             assert_eq!(result.textselections().len(), 1);
@@ -1262,7 +1243,6 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
     for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping").unwrap()],
         None,
-        None,
         true,
     )? {
         count += 1;
@@ -1284,7 +1264,6 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
     let mut count = 0;
     for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping\s(on\s\w+)\b").unwrap()],
-        None,
         None,
         true,
     )? {
@@ -1387,10 +1366,10 @@ pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
     let resource = store.resource(&"humanrights".into()).unwrap();
     store.annotate_builders(
         resource
-            .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, None, true)?
+            .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, true)?
             .into_iter()
             .map(|foundmatch| {
-                let offset: Offset = foundmatch.textselections().first().unwrap().into();
+                let offset: Offset = foundmatch.textselections().first().unwrap().deref().into();
                 AnnotationBuilder::new()
                     .with_target(SelectorBuilder::TextSelector(
                         resource.handle().into(),
