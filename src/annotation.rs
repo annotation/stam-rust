@@ -167,7 +167,7 @@ impl Annotation {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json_string(&self, store: &AnnotationStore) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: WrappedItem<Self, AnnotationStore> = WrappedItem::new(self, store)?;
+        let wrapped: WrappedItem<Self, AnnotationStore> = WrappedItem::borrow(self, store)?;
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation to string: {}", e))
         })

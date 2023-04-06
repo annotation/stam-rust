@@ -258,16 +258,6 @@ pub trait Storable: PartialEq + TypeInfo {
         store.wrap(self)
     }
 
-    /// Returns a wrapped reference to this item and the store that owns it. This allows for some
-    /// more introspection on the part of the item.
-    /// reverse of [`StoreFor<T>::wrap_owned()`]
-    fn wrap_owned_in<'a, S: StoreFor<Self>>(self, store: &'a S) -> WrappedOwnedItem<Self, S>
-    where
-        Self: Sized,
-    {
-        store.wrap_owned(self)
-    }
-
     /// Set the internal ID. May only be called once (though currently not enforced).
     #[allow(unused_variables)]
     fn set_handle(&mut self, handle: <Self as Storable>::HandleType) {
@@ -598,18 +588,21 @@ pub trait StoreFor<T: Storable>: Configurable {
     where
         Self: Sized,
     {
-        WrappedItem::new(item, self)
+        WrappedItem::borrow(item, self)
     }
 
-    /// Wraps an owned item (i.e. not (yet) owned by the store) in a smart pointer that also holds a reference to this store
-    fn wrap_owned<'a>(&'a self, item: T) -> WrappedOwnedItem<T, Self>
+    /// Wraps the item in a smart pointer that also holds a reference to this store
+    /// Ownership is retained with this method, i.e. the store does *NOT* own the item.
+    fn wrap_owned<'a>(&'a self, item: T) -> Result<WrappedItem<T, Self>, StamError>
     where
         Self: Sized,
     {
-        WrappedOwnedItem::new(item, self)
+        WrappedItem::own(item, self)
     }
 
     /// Wraps the entire store along with a reference to self
+    /// Low-level method that you won't need
+    // TODO: shouldn't be public
     fn wrap_store<'a>(&'a self) -> WrappedStore<T, Self>
     where
         Self: Sized,
@@ -677,25 +670,13 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
-#[derive(Clone, Copy, Debug)]
-pub struct WrappedItem<'a, T, S: StoreFor<T>>
+#[derive(Clone, Debug)]
+pub enum WrappedItem<'a, T, S: StoreFor<T>>
 where
     T: Storable,
 {
-    item: &'a T,
-    store: &'a S,
-}
-
-/// This is a smart pointer that encapsulates both the item and the store that offers
-/// the required context to interpret it. Unlike ['WrappedItem`], this one holds an owned structure
-/// that is *not* part of the store. It is used mostly for [`TextSelection`].
-#[derive(Clone, Copy, Debug)]
-pub struct WrappedOwnedItem<'a, T, S: StoreFor<T>>
-where
-    T: Storable,
-{
-    item: T,
-    store: &'a S,
+    Borrowed { item: &'a T, store: &'a S },
+    Owned { item: T, store: &'a S },
 }
 
 impl<'a, T, S> Deref for WrappedItem<'a, T, S>
@@ -706,7 +687,10 @@ where
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.item
+        match self {
+            Self::Borrowed { item, .. } => item,
+            Self::Owned { item, .. } => &item,
+        }
     }
 }
 
@@ -716,7 +700,7 @@ where
     S: StoreFor<T>,
 {
     //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
-    pub(crate) fn new(item: &'a T, store: &'a S) -> Result<Self, StamError> {
+    pub(crate) fn borrow(item: &'a T, store: &'a S) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
         } else if store.owns(item) == Some(false) {
@@ -724,26 +708,17 @@ where
                 "Can't wrap an item in a store that doesn't own it!",
             ));
         }
-        Ok(WrappedItem { item, store })
+        Ok(WrappedItem::Borrowed { item, store })
+    }
+
+    pub(crate) fn own(item: T, store: &'a S) -> Result<Self, StamError> {
+        Ok(WrappedItem::Owned { item, store })
     }
 
     pub fn store(&self) -> &S {
-        self.store
-    }
-}
-
-impl<'a, T, S> WrappedOwnedItem<'a, T, S>
-where
-    T: Storable,
-    S: StoreFor<T>,
-{
-    //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
-    pub(crate) fn new(item: T, store: &'a S) -> Self {
-        Self { item, store }
-    }
-
-    pub fn store(&self) -> &S {
-        self.store
+        match self {
+            Self::Borrowed { store, .. } | Self::Owned { store, .. } => store,
+        }
     }
 }
 
