@@ -1484,7 +1484,7 @@ fn test_annotations_by_textselection() -> Result<(), StamError> {
     let mut count_annotations = 0;
     for textselection in resource.textselections() {
         count += 1;
-        if let Some(iter) = textselection.annotations() {
+        if let Some(iter) = textselection.annotations(&store) {
             count_annotations += 1;
             for annotation in iter {
                 eprintln!("{} {:?}", textselection.text(), annotation.id());
