@@ -1381,8 +1381,8 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
 
     let set = store.annotationset(&"myset".into()).unwrap();
     let data = set.find_data("type".into(), &"header".into()).unwrap();
-    store.annotations_by_data(set.handle().unwrap(), data.handle().unwrap());
-
+    let vec = store.annotations_by_data(set.handle().unwrap(), data.handle().unwrap());
+    assert_eq!(vec.unwrap().len(), 4);
     Ok(())
 }
 
@@ -1472,5 +1472,28 @@ fn test_lifetime_sanity_annotationdata2() -> Result<(), StamError> {
         result.push((annotation.unwrap(), subresult));
     }
     assert!(!result.is_empty());
+    Ok(())
+}
+
+#[test]
+fn test_annotations_by_textselection() -> Result<(), StamError> {
+    let mut store = setup_example_5()?;
+    annotate_regex(&mut store)?;
+    let resource = store.resource(&"humanrights".into()).unwrap();
+    let mut count = 0;
+    let mut count_annotations = 0;
+    for textselection in resource.textselections() {
+        count += 1;
+        if let Some(iter) = textselection.annotations() {
+            count_annotations += 1;
+            for annotation in iter {
+                eprintln!("{} {:?}", textselection.text(), annotation.id());
+            }
+        }
+    }
+    assert_eq!(count, resource.textselections_len());
+    assert_ne!(count, 0);
+    assert_eq!(count_annotations, store.annotations_len());
+    assert_ne!(count_annotations, 0);
     Ok(())
 }

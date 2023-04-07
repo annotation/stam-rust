@@ -514,6 +514,10 @@ impl TextResource {
         })
     }
 
+    pub fn textselections_len(&self) -> usize {
+        self.store().len()
+    }
+
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
     /// textselections that either start or end in this range (depending on the direction you're
     /// iterating in)

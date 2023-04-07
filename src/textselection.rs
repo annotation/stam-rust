@@ -10,7 +10,7 @@ use std::slice::Iter;
 
 use smallvec::{smallvec, SmallVec};
 
-use crate::annotation::{AnnotationHandle, TargetIter, TargetIterItem};
+use crate::annotation::{Annotation, AnnotationHandle, TargetIter, TargetIterItem};
 use crate::config::Configurable;
 use crate::error::StamError;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
@@ -186,7 +186,7 @@ impl TextSelection {
     }
 }
 
-impl<'a, 'store, 'slf> Textual<'store, 'slf> for WrappedItem<'store, TextSelection>
+impl<'store, 'slf> Textual<'store, 'slf> for WrappedItem<'store, TextSelection>
 where
     'store: 'slf,
 {
@@ -349,6 +349,34 @@ where
 
     fn absolute_cursor(&self, cursor: usize) -> usize {
         self.begin + cursor
+    }
+}
+
+impl<'store, 'slf> WrappedItem<'store, TextSelection> {
+    /// Iterates over all annotations that are reference by this TextSelection, if any.
+    pub fn annotations(
+        &'slf self,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
+        match self {
+            Self::Borrowed {
+                item: textselection,
+                store,
+                superstore: Some(superstore),
+            } => {
+                if let Some(vec) =
+                    superstore.annotations_by_textselection(store.handle().unwrap(), textselection)
+                {
+                    Some(
+                        vec.iter().map(|a_handle| {
+                            superstore.annotation(&Item::Handle(*a_handle)).unwrap()
+                        }),
+                    )
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 }
 

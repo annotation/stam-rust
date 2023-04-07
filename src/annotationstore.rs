@@ -31,7 +31,7 @@ use crate::types::*;
 /// An Annotation Store is an unordered collection of annotations, resources and
 /// annotation data sets. It can be seen as the *root* of the *graph model* and the glue
 /// that holds everything together. It is the entry point for any stam model.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(try_from = "AnnotationStoreBuilder")]
 pub struct AnnotationStore {
     pub(crate) id: Option<String>,
@@ -1094,9 +1094,9 @@ impl AnnotationStore {
         self.annotationsets.len()
     }
 
+    /// Returns all annotations that reference any text selection in the resource.
     /// This is a low-level method, use [`WrappedItem<TextResource>.annotations()`] instead for higher-level access.
     ///
-    /// Returns all annotations that reference any text selection in the resource.
     /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
     pub fn annotations_by_resource(
         &self,
@@ -1116,9 +1116,9 @@ impl AnnotationStore {
         }
     }
 
+    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
     /// This is a low-level method, use [`WrappedItem<TextResource>.annotations(_metadata`] instead for higher-level access.
     ///
-    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
     /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
     pub fn annotations_by_resource_metadata(
         &self,
@@ -1128,6 +1128,7 @@ impl AnnotationStore {
     }
 
     /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
+    /// This is a low-level method, use [`WrappedItem<TextSelection>.annotations()`] instead for higher-level access.
     pub fn annotations_by_textselection(
         &self,
         resource_handle: TextResourceHandle,
@@ -1142,7 +1143,8 @@ impl AnnotationStore {
         }
     }
 
-    /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
+    /// Find all annotations with a particular textselection. This is a quick lookup in the reverse
+    /// index and returns a reference to a vector.
     pub fn annotations_by_textselection_handle(
         &self,
         resource_handle: TextResourceHandle,
@@ -1235,7 +1237,8 @@ impl AnnotationStore {
         self.dataset_annotation_map.get(annotationset_handle)
     }
 
-    /// Find all annotations reference by data. This is a lookup in the reverse index and return a reference.
+    /// Find all annotations referenced by data. This is a lookup in the reverse index and return a reference.
+    /// This is a low-level method
     pub fn annotations_by_data(
         &self,
         annotationset_handle: AnnotationDataSetHandle,

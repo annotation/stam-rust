@@ -7,6 +7,7 @@ use std::slice::{Iter, IterMut};
 
 use nanoid::nanoid;
 
+use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;
 use crate::error::StamError;
 use crate::types::*;
@@ -610,7 +611,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     where
         T: Storable<StoreType = Self>,
     {
-        WrappedItem::borrow(item, self)
+        WrappedItem::borrow(item, self, None)
     }
 
     /// Wraps the item in a smart pointer that also holds a reference to this store
@@ -619,7 +620,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     where
         T: Storable<StoreType = Self>,
     {
-        WrappedItem::own(item, self)
+        WrappedItem::own(item, self, None)
     }
 
     /// Wraps the entire store along with a reference to self
@@ -710,10 +711,12 @@ where
     Borrowed {
         item: &'store T,
         store: &'store T::StoreType,
+        superstore: Option<&'store AnnotationStore>,
     },
     Owned {
         item: T,
         store: &'store T::StoreType,
+        superstore: Option<&'store AnnotationStore>,
     },
 }
 
@@ -738,7 +741,11 @@ where
     T: Storable,
 {
     //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
-    pub(crate) fn borrow(item: &'store T, store: &'store T::StoreType) -> Result<Self, StamError> {
+    pub(crate) fn borrow(
+        item: &'store T,
+        store: &'store T::StoreType,
+        superstore: Option<&'store AnnotationStore>,
+    ) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
         } else if store.owns(item) == Some(false) {
@@ -746,16 +753,47 @@ where
                 "Can't wrap an item in a store that doesn't own it!",
             ));
         }
-        Ok(WrappedItem::Borrowed { item, store })
+        Ok(WrappedItem::Borrowed {
+            item,
+            store,
+            superstore,
+        })
     }
 
-    pub(crate) fn own(item: T, store: &'store T::StoreType) -> Result<Self, StamError> {
-        Ok(WrappedItem::Owned { item, store })
+    pub(crate) fn own(
+        item: T,
+        store: &'store T::StoreType,
+        superstore: Option<&'store AnnotationStore>,
+    ) -> Result<Self, StamError> {
+        Ok(WrappedItem::Owned {
+            item,
+            store,
+            superstore,
+        })
+    }
+
+    pub(crate) fn set_superstore(&mut self, annotationstore: &'store AnnotationStore) {
+        match self {
+            Self::Borrowed { superstore, .. } | Self::Owned { superstore, .. } => {
+                *superstore = Some(annotationstore)
+            }
+        }
+    }
+
+    pub(crate) fn with_superstore(mut self, annotationstore: &'store AnnotationStore) -> Self {
+        self.set_superstore(annotationstore);
+        self
     }
 
     pub fn store(&self) -> &'store T::StoreType {
         match self {
             Self::Borrowed { store, .. } | Self::Owned { store, .. } => store,
+        }
+    }
+
+    pub fn superstore(&self) -> Option<&'store AnnotationStore> {
+        match self {
+            Self::Borrowed { superstore, .. } | Self::Owned { superstore, .. } => *superstore,
         }
     }
 
