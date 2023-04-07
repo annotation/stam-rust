@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 //use serde_json::Result;
 
+use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::error::StamError;
 use crate::store::*;
@@ -175,9 +176,27 @@ impl DataKey {
     }
 }
 
-impl<'a> WrappedItem<'a, DataKey> {
+impl<'store, 'slf> WrappedItem<'store, DataKey> {
     /// Shortcut to return a reference to the dataset
-    pub fn annotationset(&'a self) -> &'a AnnotationDataSet {
+    pub fn annotationset(&'slf self) -> &'store AnnotationDataSet {
         self.store()
+    }
+
+    /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key. The iterator returns the data as [`WrappedItem<AnnotationData>`].
+    pub fn data(
+        &'slf self,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf> {
+        if let Some(vec) = self
+            .store()
+            .data_by_key(&self.handle().expect("key must have handle").into())
+        {
+            Some(
+                vec.iter().filter_map(|data_handle| {
+                    self.store().annotationdata(&Item::Handle(*data_handle))
+                }),
+            )
+        } else {
+            None
+        }
     }
 }

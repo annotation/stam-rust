@@ -775,28 +775,29 @@ impl AnnotationDataSet {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }
 
-    ///Iterates over all the data ([`AnnotationData`]) in this set, returns references
+    ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references as [`WrappedItem<AnnotationData`].
     pub fn data(&self) -> StoreIter<AnnotationData> {
         <Self as StoreFor<AnnotationData>>::iter(self)
     }
 
-    ///Iterates over all the keys in this set, returns references
+    /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references as [`WrappedItem<DataKey>`]
     pub fn keys(&self) -> StoreIter<DataKey> {
         <Self as StoreFor<DataKey>>::iter(self)
     }
 
-    /// Shortcut method to get a key
+    /// Retrieve a key in this set
     pub fn key(&self, key: &Item<DataKey>) -> Option<WrappedItem<DataKey>> {
         self.get(key)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
             .ok()
     }
 
-    /// Method to retrieve an annotation from the store.
+    /// Retrieve a [`AnnotationData`] in this set
     ///
-    /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`WrappedItem<Annotation>`]) that also contains reference to the store
-    /// and which is immediately implements various methods for working with the type.
-    /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
+    /// Returns a reference to [`AnnotationData`] that is wrapped in a fat pointer
+    /// ([`WrappedItem<AnnotationData>`]) that also contains reference to the store and which is
+    /// immediately implements various methods for working with the type. If you need a more
+    /// performant low-level method, use `StoreFor<T>::get()` instead.
     pub fn annotationdata<'a>(
         &'a self,
         annotationdata: &Item<AnnotationData>,
@@ -807,6 +808,7 @@ impl AnnotationDataSet {
     }
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
+    /// This is a low-level method. use [`WrappedItem<DataKey>.data()`] instead.
     pub fn data_by_key(&self, key: &Item<DataKey>) -> Option<&Vec<AnnotationDataHandle>> {
         if let Some(key_handle) = key.to_handle(self) {
             self.key_data_map.get(key_handle)
