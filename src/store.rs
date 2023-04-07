@@ -660,7 +660,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
         match self.iter.next() {
-            Some(Some(item)) => Some(item.wrap_in(self.store).expect("wrap must succeed")),
+            Some(Some(item)) => Some(self.store.wrap(item).expect("wrap must succeed")),
             Some(None) => self.next(),
             None => None,
         }
@@ -759,11 +759,11 @@ where
 
     /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
     /// This only works on Borrowed types though.
-    pub fn as_ref(&self) -> Result<&'a T, StamError> {
+    pub fn as_ref<'slf>(&'slf self) -> Result<&'a T, StamError> {
         match self {
-            Self::Borrowed { item, .. } => Ok(item),
-            Self::Owned { item, .. } => Err(StamError::OtherError(
-                "Can't use wrappedItem::as_ref() on an owned type",
+            Self::Borrowed { item, .. } => Ok(*item),
+            Self::Owned { .. } => Err(StamError::OtherError(
+                "Can't use WrappedItem::as_ref() on an owned type",
             )),
         }
     }

@@ -508,24 +508,19 @@ impl<'a> Annotation {
     }
 }
 
-impl<'store> WrappedItem<'store, Annotation> {
+impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterate over the annotation data, returns [`WrappedItem<AnnotationData>`].
-    pub fn data(
-        &'store self,
-    ) -> impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'store {
-        self.as_ref()
-            .expect("borrow")
-            .data()
-            .map(|(dataset_handle, data_handle)| {
-                let annotationset: &'store AnnotationDataSet = self
-                    .store()
-                    .get(&dataset_handle.into())
-                    .expect("dataset must exist");
-                let annotation: WrappedItem<'store, AnnotationData> = annotationset
-                    .annotationdata(&data_handle.into())
-                    .expect("data must exist");
-                annotation
-            })
+    pub fn data(&'slf self) -> impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf {
+        self.deref().data().map(|(dataset_handle, data_handle)| {
+            let annotationset: &'store AnnotationDataSet = self
+                .store()
+                .get(&dataset_handle.into())
+                .expect("dataset must exist");
+            let annotationdata: WrappedItem<'store, AnnotationData> = annotationset
+                .annotationdata(&data_handle.into())
+                .expect("data must exist");
+            annotationdata
+        })
     }
 
     /// Iterates over the resources this annotation points to

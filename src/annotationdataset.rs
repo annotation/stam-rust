@@ -794,10 +794,10 @@ impl AnnotationDataSet {
     /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`WrappedItem<Annotation>`]) that also contains reference to the store
     /// and which is immediately implements various methods for working with the type.
     /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
-    pub fn annotationdata(
-        &self,
+    pub fn annotationdata<'a>(
+        &'a self,
         annotationdata: &Item<AnnotationData>,
-    ) -> Option<WrappedItem<AnnotationData>> {
+    ) -> Option<WrappedItem<'a, AnnotationData>> {
         self.get(annotationdata)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
             .ok()
