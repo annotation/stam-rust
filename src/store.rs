@@ -717,12 +717,14 @@ where
     },
 }
 
-impl<'astore, T> Deref for WrappedItem<'astore, T>
+impl<'store, T> Deref for WrappedItem<'store, T>
 where
     T: Storable,
 {
     type Target = T;
 
+    /// This may be a cause for lifetime problems, as it returns a reference with the lifetime of WrappedItem
+    /// rather than the contained item. Use [`Self::unwrap()`] instead in those cases.
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Borrowed { item, .. } => item,
@@ -759,10 +761,14 @@ where
 
     /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
     /// This only works on Borrowed types though! Will panic on owned types!
+    /// Using this is usually safe except when dealing with [`TextSelection`].
+    ///
+    /// If strict lifetime preservation is not an issue, you can get away with just using ['Self::deref()`],
+    /// which is implicit (deref coercion).
     pub fn unwrap<'slf>(&'slf self) -> &'store T {
         match self {
             Self::Borrowed { item, .. } => *item,
-            Self::Owned { .. } => panic!("Can't use WrappedItem::unwrap() on an owned type",),
+            Self::Owned { .. } => panic!("Can't use WrappedItem::unwrap() on an owned type"),
         }
     }
 
