@@ -994,10 +994,21 @@ fn text_by_annotation() -> Result<(), StamError> {
 }
 
 #[test]
-fn find_data() -> Result<(), StamError> {
+fn find_data_low() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let annotationset: &AnnotationDataSet = store.get(&"testdataset".into())?;
     let annotationdata: Option<&AnnotationData> =
+        annotationset.find_data(Item::from("pos"), &DataValue::String("noun".into()));
+    assert!(annotationdata.is_some());
+    assert_eq!(annotationdata.unwrap().id(), Some("D1"));
+    Ok(())
+}
+
+#[test]
+fn find_data_high() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let annotationset = store.annotationset(&"testdataset".into()).unwrap();
+    let annotationdata =
         annotationset.find_data(Item::from("pos"), &DataValue::String("noun".into()));
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));

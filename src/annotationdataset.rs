@@ -674,6 +674,7 @@ impl AnnotationDataSet {
     }
 
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
+    /// This is a low level method, use the similar [`WrappedItem<AnnotationDataSet>.find_data()`] for a higher level version.
     pub fn find_data(&self, key: Item<DataKey>, value: &DataValue) -> Option<&AnnotationData> {
         if key.is_none() {
             None
@@ -828,5 +829,19 @@ impl AnnotationDataSet {
     //Returns the number of data items in the store (deletions are not substracted)
     pub fn data_len(&self) -> usize {
         self.data.len()
+    }
+}
+
+impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
+    /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
+    /// Returns a fat pointer.
+    pub fn find_data(
+        &self,
+        key: Item<DataKey>,
+        value: &DataValue,
+    ) -> Option<WrappedItem<'store, AnnotationData>> {
+        self.unwrap()
+            .find_data(key, value)
+            .map(|annotationdata| annotationdata.wrap_in(self.unwrap()).unwrap())
     }
 }
