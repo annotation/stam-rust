@@ -125,57 +125,6 @@ The ``get()`` method returns a `Result<&T, StamError>`. When using `get()` it is
 is important to specify the return type, as that's how the compiler can infer what you want to get.
 (these methods are provided by the `ForStore<T>` trait.).
 
-### Iterators
-
-Iterating through all annotations in the store, and outputting a simple tab
-separated format with the data by annotation and the text by annotation:
-
-```rust
-for annotation in store.annotations() {
-    let id = annotation.id().unwrap_or("");
-    for data in annotation.data() {
-        // get the text to which this annotation refers (if any)
-        let text: Vec<&str> = annotation.text().collect();
-        print!("{}\t{}\t{}\t{}", id, data.key().id().unwrap(), data.value(), text.join(" "));
-    }
-}
-```
-
-Here is an overview of the most important methods that return an iterator, the
-iterators in turn all return `WrappedItem<T>` instances. The table is divided into two parts,
-the top part follows STAM's ownership model. The bottom part leverage the various *reverse indices*
-that are maintained.
-
-
-| Method                               |  T                    | Description                         |
-| -------------------------------------| ----------------------| ------------------------------------|
-| `AnnotationStore.annotations()`      | `Annotation`          | all annotations in the store        | 
-| `AnnotationStore.resources()`        | `TextResource`        | all resources in the store          |
-| `AnnotationStore.annotationsets()`   | `AnnotationDataSet`   | all annotation sets in the store    |
-| `AnnotationDataSet.keys()`           | `DataKey`             | all keys in the set                 |
-| `AnnotationDataSet.data()`           | `AnnotationData`      | all data in the set                 |
-| `Annotation.data()`                  | `AnnotationData`      | the data for the annotation         |
-| -------------------------------------|-----------------------|-------------------------------------|
-| `TextResource.textselections()`      | `TextSelection`       | all *known* text selections in the resource (1) |
-| `TextResource.annotations()`         | `Annotation`          | Annotations referencing this text using a `TextSelector` or `AnnotationSelector` |
-| `TextResource.annotations_metadata()`| `Annotation`          | Annotations referencing the resource via a `ResourceSelector` |
-| `Annotation.annotations()`           | `Annotation`          | Annotations pointed at via a `AnnotationSelector` |
-| `Annotation.annotations_reverse()`   | `Annotation`          | The reverse of the above (annotations that point back) |
-| `Annotation.textselections()`        | `Annotation`          | Targeted text selections (via `TextSelector` or `AnnotationSelector`) |
-| `AnnotationData.annotations()`       | `Annotation`          | All annotations that uses of this data  |
-| `DataKey.data()`                     | `AnnotationData`      | All annotation data that uses this key |
-| `TextSelection.annotations()`        | `Annotation`          | All annotations that target this text selection |
-| -------------------------------------|-----------------------|-------------------------------------|
-
-* Note 1: With *known* text selections, we refer to portions of the texts that have been referenced by an annotation.
-
-#### Iterators (advanced, low-level)
-
-*(feel free to skip this subsection on a first reading!)*
-
-Whereas all iterators in the above table produce a `WrappedItem<T>`, there are lower level methods available which only return handles.
-We are not going to list them here, but they can be recognized by the keyword `_by_` in the method name, like `annotations_by_data()`.
-
 ### Adding items
 
 Add a resource to an existing store:
@@ -270,6 +219,65 @@ Or to a [STAM CSV](https://github.com/annotation/stam/tree/master/extensions/sta
 store.to_file("example.stam.csv")?;
 ```
 
+### Iterators
+
+Iterating through all annotations in the store, and outputting a simple tab
+separated format with the data by annotation and the text by annotation:
+
+```rust
+for annotation in store.annotations() {
+    let id = annotation.id().unwrap_or("");
+    for data in annotation.data() {
+        // get the text to which this annotation refers (if any)
+        let text: Vec<&str> = annotation.text().collect();
+        print!("{}\t{}\t{}\t{}", id, data.key().id().unwrap(), data.value(), text.join(" "));
+    }
+}
+```
+
+Here is an overview of the most important methods that return an iterator, the
+iterators in turn all return `WrappedItem<T>` instances. The table is divided into two parts,
+the top part follows STAM's ownership model. The bottom part leverage the various *reverse indices*
+that are maintained.
+
+
+| Method                               |  T                    | Description                         |
+| -------------------------------------| ----------------------| ------------------------------------|
+| `AnnotationStore.annotations()`      | `Annotation`          | all annotations in the store        | 
+| `AnnotationStore.resources()`        | `TextResource`        | all resources in the store          |
+| `AnnotationStore.annotationsets()`   | `AnnotationDataSet`   | all annotation sets in the store    |
+| `AnnotationDataSet.keys()`           | `DataKey`             | all keys in the set                 |
+| `AnnotationDataSet.data()`           | `AnnotationData`      | all data in the set                 |
+| `Annotation.data()`                  | `AnnotationData`      | the data for the annotation         |
+| -------------------------------------|-----------------------|-------------------------------------|
+| `TextResource.textselections()`      | `TextSelection`       | all *known* text selections in the resource (1) |
+| `TextResource.annotations()`         | `Annotation`          | Annotations referencing this text using a `TextSelector` or `AnnotationSelector` |
+| `TextResource.annotations_metadata()`| `Annotation`          | Annotations referencing the resource via a `ResourceSelector` |
+| `AnnotationDataSet.annotations()`         | `Annotation`          | All annotations making use of this set |
+| `AnnotationDataSet.annotations_metadata()`| `Annotation`          | Annotations referencing the set via a `DataSetSelector` |
+| `Annotation.annotations()`           | `Annotation`          | Annotations pointed at via a `AnnotationSelector` |
+| `Annotation.annotations_reverse()`   | `Annotation`          | The reverse of the above (annotations that point back) |
+| `Annotation.textselections()`        | `Annotation`          | Targeted text selections (via `TextSelector` or `AnnotationSelector`) |
+| `AnnotationData.annotations()`       | `Annotation`          | All annotations that uses of this data  |
+| `DataKey.data()`                     | `AnnotationData`      | All annotation data that uses this key |
+| `TextSelection.annotations()`        | `Annotation`          | All annotations that target this text selection |
+| -------------------------------------|-----------------------|-------------------------------------|
+
+* Notes:
+    * Most of the methods in the left column, second part of the table, are implemented only for `WrappedItem<T>`, not `&T`.
+    * (1) With *known* text selections, we refer to portions of the texts that have been referenced by an annotation.
+
+
+#### Iterators (advanced, low-level)
+
+*(feel free to skip this subsection on a first reading!)*
+
+Whereas all iterators in the above table produce a `WrappedItem<T>`, there are lower level methods available which only return handles.
+We are not going to list them here, but they can be recognized by the keyword `_by_` in the method name, like `annotations_by_data()`.
+
+### Searching
+
+(TODO)
 
 ## API Reference Documentation
 
