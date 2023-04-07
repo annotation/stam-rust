@@ -118,7 +118,6 @@ pub(crate) fn find_text_regex_select_expressions<'a, 'b>(
 }
 
 impl AnnotationStore {
-    /*
     /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
     /// See [`TextResource.find_text_regex()`].
     /// Note that this method, unlike its counterpart [`TextResource.find_text_regex()`], silently ignores any deeper errors that might occur.
@@ -132,12 +131,12 @@ impl AnnotationStore {
             .filter_map(move |resource: WrappedItem<'store, TextResource>| {
                 //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
                 resource
+                    .unwrap()
                     .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
                     .ok() //ignore errors!
             })
             .flatten()
     }
-    */
 }
 
 /// Wrapper over iterator regex Matches or CaptureMatches
