@@ -146,6 +146,18 @@ pub fn bench_storefor(c: &mut Criterion) {
             black_box(store.get(&id)).ok();
         })
     });
+
+    c.bench_function("store_get_wrapped_by_handle", |b| {
+        b.iter(|| {
+            black_box(store.annotation(&item));
+        })
+    });
+
+    c.bench_function("store_get_wrapped_by_id", |b| {
+        b.iter(|| {
+            black_box(store.annotation(&id));
+        })
+    });
 }
 
 criterion_group!(benches, bench_textsearch, bench_storefor);

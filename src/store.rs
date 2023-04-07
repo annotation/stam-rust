@@ -557,8 +557,12 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Iterate over the store
-    fn iter<'a>(&'a self) -> StoreIter<'a, T> {
+    fn iter<'a>(&'a self) -> StoreIter<'a, T>
+    where
+        T: Storable<StoreType = Self>,
+    {
         StoreIter {
+            store: self,
             iter: self.store().iter(),
             count: 0,
             len: self.store().len(),
@@ -635,19 +639,28 @@ pub trait StoreFor<T: Storable>: Configurable {
 //  generic iterator implementations, these take care of skipping over deleted items (None)
 
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
-pub struct StoreIter<'a, T> {
+/// It produces a references to the item wrapped in a fat pointer ([`WrappedItem<T>`]) that also contains reference to the store
+/// and which is immediately implements various methods for working with the type.
+pub struct StoreIter<'a, T>
+where
+    T: Storable,
+{
+    store: &'a T::StoreType,
     iter: Iter<'a, Option<T>>,
     count: usize,
     len: usize,
 }
 
-impl<'a, T> Iterator for StoreIter<'a, T> {
-    type Item = &'a T;
+impl<'a, T> Iterator for StoreIter<'a, T>
+where
+    T: Storable,
+{
+    type Item = WrappedItem<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
         match self.iter.next() {
-            Some(Some(item)) => Some(item),
+            Some(Some(item)) => Some(item.wrap_in(self.store).expect("wrap must succeed")),
             Some(None) => self.next(),
             None => None,
         }
@@ -660,6 +673,7 @@ impl<'a, T> Iterator for StoreIter<'a, T> {
     }
 }
 
+/// Mutable variant of [`StoreIter<T>`], but unlike that one this does not wrap results in a fat pointer but returns them directly, ready for mutation.
 pub struct StoreIterMut<'a, T> {
     iter: IterMut<'a, Option<T>>,
     count: usize,

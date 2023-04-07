@@ -10,8 +10,7 @@ use std::slice::Iter;
 
 use smallvec::{smallvec, SmallVec};
 
-use crate::annotation::AnnotationHandle;
-use crate::annotationstore::{TargetIter, TargetIterItem};
+use crate::annotation::{AnnotationHandle, TargetIter, TargetIterItem};
 use crate::config::Configurable;
 use crate::error::StamError;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
@@ -274,12 +273,12 @@ where
     /// false. All of this only matters if you supply multiple regular expressions.
     ///
     /// Results are returned in the exact order they are found in the text
-    fn find_text_regex<'b, 'c>(
-        &'b self,
-        expressions: &'c [Regex],
+    fn find_text_regex<'regex>(
+        &'slf self,
+        expressions: &'regex [Regex],
         precompiledset: Option<&RegexSet>,
         allow_overlap: bool,
-    ) -> Result<FindRegexIter<'b, 'c>, StamError> {
+    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
         debug(self.store().config(), || {
             format!(
                 "TextSelection::find_text_regex: expressions={:?}",
@@ -1341,7 +1340,7 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
                         .get(&textselection.into())
                         .expect("TextSelection must exist");
                     Some(TargetIterItem {
-                        item: textselection,
+                        item: textselection.wrap_in(resource).expect("wrap must succeed"),
                         selectoriteritem: selectoritem,
                     })
                 }

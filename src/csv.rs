@@ -434,12 +434,13 @@ where
                         }
                     } else if annotation.len() == 1 {
                         //only one data item, we needn't make any copies
-                        let (_key, data, set) = self.data_by_annotation(annotation).next().unwrap();
+                        let data = annotation.data().next().unwrap();
                         if data.id().is_none() {
                             return Err(StamError::SerializationError(format!(
                                 "AnnotationData must have a public id for csv serialization",
                             )));
                         }
+                        let set = data.set();
                         if set.id().is_none() {
                             return Err(StamError::SerializationError(format!(
                                 "AnnotationDataSet must have a public id for csv serialization",
@@ -468,12 +469,13 @@ where
                     } else {
                         let mut data_ids = String::new();
                         let mut set_ids = String::new();
-                        for (_key, data, set) in self.data_by_annotation(annotation) {
+                        for data in annotation.data() {
                             if data.id().is_none() {
                                 return Err(StamError::SerializationError(format!(
                                     "AnnotationData must have a public id for csv serialization",
                                 )));
                             }
+                            let set = data.set();
                             if set.id().is_none() {
                                 return Err(StamError::SerializationError(format!(
                                     "AnnotationDataSet must have a public id for csv serialization",

@@ -30,12 +30,12 @@ where
     fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError>;
     fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError>;
 
-    fn find_text_regex<'a, 'b>(
-        &'a self,
-        expressions: &'b [Regex],
+    fn find_text_regex<'regex>(
+        &'slf self,
+        expressions: &'regex [Regex],
         precompiledset: Option<&RegexSet>,
         allow_overlap: bool,
-    ) -> Result<FindRegexIter<'a, 'b>, StamError>;
+    ) -> Result<FindRegexIter<'store, 'regex>, StamError>;
 
     fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b>;
 
@@ -118,38 +118,38 @@ pub(crate) fn find_text_regex_select_expressions<'a, 'b>(
 }
 
 impl AnnotationStore {
+    /*
     /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// See [`TextResource.search_text()`].
+    /// See [`TextResource.find_text_regex()`].
     /// Note that this method, unlike its counterpart [`TextResource.find_text_regex()`], silently ignores any deeper errors that might occur.
-    pub fn find_text_regex<'t, 'r>(
-        &'t self,
+    pub fn find_text_regex<'store, 'r>(
+        &'store self,
         expressions: &'r [Regex],
         precompiledset: &'r Option<RegexSet>,
         allow_overlap: bool,
-    ) -> Box<impl Iterator<Item = FindRegexMatch<'t, 'r>>> {
-        Box::new(
-            self.resources()
-                .filter_map(move |resource| {
-                    //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
-                    resource
-                        .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
-                        .ok() //ignore errors!
-                })
-                .flatten(),
-        )
+    ) -> impl Iterator<Item = FindRegexMatch<'store, 'r>> {
+        self.resources()
+            .filter_map(move |resource: WrappedItem<'store, TextResource>| {
+                //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
+                resource
+                    .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
+                    .ok() //ignore errors!
+            })
+            .flatten()
     }
+    */
 }
 
 /// Wrapper over iterator regex Matches or CaptureMatches
-pub(crate) enum Matches<'r, 't> {
-    NoCapture(regex::Matches<'r, 't>),
-    WithCapture(regex::CaptureMatches<'r, 't>),
+pub(crate) enum Matches<'r, 'store> {
+    NoCapture(regex::Matches<'r, 'store>),
+    WithCapture(regex::CaptureMatches<'r, 'store>),
 }
 
 /// Wrapper over regex Match or Captures (as returned by the iterator)
-pub(crate) enum Match<'t> {
-    NoCapture(regex::Match<'t>),
-    WithCapture(regex::Captures<'t>),
+pub(crate) enum Match<'store> {
+    NoCapture(regex::Match<'store>),
+    WithCapture(regex::Captures<'store>),
 }
 
 impl<'t> Match<'t> {
@@ -281,20 +281,20 @@ impl<'t, 'r> FindRegexMatch<'t, 'r> {
 }
 
 /// This iterator is produced by [`TextResource.find_text_regex()`] and searches a text based on regular expressions.
-pub struct FindRegexIter<'t, 'r> {
-    pub(crate) resource: &'t TextResource,
-    pub(crate) expressions: &'r [Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
+pub struct FindRegexIter<'store, 'regex> {
+    pub(crate) resource: &'store TextResource,
+    pub(crate) expressions: &'regex [Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
     pub(crate) selectexpressions: Vec<usize>, //points at an expression, not used directly but via selectionexpression() method
-    pub(crate) matchiters: Vec<Matches<'r, 't>>, //each expression (from selectexpressions) has its own interator  (same length as above vec)
-    pub(crate) nextmatches: Vec<Option<Match<'t>>>, //this buffers the next match for each expression (from selectexpressions, same length as above vec)
-    pub(crate) text: &'t str,
+    pub(crate) matchiters: Vec<Matches<'regex, 'store>>, //each expression (from selectexpressions) has its own interator  (same length as above vec)
+    pub(crate) nextmatches: Vec<Option<Match<'store>>>, //this buffers the next match for each expression (from selectexpressions, same length as above vec)
+    pub(crate) text: &'store str,
     pub(crate) begincharpos: usize,
     pub(crate) beginbytepos: usize,
     pub(crate) allow_overlap: bool,
 }
 
-impl<'t, 'r> Iterator for FindRegexIter<'t, 'r> {
-    type Item = FindRegexMatch<'t, 'r>;
+impl<'store, 'regex> Iterator for FindRegexIter<'store, 'regex> {
+    type Item = FindRegexMatch<'store, 'regex>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.matchiters.is_empty() {
             //instantiate the iterators for the expressions and retrieve the first item for each
@@ -312,7 +312,7 @@ impl<'t, 'r> Iterator for FindRegexIter<'t, 'r> {
         }
 
         //find the best next match (the single one next in line amongst all the iterators)
-        let mut bestnextmatch: Option<&Match<'t>> = None;
+        let mut bestnextmatch: Option<&Match<'store>> = None;
         let mut bestmatchindex = None;
         for (i, m) in self.nextmatches.iter().enumerate() {
             if let Some(m) = m {
@@ -354,13 +354,13 @@ impl<'t, 'r> Iterator for FindRegexIter<'t, 'r> {
     }
 }
 
-impl<'t, 'r> FindRegexIter<'t, 'r> {
+impl<'store, 'regex> FindRegexIter<'store, 'regex> {
     /// Build the final match structure we return
     fn match_to_result(
         &self,
-        m: Match<'t>,
+        m: Match<'store>,
         selectexpression_index: usize,
-    ) -> FindRegexMatch<'t, 'r> {
+    ) -> FindRegexMatch<'store, 'regex> {
         let expression_index = self.selectexpressions[selectexpression_index];
         match m {
             Match::NoCapture(m) => {

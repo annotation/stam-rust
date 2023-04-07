@@ -2,9 +2,6 @@ use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use std::borrow::Cow;
-use std::marker::PhantomData;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::slice::Iter;
 
@@ -360,25 +357,27 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
+            let annotationref = self.wrap(annotation)?;
             if self.config.dataset_annotation_map {
-                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = self
-                    .annotationsets_by_annotation(annotation)
-                    .map(|targetitem| {
-                        (
-                            targetitem
-                                .handle()
-                                .expect("annotationset must have a handle"),
-                            handle,
-                        )
-                    })
-                    .collect();
+                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> =
+                    annotationref
+                        .annotationsets()
+                        .map(|targetitem| {
+                            (
+                                targetitem
+                                    .handle()
+                                    .expect("annotationset must have a handle"),
+                                handle,
+                            )
+                        })
+                        .collect();
                 self.dataset_annotation_map
                     .extend(target_datasets.into_iter());
             }
 
             if self.config.annotation_annotation_map {
-                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = self
-                    .annotations_by_annotation(annotation, false, false)
+                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotationref
+                    .annotations(false, false)
                     .map(|targetitem| {
                         (
                             targetitem.handle().expect("annotation must have a handle"),
@@ -390,8 +389,8 @@ impl StoreFor<Annotation> for AnnotationStore {
                     .extend(target_annotations.into_iter());
             }
 
-            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = self
-                .resources_by_annotation(annotation)
+            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = annotationref
+                .resources()
                 .map(|targetitem| {
                     let res_handle = targetitem.handle().expect("resource must have a handle");
                     if self.config.textrelationmap {
@@ -1111,88 +1110,21 @@ impl AnnotationStore {
         }
     }
 
-    /// Iterates over the resources this annotation points to
-    pub fn resources_by_annotation<'a>(
-        &'a self,
-        annotation: &'a Annotation,
-    ) -> TargetIter<'a, TextResource> {
-        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true, true);
-        //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
-        TargetIter {
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
-    }
-
-    /// Iterates over the annotations this annotation points to directly
-    /// Use [`annotations_by_annotation_reverse'] if you want to find the annotations this resource is pointed by.
-    pub fn annotations_by_annotation<'a>(
-        &'a self,
-        annotation: &'a Annotation,
-        recursive: bool,
-        track_ancestors: bool,
-    ) -> TargetIter<'a, Annotation> {
-        let selector_iter: SelectorIter<'a> =
-            annotation.target().iter(self, recursive, track_ancestors);
-        TargetIter {
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
-    }
-
-    /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
-    pub fn annotationsets_by_annotation<'a>(
-        &'a self,
-        annotation: &'a Annotation,
-    ) -> TargetIter<'a, AnnotationDataSet> {
-        let selector_iter: SelectorIter<'a> = annotation.target().iter(self, true, false);
-        TargetIter {
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
-    }
-
-    /// Iterate over all resources with text selections this annotation refers to
-    pub fn textselections_by_annotation<'a>(
-        &'a self,
-        annotation: &'a Annotation,
-    ) -> Box<dyn Iterator<Item = WrappedItem<'a, TextSelection>> + 'a> {
-        Box::new(self.resources_by_annotation(annotation).map(|targetitem| {
-            //process offset relative offset
-            self.textselection(
-                targetitem.selector(),
-                Box::new(targetitem.ancestors().iter().map(|x| x.as_ref())),
-            )
-            .expect("Resolving relative text failed") //TODO: panic is too strong here! handle more nicely
-        }))
-    }
-
-    /// Iterates over all text slices this annotation refers to
-    pub fn text_by_annotation<'a>(
-        &'a self,
-        annotation: &'a Annotation,
-    ) -> Box<dyn Iterator<Item = &'a str> + 'a> {
-        Box::new(
-            self.textselections_by_annotation(annotation)
-                .map(|textselection| textselection.text()),
-        )
-    }
-
     /// Returns all annotations that reference any text selection in the resource.
     /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
     pub fn annotations_by_resource(
         &self,
         resource_handle: TextResourceHandle,
-    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
         if let Some(textselection_annotationmap) =
             self.textrelationmap.data.get(resource_handle.unwrap())
         {
-            Some(Box::new(
+            Some(
                 textselection_annotationmap
                     .data
                     .iter()
                     .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
-            ))
+            )
         } else {
             None
         }
@@ -1359,7 +1291,7 @@ impl AnnotationStore {
     pub fn textselection<'b>(
         &self,
         selector: &Selector,
-        subselectors: Box<impl Iterator<Item = &'b Selector>>,
+        subselectors: impl Iterator<Item = &'b Selector>,
     ) -> Result<WrappedItem<TextSelection>, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
@@ -1376,14 +1308,6 @@ impl AnnotationStore {
             _ => Err(StamError::WrongSelectorType(
                 "selector for Annotationstore::text_selection() must be a TextSelector",
             )),
-        }
-    }
-
-    /// Iterate over the data for the specified annotation, returning `(&DataKey, &AnnotationData, &AnnotationDataSet)` tuples
-    pub fn data_by_annotation<'a>(&'a self, annotation: &'a Annotation) -> AnnotationDataIter<'a> {
-        AnnotationDataIter {
-            store: self,
-            iter: annotation.data(),
         }
     }
 
@@ -1448,9 +1372,15 @@ impl AnnotationStore {
         }
     }
 
-    /// Shortcut method to get an annotation
-    pub fn annotation(&self, annotation: &Item<Annotation>) -> Option<&Annotation> {
-        self.get(annotation).ok()
+    /// Method to retrieve an annotation from the store.
+    ///
+    /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`WrappedItem<Annotation>`]) that also contains reference to the store
+    /// and which is immediately implements various methods for working with the type.
+    /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
+    pub fn annotation(&self, annotation: &Item<Annotation>) -> Option<WrappedItem<Annotation>> {
+        self.get(annotation)
+            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .ok()
     }
 
     /// Shortcut method to get an annotationset
@@ -1464,19 +1394,6 @@ impl AnnotationStore {
     /// Shortcut method to get a resource
     pub fn resource(&self, resource: &Item<TextResource>) -> Option<&TextResource> {
         self.get(resource).ok()
-    }
-
-    /// Shortcut method to get an annotationset (mutable) by any id
-    pub fn annotationset_mut(
-        &mut self,
-        annotationset: &Item<AnnotationDataSet>,
-    ) -> Option<&mut AnnotationDataSet> {
-        self.get_mut(annotationset).ok()
-    }
-
-    /// Shortcut method to get an annotation by any id
-    pub fn annotation_mut(&mut self, annotation: &Item<Annotation>) -> Option<&mut Annotation> {
-        self.get_mut(annotation).ok()
     }
 
     /// Returns total counts for each of the reverse indices
@@ -1560,152 +1477,5 @@ impl AssociatedFile for AnnotationStore {
         self.filename
             .as_ref()
             .map(|x| x.to_str().expect("valid utf-8"))
-    }
-}
-
-pub struct AnnotationDataIter<'a> {
-    store: &'a AnnotationStore,
-    iter: Iter<'a, (AnnotationDataSetHandle, AnnotationDataHandle)>,
-}
-
-impl<'a> Iterator for AnnotationDataIter<'a> {
-    type Item = (&'a DataKey, &'a AnnotationData, &'a AnnotationDataSet);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.iter.next() {
-            Some((annotationset_handle, annotationdata_intid)) => {
-                let annotationset: &AnnotationDataSet = self
-                    .store
-                    .get(&annotationset_handle.into())
-                    .expect("Getting dataset for annotation");
-                let annotationdata: &AnnotationData = annotationset
-                    .get(&annotationdata_intid.into())
-                    .expect("Getting annotationdata for annotation");
-                let datakey: &DataKey = annotationset
-                    .get(&annotationdata.key().into())
-                    .expect("Getting datakey for annotation");
-                Some((datakey, annotationdata, annotationset))
-            }
-            None => None,
-        }
-    }
-}
-
-pub struct TargetIter<'a, T> {
-    pub(crate) iter: SelectorIter<'a>,
-    _phantomdata: PhantomData<T>,
-}
-
-impl<'a, T> TargetIter<'a, T> {
-    pub fn new(iter: SelectorIter<'a>) -> Self {
-        Self {
-            iter,
-            _phantomdata: PhantomData,
-        }
-    }
-}
-
-pub struct TargetIterItem<'a, T> {
-    pub(crate) item: &'a T,
-    pub(crate) selectoriteritem: SelectorIterItem<'a>,
-}
-
-impl<'a, T> Deref for TargetIterItem<'a, T> {
-    type Target = T;
-    fn deref(&self) -> &'a T {
-        self.item
-    }
-}
-
-impl<'a, T> TargetIterItem<'a, T> {
-    pub fn depth(&self) -> usize {
-        self.selectoriteritem.depth()
-    }
-    pub fn selector<'b>(&'b self) -> &'b Cow<'a, Selector> {
-        self.selectoriteritem.selector()
-    }
-    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'a> {
-        self.selectoriteritem.ancestors()
-    }
-    pub fn is_leaf(&self) -> bool {
-        self.selectoriteritem.is_leaf()
-    }
-}
-
-impl<'a> Iterator for TargetIter<'a, TextResource> {
-    type Item = TargetIterItem<'a, TextResource>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let selectoritem = self.iter.next();
-        if let Some(selectoritem) = selectoritem {
-            match selectoritem.selector().as_ref() {
-                Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                    let resource: &TextResource = self
-                        .iter
-                        .store
-                        .get(&res_id.into())
-                        .expect("Resource must exist");
-                    Some(TargetIterItem {
-                        item: resource,
-                        selectoriteritem: selectoritem,
-                    })
-                }
-                _ => self.next(),
-            }
-        } else {
-            None
-        }
-    }
-}
-
-impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
-    type Item = TargetIterItem<'a, AnnotationDataSet>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let selectoritem = self.iter.next();
-        if let Some(selectoritem) = selectoritem {
-            match selectoritem.selector().as_ref() {
-                Selector::DataSetSelector(set_id) => {
-                    let annotationset: &AnnotationDataSet = self
-                        .iter
-                        .store
-                        .get(&set_id.into())
-                        .expect("Dataset must exist");
-                    Some(TargetIterItem {
-                        item: annotationset,
-                        selectoriteritem: selectoritem,
-                    })
-                }
-                _ => self.next(),
-            }
-        } else {
-            None
-        }
-    }
-}
-
-impl<'a> Iterator for TargetIter<'a, Annotation> {
-    type Item = TargetIterItem<'a, Annotation>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let selectoritem = self.iter.next();
-        if let Some(selectoritem) = selectoritem {
-            match selectoritem.selector().as_ref() {
-                Selector::AnnotationSelector(a_id, _) => {
-                    let annotation: &Annotation = self
-                        .iter
-                        .store
-                        .get(&a_id.into())
-                        .expect("Annotation must exist");
-                    Some(TargetIterItem {
-                        item: annotation,
-                        selectoriteritem: selectoritem,
-                    })
-                }
-                _ => self.next(),
-            }
-        } else {
-            None
-        }
     }
 }

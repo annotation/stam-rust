@@ -2,6 +2,7 @@
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 //use serde_json::Result;
 
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
@@ -132,13 +133,7 @@ impl<'a> Serialize for WrappedItem<'a, AnnotationData> {
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
-        if let Ok(key) = self.key_as_ref() {
-            state.serialize_field("key", &key.id())?;
-        } else {
-            return Err(serde::ser::Error::custom(
-                "Unable to resolve datakey for annotationitem during serialization",
-            ));
-        }
+        state.serialize_field("key", &self.key().id())?;
         state.serialize_field("value", self.value())?;
         state.end()
     }
@@ -155,13 +150,7 @@ impl<'a> Serialize for AnnotationDataRefWithSet<'a> {
         let mut state = serializer.serialize_struct("AnnotationData", 2)?;
         state.serialize_field("@type", "AnnotationData")?;
         state.serialize_field("@id", &self.0.id())?;
-        if let Ok(key) = self.0.key_as_ref() {
-            state.serialize_field("key", &key.id())?;
-        } else {
-            return Err(serde::ser::Error::custom(
-                "Unable to resolve datakey for annotationitem during serialization",
-            ));
-        }
+        state.serialize_field("key", &self.0.key().id())?;
         state.serialize_field("value", self.0.value())?;
         state.end()
     }
@@ -227,15 +216,16 @@ impl AnnotationData {
     }
 }
 
-impl<'a> WrappedItem<'a, AnnotationData> {
+impl<'store> WrappedItem<'store, AnnotationData> {
     /// Return a reference to the AnnotationDataSet that holds this data (and its key)
-    pub fn dataset_as_ref(&'a self) -> &'a AnnotationDataSet {
+    pub fn set(&self) -> &'store AnnotationDataSet {
         self.store()
     }
 
-    /// Return a reference to the DataKey used by this data
-    pub fn key_as_ref(&'a self) -> Result<&'a DataKey, StamError> {
-        self.store().get(&self.key().into())
+    pub fn key(&self) -> &'store DataKey {
+        self.store()
+            .key(&Item::Handle(self.deref().key()))
+            .expect("AnnotationData must always have a key at this point")
     }
 }
 

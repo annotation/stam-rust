@@ -755,12 +755,12 @@ impl<'store> Textual<'store, 'store> for TextResource {
     /// false. All of this only matters if you supply multiple regular expressions.
     ///
     /// Results are returned in the exact order they are found in the text
-    fn find_text_regex<'a, 'b>(
-        &'a self,
-        expressions: &'b [Regex],
+    fn find_text_regex<'regex>(
+        &self,
+        expressions: &'regex [Regex],
         precompiledset: Option<&RegexSet>,
         allow_overlap: bool,
-    ) -> Result<FindRegexIter<'a, 'b>, StamError> {
+    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
         debug(self.config(), || {
             format!("find_text_regex: expressions={:?}", expressions)
         });

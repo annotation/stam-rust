@@ -1,3 +1,6 @@
+use std::borrow::Cow;
+use std::marker::PhantomData;
+use std::ops::Deref;
 use std::slice::Iter;
 
 use sealed::sealed;
@@ -15,8 +18,13 @@ use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
 use crate::resources::TextResource;
-use crate::selector::{Offset, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
+use crate::selector::{
+    AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelfSelector,
+    WrappedSelector,
+};
 use crate::store::*;
+use crate::textsearch::Textual;
+use crate::textselection::TextSelection;
 use crate::types::*;
 
 /// `Annotation` represents a particular *instance of annotation* and is the central
@@ -476,6 +484,7 @@ impl<'a> Annotation {
     }
 
     /// Iterate over the annotation data, returns tuples of internal IDs for (annotationset,annotationdata)
+    /// For a higher-level method, use `WrappedItem<Annotation>::data()` instead.
     pub fn data(&'a self) -> Iter<'a, (AnnotationDataSetHandle, AnnotationDataHandle)> {
         self.data.iter()
     }
@@ -496,6 +505,81 @@ impl<'a> Annotation {
     /// Returns a reference to the selector that selects the target of this annotation
     pub fn target(&self) -> &Selector {
         &self.target
+    }
+}
+
+impl<'a> WrappedItem<'a, Annotation> {
+    /// Iterate over the annotation data, returns [`WrappedItem<AnnotationData>`].
+    pub fn data(&'a self) -> impl Iterator<Item = WrappedItem<'a, AnnotationData>> + 'a {
+        self.deref()
+            .data
+            .iter()
+            .map(|(dataset_handle, data_handle)| {
+                let annotationset: &'a AnnotationDataSet = self
+                    .store()
+                    .get(&dataset_handle.into())
+                    .expect("dataset must exist");
+                annotationset
+                    .annotationdata(&data_handle.into())
+                    .expect("data must exist")
+            })
+    }
+
+    /// Iterates over the resources this annotation points to
+    pub fn resources(&'a self) -> TargetIter<'a, TextResource> {
+        let selector_iter: SelectorIter<'a> = self.target().iter(self.store(), true, true);
+        //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
+        TargetIter {
+            store: self.store(),
+            iter: selector_iter,
+            _phantomdata: PhantomData,
+        }
+    }
+
+    /// Iterates over all the annotations this annotation points to directly (i.e. via a [`Selector::AnnotationSelector'])
+    /// Use [`annotations_by_annotation_reverse'] if you want to find the annotations this resource is pointed by.
+    pub fn annotations(
+        &'a self,
+        recursive: bool,
+        track_ancestors: bool,
+    ) -> TargetIter<'a, Annotation> {
+        let selector_iter: SelectorIter<'a> =
+            self.target().iter(self.store(), recursive, track_ancestors);
+        TargetIter {
+            store: self.store(),
+            iter: selector_iter,
+            _phantomdata: PhantomData,
+        }
+    }
+
+    /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
+    pub fn annotationsets(&'a self) -> TargetIter<'a, AnnotationDataSet> {
+        let selector_iter: SelectorIter<'a> = self.target().iter(self.store(), true, false);
+        TargetIter {
+            store: self.store(),
+            iter: selector_iter,
+            _phantomdata: PhantomData,
+        }
+    }
+
+    /// Iterate over all resources with text selections this annotation refers to (i.e. via [`Selector::TextSelector`])
+    pub fn textselections(&'a self) -> impl Iterator<Item = WrappedItem<'a, TextSelection>> + 'a {
+        self.resources().filter_map(|targetitem| {
+            //process offset relative offset
+            //MAYBE TODO: rewrite AnnotationStore::textselection to something in Textual trait
+            self.store()
+                .textselection(
+                    targetitem.selector(),
+                    targetitem.ancestors().iter().map(|x| x.as_ref()),
+                )
+                .ok() //ignores errors!
+        })
+    }
+
+    /// Iterates over all text slices this annotation refers to
+    pub fn text(&'a self) -> impl Iterator<Item = &'a str> + 'a {
+        self.textselections()
+            .map(|textselection| textselection.text())
     }
 }
 
@@ -531,6 +615,144 @@ impl SelfSelector for Annotation {
             ))
         } else {
             Err(StamError::Unbound("Annotation::self_selector()"))
+        }
+    }
+}
+
+pub struct TargetIter<'a, T>
+where
+    T: Storable,
+{
+    pub(crate) store: &'a T::StoreType,
+    pub(crate) iter: SelectorIter<'a>,
+    _phantomdata: PhantomData<T>,
+}
+
+impl<'a, T> TargetIter<'a, T>
+where
+    T: Storable,
+{
+    pub fn new(store: &'a T::StoreType, iter: SelectorIter<'a>) -> Self {
+        Self {
+            store,
+            iter,
+            _phantomdata: PhantomData,
+        }
+    }
+}
+
+pub struct TargetIterItem<'a, T>
+where
+    T: Storable,
+{
+    pub(crate) item: WrappedItem<'a, T>,
+    pub(crate) selectoriteritem: SelectorIterItem<'a>,
+}
+
+impl<'a, T> Deref for TargetIterItem<'a, T>
+where
+    T: Storable,
+{
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.item
+    }
+}
+
+impl<'a, T> TargetIterItem<'a, T>
+where
+    T: Storable,
+{
+    pub fn depth(&self) -> usize {
+        self.selectoriteritem.depth()
+    }
+    pub fn selector<'b>(&'b self) -> &'b Cow<'a, Selector> {
+        self.selectoriteritem.selector()
+    }
+    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'a> {
+        self.selectoriteritem.ancestors()
+    }
+    pub fn is_leaf(&self) -> bool {
+        self.selectoriteritem.is_leaf()
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, TextResource> {
+    type Item = TargetIterItem<'a, TextResource>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let selectoritem = self.iter.next();
+        if let Some(selectoritem) = selectoritem {
+            match selectoritem.selector().as_ref() {
+                Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
+                    let resource: &TextResource = self
+                        .iter
+                        .store
+                        .get(&res_id.into())
+                        .expect("Resource must exist");
+                    Some(TargetIterItem {
+                        item: resource.wrap_in(self.store).expect("wrap must succeed"),
+                        selectoriteritem: selectoritem,
+                    })
+                }
+                _ => self.next(),
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
+    type Item = TargetIterItem<'a, AnnotationDataSet>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let selectoritem = self.iter.next();
+        if let Some(selectoritem) = selectoritem {
+            match selectoritem.selector().as_ref() {
+                Selector::DataSetSelector(set_id) => {
+                    let annotationset: &AnnotationDataSet = self
+                        .iter
+                        .store
+                        .get(&set_id.into())
+                        .expect("Dataset must exist");
+                    Some(TargetIterItem {
+                        item: annotationset
+                            .wrap_in(self.store)
+                            .expect("wrap must succeed"),
+                        selectoriteritem: selectoritem,
+                    })
+                }
+                _ => self.next(),
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, Annotation> {
+    type Item = TargetIterItem<'a, Annotation>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let selectoritem = self.iter.next();
+        if let Some(selectoritem) = selectoritem {
+            match selectoritem.selector().as_ref() {
+                Selector::AnnotationSelector(a_id, _) => {
+                    let annotation: &Annotation = self
+                        .iter
+                        .store
+                        .get(&a_id.into())
+                        .expect("Annotation must exist");
+                    Some(TargetIterItem {
+                        item: annotation.wrap_in(self.store).expect("wrap must succeed"),
+                        selectoriteritem: selectoritem,
+                    })
+                }
+                _ => self.next(),
+            }
+        } else {
+            None
         }
     }
 }

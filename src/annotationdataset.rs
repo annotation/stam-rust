@@ -789,9 +789,18 @@ impl AnnotationDataSet {
         self.get(id.into()).ok()
     }
 
-    /// Shortcut method to get a single annotation data instance resource by any id
-    pub fn annotationdata(&self, id: &Item<AnnotationData>) -> Option<&AnnotationData> {
-        self.get(id.into()).ok()
+    /// Method to retrieve an annotation from the store.
+    ///
+    /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`WrappedItem<Annotation>`]) that also contains reference to the store
+    /// and which is immediately implements various methods for working with the type.
+    /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
+    pub fn annotationdata(
+        &self,
+        annotationdata: &Item<AnnotationData>,
+    ) -> Option<WrappedItem<AnnotationData>> {
+        self.get(annotationdata)
+            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .ok()
     }
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.

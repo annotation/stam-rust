@@ -23,10 +23,10 @@ mod csv;
 
 #[cfg(feature = "csv")]
 pub use crate::csv::{FromCsv, ToCsv};
-pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
+pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle, TargetIter, TargetIterItem};
 pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle};
-pub use annotationstore::{AnnotationStore, AnnotationStoreBuilder, TargetIter, TargetIterItem};
+pub use annotationstore::{AnnotationStore, AnnotationStoreBuilder};
 pub use config::{Config, Configurable};
 pub use datakey::{DataKey, DataKeyHandle};
 pub use datavalue::DataValue;
@@ -45,5 +45,10 @@ pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;
 
 pub use regex::{Regex, RegexSet};
+
+pub type TextSelectionRef<'a> = WrappedItem<'a, TextSelection>;
+pub type AnnotationRef<'a> = WrappedItem<'a, Annotation>;
+pub type AnnotationDataRef<'a> = WrappedItem<'a, AnnotationData>;
+pub type AnnotationDataSetRef<'a> = WrappedItem<'a, AnnotationDataSet>;
 
 mod tests;
