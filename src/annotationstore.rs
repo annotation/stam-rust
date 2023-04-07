@@ -1094,23 +1094,8 @@ impl AnnotationStore {
         self.annotationsets.len()
     }
 
-    /// Returns the resource the annotation points to
-    /// Returns a WrongSelectorType error if the annotation does not point at any resource.
-    pub fn resource_for<'a>(
-        &'a self,
-        annotation_handle: AnnotationHandle,
-    ) -> Result<&'a TextResource, StamError> {
-        let annotation: &Annotation = self.get(&annotation_handle.into())?;
-        match annotation.target() {
-            Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                let resource: &TextResource = self.get(&res_id.into())?;
-                Ok(resource)
-            }
-            Selector::AnnotationSelector(a_id, _) => self.resource_for(*a_id),
-            _ => Err(StamError::WrongSelectorType("resource_for()")),
-        }
-    }
-
+    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations()`] instead for higher-level access.
+    ///
     /// Returns all annotations that reference any text selection in the resource.
     /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
     pub fn annotations_by_resource(
@@ -1131,7 +1116,8 @@ impl AnnotationStore {
         }
     }
 
-    /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
+    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations(_metadata`] instead for higher-level access.
+    ///
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
     /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
     pub fn annotations_by_resource_metadata(
@@ -1141,7 +1127,7 @@ impl AnnotationStore {
         self.resource_annotation_map.get(resource_handle)
     }
 
-    /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
+    /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
     pub fn annotations_by_textselection(
         &self,
         resource_handle: TextResourceHandle,
@@ -1156,7 +1142,7 @@ impl AnnotationStore {
         }
     }
 
-    /// Find all annotations with a particular textselection. This is a lookup in the reverse index and returns a reference to a vector.
+    /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
     pub fn annotations_by_textselection_handle(
         &self,
         resource_handle: TextResourceHandle,

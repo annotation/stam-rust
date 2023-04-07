@@ -11,6 +11,7 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
+use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::config::{get_global_config, Config, Configurable, SerializeMode};
 use crate::error::StamError;
@@ -590,6 +591,42 @@ impl TextResource {
                 offset.end,
                 "End must be greater than begin",
             ))
+        }
+    }
+}
+
+impl<'store, 'slf> WrappedItem<'store, TextResource> {
+    /// Returns all annotations that reference any text selection in the resource. Use
+    /// [`Self.annotations_metadata()`] instead if you are looking for annotations that reference
+    /// the resource as is via a ResourceSelector. These are **NOT** include here.
+    pub fn annotations(
+        &'slf self,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + '_> {
+        if let Some(iter) = self
+            .store()
+            .annotations_by_resource(self.handle().expect("resource must have handle"))
+        {
+            Some(iter.filter_map(|a_handle| self.store().annotation(&Item::Handle(a_handle))))
+        } else {
+            None
+        }
+    }
+
+    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
+    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
+    pub fn annotations_metadata(
+        &'slf self,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + '_> {
+        if let Some(vec) = self
+            .store()
+            .annotations_by_resource_metadata(self.handle().expect("resource must have handle"))
+        {
+            Some(
+                vec.iter()
+                    .filter_map(|a_handle| self.store().annotation(&Item::Handle(*a_handle))),
+            )
+        } else {
+            None
         }
     }
 }

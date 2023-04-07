@@ -592,6 +592,25 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
         self.textselections()
             .map(|textselection| textselection.text())
     }
+
+    /// Returns the resource the annotation points to. Only works for TextSelector,
+    /// ResourceSelector and AnnotationSelector, and not for complex selectors.
+    /// Returns a WrongSelectorType error if the annotation does not point at any resource.
+    pub fn resource(&'slf self) -> Option<WrappedItem<'store, TextResource>> {
+        match self.target() {
+            Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
+                self.store().resource(&Item::Handle(*res_id))
+            }
+            Selector::AnnotationSelector(a_id, _) => {
+                if let Some(annotation) = self.store().annotation(&Item::Handle(*a_id)) {
+                    annotation.resource()
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Helper structure for deserialisation
