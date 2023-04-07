@@ -222,7 +222,7 @@ impl<'store> WrappedItem<'store, AnnotationData> {
         self.store()
     }
 
-    pub fn key(&self) -> &'store DataKey {
+    pub fn key(&self) -> WrappedItem<'store, DataKey> {
         self.store()
             .key(&Item::Handle(self.deref().key()))
             .expect("AnnotationData must always have a key at this point")

@@ -554,7 +554,7 @@ impl ToCsv for AnnotationDataSet {
                     "All AnnotationData must have a public ID for CSV serialization to work",
                 )));
             }
-            let key = self.key(&Item::from(data.key())).expect("key must exist");
+            let key = data.key();
             writer
                 .serialize(AnnotationDataCsv {
                     id: data.id().map(|x| Cow::Borrowed(x)),

@@ -240,7 +240,6 @@ fn store_iter_data() -> Result<(), StamError> {
         count += 1;
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.key().as_str(), "pos"); //shortcut for the same as above
-        assert_eq!(data.key(), "pos"); //shortcut for the same as above
         assert_eq!(data.value(), &DataValue::String("noun".to_string()));
         assert_eq!(data.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
         assert_eq!(data.id(), Some("D1"));
@@ -566,7 +565,6 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
         count += 1;
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.key().as_str(), "pos"); //shortcut for the same as above
-        assert_eq!(data.key(), "pos"); //shortcut for the same as above
         assert_eq!(data.value(), &DataValue::String("interjection".to_string()));
         assert_eq!(data.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
         assert_eq!(data.set().id(), Some("testdataset"));
@@ -853,7 +851,7 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
 #[test]
 fn existing_textselection() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let resource: &TextResource = store
+    let resource = store
         .resource(&Item::from("testres"))
         .expect("test: resource must exist");
     let textselection = resource.textselection(&Offset::simple(6, 11))?;

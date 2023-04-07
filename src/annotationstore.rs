@@ -1388,13 +1388,17 @@ impl AnnotationStore {
     pub fn annotationset(
         &self,
         annotationset: &Item<AnnotationDataSet>,
-    ) -> Option<&AnnotationDataSet> {
-        self.get(annotationset).ok()
+    ) -> Option<WrappedItem<AnnotationDataSet>> {
+        self.get(annotationset)
+            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .ok()
     }
 
     /// Shortcut method to get a resource
-    pub fn resource(&self, resource: &Item<TextResource>) -> Option<&TextResource> {
-        self.get(resource).ok()
+    pub fn resource(&self, resource: &Item<TextResource>) -> Option<WrappedItem<TextResource>> {
+        self.get(resource)
+            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .ok()
     }
 
     /// Returns total counts for each of the reverse indices

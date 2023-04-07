@@ -148,7 +148,7 @@ impl DataKey {
         }
     }
 
-    /// Returns the global id that identifier the key. This is a bit shorter than using get_id()
+    /// Returns the global id that identifies the key. This is a bit shorter than using get_id()
     pub fn as_str(&self) -> &str {
         self.id.as_str()
     }
@@ -177,7 +177,7 @@ impl DataKey {
 
 impl<'a> WrappedItem<'a, DataKey> {
     /// Shortcut to return a reference to the dataset
-    pub fn annotationset_as_ref(&'a self) -> &'a AnnotationDataSet {
+    pub fn annotationset(&'a self) -> &'a AnnotationDataSet {
         self.store()
     }
 }

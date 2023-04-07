@@ -678,7 +678,7 @@ impl AnnotationDataSet {
         if key.is_none() {
             None
         } else {
-            let datakey: Option<&DataKey> = self.key(&key);
+            let datakey: Option<&DataKey> = self.key(&key).map(|key| key.unwrap());
             if let Some(datakey) = datakey {
                 let datakey_handle = datakey.handle().expect("key must be bound at this point");
                 if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
@@ -785,8 +785,10 @@ impl AnnotationDataSet {
     }
 
     /// Shortcut method to get a key
-    pub fn key(&self, id: &Item<DataKey>) -> Option<&DataKey> {
-        self.get(id.into()).ok()
+    pub fn key(&self, key: &Item<DataKey>) -> Option<WrappedItem<DataKey>> {
+        self.get(key)
+            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .ok()
     }
 
     /// Method to retrieve an annotation from the store.
