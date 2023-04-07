@@ -118,7 +118,6 @@ pub(crate) fn find_text_regex_select_expressions<'a, 'b>(
 }
 
 impl AnnotationStore {
-    //TODO: RE-ENABLE
     /*
     /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
     /// See [`TextResource.find_text_regex()`].

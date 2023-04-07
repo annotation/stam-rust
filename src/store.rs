@@ -641,21 +641,21 @@ pub trait StoreFor<T: Storable>: Configurable {
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
 /// It produces a references to the item wrapped in a fat pointer ([`WrappedItem<T>`]) that also contains reference to the store
 /// and which is immediately implements various methods for working with the type.
-pub struct StoreIter<'a, T>
+pub struct StoreIter<'store, T>
 where
     T: Storable,
 {
-    store: &'a T::StoreType,
-    iter: Iter<'a, Option<T>>,
+    store: &'store T::StoreType,
+    iter: Iter<'store, Option<T>>,
     count: usize,
     len: usize,
 }
 
-impl<'a, T> Iterator for StoreIter<'a, T>
+impl<'store, T> Iterator for StoreIter<'store, T>
 where
     T: Storable,
 {
-    type Item = WrappedItem<'a, T>;
+    type Item = WrappedItem<'store, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;

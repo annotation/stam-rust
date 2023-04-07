@@ -232,22 +232,19 @@ fn store_get_by_id_2() -> Result<(), StamError> {
 #[test]
 fn store_iter_data() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let annotation: &Annotation = store.get(&Item::from("A1"))?;
+    let annotation = store.annotation(&Item::from("A1")).unwrap();
 
     let mut count = 0;
-    for (datakey, annotationdata, annotationset) in store.data_by_annotation(annotation) {
+    for data in annotation.data() {
         //there should be only one so we can safely test in the loop body
         count += 1;
-        assert_eq!(datakey.id(), Some("pos"));
-        assert_eq!(datakey.as_str(), "pos"); //shortcut for the same as above
-        assert_eq!(datakey, "pos"); //shortcut for the same as above
-        assert_eq!(
-            annotationdata.value(),
-            &DataValue::String("noun".to_string())
-        );
-        assert_eq!(annotationdata.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(annotationdata.id(), Some("D1"));
-        assert_eq!(annotationset.id(), Some("testdataset"));
+        assert_eq!(data.key().id(), Some("pos"));
+        assert_eq!(data.key().as_str(), "pos"); //shortcut for the same as above
+        assert_eq!(data.key(), "pos"); //shortcut for the same as above
+        assert_eq!(data.value(), &DataValue::String("noun".to_string()));
+        assert_eq!(data.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
+        assert_eq!(data.id(), Some("D1"));
+        assert_eq!(data.set().id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -331,9 +328,9 @@ fn store_get_text_selection() -> Result<(), StamError> {
 #[test]
 fn text_selector() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let annotation: &Annotation = store.get(&"A1".into())?;
-    let _resource: &TextResource = &store.resources_by_annotation(annotation).next().unwrap();
-    let text: &str = store.text_by_annotation(annotation).next().unwrap();
+    let annotation = store.annotation(&"A1".into()).unwrap();
+    let resource = annotation.resources().next().unwrap();
+    let text: &str = annotation.text().next().unwrap();
     assert_eq!(text, "world");
     Ok(())
 }
@@ -387,9 +384,9 @@ fn annotate_existing_data() -> Result<(), StamError> {
 #[test]
 fn add_after_borrow() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
-    let annotation: &Annotation = store.get(&"A1".into())?;
+    let annotation = store.annotation(&"A1".into()).unwrap();
     let mut count = 0;
-    for (_datakey, _annotationdata, _dataset) in store.data_by_annotation(annotation) {
+    for data in annotation.data() {
         count += 1;
     }
     assert_eq!(count, 1);
@@ -560,22 +557,19 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
     let builder: AnnotationBuilder = serde_json::from_str(data)?;
     let mut store = setup_example_2().unwrap();
     let annotationhandle = store.annotate(builder).unwrap();
-    let annotation: &Annotation = store.get(&annotationhandle.into()).unwrap();
+    let annotation = store.annotation(&annotationhandle.into()).unwrap();
 
     assert_eq!(annotation.id(), Some("A2"));
     let mut count = 0;
-    for (datakey, annotationdata, dataset) in store.data_by_annotation(annotation) {
+    for data in annotation.data() {
         //there should be only one so we can safely test in the loop body
         count += 1;
-        assert_eq!(datakey.id(), Some("pos"));
-        assert_eq!(datakey.as_str(), "pos"); //shortcut for the same as above
-        assert_eq!(datakey, "pos"); //shortcut for the same as above
-        assert_eq!(
-            annotationdata.value(),
-            &DataValue::String("interjection".to_string())
-        );
-        assert_eq!(annotationdata.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(dataset.id(), Some("testdataset"));
+        assert_eq!(data.key().id(), Some("pos"));
+        assert_eq!(data.key().as_str(), "pos"); //shortcut for the same as above
+        assert_eq!(data.key(), "pos"); //shortcut for the same as above
+        assert_eq!(data.value(), &DataValue::String("interjection".to_string()));
+        assert_eq!(data.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
+        assert_eq!(data.set().id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -639,7 +633,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(data.id(), Some("D1"));
-        assert_eq!(data.key(), firstkeyhandle.unwrap()); //shortcut for the same as above
+        assert_eq!(data.deref().key(), firstkeyhandle.unwrap());
         assert_eq!(data.value(), "proycon");
     }
     assert_eq!(count, 1);
@@ -783,10 +777,16 @@ fn loop_annotations() -> Result<(), StamError> {
     let store = setup_example_2()?;
     for annotation in store.annotations() {
         let id = annotation.id().unwrap_or("");
-        for (key, data, _dataset) in store.data_by_annotation(annotation) {
+        for data in annotation.data() {
             // get the text to which this annotation refers (if any)
-            let text: &str = store.text_by_annotation(annotation).next().unwrap();
-            print!("{}\t{}\t{}\t{}", id, key.id().unwrap(), data.value(), text);
+            let text: &str = annotation.text().next().unwrap();
+            print!(
+                "{}\t{}\t{}\t{}",
+                id,
+                data.key().id().unwrap(),
+                data.value(),
+                text
+            );
         }
     }
     Ok(())
@@ -795,8 +795,8 @@ fn loop_annotations() -> Result<(), StamError> {
 #[test]
 fn textselection() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let sentence: &Annotation = store.get(&"sentence2".into())?;
-    for textselection in store.textselections_by_annotation(&sentence) {
+    let sentence = store.annotation(&"sentence2".into()).unwrap();
+    for textselection in sentence.textselections() {
         assert_eq!(textselection.text(), "I am only passionately curious.")
     }
     Ok(())
@@ -825,8 +825,8 @@ fn selectoriter() -> Result<(), StamError> {
 #[test]
 fn textselection_relative() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let word: &Annotation = store.get(&"sentence2word2".into())?;
-    for textselection in store.textselections_by_annotation(&word) {
+    let word = store.annotation(&"sentence2word2".into()).unwrap();
+    for textselection in word.textselections() {
         assert_eq!(textselection.text(), "am")
     }
     Ok(())
@@ -843,8 +843,8 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
             ))
             .with_data("testdataset".into(), "type".into(), "word".into()),
     )?;
-    let word: &Annotation = store.get(&"sentence2lastword".into())?;
-    for textselection in store.textselections_by_annotation(&word) {
+    let word = store.annotation(&"sentence2lastword".into()).unwrap();
+    for textselection in word.textselections() {
         assert_eq!(textselection.text(), "curious")
     }
     Ok(())
@@ -883,10 +883,10 @@ fn annotations_by_offset() -> Result<(), StamError> {
 #[test]
 fn textselections_by_annotation() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let annotation: &Annotation = store.get(&"A1".into())?;
+    let annotation = store.annotation(&"A1".into()).unwrap();
     let reference_res_handle = store.resolve_resource_id("testres")?;
     let mut count = 0;
-    for textselection in store.textselections_by_annotation(annotation) {
+    for textselection in annotation.textselections() {
         count += 1;
         assert_eq!(textselection.begin(), 6);
         assert_eq!(textselection.end(), 11);
@@ -985,9 +985,9 @@ fn textselections_by_resource_range() -> Result<(), StamError> {
 #[test]
 fn text_by_annotation() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let annotation: &Annotation = store.get(&"A1".into())?;
+    let annotation = store.annotation(&"A1".into()).unwrap();
     let mut count = 0;
-    for text in store.text_by_annotation(annotation) {
+    for text in annotation.text() {
         count += 1;
         assert_eq!(text, "world");
     }
@@ -1041,8 +1041,8 @@ fn test_multiselector_creation() -> Result<(), StamError> {
 #[test]
 fn test_multiselector_iter() -> Result<(), StamError> {
     let store = setup_example_multiselector()?;
-    let annotation: &Annotation = store.get(&"WordAnnotation".into())?;
-    let result: Vec<&str> = store.text_by_annotation(annotation).collect();
+    let annotation = store.annotation(&"WordAnnotation".into()).unwrap();
+    let result: Vec<&str> = annotation.text().collect();
     assert_eq!(result[0], "Hello");
     assert_eq!(result[1], "world");
     Ok(())
@@ -1164,8 +1164,8 @@ fn test_multiselector2_creation_and_sanity() -> Result<(), StamError> {
 #[test]
 fn test_multiselector2_iter() -> Result<(), StamError> {
     let store = setup_example_multiselector2()?;
-    let annotation: &Annotation = store.get(&"WordAnnotation".into())?;
-    let result: Vec<&str> = store.text_by_annotation(annotation).collect();
+    let annotation = store.annotation(&"WordAnnotation".into()).unwrap();
+    let result: Vec<&str> = annotation.text().collect();
     assert_eq!(result[0], "Hello");
     assert_eq!(result[1], "world");
     Ok(())
@@ -1284,27 +1284,21 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     let resource: &TextResource = store.get(&"hello.txt".into())?;
     assert_eq!(resource.text(), "Hallå världen\n");
 
-    let annotation: &Annotation = store.get(&"A1".into())?;
-    assert_eq!(
-        store.text_by_annotation(annotation).next().unwrap(),
-        "Hallå"
-    );
-    for (key, data, set) in store.data_by_annotation(annotation) {
-        assert_eq!(key.id(), Some("pos"));
+    let annotation = store.annotation(&"A1".into()).unwrap();
+    assert_eq!(annotation.text().next().unwrap(), "Hallå");
+    for data in annotation.data() {
+        assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosInterjection"));
-        assert_eq!(set.id(), Some("https://example.org/test/"));
+        assert_eq!(data.set().id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "interjection");
     }
 
-    let annotation: &Annotation = store.get(&"A2".into())?;
-    assert_eq!(
-        store.text_by_annotation(annotation).next().unwrap(),
-        "världen"
-    );
-    for (key, data, set) in store.data_by_annotation(annotation) {
-        assert_eq!(key.id(), Some("pos"));
+    let annotation = store.annotation(&"A2".into()).unwrap();
+    assert_eq!(annotation.text().next().unwrap(), "världen");
+    for data in annotation.data() {
+        assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosNoun"));
-        assert_eq!(set.id(), Some("https://example.org/test/"));
+        assert_eq!(data.set().id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "noun");
     }
 
