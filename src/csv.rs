@@ -448,7 +448,7 @@ where
                         }
                         AnnotationCsv {
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
-                            data_ids: Cow::Borrowed(data.id().unwrap()),
+                            data_ids: Cow::Owned(data.id().unwrap().into()),
                             set_ids: Cow::Borrowed(set.id().unwrap()),
                             selectortype: AnnotationCsv::set_selectortype(annotation.target()),
                             targetdataset: AnnotationCsv::set_targetdataset(

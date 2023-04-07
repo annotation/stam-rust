@@ -756,6 +756,17 @@ where
             Self::Borrowed { store, .. } | Self::Owned { store, .. } => store,
         }
     }
+
+    /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
+    /// This only works on Borrowed types though.
+    pub fn as_ref(&self) -> Result<&'a T, StamError> {
+        match self {
+            Self::Borrowed { item, .. } => Ok(item),
+            Self::Owned { item, .. } => Err(StamError::OtherError(
+                "Can't use wrappedItem::as_ref() on an owned type",
+            )),
+        }
+    }
 }
 
 // the following structure may be a bit obscure but it required internally to

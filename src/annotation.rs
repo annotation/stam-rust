@@ -508,26 +508,29 @@ impl<'a> Annotation {
     }
 }
 
-impl<'a> WrappedItem<'a, Annotation> {
+impl<'store> WrappedItem<'store, Annotation> {
     /// Iterate over the annotation data, returns [`WrappedItem<AnnotationData>`].
-    pub fn data(&'a self) -> impl Iterator<Item = WrappedItem<'a, AnnotationData>> + 'a {
-        self.deref()
-            .data
-            .iter()
+    pub fn data(
+        &'store self,
+    ) -> impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'store {
+        self.as_ref()
+            .expect("borrow")
+            .data()
             .map(|(dataset_handle, data_handle)| {
-                let annotationset: &'a AnnotationDataSet = self
+                let annotationset: &'store AnnotationDataSet = self
                     .store()
                     .get(&dataset_handle.into())
                     .expect("dataset must exist");
-                annotationset
+                let annotation: WrappedItem<'store, AnnotationData> = annotationset
                     .annotationdata(&data_handle.into())
-                    .expect("data must exist")
+                    .expect("data must exist");
+                annotation
             })
     }
 
     /// Iterates over the resources this annotation points to
-    pub fn resources(&'a self) -> TargetIter<'a, TextResource> {
-        let selector_iter: SelectorIter<'a> = self.target().iter(self.store(), true, true);
+    pub fn resources(&'store self) -> TargetIter<'store, TextResource> {
+        let selector_iter: SelectorIter<'store> = self.target().iter(self.store(), true, true);
         //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
         TargetIter {
             store: self.store(),
@@ -539,11 +542,11 @@ impl<'a> WrappedItem<'a, Annotation> {
     /// Iterates over all the annotations this annotation points to directly (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`annotations_by_annotation_reverse'] if you want to find the annotations this resource is pointed by.
     pub fn annotations(
-        &'a self,
+        &'store self,
         recursive: bool,
         track_ancestors: bool,
-    ) -> TargetIter<'a, Annotation> {
-        let selector_iter: SelectorIter<'a> =
+    ) -> TargetIter<'store, Annotation> {
+        let selector_iter: SelectorIter<'store> =
             self.target().iter(self.store(), recursive, track_ancestors);
         TargetIter {
             store: self.store(),
@@ -553,8 +556,8 @@ impl<'a> WrappedItem<'a, Annotation> {
     }
 
     /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
-    pub fn annotationsets(&'a self) -> TargetIter<'a, AnnotationDataSet> {
-        let selector_iter: SelectorIter<'a> = self.target().iter(self.store(), true, false);
+    pub fn annotationsets(&'store self) -> TargetIter<'store, AnnotationDataSet> {
+        let selector_iter: SelectorIter<'store> = self.target().iter(self.store(), true, false);
         TargetIter {
             store: self.store(),
             iter: selector_iter,
@@ -563,7 +566,9 @@ impl<'a> WrappedItem<'a, Annotation> {
     }
 
     /// Iterate over all resources with text selections this annotation refers to (i.e. via [`Selector::TextSelector`])
-    pub fn textselections(&'a self) -> impl Iterator<Item = WrappedItem<'a, TextSelection>> + 'a {
+    pub fn textselections(
+        &'store self,
+    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'store {
         self.resources().filter_map(|targetitem| {
             //process offset relative offset
             //MAYBE TODO: rewrite AnnotationStore::textselection to something in Textual trait
@@ -577,7 +582,7 @@ impl<'a> WrappedItem<'a, Annotation> {
     }
 
     /// Iterates over all text slices this annotation refers to
-    pub fn text(&'a self) -> impl Iterator<Item = &'a str> + 'a {
+    pub fn text(&'store self) -> impl Iterator<Item = &'store str> + 'store {
         self.textselections()
             .map(|textselection| textselection.text())
     }

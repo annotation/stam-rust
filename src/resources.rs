@@ -756,7 +756,7 @@ impl<'store> Textual<'store, 'store> for TextResource {
     ///
     /// Results are returned in the exact order they are found in the text
     fn find_text_regex<'regex>(
-        &self,
+        &'store self,
         expressions: &'regex [Regex],
         precompiledset: Option<&RegexSet>,
         allow_overlap: bool,

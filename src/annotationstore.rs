@@ -357,26 +357,26 @@ impl StoreFor<Annotation> for AnnotationStore {
 
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
-            let annotationref = self.wrap(annotation)?;
             if self.config.dataset_annotation_map {
-                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> =
-                    annotationref
-                        .annotationsets()
-                        .map(|targetitem| {
-                            (
-                                targetitem
-                                    .handle()
-                                    .expect("annotationset must have a handle"),
-                                handle,
-                            )
-                        })
-                        .collect();
+                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = self
+                    .wrap(annotation)?
+                    .annotationsets()
+                    .map(|targetitem| {
+                        (
+                            targetitem
+                                .handle()
+                                .expect("annotationset must have a handle"),
+                            handle,
+                        )
+                    })
+                    .collect();
                 self.dataset_annotation_map
                     .extend(target_datasets.into_iter());
             }
 
             if self.config.annotation_annotation_map {
-                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotationref
+                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = self
+                    .wrap(annotation)?
                     .annotations(false, false)
                     .map(|targetitem| {
                         (
@@ -389,7 +389,8 @@ impl StoreFor<Annotation> for AnnotationStore {
                     .extend(target_annotations.into_iter());
             }
 
-            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = annotationref
+            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = self
+                .wrap(annotation)?
                 .resources()
                 .map(|targetitem| {
                     let res_handle = targetitem.handle().expect("resource must have a handle");
