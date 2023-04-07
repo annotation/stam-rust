@@ -512,8 +512,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterate over the annotation data, returns [`WrappedItem<AnnotationData>`].
     pub fn data(&'slf self) -> impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf {
         //                               this was the magic bit I needed to make it work ---^
-        self.as_ref() // <-- deref() also works here
-            .expect("as_ref() must succeed")
+        self.unwrap() // <-- deref() also works here
             .data()
             .map(|(dataset_handle, data_handle)| {
                 let annotationset: &'store AnnotationDataSet = self
@@ -530,8 +529,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterates over the resources this annotation points to
     pub fn resources(&'slf self) -> TargetIter<'store, TextResource> {
         let selector_iter: SelectorIter<'store> = self
-            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
-            .expect("as_ref() must succeed")
+            .unwrap() // <-- deref() doesn't work here, need 'store lifetime
             .target()
             .iter(self.store(), true, true);
         //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
@@ -550,8 +548,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
         track_ancestors: bool,
     ) -> TargetIter<'store, Annotation> {
         let selector_iter: SelectorIter<'store> = self
-            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
-            .expect("as_ref() must succeed")
+            .unwrap() // <-- deref() doesn't work here, need 'store lifetime
             .target()
             .iter(self.store(), recursive, track_ancestors);
         TargetIter {
@@ -564,8 +561,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
     pub fn annotationsets(&'slf self) -> TargetIter<'store, AnnotationDataSet> {
         let selector_iter: SelectorIter<'store> = self
-            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
-            .expect("as_ref() must succeed")
+            .unwrap() // <-- deref() doesn't work here, need 'store lifetime
             .target()
             .iter(self.store(), true, false);
         TargetIter {

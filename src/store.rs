@@ -703,21 +703,21 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
 #[derive(Clone, Debug)]
-pub enum WrappedItem<'a, T>
+pub enum WrappedItem<'store, T>
 where
     T: Storable,
 {
     Borrowed {
-        item: &'a T,
-        store: &'a T::StoreType,
+        item: &'store T,
+        store: &'store T::StoreType,
     },
     Owned {
         item: T,
-        store: &'a T::StoreType,
+        store: &'store T::StoreType,
     },
 }
 
-impl<'a, T> Deref for WrappedItem<'a, T>
+impl<'astore, T> Deref for WrappedItem<'astore, T>
 where
     T: Storable,
 {
@@ -731,12 +731,12 @@ where
     }
 }
 
-impl<'a, T> WrappedItem<'a, T>
+impl<'store, T> WrappedItem<'store, T>
 where
     T: Storable,
 {
     //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
-    pub(crate) fn borrow(item: &'a T, store: &'a T::StoreType) -> Result<Self, StamError> {
+    pub(crate) fn borrow(item: &'store T, store: &'store T::StoreType) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
         } else if store.owns(item) == Some(false) {
@@ -747,24 +747,31 @@ where
         Ok(WrappedItem::Borrowed { item, store })
     }
 
-    pub(crate) fn own(item: T, store: &'a T::StoreType) -> Result<Self, StamError> {
+    pub(crate) fn own(item: T, store: &'store T::StoreType) -> Result<Self, StamError> {
         Ok(WrappedItem::Owned { item, store })
     }
 
-    pub fn store(&self) -> &'a T::StoreType {
+    pub fn store(&self) -> &'store T::StoreType {
         match self {
             Self::Borrowed { store, .. } | Self::Owned { store, .. } => store,
         }
     }
 
     /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
-    /// This only works on Borrowed types though.
-    pub fn as_ref<'slf>(&'slf self) -> Result<&'a T, StamError> {
+    /// This only works on Borrowed types though! Will panic on owned types!
+    pub fn unwrap<'slf>(&'slf self) -> &'store T {
         match self {
-            Self::Borrowed { item, .. } => Ok(*item),
-            Self::Owned { .. } => Err(StamError::OtherError(
-                "Can't use WrappedItem::as_ref() on an owned type",
-            )),
+            Self::Borrowed { item, .. } => *item,
+            Self::Owned { .. } => panic!("Can't use WrappedItem::unwrap() on an owned type",),
+        }
+    }
+
+    /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
+    /// This only works on Borrowed types though! Will panic on owned types!
+    pub fn expect<'slf>(&'slf self, msg: &str) -> &'store T {
+        match self {
+            Self::Borrowed { item, .. } => *item,
+            Self::Owned { .. } => panic!("{}", msg),
         }
     }
 }

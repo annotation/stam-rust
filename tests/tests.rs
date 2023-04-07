@@ -1394,7 +1394,7 @@ fn test_lifetime_sanity_resources() -> Result<(), StamError> {
     //Gather references to resources in a vec, to ensure their lifetimes remain valid after the iterator
     let result: Vec<&TextResource> = store
         .resources()
-        .map(|resource| resource.as_ref().unwrap())
+        .map(|resource| resource.unwrap())
         .collect();
     assert_eq!(result.len(), 1);
     Ok(())
@@ -1408,12 +1408,11 @@ fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
         .resources()
         .map(|resource| {
             (
-                resource.as_ref().unwrap(),
+                resource.unwrap(),
                 resource
-                    .as_ref()
                     .unwrap()
                     .textselections()
-                    .map(|textselection| textselection.as_ref().unwrap())
+                    .map(|textselection| textselection.unwrap())
                     .collect(),
             )
         })
@@ -1431,11 +1430,8 @@ fn test_lifetime_sanity_annotationdata() -> Result<(), StamError> {
         .annotations()
         .map(|annotation| {
             (
-                annotation.as_ref().unwrap(),
-                annotation
-                    .data()
-                    .map(|data| data.as_ref().unwrap())
-                    .collect(),
+                annotation.unwrap(),
+                annotation.data().map(|data| data.unwrap()).collect(),
             )
         })
         .collect();
@@ -1451,12 +1447,11 @@ fn test_lifetime_sanity_keys() -> Result<(), StamError> {
         .annotationsets()
         .map(|annotationset| {
             (
-                annotationset.as_ref().unwrap(),
+                annotationset.unwrap(),
                 annotationset
-                    .as_ref()
                     .unwrap()
                     .keys()
-                    .map(|key| key.as_ref().unwrap())
+                    .map(|key| key.unwrap())
                     .collect(),
             )
         })
@@ -1474,9 +1469,9 @@ fn test_lifetime_sanity_annotationdata2() -> Result<(), StamError> {
     for annotation in store.annotations() {
         let mut subresult: Vec<&AnnotationData> = Vec::new();
         for data in annotation.data() {
-            subresult.push(data.as_ref().unwrap())
+            subresult.push(data.unwrap())
         }
-        result.push((annotation.as_ref().unwrap(), subresult));
+        result.push((annotation.unwrap(), subresult));
     }
     assert!(!result.is_empty());
     Ok(())
