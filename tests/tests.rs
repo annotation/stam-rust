@@ -1410,6 +1410,8 @@ fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
             (
                 resource.as_ref().unwrap(),
                 resource
+                    .as_ref()
+                    .unwrap()
                     .textselections()
                     .map(|textselection| textselection.as_ref().unwrap())
                     .collect(),
@@ -1451,6 +1453,8 @@ fn test_lifetime_sanity_keys() -> Result<(), StamError> {
             (
                 annotationset.as_ref().unwrap(),
                 annotationset
+                    .as_ref()
+                    .unwrap()
                     .keys()
                     .map(|key| key.as_ref().unwrap())
                     .collect(),
