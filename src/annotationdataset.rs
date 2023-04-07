@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
+use crate::annotationstore::AnnotationStore;
 use crate::config::{get_global_config, Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
@@ -182,6 +183,7 @@ impl<'a> TypeInfo for AnnotationDataSetBuilder<'a> {
 #[sealed]
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
+    type StoreType = AnnotationStore;
 
     fn id(&self) -> Option<&str> {
         self.id.as_deref()

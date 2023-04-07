@@ -55,7 +55,7 @@ where
     fn textselection(
         &'slf self,
         offset: &Offset,
-    ) -> Result<WrappedItem<'store, TextSelection, TextResource>, StamError>;
+    ) -> Result<WrappedItem<'store, TextSelection>, StamError>;
 
     /// Resolves a cursor to a begin aligned cursor, resolving all relative end-aligned positions
     fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
@@ -218,7 +218,7 @@ impl<'r, 't> Iterator for Matches<'r, 't> {
 pub struct FindRegexMatch<'t, 'r> {
     expression: &'r Regex,
     expression_index: usize,
-    textselections: SmallVec<[WrappedItem<'t, TextSelection, TextResource>; 2]>,
+    textselections: SmallVec<[WrappedItem<'t, TextSelection>; 2]>,
     //Records the numbers of the capture that match (1-indexed)
     capturegroups: SmallVec<[usize; 2]>,
     resource: &'t TextResource,
@@ -241,7 +241,7 @@ impl<'t, 'r> FindRegexMatch<'t, 'r> {
         self.expression_index
     }
 
-    pub fn textselections(&self) -> &[WrappedItem<'t, TextSelection, TextResource>] {
+    pub fn textselections(&self) -> &[WrappedItem<'t, TextSelection>] {
         &self.textselections
     }
 
@@ -433,7 +433,7 @@ pub struct FindTextIter<'a, 'b> {
 }
 
 impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
-    type Item = WrappedItem<'a, TextSelection, TextResource>;
+    type Item = WrappedItem<'a, TextSelection>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
             let begincharpos = self
@@ -479,7 +479,7 @@ pub struct SplitTextIter<'store, 'b> {
 }
 
 impl<'store, 'b> Iterator for SplitTextIter<'store, 'b> {
-    type Item = WrappedItem<'store, TextSelection, TextResource>;
+    type Item = WrappedItem<'store, TextSelection>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(matchstr) = self.iter.next() {
             let beginbyte = self

@@ -11,6 +11,7 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
+use crate::annotationstore::AnnotationStore;
 use crate::config::{get_global_config, Config, Configurable, SerializeMode};
 use crate::error::StamError;
 use crate::file::*;
@@ -186,6 +187,7 @@ impl ToJson for TextResource {}
 #[sealed]
 impl Storable for TextResource {
     type HandleType = TextResourceHandle;
+    type StoreType = AnnotationStore;
 
     fn id(&self) -> Option<&str> {
         Some(self.id.as_str())
@@ -504,9 +506,7 @@ impl TextResource {
 
     /// Returns an unsorted iterator over all textselections in this resource
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
-    pub fn textselections(
-        &self,
-    ) -> Box<impl Iterator<Item = WrappedItem<TextSelection, TextResource>>> {
+    pub fn textselections(&self) -> Box<impl Iterator<Item = WrappedItem<TextSelection>>> {
         Box::new(self.store().iter().filter_map(|item| {
             item.as_ref()
                 .map(|textselection| textselection.wrap_in(self).expect("Wrap must succeed"))
@@ -726,7 +726,7 @@ impl<'store> Textual<'store, 'store> for TextResource {
     fn textselection(
         &'store self,
         offset: &Offset,
-    ) -> Result<WrappedItem<'store, TextSelection, TextResource>, StamError> {
+    ) -> Result<WrappedItem<'store, TextSelection>, StamError> {
         match self.known_textselection(offset) {
             Ok(Some(handle)) => {
                 //existing textselection
@@ -937,7 +937,7 @@ pub struct TextSelectionIter<'a> {
 }
 
 impl<'a> Iterator for TextSelectionIter<'a> {
-    type Item = WrappedItem<'a, TextSelection, TextResource>;
+    type Item = WrappedItem<'a, TextSelection>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(begin2enditer) = &mut self.begin2enditer {

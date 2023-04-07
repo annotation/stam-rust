@@ -100,6 +100,7 @@ impl TypeInfo for TextSelection {
 #[sealed]
 impl Storable for TextSelection {
     type HandleType = TextSelectionHandle;
+    type StoreType = TextResource;
 
     fn id(&self) -> Option<&str> {
         None
@@ -186,7 +187,7 @@ impl TextSelection {
     }
 }
 
-impl<'a, 'store, 'slf> Textual<'store, 'slf> for WrappedItem<'store, TextSelection, TextResource>
+impl<'a, 'store, 'slf> Textual<'store, 'slf> for WrappedItem<'store, TextSelection>
 where
     'store: 'slf,
 {
@@ -341,7 +342,7 @@ where
     fn textselection(
         &'slf self,
         offset: &Offset,
-    ) -> Result<WrappedItem<'store, TextSelection, TextResource>, StamError> {
+    ) -> Result<WrappedItem<'store, TextSelection>, StamError> {
         let resource = self.store(); //courtesy of WrappedItem
         let offset = self.absolute_offset(&offset)?; //turns the relative offset into an absolute one (i.e. offsets in TextResource)
         resource.textselection(&offset)

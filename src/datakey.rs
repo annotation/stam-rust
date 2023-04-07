@@ -92,6 +92,7 @@ impl TypeInfo for DataKey {
 #[sealed]
 impl Storable for DataKey {
     type HandleType = DataKeyHandle;
+    type StoreType = AnnotationDataSet;
 
     fn id(&self) -> Option<&str> {
         Some(self.id.as_str())
@@ -174,7 +175,7 @@ impl DataKey {
     }
 }
 
-impl<'a> WrappedItem<'a, DataKey, AnnotationDataSet> {
+impl<'a> WrappedItem<'a, DataKey> {
     /// Shortcut to return a reference to the dataset
     pub fn annotationset_as_ref(&'a self) -> &'a AnnotationDataSet {
         self.store()

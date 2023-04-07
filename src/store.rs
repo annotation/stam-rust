@@ -210,8 +210,13 @@ where
 }
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait Storable: PartialEq + TypeInfo {
+pub trait Storable: PartialEq + TypeInfo
+where
+    Self: Sized,
+{
     type HandleType: Handle;
+    type StoreType: StoreFor<Self>;
+
     /// Retrieve the internal (numeric) id. For any type T uses in `StoreFor<T>`, this may be None only in the initial
     /// stage when it is still unbounded to a store.
     fn handle(&self) -> Option<Self::HandleType> {
@@ -248,10 +253,10 @@ pub trait Storable: PartialEq + TypeInfo {
     /// Returns a wrapped reference to this item and the store that owns it. This allows for some
     /// more introspection on the part of the item.
     /// reverse of [`StoreFor<T>::wrap()`]
-    fn wrap_in<'store, S: StoreFor<Self>>(
+    fn wrap_in<'store>(
         &'store self,
-        store: &'store S,
-    ) -> Result<WrappedItem<'store, Self, S>, StamError>
+        store: &'store Self::StoreType,
+    ) -> Result<WrappedItem<'store, Self>, StamError>
     where
         Self: Sized,
     {
@@ -261,10 +266,10 @@ pub trait Storable: PartialEq + TypeInfo {
     /// Returns a wrapped reference to this item and the store that owns it. This allows for some
     /// more introspection on the part of the item.
     /// reverse of [`StoreFor<T>::wrap_owned()`]
-    fn wrap_owned_in<'store, S: StoreFor<Self>>(
+    fn wrap_owned_in<'store>(
         self,
-        store: &'store S,
-    ) -> Result<WrappedItem<'store, Self, S>, StamError>
+        store: &'store Self::StoreType,
+    ) -> Result<WrappedItem<'store, Self>, StamError>
     where
         Self: Sized,
     {
@@ -597,18 +602,18 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// Wraps the item in a smart pointer that also holds a reference to this store
     /// This method performs some extra checks to verify if the item is indeed owned by the store
     /// and returns an error if not.
-    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedItem<T, Self>, StamError>
+    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedItem<T>, StamError>
     where
-        Self: Sized,
+        T: Storable<StoreType = Self>,
     {
         WrappedItem::borrow(item, self)
     }
 
     /// Wraps the item in a smart pointer that also holds a reference to this store
     /// Ownership is retained with this method, i.e. the store does *NOT* own the item.
-    fn wrap_owned<'a>(&'a self, item: T) -> Result<WrappedItem<T, Self>, StamError>
+    fn wrap_owned<'a>(&'a self, item: T) -> Result<WrappedItem<T>, StamError>
     where
-        Self: Sized,
+        T: Storable<StoreType = Self>,
     {
         WrappedItem::own(item, self)
     }
@@ -684,19 +689,23 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
 #[derive(Clone, Debug)]
-pub enum WrappedItem<'a, T, S>
+pub enum WrappedItem<'a, T>
 where
     T: Storable,
-    S: StoreFor<T>,
 {
-    Borrowed { item: &'a T, store: &'a S },
-    Owned { item: T, store: &'a S },
+    Borrowed {
+        item: &'a T,
+        store: &'a T::StoreType,
+    },
+    Owned {
+        item: T,
+        store: &'a T::StoreType,
+    },
 }
 
-impl<'a, T, S> Deref for WrappedItem<'a, T, S>
+impl<'a, T> Deref for WrappedItem<'a, T>
 where
     T: Storable,
-    S: StoreFor<T>,
 {
     type Target = T;
 
@@ -708,13 +717,12 @@ where
     }
 }
 
-impl<'a, T, S> WrappedItem<'a, T, S>
+impl<'a, T> WrappedItem<'a, T>
 where
     T: Storable,
-    S: StoreFor<T>,
 {
     //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
-    pub(crate) fn borrow(item: &'a T, store: &'a S) -> Result<Self, StamError> {
+    pub(crate) fn borrow(item: &'a T, store: &'a T::StoreType) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
         } else if store.owns(item) == Some(false) {
@@ -725,11 +733,11 @@ where
         Ok(WrappedItem::Borrowed { item, store })
     }
 
-    pub(crate) fn own(item: T, store: &'a S) -> Result<Self, StamError> {
+    pub(crate) fn own(item: T, store: &'a T::StoreType) -> Result<Self, StamError> {
         Ok(WrappedItem::Owned { item, store })
     }
 
-    pub fn store(&self) -> &'a S {
+    pub fn store(&self) -> &'a T::StoreType {
         match self {
             Self::Borrowed { store, .. } | Self::Owned { store, .. } => store,
         }

@@ -1156,7 +1156,7 @@ impl AnnotationStore {
     pub fn textselections_by_annotation<'a>(
         &'a self,
         annotation: &'a Annotation,
-    ) -> Box<dyn Iterator<Item = WrappedItem<'a, TextSelection, TextResource>> + 'a> {
+    ) -> Box<dyn Iterator<Item = WrappedItem<'a, TextSelection>> + 'a> {
         Box::new(self.resources_by_annotation(annotation).map(|targetitem| {
             //process offset relative offset
             self.textselection(
@@ -1360,7 +1360,7 @@ impl AnnotationStore {
         &self,
         selector: &Selector,
         subselectors: Box<impl Iterator<Item = &'b Selector>>,
-    ) -> Result<WrappedItem<TextSelection, TextResource>, StamError> {
+    ) -> Result<WrappedItem<TextSelection>, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get(&res_id.into())?;
