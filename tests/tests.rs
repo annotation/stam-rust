@@ -1387,3 +1387,41 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
 
     Ok(())
 }
+
+#[test]
+fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
+    let store = setup_example_5()?;
+    //Gather annotations and their texts in a big vector
+    let result: Vec<(&TextResource, Vec<&TextSelection>)> = store
+        .resources()
+        .map(|resource| {
+            (
+                resource.as_ref().unwrap(),
+                resource
+                    .textselections()
+                    .map(|textselection| textselection.as_ref().unwrap())
+                    .collect(),
+            )
+        })
+        .collect();
+    Ok(())
+}
+
+#[test]
+fn test_lifetime_sanity_annotationdata() -> Result<(), StamError> {
+    let store = setup_example_5()?;
+    //Gather annotations and their texts in a big vector
+    let result: Vec<(&Annotation, Vec<&AnnotationData>)> = store
+        .annotations()
+        .map(|annotation| {
+            (
+                annotation.as_ref().unwrap(),
+                annotation
+                    .data()
+                    .map(|data| data.as_ref().unwrap())
+                    .collect(),
+            )
+        })
+        .collect();
+    Ok(())
+}

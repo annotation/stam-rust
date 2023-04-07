@@ -506,11 +506,11 @@ impl TextResource {
 
     /// Returns an unsorted iterator over all textselections in this resource
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
-    pub fn textselections(&self) -> Box<impl Iterator<Item = WrappedItem<TextSelection>>> {
-        Box::new(self.store().iter().filter_map(|item| {
+    pub fn textselections(&self) -> impl Iterator<Item = WrappedItem<TextSelection>> {
+        self.store().iter().filter_map(|item| {
             item.as_ref()
                 .map(|textselection| textselection.wrap_in(self).expect("Wrap must succeed"))
-        }))
+        })
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
