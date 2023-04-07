@@ -41,10 +41,50 @@ When instantiating an annotation store, you can pass a configuration
 generate. Use the various `with_()` methods (a builder pattern) to set the
 various configuration options.
 
-
 ### Retrieving items
 
-We can use the `get()` method on  a store to retrieve any item in the STAM model from the store, such as by public ID. It will return a reference.
+You can retrieve items by methods that are similarly named to the return type:
+
+```rust
+let annotation =   store.annotation(&stam::Item::from("my-annotation"));
+let resource = store.resource(&stam::Item::from("my-resource"));
+let annotationset: &stam::AnnotationDataSet = store.annotationset(&stam::Item::from("my-annotationset"));
+let key = annotationset.key(&stam::Item::from("my-key"));
+let data = annotationset.annotationdata(&stam::Item::from("my-data"));
+```
+
+In our request to various methods in the STAM model, we use the `stam::Item<T>`
+type. It abstracts over various ways by which an item can be requested, such as
+by ID (either owned or borrowed), by handle, or by reference. The following are
+all equivalent:
+
+```rust
+let annotation = store.annotation(&Item::from("my-annotation"));
+let annotation = store.annotation(&"my-annotation".into());
+let annotation = store.annotation(&Item::IdRef("my-annotation"));
+```
+
+All of these methods return an `Option<WrappedItem<T>>`, where `T` is a STAM
+type like `Annotation`, `TextResource`,`AnnotationDataSet`, `DataKey` or
+`TextSelection`. If the item was not found, due to an invalid ID for instance,
+the `Option<>` has the value `None`.
+
+Whereas we use `Item<T>` to *supply parameters*, `WrappedItem<T>` is a *return
+type*. It is never the other way around. The latter holds, in most cases, *a reference* to T,
+with a lifetime equal to the store, it also holds a reference to the store
+itself.
+
+**Advanced:** *You can call `unwrap()` on almost all `WrappedItem<T>` instances you obtain to return
+a direct reference with a lifetime equal to the store. WrappedItem also implements `Deref` so you
+can transparently access the underlying reference (albeit with a more limited lifetime!).*
+
+#### Retrieving items (advanced, low-level)
+
+*(feel free to skip this subsection on a first reading!)*
+
+For lower-level, access we can use the `get()` method on  a store to retrieve
+any item in the STAM model from the store, such as by public ID. It will return
+a directly return a reference.
 
 ```rust
 let annotation: &stam::Annotation = store.get(&stam::Item::from("my-annotation"))?;
@@ -54,15 +94,21 @@ let key: &stam::DataKey = annotationset.get(&stam::Item::from("my-key"))?;
 let data: &stam::AnnotationData = annotationset.get(&stam::Item::from("my-data"))?;
 ```
 
-In our request to various methods in the STAM model, we use the `stam::Item<T>` type. It abstracts over various ways by which an item can be requested, such as by ID (either owned or borrowed), by handle, or by reference. The following are all equivalent:
+The directly returned reference is not as potent as `WrappedItem<T>`, as the
+latter implements more higher-level methods. You can turn a reference `&T` to a `WrappedItem<T>` yourself though:
 
 ```rust
-let annotation: &stam::Annotation = store.get(&Item::from("my-annotation"))?;
-let annotation: &stam::Annotation = store.get(&"my-annotation".into())?;
-let annotation: &stam::Annotation = store.get(&Item::IdRef("my-annotation"))?;
+let annotation = store.wrap(annotation);
+let resource = store.wrap(resource);
+let annotationset = store.wrap(annotationset);
+let key = annotationset.wrap(key);
+let data = annotationset.wrap(data);
 ```
 
-Many methods return a so called *handle* instead of a reference. You can use this handle to obtain a reference as shown in the next example, in which we obtain a reference to the resource we just inserted. The following are again all equivalent:
+Low-level methods often return a so called *handle* instead of a reference. You
+can use this handle to obtain a reference as shown in the next example, in
+which we obtain a reference to the resource we just inserted. The following are
+all equivalent:
 
 ```rust
 let annotation: &stam::Annotation = store.get(&Item::from(handle))?;
@@ -75,26 +121,12 @@ handles encapsulate an internal numeric ID. Passing around handles is also
 cheap and sometimes easier than passing around references, as it avoids
 borrowing issues.
 
-
 The ``get()`` method returns a `Result<&T, StamError>`. When using `get()` it is 
 is important to specify the return type, as that's how the compiler can infer what you want to get.
 (these methods are provided by the `ForStore<T>` trait.).
 
-There are also shortcut alternatives that return an `Option<&T>` and require no type annotations:
-
-```rust
-let annotation =   store.annotation(&stam::Item::from("my-annotation")).unwrap();
-let resource = store.resource(&stam::Item::from("my-resource")).unwrap();
-let annotationset: &stam::AnnotationDataSet = store.annotationset(&stam::Item::from("my-annotationset")).unwrap();
-let key = annotationset.key(&stam::Item::from("my-key")).unwrap();
-let data = annotationset.annotationdata(&stam::Item::from("my-data")).unwrap();
-```
-
-The results of this example will be the same as those of the first code block using `get()`.
-
 
 ### Iterating over items
-
 
 Iterating through all annotations in the store, and outputting a simple tab
 separated format with the data by annotation and the text by annotation:
@@ -102,10 +134,10 @@ separated format with the data by annotation and the text by annotation:
 ```rust
 for annotation in store.annotations() {
     let id = annotation.id().unwrap_or("");
-    for (key, data, dataset) in store.data_by_annotation(annotation) {
+    for data in annotation.data() {
         // get the text to which this annotation refers (if any)
-        let text: Vec<&str> = store.text_by_annotation(annotation).collect();
-        print!("{}\t{}\t{}\t{}", id, key.id().unwrap(), data.value(), text.join(" "));
+        let text: Vec<&str> = annotation.text().collect();
+        print!("{}\t{}\t{}\t{}", id, data.key().id().unwrap(), data.value(), text.join(" "));
     }
 }
 ```
