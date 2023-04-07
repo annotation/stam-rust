@@ -1064,17 +1064,17 @@ impl AnnotationStore {
         <AnnotationStore as StoreFor<TextResource>>::resolve_id(self, id)
     }
 
-    /// Returns an iterator over all annotations in the store
+    /// Returns an iterator over all annotations ([`Annotation`]) in the store
     pub fn annotations<'a>(&'a self) -> StoreIter<'a, Annotation> {
         self.iter()
     }
 
-    /// Returns an iterator over all resources in the store
+    /// Returns an iterator over all text resources ([`TextResource`] instances) in the store
     pub fn resources<'a>(&'a self) -> StoreIter<'a, TextResource> {
         self.iter()
     }
 
-    /// Returns an iterator over all annotationsets in the store
+    /// Returns an iterator over all [`AnnotationDataSet`] instances in the store
     pub fn annotationsets<'a>(&'a self) -> StoreIter<'a, AnnotationDataSet> {
         self.iter()
     }
@@ -1164,6 +1164,7 @@ impl AnnotationStore {
     }
 
     /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
+    /// This is  a low-level method.
     pub fn annotations_by_offset<'a>(
         &'a self,
         resource_handle: TextResourceHandle,
@@ -1198,7 +1199,9 @@ impl AnnotationStore {
     }
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
-    /// Use [`Self.annotations_by_annotation()`] instead if you are looking for the annotations that an annotation points at.
+    ///
+    /// This is a low-lever function, use [`wrappeditem<annotation>.annotations_reverse()`] instead.
+    /// Use [`wrappeditem<annotation>.annotations()`] if you are looking for the annotations that an annotation points at.
     pub fn annotations_by_annotation_reverse(
         &self,
         annotation_handle: AnnotationHandle,
@@ -1279,6 +1282,7 @@ impl AnnotationStore {
     /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
     /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
     pub fn textselection<'b>(
+        //MAYBE TODO: move to Textual?
         &self,
         selector: &Selector,
         subselectors: impl Iterator<Item = &'b Selector>,
@@ -1373,7 +1377,8 @@ impl AnnotationStore {
             .ok()
     }
 
-    /// Shortcut method to get an annotationset
+    /// Get an [`AnnotationDataSet'] by reference (as a fat pointer [`WrappedItem<AnnotationDataSet'])
+    /// Returns `None` if it does not exist.
     pub fn annotationset(
         &self,
         annotationset: &Item<AnnotationDataSet>,
@@ -1383,7 +1388,8 @@ impl AnnotationStore {
             .ok()
     }
 
-    /// Shortcut method to get a resource
+    /// Get a [`TextResource'] by reference (as a fat pointer [`WrappedItem<TextResource'])
+    /// Returns `None` if it does not exist.
     pub fn resource(&self, resource: &Item<TextResource>) -> Option<WrappedItem<TextResource>> {
         self.get(resource)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))

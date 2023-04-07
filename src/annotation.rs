@@ -541,7 +541,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     }
 
     /// Iterates over all the annotations this annotation points to directly (i.e. via a [`Selector::AnnotationSelector'])
-    /// Use [`annotations_by_annotation_reverse'] if you want to find the annotations this resource is pointed by.
+    /// Use [`Self.annotations_reverse()'] if you want to find the annotations this resource is pointed by.
     pub fn annotations(
         &'slf self,
         recursive: bool,
@@ -555,6 +555,24 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
             store: self.store(),
             iter: selector_iter,
             _phantomdata: PhantomData,
+        }
+    }
+
+    /// Iterates over all the annotations that reference this annotation, if any
+    pub fn annotations_reverse(
+        &'slf self,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
+        if let Some(v) = self
+            .store()
+            .annotations_by_annotation_reverse(self.handle().unwrap())
+        {
+            Some(v.iter().map(|a_handle| {
+                self.store()
+                    .annotation(&Item::Handle(*a_handle))
+                    .expect("annotation handle must be valid")
+            }))
+        } else {
+            None
         }
     }
 
