@@ -511,21 +511,29 @@ impl<'a> Annotation {
 impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterate over the annotation data, returns [`WrappedItem<AnnotationData>`].
     pub fn data(&'slf self) -> impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf {
-        self.deref().data().map(|(dataset_handle, data_handle)| {
-            let annotationset: &'store AnnotationDataSet = self
-                .store()
-                .get(&dataset_handle.into())
-                .expect("dataset must exist");
-            let annotationdata: WrappedItem<'store, AnnotationData> = annotationset
-                .annotationdata(&data_handle.into())
-                .expect("data must exist");
-            annotationdata
-        })
+        //                               this was the magic bit I needed to make it work ---^
+        self.as_ref() // <-- deref() also works here
+            .expect("as_ref() must succeed")
+            .data()
+            .map(|(dataset_handle, data_handle)| {
+                let annotationset: &'store AnnotationDataSet = self
+                    .store()
+                    .get(&dataset_handle.into())
+                    .expect("dataset must exist");
+                let annotationdata: WrappedItem<'store, AnnotationData> = annotationset
+                    .annotationdata(&data_handle.into())
+                    .expect("data must exist");
+                annotationdata
+            })
     }
 
     /// Iterates over the resources this annotation points to
-    pub fn resources(&'store self) -> TargetIter<'store, TextResource> {
-        let selector_iter: SelectorIter<'store> = self.target().iter(self.store(), true, true);
+    pub fn resources(&'slf self) -> TargetIter<'store, TextResource> {
+        let selector_iter: SelectorIter<'store> = self
+            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
+            .expect("as_ref() must succeed")
+            .target()
+            .iter(self.store(), true, true);
         //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
         TargetIter {
             store: self.store(),
@@ -537,12 +545,15 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterates over all the annotations this annotation points to directly (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`annotations_by_annotation_reverse'] if you want to find the annotations this resource is pointed by.
     pub fn annotations(
-        &'store self,
+        &'slf self,
         recursive: bool,
         track_ancestors: bool,
     ) -> TargetIter<'store, Annotation> {
-        let selector_iter: SelectorIter<'store> =
-            self.target().iter(self.store(), recursive, track_ancestors);
+        let selector_iter: SelectorIter<'store> = self
+            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
+            .expect("as_ref() must succeed")
+            .target()
+            .iter(self.store(), recursive, track_ancestors);
         TargetIter {
             store: self.store(),
             iter: selector_iter,
@@ -551,8 +562,12 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     }
 
     /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
-    pub fn annotationsets(&'store self) -> TargetIter<'store, AnnotationDataSet> {
-        let selector_iter: SelectorIter<'store> = self.target().iter(self.store(), true, false);
+    pub fn annotationsets(&'slf self) -> TargetIter<'store, AnnotationDataSet> {
+        let selector_iter: SelectorIter<'store> = self
+            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
+            .expect("as_ref() must succeed")
+            .target()
+            .iter(self.store(), true, false);
         TargetIter {
             store: self.store(),
             iter: selector_iter,
@@ -562,8 +577,8 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
 
     /// Iterate over all resources with text selections this annotation refers to (i.e. via [`Selector::TextSelector`])
     pub fn textselections(
-        &'store self,
-    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'store {
+        &'slf self,
+    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'slf {
         self.resources().filter_map(|targetitem| {
             //process offset relative offset
             //MAYBE TODO: rewrite AnnotationStore::textselection to something in Textual trait
@@ -577,7 +592,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     }
 
     /// Iterates over all text slices this annotation refers to
-    pub fn text(&'store self) -> impl Iterator<Item = &'store str> + 'store {
+    pub fn text(&'slf self) -> impl Iterator<Item = &'store str> + 'slf {
         self.textselections()
             .map(|textselection| textselection.text())
     }
