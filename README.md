@@ -237,8 +237,8 @@ for annotation in store.annotations() {
 
 Here is an overview of the most important methods that return an iterator, the
 iterators in turn all return `WrappedItem<T>` instances. The table is divided into two parts,
-the top part follows STAM's ownership model. The bottom part leverage the various *reverse indices*
-that are maintained.
+the top part follows STAM's ownership model. Those in the bottom part leverage the various *reverse indices*
+that are computed:
 
 
 | Method                               |  T                    | Description                         |
@@ -263,10 +263,12 @@ that are maintained.
 | `TextSelection.annotations()`        | `Annotation`          | All annotations that target this text selection |
 | -------------------------------------|-----------------------|-------------------------------------|
 
-* Notes:
-    * Most of the methods in the left column, second part of the table, are implemented only for `WrappedItem<T>`, not `&T`.
-    * (1) With *known* text selections, we refer to portions of the texts that have been referenced by an annotation.
-
+Notes:
+* (1) With *known* text selections, we refer to portions of the texts that have been referenced by an annotation.
+* Most of the methods in the left column, second part of the table, are implemented only for `WrappedItem<T>`, not `&T`.
+* This library consistently uses iterators and therefore *lazy evaluation*.
+  This is more efficient and less memory intensive because you don't need to
+  wait for all results to be collected (and heap allocated) before you can do computation.
 
 #### Iterators (advanced, low-level)
 

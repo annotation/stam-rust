@@ -5,6 +5,7 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
+use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::config::{get_global_config, Config, Configurable, SerializeMode};
@@ -845,5 +846,38 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
         self.unwrap()
             .find_data(key, value)
             .map(|annotationdata| annotationdata.wrap_in(self.unwrap()).unwrap())
+    }
+
+    /// Returns all annotations that use this dataset. Use
+    /// [`Self.annotations_metadata()`] instead if you are looking for annotations that reference
+    /// the dataset as a whole via a DataSetSelector. These are also included here, though.
+    pub fn annotations(
+        &'slf self,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + '_> {
+        if let Some(iter) = self
+            .store()
+            .annotations_by_annotationset(self.handle().expect("annotationset must have handle"))
+        {
+            Some(iter.filter_map(|a_handle| self.store().annotation(&Item::Handle(a_handle))))
+        } else {
+            None
+        }
+    }
+
+    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
+    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
+    pub fn annotations_metadata(
+        &'slf self,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + '_> {
+        if let Some(vec) = self.store().annotations_by_annotationset_metadata(
+            self.handle().expect("annotationset must have handle"),
+        ) {
+            Some(
+                vec.iter()
+                    .filter_map(|a_handle| self.store().annotation(&Item::Handle(*a_handle))),
+            )
+        } else {
+            None
+        }
     }
 }

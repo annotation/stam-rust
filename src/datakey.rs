@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 //use serde_json::Result;
 
+use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
+use crate::annotationstore::AnnotationStore;
 use crate::error::StamError;
 use crate::store::*;
 use crate::types::*;
@@ -178,7 +180,7 @@ impl DataKey {
 
 impl<'store, 'slf> WrappedItem<'store, DataKey> {
     /// Shortcut to return a reference to the dataset
-    pub fn annotationset(&'slf self) -> &'store AnnotationDataSet {
+    pub fn set(&'slf self) -> &'store AnnotationDataSet {
         self.store()
     }
 
@@ -195,6 +197,23 @@ impl<'store, 'slf> WrappedItem<'store, DataKey> {
                     self.store().annotationdata(&Item::Handle(*data_handle))
                 }),
             )
+        } else {
+            None
+        }
+    }
+
+    /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this key.
+    /// The iterator returns the annotations as [`WrappedItem<Annotation>`].
+    /// Especially useful in combination with a call to  [`AnnotationDataSet.key()`] first.
+    pub fn annotations(
+        &'slf self,
+        annotationstore: &'store AnnotationStore,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
+        if let Some(iter) = annotationstore.annotations_by_key(
+            self.set().handle().expect("set must have handle"),
+            self.handle().expect("key must have handle"),
+        ) {
+            Some(iter.filter_map(|a_handle| annotationstore.annotation(&Item::Handle(a_handle))))
         } else {
             None
         }

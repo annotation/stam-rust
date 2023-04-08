@@ -231,7 +231,8 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
     }
 
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
-    // The iterator returns the data as [`WrappedItem<AnnotationData>`].
+    /// The iterator returns the annoations as [`WrappedItem<Annotation>`].
+    /// Especially useful in combination with a call to  [`WrappedItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
     pub fn annotations(
         &'slf self,
         annotationstore: &'store AnnotationStore,

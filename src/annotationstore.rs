@@ -1200,7 +1200,7 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
     ///
-    /// This is a low-lever function, use [`wrappeditem<annotation>.annotations_reverse()`] instead.
+    /// This is a low-lever function, use [`WrappedItem<Annotation>.annotations_reverse()`] instead.
     /// Use [`wrappeditem<annotation>.annotations()`] if you are looking for the annotations that an annotation points at.
     pub fn annotations_by_annotation_reverse(
         &self,
@@ -1211,21 +1211,22 @@ impl AnnotationStore {
 
     /// Returns all annotations that reference any keys/data in an annotationset
     /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
+    /// This is a low-level method. Use [`WrappedItem<AnnotationDataSet>.annotations()`] instead.
     pub fn annotations_by_annotationset(
         &self,
         annotationset_handle: AnnotationDataSetHandle,
-    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
         if let Some(data_annotationmap) = self
             .dataset_data_annotation_map
             .data
             .get(annotationset_handle.unwrap())
         {
-            Some(Box::new(
+            Some(
                 data_annotationmap
                     .data
                     .iter()
                     .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
-            ))
+            )
         } else {
             None
         }
@@ -1233,6 +1234,7 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
+    /// This is a low-level method. Use [`WrappedItem<AnnotationDataSet>.annotations_metadata()`] instead.
     pub fn annotations_by_annotationset_metadata(
         &self,
         annotationset_handle: AnnotationDataSetHandle,
@@ -1241,7 +1243,7 @@ impl AnnotationStore {
     }
 
     /// Find all annotations referenced by data. This is a lookup in the reverse index and return a reference.
-    /// This is a low-level method
+    /// This is a low-level method. Use [`WrappedItem<AnnotationData>.annotations()`] instead.
     pub fn annotations_by_data(
         &self,
         annotationset_handle: AnnotationDataSetHandle,
@@ -1252,21 +1254,22 @@ impl AnnotationStore {
     }
 
     /// Find all annotations referenced by key
+    /// This is a low-level method
     pub fn annotations_by_key(
         &self,
         annotationset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
-    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle> + '_>> {
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
         let dataset: Option<&AnnotationDataSet> = self.get(&annotationset_handle.into()).ok();
         if let Some(dataset) = dataset {
             if let Some(data) = dataset.data_by_key(&datakey_handle.into()) {
-                Some(Box::new(
+                Some(
                     data.iter()
                         .filter_map(move |dataitem| {
                             self.annotations_by_data(annotationset_handle, *dataitem)
                         })
                         .flat_map(|v| v.iter().copied()), //(only the handles are copied)
-                ))
+                )
             } else {
                 None
             }
