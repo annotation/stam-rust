@@ -12,7 +12,7 @@ use crate::store::*;
 use crate::types::*;
 
 /// This trait provides methods that operate on structures that hold or represent text content.
-pub trait Textual<'store, 'slf>
+pub trait Text<'store, 'slf>
 where
     'store: 'slf,
 {

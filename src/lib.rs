@@ -11,7 +11,7 @@ mod json;
 mod resources;
 mod selector;
 mod store;
-mod textsearch;
+mod text;
 mod textselection;
 mod types;
 
@@ -40,7 +40,7 @@ pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };
 pub use store::*;
-pub use textsearch::{FindRegexIter, FindRegexMatch, Textual};
+pub use text::{FindRegexIter, FindRegexMatch, Text};
 pub use textselection::{TextSelection, TextSelectionOperator};
 pub use types::*;
 

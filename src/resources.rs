@@ -19,7 +19,7 @@ use crate::file::*;
 use crate::json::{FromJson, ToJson};
 use crate::selector::{Offset, Selector, SelfSelector};
 use crate::store::*;
-use crate::textsearch::*;
+use crate::text::*;
 use crate::textselection::PositionIndexItem;
 use crate::textselection::{PositionIndex, TextSelection, TextSelectionHandle};
 use crate::types::*;
@@ -635,7 +635,7 @@ impl<'store, 'slf> WrappedItem<'store, TextResource> {
     }
 }
 
-impl<'store> Textual<'store, 'store> for TextResource {
+impl<'store> Text<'store, 'store> for TextResource {
     /// Returns the length of the text in unicode points
     /// For bytes, use `self.text().len()` instead.
     fn textlen(&self) -> usize {

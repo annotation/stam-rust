@@ -22,7 +22,7 @@ use crate::selector::{
     AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
 };
 use crate::store::*;
-use crate::textsearch::*;
+use crate::text::*;
 use crate::textselection::{
     TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };

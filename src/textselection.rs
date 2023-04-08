@@ -17,7 +17,7 @@ use crate::error::StamError;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
 use crate::selector::{Offset, Selector};
 use crate::store::*;
-use crate::textsearch::*;
+use crate::text::*;
 use crate::types::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -187,7 +187,7 @@ impl TextSelection {
     }
 }
 
-impl<'store, 'slf> Textual<'store, 'slf> for WrappedItem<'store, TextSelection>
+impl<'store, 'slf> Text<'store, 'slf> for WrappedItem<'store, TextSelection>
 where
     'store: 'slf,
 {

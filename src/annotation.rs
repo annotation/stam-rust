@@ -23,7 +23,7 @@ use crate::selector::{
     WrappedSelector,
 };
 use crate::store::*;
-use crate::textsearch::Textual;
+use crate::text::Text;
 use crate::textselection::TextSelection;
 use crate::types::*;
 

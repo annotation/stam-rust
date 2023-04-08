@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 
 use stam::{
     Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, Config, Handle, Item, Offset,
-    Regex, SelectorBuilder, StoreFor, TextResource, TextSelection, Textual,
+    Regex, SelectorBuilder, StoreFor, Text, TextResource, TextSelection,
 };
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
