@@ -3,24 +3,21 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::path::{Path, PathBuf};
-use std::slice::Iter;
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
-use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
+use crate::annotationdata::AnnotationDataHandle;
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
-use crate::config::{get_global_config, set_global_config, Config, Configurable, SerializeMode};
+use crate::config::{get_global_config, set_global_config, Config, Configurable};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
-use crate::datakey::{DataKey, DataKeyHandle};
+use crate::datakey::DataKeyHandle;
 use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
 use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
-use crate::selector::{
-    AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem,
-};
+use crate::selector::{Offset, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::text::*;
 use crate::textselection::{

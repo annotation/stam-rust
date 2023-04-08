@@ -985,7 +985,6 @@ impl TextSelection {
     pub fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
         match operator {
             TextSelectionOperator::Equals
-            | TextSelectionOperator::InSet
             | TextSelectionOperator::Overlaps
             | TextSelectionOperator::Embeds
             | TextSelectionOperator::Embedded

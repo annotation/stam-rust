@@ -328,7 +328,7 @@ fn store_get_text_selection() -> Result<(), StamError> {
 fn text_selector() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let annotation = store.annotation(&"A1".into()).unwrap();
-    let resource = annotation.resources().next().unwrap();
+    let _resource = annotation.resources().next().unwrap();
     let text: &str = annotation.text().next().unwrap();
     assert_eq!(text, "world");
     Ok(())
@@ -385,7 +385,7 @@ fn add_after_borrow() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     let annotation = store.annotation(&"A1".into()).unwrap();
     let mut count = 0;
-    for data in annotation.data() {
+    for _data in annotation.data() {
         count += 1;
     }
     assert_eq!(count, 1);
@@ -882,7 +882,7 @@ fn annotations_by_offset() -> Result<(), StamError> {
 fn textselections_by_annotation() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let annotation = store.annotation(&"A1".into()).unwrap();
-    let reference_res_handle = store.resolve_resource_id("testres")?;
+    let _reference_res_handle = store.resolve_resource_id("testres")?;
     let mut count = 0;
     for textselection in annotation.textselections() {
         count += 1;
@@ -1354,7 +1354,7 @@ No one shall be held in slavery or servitude; slavery and the slave trade shall 
 ";
 
 pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
-    let mut store = AnnotationStore::new()
+    let store = AnnotationStore::new()
         .with_id("example5".into())
         .add(TextResource::from_string(
             "humanrights".into(),

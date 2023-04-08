@@ -11,7 +11,7 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
-use crate::annotation::{Annotation, AnnotationHandle};
+use crate::annotation::Annotation;
 use crate::annotationstore::AnnotationStore;
 use crate::config::{get_global_config, Config, Configurable, SerializeMode};
 use crate::error::StamError;

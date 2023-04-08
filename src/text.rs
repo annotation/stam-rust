@@ -7,7 +7,6 @@ use crate::resources::TextResource;
 use crate::selector::Offset;
 use crate::textselection::TextSelection;
 
-use crate::config::Configurable;
 use crate::store::*;
 use crate::types::*;
 

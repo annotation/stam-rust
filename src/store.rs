@@ -7,7 +7,6 @@ use std::slice::{Iter, IterMut};
 
 use nanoid::nanoid;
 
-use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;
 use crate::error::StamError;
 use crate::types::*;
