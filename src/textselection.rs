@@ -80,6 +80,15 @@ impl From<&TextSelection> for Offset {
     }
 }
 
+impl From<&WrappedItem<'_, TextSelection>> for Offset {
+    fn from(textselection: &WrappedItem<'_, TextSelection>) -> Offset {
+        Offset {
+            begin: Cursor::BeginAligned(textselection.begin()),
+            end: Cursor::BeginAligned(textselection.end()),
+        }
+    }
+}
+
 #[sealed]
 impl Handle for TextSelectionHandle {
     fn new(intid: usize) -> Self {
