@@ -29,7 +29,7 @@ use crate::types::*;
 /// The text *SHOULD* be in
 /// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
 /// *MAY* be in another unicode normalization forms.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(try_from = "TextResourceBuilder")]
 pub struct TextResource {
     /// Public identifier for the text resource (often the filename/URL)

@@ -363,6 +363,9 @@ where
 }
 
 impl<'store, 'slf> WrappedItem<'store, TextSelection> {
+    pub fn resource(&'slf self) -> &'store TextResource {
+        self.store()
+    }
     /// Iterates over all annotations that are reference by this TextSelection, if any.
     /// Note that you need to explicitly specify the `AnnotationStore` for this method.
     pub fn annotations(

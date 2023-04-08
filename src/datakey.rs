@@ -15,7 +15,7 @@ use crate::types::*;
 /// The DataKey class defines a vocabulary field, it
 /// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DataKey {
     /// The Id is the name that identifies this key, it must be unique in the dataset to which it pertains
     #[serde(rename = "@id")]

@@ -17,7 +17,7 @@ pub type Store<T> = Vec<Option<T>>;
 
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
 /// Used to resolve public IDs to internal ones.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IdMap<HandleType> {
     /// The actual map
     data: HashMap<String, HandleType>,
@@ -56,7 +56,7 @@ where
 }
 
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RelationMap<A, B> {
     /// The actual map
     pub(crate) data: Vec<Vec<B>>,
@@ -135,7 +135,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TripleRelationMap<A, B, C> {
     /// The actual map
     pub(crate) data: Vec<RelationMap<B, C>>,
@@ -703,7 +703,7 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum WrappedItem<'store, T>
 where
     T: Storable,
@@ -716,6 +716,20 @@ where
         item: T,
         store: &'store T::StoreType,
     },
+}
+impl<'store, T> Clone for WrappedItem<'store, T>
+where
+    T: Storable + Clone,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Borrowed { item, store } => Self::Borrowed { item, store },
+            Self::Owned { item, store } => Self::Owned {
+                item: item.clone(),
+                store,
+            },
+        }
+    }
 }
 
 impl<'store, T> Deref for WrappedItem<'store, T>
