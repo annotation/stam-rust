@@ -2,6 +2,7 @@ use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -20,9 +21,7 @@ use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::text::*;
-use crate::textselection::{
-    TextRelationOperator, TextSelection, TextSelectionHandle, TextSelectionOperator,
-};
+use crate::textselection::{TextSelection, TextSelectionHandle, TextSelectionOperator};
 use crate::types::*;
 
 /// An Annotation Store is an unordered collection of annotations, resources and
@@ -1132,7 +1131,8 @@ impl AnnotationStore {
         textselection: &TextSelection,
     ) -> Option<&Vec<AnnotationHandle>> {
         if let Some(handle) = textselection.handle() {
-            //existing textselection
+            //existing textselection. Quick lookup in the reverse
+            /// index. Returns a reference to a vector.
             self.textrelationmap.get(resource_handle, handle)
         } else {
             //we can just cast a TextSelection into an offset and see if it exists as existing textselection
@@ -1140,25 +1140,16 @@ impl AnnotationStore {
         }
     }
 
-    /// Find all annotations with a particular textselection. This is a quick lookup in the reverse
-    /// index and returns a reference to a vector.
-    pub fn annotations_by_textselection_handle(
-        &self,
-        resource_handle: TextResourceHandle,
-        textselection_handle: TextSelectionHandle,
-    ) -> Option<&Vec<AnnotationHandle>> {
-        self.textrelationmap
-            .get(resource_handle, textselection_handle)
-    }
-
+    /*
     pub fn annotations_by_textselection_operator(
         &self,
         resource_handle: TextResourceHandle,
         operator: &TextSelectionOperator,
-    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
+    ) -> Option<impl Iterator<Item = AnnotationHandle>> {
         //TODO: implement
         panic!("annotations_by_textselection_operator() not implemented yet");
     }
+    */
 
     /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
     /// This is  a low-level method.
@@ -1180,11 +1171,12 @@ impl AnnotationStore {
     }
 
     /// Find all annotations that overlap with a particular offset.
+    /*
     pub fn annotations_by_offset_operator(
         &self,
         resource_handle: TextResourceHandle,
         offset: &TextRelationOperator,
-    ) -> Option<Box<dyn Iterator<Item = AnnotationHandle>>> {
+    ) -> Option<impl Iterator<Item = AnnotationHandle>> {
         let resource: Option<&TextResource> = self.get(&resource_handle.into()).ok();
         resource?;
         if let Ok(textselection) = resource.unwrap().textselection(&offset.offset()) {
@@ -1194,6 +1186,7 @@ impl AnnotationStore {
             None
         }
     }
+    */
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
     ///

@@ -1,5 +1,6 @@
 use regex::{Regex, RegexSet};
 use sealed::sealed;
+use std::borrow::{Borrow, Cow};
 use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
@@ -392,6 +393,17 @@ impl<'store, 'slf> WrappedItem<'store, TextSelection> {
             _ => None,
         }
     }
+
+    pub fn find_textselections<'q>(
+        &'slf self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'q
+    where
+        'store: 'q, //store lives at least as long as 'q
+    {
+        let tset: TextSelectionSet = self.clone().into();
+        self.resource().find_textselections(operator, tset)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -471,45 +483,40 @@ impl Ord for PositionIndexItem {
     }
 }
 
-/// A TextSelectionSet holds one or more [`TextSelection`] items
-/// It may also optionally carry the TextResourceHandle and AnnotationHandle associated to reference the source of the [`TextSelection`]
+/// A TextSelectionSet holds one or more [`TextSelection`] items and a reference to the TextResource from which they're drawn.
+/// All textselections in a set must reference the same resource, which implies they are comparable.
 #[derive(Clone, Debug)]
 pub struct TextSelectionSet {
-    data: SmallVec<
-        [(
-            TextSelection,
-            Option<TextResourceHandle>,
-            Option<AnnotationHandle>,
-        ); 8],
-    >,
+    data: SmallVec<[TextSelection; 8]>,
+    resource: TextResourceHandle,
     sorted: bool,
 }
 
-impl From<TextSelection> for TextSelectionSet {
-    fn from(other: TextSelection) -> Self {
-        Self::new(other, None, None)
+impl<'store> From<WrappedItem<'store, TextSelection>> for TextSelectionSet {
+    fn from(textselection: WrappedItem<'store, TextSelection>) -> Self {
+        let mut tset = Self::new(
+            textselection
+                .store()
+                .handle()
+                .expect("Resource must have a handle"),
+        );
+        if textselection.is_ref() {
+            tset.add(textselection.to_owned().unwrap_owned());
+        } else {
+            tset.add(textselection.unwrap_owned());
+        }
+        tset
     }
 }
 
 pub struct TextSelectionSetIter<'a> {
-    iter: Iter<
-        'a,
-        (
-            TextSelection,
-            Option<TextResourceHandle>,
-            Option<AnnotationHandle>,
-        ),
-    >,
+    iter: Iter<'a, TextSelection>,
     count: usize,
     len: usize,
 }
 
 impl<'a> Iterator for TextSelectionSetIter<'a> {
-    type Item = &'a (
-        TextSelection,
-        Option<TextResourceHandle>,
-        Option<AnnotationHandle>,
-    );
+    type Item = &'a TextSelection;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
@@ -557,151 +564,219 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
 /// This enum encapsulates both the operator as well the the object of the operation (a
 /// `TextSelectionSet`). As a whole, it can then be applied to another [`TextSelectionSet`] or
 /// [`TextSelection`] via its [`TextSelectionSet::test()`] method.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum TextSelectionOperator {
     /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
-    Equals,
+    Equals { all: bool, negate: bool },
 
     /// All items in both sets must cover the exact same TextSelection. This would be fairly useless, it just means both sets contain only one TextSelection and it's the same one
     // EqualsAll(&'a TextSelectionSet),
 
     /// Each TextSelection in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
-    Overlaps,
-
-    /// Each TextSelection in A overlaps with all TextSelection in B (cf. textfabric's `&&`), commutative
-    OverlapsAll,
+    /// If modifier `all` is set: Each TextSelection in A overlaps with all TextSelection in B (cf. textfabric's `&&`), commutative
+    Overlaps { all: bool, negate: bool },
 
     /// All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
-    Embeds,
-
-    /// All TextSelections in B are embedded by all TextSelection in A (cf. textfabric's `[[`)
-    EmbedsAll,
+    /// If modifier `all` is set: All TextSelections in B are embedded by all TextSelection in A (cf. textfabric's `[[`)
+    Embeds { all: bool, negate: bool },
 
     /// All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
-    Embedded,
-
-    /// All TextSelections in A are embedded by all TextSelection in B (cf. textfabric's `]]`)
-    EmbeddedAll,
+    /// If modifier `all` is set: All TextSelections in A are embedded by all TextSelection in B (cf. textfabric's `]]`)
+    Embedded { all: bool, negate: bool },
 
     /// Each TextSelections in A precedes (comes before) a textselection in B
-    Precedes,
-
-    /// All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
-    PrecedesAll,
+    /// If modifier `all` is set: All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
+    Precedes { all: bool, negate: bool },
 
     /// Each TextSeleciton In A succeeds (comes after) a textselection in B
-    Succeeds,
-
-    /// All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
-    SucceedsAll,
+    /// If modifier `all` is set: All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
+    Succeeds { all: bool, negate: bool },
 
     /// Each TextSelection in A is ends where at least one TextSelection in B begins.
-    LeftAdjacent,
+    /// If modifier `all` is set: The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
+    LeftAdjacent { all: bool, negate: bool },
 
-    /// The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
-    //TODO: add mindistance,maxdistance arguments
-    LeftAdjacentAll,
-
+    /// The rightmost TextSelecti
     /// Each TextSelection in A is begis where at least one TextSelection in A ends.
-    RightAdjacent,
-
-    /// The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
-    //TODO: add mindistance,maxdistance argument
-    RightAdjacentAll,
+    /// If modifier `all` is set: The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
+    RightAdjacent { all: bool, negate: bool },
 
     /// Each TextSelection in A starts where a TextSelection in B starts
-    SameBegin,
-
-    /// The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
-    SameBeginAll,
+    /// If modifier `all` is set: The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
+    SameBegin { all: bool, negate: bool },
 
     /// Each TextSelection in A ends where a TextSelection in B ends
-    SameEnd,
-
-    /// The rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `:=`)
-    SameEndAll,
+    /// If modifier `all` is set: The rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `:=`)
+    SameEnd { all: bool, negate: bool },
 
     /// Each TextSelection in A is in B as well, this is similar to Equals but allows
     /// for set B having unmatched items
-    InSet,
+    InSet { all: bool, negate: bool },
 
     /// The leftmost TextSelection in A starts where the leftmost TextSelection in A starts  and
     /// the rightmost TextSelection in A ends where the rights TextSelection in B ends  (cf. textfabric's `::`)
-    SameRangeAll,
-
-    Not(Box<TextSelectionOperator>),
-}
-
-impl Default for TextSelectionSet {
-    fn default() -> Self {
-        Self {
-            data: SmallVec::new(),
-            sorted: false,
-        }
-    }
+    SameRange { all: bool, negate: bool },
 }
 
 impl TextSelectionOperator {
     // Is this operator an All variant?
     pub fn all(&self) -> bool {
         match self {
-            Self::OverlapsAll
-            | Self::EmbedsAll
-            | Self::EmbeddedAll
-            | Self::LeftAdjacentAll
-            | Self::PrecedesAll
-            | Self::RightAdjacentAll
-            | Self::SucceedsAll
-            | Self::SameBeginAll
-            | Self::SameEndAll
-            | Self::SameRangeAll => true,
-            //TODO: what about Not?
-            _ => false,
+            Self::Equals { all, .. }
+            | Self::Overlaps { all, .. }
+            | Self::Embeds { all, .. }
+            | Self::Embedded { all, .. }
+            | Self::Precedes { all, .. }
+            | Self::Succeeds { all, .. }
+            | Self::LeftAdjacent { all, .. }
+            | Self::RightAdjacent { all, .. }
+            | Self::SameBegin { all, .. }
+            | Self::SameEnd { all, .. }
+            | Self::InSet { all, .. }
+            | Self::SameRange { all, .. } => *all,
+        }
+    }
+
+    pub fn toggle_negate(&self) -> Self {
+        match self {
+            Self::Equals { all, negate } => Self::Equals {
+                all: *all,
+                negate: !negate,
+            },
+            Self::Overlaps { all, negate } => Self::Overlaps {
+                all: *all,
+                negate: !negate,
+            },
+            Self::Embeds { all, negate } => Self::Embeds {
+                all: *all,
+                negate: !negate,
+            },
+            Self::Embedded { all, negate } => Self::Embedded {
+                all: *all,
+                negate: !negate,
+            },
+            Self::Precedes { all, negate } => Self::Precedes {
+                all: *all,
+                negate: !negate,
+            },
+            Self::Succeeds { all, negate } => Self::Succeeds {
+                all: *all,
+                negate: !negate,
+            },
+            Self::LeftAdjacent { all, negate } => Self::LeftAdjacent {
+                all: *all,
+                negate: !negate,
+            },
+            Self::RightAdjacent { all, negate } => Self::RightAdjacent {
+                all: *all,
+                negate: !negate,
+            },
+            Self::SameBegin { all, negate } => Self::SameBegin {
+                all: *all,
+                negate: !negate,
+            },
+            Self::SameEnd { all, negate } => Self::SameEnd {
+                all: *all,
+                negate: !negate,
+            },
+            Self::InSet { all, negate } => Self::InSet {
+                all: *all,
+                negate: !negate,
+            },
+            Self::SameRange { all, negate } => Self::SameRange {
+                all: *all,
+                negate: !negate,
+            },
+        }
+    }
+
+    pub fn toggle_all(&self) -> Self {
+        match self {
+            Self::Equals { all, negate } => Self::Equals {
+                all: !all,
+                negate: *negate,
+            },
+            Self::Overlaps { all, negate } => Self::Overlaps {
+                all: !all,
+                negate: *negate,
+            },
+            Self::Embeds { all, negate } => Self::Embeds {
+                all: !all,
+                negate: *negate,
+            },
+            Self::Embedded { all, negate } => Self::Embedded {
+                all: !all,
+                negate: *negate,
+            },
+            Self::Precedes { all, negate } => Self::Precedes {
+                all: !all,
+                negate: *negate,
+            },
+            Self::Succeeds { all, negate } => Self::Succeeds {
+                all: !all,
+                negate: *negate,
+            },
+            Self::LeftAdjacent { all, negate } => Self::LeftAdjacent {
+                all: !all,
+                negate: *negate,
+            },
+            Self::RightAdjacent { all, negate } => Self::RightAdjacent {
+                all: !all,
+                negate: *negate,
+            },
+            Self::SameBegin { all, negate } => Self::SameBegin {
+                all: !all,
+                negate: *negate,
+            },
+            Self::SameEnd { all, negate } => Self::SameEnd {
+                all: !all,
+                negate: *negate,
+            },
+            Self::InSet { all, negate } => Self::InSet {
+                all: !all,
+                negate: *negate,
+            },
+            Self::SameRange { all, negate } => Self::SameRange {
+                all: !all,
+                negate: *negate,
+            },
         }
     }
 }
 
 impl TextSelectionSet {
-    pub fn new_empty() -> Self {
-        Self::default()
-    }
-
-    pub fn new(
-        textselection: TextSelection,
-        resource: Option<TextResourceHandle>,
-        annotation: Option<AnnotationHandle>,
-    ) -> Self {
+    pub fn new(resource: TextResourceHandle) -> Self {
         Self {
-            data: smallvec![(textselection, resource, annotation)],
+            data: SmallVec::new(),
+            resource,
             sorted: false,
         }
     }
 
-    pub fn insert(
-        &mut self,
-        textselection: TextSelection,
-        resource: Option<TextResourceHandle>,
-        annotation: Option<AnnotationHandle>,
-    ) {
-        let elem = (textselection, resource, annotation);
+    pub fn add(&mut self, textselection: TextSelection) -> &mut Self {
         if self.sorted {
             //once sorted, we respect the order
-            match self.data.binary_search(&elem) {
+            match self.data.binary_search(&textselection) {
                 Ok(_) => {} //element already exists
-                Err(pos) => self.data.insert(pos, elem),
+                Err(pos) => self.data.insert(pos, textselection),
             };
         } else {
-            self.data.push(elem);
+            self.data.push(textselection);
         }
+        self
     }
 
-    /// Iterate over the store
+    /// Iterate over the text selections
     pub fn iter<'a>(&'a self) -> TextSelectionSetIter<'a> {
         TextSelectionSetIter {
             iter: self.data.iter(),
             count: 0,
             len: self.data.len(),
         }
+    }
+
+    pub fn get(&self, index: usize) -> Option<&TextSelection> {
+        self.data.get(index)
     }
 
     pub fn len(&self) -> usize {
@@ -719,39 +794,81 @@ impl TextSelectionSet {
             return false;
         }
         match operator {
-            TextSelectionOperator::Equals => {
+            TextSelectionOperator::Equals {
+                all: false,
+                negate: false,
+            } => {
                 //ALL of the items in this set must match with ANY item in the otherset
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if !item.test(operator, reftextsel) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::Overlaps
-            | TextSelectionOperator::Embeds
-            | TextSelectionOperator::Embedded
-            | TextSelectionOperator::Precedes
-            | TextSelectionOperator::Succeeds
-            | TextSelectionOperator::LeftAdjacent
-            | TextSelectionOperator::RightAdjacent
-            | TextSelectionOperator::SameBegin
-            | TextSelectionOperator::SameEnd
-            | TextSelectionOperator::InSet => {
+            TextSelectionOperator::Overlaps {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Embeds {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Embedded {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Precedes {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Succeeds {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::LeftAdjacent {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::RightAdjacent {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::SameBegin {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::SameEnd {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::InSet {
+                all: false,
+                negate: false,
+            } => {
                 // ALL of the items in this set must match with ANY item in the otherset
                 // This is a weaker form of Equals (could have also been called SameRange)
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if !item.test(operator, reftextsel) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::OverlapsAll
-            | TextSelectionOperator::EmbedsAll
-            | TextSelectionOperator::EmbeddedAll => {
+            TextSelectionOperator::Overlaps {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Embeds {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Embedded {
+                all: true,
+                negate: false,
+            } => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if !item.test(operator, reftextsel) {
                         return false;
                     }
@@ -759,23 +876,53 @@ impl TextSelectionSet {
                 true
             }
             //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
-            TextSelectionOperator::LeftAdjacentAll | TextSelectionOperator::PrecedesAll => {
-                self.rightmost().unwrap().test(operator, reftextsel)
+            TextSelectionOperator::LeftAdjacent {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::RightAdjacentAll | TextSelectionOperator::SucceedsAll => {
-                self.leftmost().unwrap().test(operator, reftextsel)
+            | TextSelectionOperator::Precedes {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::SameBeginAll => {
-                self.leftmost().unwrap().test(operator, reftextsel)
+            | TextSelectionOperator::SameEnd {
+                all: true,
+                negate: false,
+            } => self.rightmost().unwrap().test(operator, reftextsel),
+            TextSelectionOperator::RightAdjacent {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::SameEndAll => {
-                self.rightmost().unwrap().test(operator, reftextsel)
+            | TextSelectionOperator::Succeeds {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::SameRangeAll => {
+            | TextSelectionOperator::SameBegin {
+                all: true,
+                negate: false,
+            } => self.leftmost().unwrap().test(operator, reftextsel),
+            TextSelectionOperator::SameRange {
+                all: true,
+                negate: false,
+            } => {
                 self.leftmost().unwrap().test(operator, reftextsel)
                     && self.rightmost().unwrap().test(operator, reftextsel)
             }
-            TextSelectionOperator::Not(suboperator) => !self.test(suboperator, reftextsel),
+
+            //negations
+            TextSelectionOperator::Equals { negate: true, .. }
+            | TextSelectionOperator::Overlaps { negate: true, .. }
+            | TextSelectionOperator::Embeds { negate: true, .. }
+            | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Precedes { negate: true, .. }
+            | TextSelectionOperator::Succeeds { negate: true, .. }
+            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
+            | TextSelectionOperator::RightAdjacent { negate: true, .. }
+            | TextSelectionOperator::SameBegin { negate: true, .. }
+            | TextSelectionOperator::SameEnd { negate: true, .. }
+            | TextSelectionOperator::InSet { negate: true, .. } => {
+                !self.test(&operator.toggle_negate(), reftextsel)
+            }
+            _ => unreachable!("unknown operator+modifier combination"),
         }
     }
 
@@ -786,43 +933,85 @@ impl TextSelectionSet {
             return false;
         }
         match operator {
-            TextSelectionOperator::Equals => {
+            TextSelectionOperator::Equals {
+                all: false,
+                negate: false,
+            } => {
                 if self.len() != refset.len() {
                     //each item must have a counterpart so the sets must be equal length
                     return false;
                 }
                 //ALL of the items in this set must match with ANY item in the otherset
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if !item.test_set(operator, refset) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::Overlaps
-            | TextSelectionOperator::Embeds
-            | TextSelectionOperator::Embedded
-            | TextSelectionOperator::Precedes
-            | TextSelectionOperator::Succeeds
-            | TextSelectionOperator::LeftAdjacent
-            | TextSelectionOperator::RightAdjacent
-            | TextSelectionOperator::SameBegin
-            | TextSelectionOperator::SameEnd
-            | TextSelectionOperator::InSet => {
+            TextSelectionOperator::Overlaps {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Embeds {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Embedded {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Precedes {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Succeeds {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::LeftAdjacent {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::RightAdjacent {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::SameBegin {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::SameEnd {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::InSet {
+                all: false,
+                negate: false,
+            } => {
                 // ALL of the items in this set must match with ANY item in the otherset
                 // This is a weaker form of Equals (could have also been called SameRange)
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if !item.test_set(operator, refset) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::OverlapsAll
-            | TextSelectionOperator::EmbedsAll
-            | TextSelectionOperator::EmbeddedAll => {
+            TextSelectionOperator::Overlaps {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Embeds {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Embedded {
+                all: true,
+                negate: false,
+            } => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if !item.test_set(operator, refset) {
                         return false;
                     }
@@ -830,23 +1019,53 @@ impl TextSelectionSet {
                 true
             }
             //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
-            TextSelectionOperator::LeftAdjacentAll | TextSelectionOperator::PrecedesAll => {
-                self.rightmost().unwrap().test_set(operator, refset)
+            TextSelectionOperator::LeftAdjacent {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::RightAdjacentAll | TextSelectionOperator::SucceedsAll => {
-                self.leftmost().unwrap().test_set(operator, refset)
+            | TextSelectionOperator::Precedes {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::SameBeginAll => {
-                self.leftmost().unwrap().test_set(operator, refset)
+            | TextSelectionOperator::SameEnd {
+                all: true,
+                negate: false,
+            } => self.rightmost().unwrap().test_set(operator, refset),
+            TextSelectionOperator::RightAdjacent {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::SameEndAll => {
-                self.rightmost().unwrap().test_set(operator, refset)
+            | TextSelectionOperator::Succeeds {
+                all: true,
+                negate: false,
             }
-            TextSelectionOperator::SameRangeAll => {
+            | TextSelectionOperator::SameBegin {
+                all: true,
+                negate: false,
+            } => self.leftmost().unwrap().test_set(operator, refset),
+            TextSelectionOperator::SameRange {
+                all: true,
+                negate: false,
+            } => {
                 self.leftmost().unwrap().test_set(operator, refset)
                     && self.rightmost().unwrap().test_set(operator, refset)
             }
-            TextSelectionOperator::Not(suboperator) => !self.test_set(suboperator, refset),
+
+            //negations
+            TextSelectionOperator::Equals { negate: true, .. }
+            | TextSelectionOperator::Overlaps { negate: true, .. }
+            | TextSelectionOperator::Embeds { negate: true, .. }
+            | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Precedes { negate: true, .. }
+            | TextSelectionOperator::Succeeds { negate: true, .. }
+            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
+            | TextSelectionOperator::RightAdjacent { negate: true, .. }
+            | TextSelectionOperator::SameBegin { negate: true, .. }
+            | TextSelectionOperator::SameEnd { negate: true, .. }
+            | TextSelectionOperator::InSet { negate: true, .. } => {
+                !self.test_set(&operator.toggle_negate(), refset)
+            }
+            _ => unreachable!("unknown operator+modifier combination"),
         }
     }
 
@@ -889,10 +1108,10 @@ impl TextSelectionSet {
             None
         } else {
             if self.sorted {
-                self.data.get(0).map(|(item, _, _)| item)
+                self.data.get(0)
             } else {
                 let mut leftmost: Option<&TextSelection> = None;
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if leftmost.is_none() || item.begin < leftmost.unwrap().begin {
                         leftmost = Some(item);
                     }
@@ -908,10 +1127,10 @@ impl TextSelectionSet {
             None
         } else {
             if self.sorted {
-                self.data.get(self.data.len() - 1).map(|(item, _, _)| item)
+                self.data.get(self.data.len() - 1)
             } else {
                 let mut rightmost: Option<&TextSelection> = None;
-                for (item, _, _) in self.iter() {
+                for item in self.iter() {
                     if rightmost.is_none() || item.end > rightmost.unwrap().end {
                         rightmost = Some(item);
                     }
@@ -938,44 +1157,54 @@ impl TextSelection {
     pub fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
         //note: at this level we deal with two singletons and there is no different between the *All variants
         match operator {
-            TextSelectionOperator::Equals | TextSelectionOperator::InSet => self == reftextsel,
-            TextSelectionOperator::Overlaps | TextSelectionOperator::OverlapsAll => {
+            TextSelectionOperator::Equals { negate: false, .. }
+            | TextSelectionOperator::InSet { negate: false, .. } => self == reftextsel,
+            TextSelectionOperator::Overlaps { negate: false, .. } => {
                 //item must be equal overlap with any of the items in the other set
                 (reftextsel.begin >= self.begin && reftextsel.begin < self.end)
                     || (reftextsel.end > self.begin && reftextsel.end <= self.end)
                     || (reftextsel.begin <= self.begin && reftextsel.end >= self.end)
                     || (self.begin <= reftextsel.begin && self.end >= reftextsel.end)
             }
-            TextSelectionOperator::Embeds | TextSelectionOperator::EmbedsAll => {
+            TextSelectionOperator::Embeds { negate: false, .. } => {
                 // TextSelection embeds reftextsel
                 reftextsel.begin >= self.begin && reftextsel.end <= self.end
             }
-            TextSelectionOperator::Embedded | TextSelectionOperator::EmbeddedAll => {
+            TextSelectionOperator::Embedded { negate: false, .. } => {
                 // TextSelection is embedded reftextsel
                 self.begin >= reftextsel.begin && self.end <= reftextsel.end
             }
-            TextSelectionOperator::Precedes | TextSelectionOperator::PrecedesAll => {
-                self.end <= reftextsel.begin
-            }
-            TextSelectionOperator::Succeeds | TextSelectionOperator::SucceedsAll => {
-                self.begin >= reftextsel.end
-            }
-            TextSelectionOperator::LeftAdjacent | TextSelectionOperator::LeftAdjacentAll => {
+            TextSelectionOperator::Precedes { negate: false, .. } => self.end <= reftextsel.begin,
+            TextSelectionOperator::Succeeds { negate: false, .. } => self.begin >= reftextsel.end,
+            TextSelectionOperator::LeftAdjacent { negate: false, .. } => {
                 self.end == reftextsel.begin
             }
-            TextSelectionOperator::RightAdjacent | TextSelectionOperator::RightAdjacentAll => {
+            TextSelectionOperator::RightAdjacent { negate: false, .. } => {
                 reftextsel.end == self.begin
             }
-            TextSelectionOperator::SameBegin | TextSelectionOperator::SameBeginAll => {
+            TextSelectionOperator::SameBegin { negate: false, .. } => {
                 self.begin == reftextsel.begin
             }
-            TextSelectionOperator::SameEnd | TextSelectionOperator::SameEndAll => {
-                self.end == reftextsel.end
-            }
-            TextSelectionOperator::SameRangeAll => {
+            TextSelectionOperator::SameEnd { negate: false, .. } => self.end == reftextsel.end,
+            TextSelectionOperator::SameRange { negate: false, .. } => {
                 self.begin == reftextsel.begin && self.end == reftextsel.end
             }
-            TextSelectionOperator::Not(suboperator) => !self.test(suboperator, reftextsel),
+
+            //negations
+            TextSelectionOperator::Equals { negate: true, .. }
+            | TextSelectionOperator::Overlaps { negate: true, .. }
+            | TextSelectionOperator::Embeds { negate: true, .. }
+            | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Precedes { negate: true, .. }
+            | TextSelectionOperator::Succeeds { negate: true, .. }
+            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
+            | TextSelectionOperator::RightAdjacent { negate: true, .. }
+            | TextSelectionOperator::SameBegin { negate: true, .. }
+            | TextSelectionOperator::SameEnd { negate: true, .. }
+            | TextSelectionOperator::InSet { negate: true, .. } => {
+                !self.test(&operator.toggle_negate(), reftextsel)
+            }
+            _ => unreachable!("unknown operator+modifier combination"),
         }
     }
     /// This method is called to test whether a specific spatial relation (as expressed by the
@@ -984,83 +1213,161 @@ impl TextSelection {
     /// against. A boolean is returned with the test result.
     pub fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
         match operator {
-            TextSelectionOperator::Equals
-            | TextSelectionOperator::Overlaps
-            | TextSelectionOperator::Embeds
-            | TextSelectionOperator::Embedded
-            | TextSelectionOperator::Precedes
-            | TextSelectionOperator::Succeeds
-            | TextSelectionOperator::LeftAdjacent
-            | TextSelectionOperator::RightAdjacent
-            | TextSelectionOperator::SameBegin
-            | TextSelectionOperator::SameEnd
-            | TextSelectionOperator::InSet => {
-                for (reftextsel, _, _) in refset.iter() {
+            TextSelectionOperator::Equals {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Overlaps {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Embeds {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Embedded {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Precedes {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::Succeeds {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::LeftAdjacent {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::RightAdjacent {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::SameBegin {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::SameEnd {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::InSet {
+                all: false,
+                negate: false,
+            } => {
+                for reftextsel in refset.iter() {
                     if self.test(operator, reftextsel) {
                         return true;
                     }
                 }
                 false
             }
-            TextSelectionOperator::OverlapsAll
-            | TextSelectionOperator::EmbedsAll
-            | TextSelectionOperator::EmbeddedAll
-            | TextSelectionOperator::PrecedesAll
-            | TextSelectionOperator::SucceedsAll => {
+            TextSelectionOperator::Overlaps {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Embeds {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Embedded {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Precedes {
+                all: true,
+                negate: false,
+            }
+            | TextSelectionOperator::Succeeds {
+                all: true,
+                negate: false,
+            } => {
                 if refset.is_empty() {
                     return false;
                 }
-                for (reftextsel, _, _) in refset.iter() {
+                for reftextsel in refset.iter() {
                     if !self.test(operator, reftextsel) {
                         return false;
                     }
                 }
                 true
             }
-            TextSelectionOperator::LeftAdjacentAll => {
+            TextSelectionOperator::LeftAdjacent {
+                all: true,
+                negate: false,
+            } => {
                 if refset.is_empty() {
                     return false;
                 }
                 let mut leftmost = None;
-                for (other, _, _) in refset.iter() {
+                for other in refset.iter() {
                     if leftmost.is_none() || other.begin < leftmost.unwrap() {
                         leftmost = Some(other.begin);
                     }
                 }
                 Some(self.end) == leftmost
             }
-            TextSelectionOperator::RightAdjacentAll => {
+            TextSelectionOperator::RightAdjacent {
+                all: true,
+                negate: false,
+            } => {
                 if refset.is_empty() {
                     return false;
                 }
                 let mut rightmost = None;
-                for (other, _, _) in refset.iter() {
+                for other in refset.iter() {
                     if rightmost.is_none() || other.end > rightmost.unwrap() {
                         rightmost = Some(other.end);
                     }
                 }
                 Some(self.begin) == rightmost
             }
-            TextSelectionOperator::SameBeginAll => {
+            TextSelectionOperator::SameBegin {
+                all: true,
+                negate: false,
+            } => {
                 if refset.is_empty() {
                     return false;
                 }
                 self.begin == refset.leftmost().unwrap().begin()
             }
-            TextSelectionOperator::SameEndAll => {
+            TextSelectionOperator::SameEnd {
+                all: true,
+                negate: false,
+            } => {
                 if refset.is_empty() {
                     return false;
                 }
                 self.end == refset.rightmost().unwrap().end()
             }
-            TextSelectionOperator::SameRangeAll => {
+            TextSelectionOperator::SameRange {
+                all: true,
+                negate: false,
+            } => {
                 if refset.is_empty() {
                     return false;
                 }
                 self.begin == refset.leftmost().unwrap().begin()
                     && self.end == refset.rightmost().unwrap().end()
             }
-            TextSelectionOperator::Not(suboperator) => !self.test_set(suboperator, refset),
+
+            //negations
+            TextSelectionOperator::Equals { negate: true, .. }
+            | TextSelectionOperator::Overlaps { negate: true, .. }
+            | TextSelectionOperator::Embeds { negate: true, .. }
+            | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Precedes { negate: true, .. }
+            | TextSelectionOperator::Succeeds { negate: true, .. }
+            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
+            | TextSelectionOperator::RightAdjacent { negate: true, .. }
+            | TextSelectionOperator::SameBegin { negate: true, .. }
+            | TextSelectionOperator::SameEnd { negate: true, .. }
+            | TextSelectionOperator::InSet { negate: true, .. } => {
+                !self.test_set(&operator.toggle_negate(), refset)
+            }
+            _ => unreachable!("unknown operator+modifier combination"),
         }
     }
 
@@ -1073,41 +1380,19 @@ impl Extend<TextSelection> for TextSelectionSet {
         T: IntoIterator<Item = TextSelection>,
     {
         for x in iter {
-            self.insert(x, None, None);
-        }
-    }
-}
-
-impl
-    Extend<(
-        TextSelection,
-        Option<TextResourceHandle>,
-        Option<AnnotationHandle>,
-    )> for TextSelectionSet
-{
-    fn extend<T>(&mut self, iter: T)
-    where
-        T: IntoIterator<
-            Item = (
-                TextSelection,
-                Option<TextResourceHandle>,
-                Option<AnnotationHandle>,
-            ),
-        >,
-    {
-        for (textselection, resource, annotation) in iter {
-            self.insert(textselection, resource, annotation);
+            self.add(x);
         }
     }
 }
 
 impl TextResource {
     /// Apply a [`TextSelectionOperator`] to find text selections
-    pub fn find_textselections<'r, 's>(
-        &'r self,
-        operator: &'s TextSelectionOperator,
-        refset: &'s TextSelectionSet,
-    ) -> FindTextSelectionsIter<'r, 's> {
+    /// This is a low-level method. Use [`Self::find_textselections()`] instead.
+    pub fn textselections_by_operator_ref<'store, 'q>(
+        &'store self,
+        operator: TextSelectionOperator,
+        refset: &'q TextSelectionSet,
+    ) -> FindTextSelectionsIter<'store, 'q> {
         FindTextSelectionsIter {
             resource: self,
             operator,
@@ -1118,18 +1403,72 @@ impl TextResource {
             drain_buffer: false,
         }
     }
+
+    pub fn textselections_by_operator<'store>(
+        &'store self,
+        operator: TextSelectionOperator,
+        refset: TextSelectionSet,
+    ) -> FindTextSelectionsOwnedIter<'store> {
+        FindTextSelectionsOwnedIter {
+            resource: self,
+            operator,
+            refset,
+            index: 0,
+            textseliter: None,
+            buffer: VecDeque::new(),
+            drain_buffer: false,
+        }
+    }
+
+    /// Find textselections by applying a text selection operator ([`TextSelectionOperator`]) to a
+    /// one or more querying textselections (in an [`TextSelectionSet']). Returns an iterator over all matching
+    /// text selections in the resource, as [`WrappedItem<TextSelection>`].
+    pub fn find_textselections_ref<'store, 'q>(
+        &'store self,
+        operator: TextSelectionOperator,
+        refset: &'q TextSelectionSet,
+    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'q
+    where
+        'store: 'q, //store lives at least as long as 'q
+    {
+        self.textselections_by_operator_ref(operator, refset)
+            .map(|ts_handle| {
+                let textselection: &'store TextSelection = self
+                    .get(&Item::Handle(ts_handle))
+                    .expect("textselection handle must be valid");
+                textselection.wrap_in(self).expect("wrap must succeed")
+            })
+    }
+
+    /// Find textselections by applying a text selection operator ([`TextSelectionOperator`]) to a
+    /// one or more querying textselections (in an [`TextSelectionSet']). Returns an iterator over all matching
+    /// text selections in the resource, as [`WrappedItem<TextSelection>`].
+    pub fn find_textselections<'store>(
+        &'store self,
+        operator: TextSelectionOperator,
+        refset: TextSelectionSet,
+    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> {
+        self.textselections_by_operator(operator, refset)
+            .map(|ts_handle| {
+                let textselection: &'store TextSelection = self
+                    .get(&Item::Handle(ts_handle))
+                    .expect("textselection handle must be valid");
+                textselection.wrap_in(self).expect("wrap must succeed")
+            })
+    }
 }
 
-pub struct FindTextSelectionsIter<'r, 's> {
-    resource: &'r TextResource,
-    operator: &'s TextSelectionOperator,
-    refset: &'s TextSelectionSet,
+/// Iterator that finds text selections. This iterator borrows the [`TextSelectionSet'] that is being compared against, use [`FindTextSelectionsOwnedIter'] for an owned variant.
+pub struct FindTextSelectionsIter<'store, 'q> {
+    resource: &'store TextResource,
+    operator: TextSelectionOperator,
+    refset: &'q TextSelectionSet,
 
     //Iterator over the reference text selections in the operator (first-level)
-    refiter: Option<TextSelectionSetIter<'s>>,
+    refiter: Option<TextSelectionSetIter<'q>>,
 
     /// Iterator over TextSelections in self (second-level)
-    textseliter: Option<TextSelectionIter<'r>>,
+    textseliter: Option<TextSelectionIter<'store>>,
 
     buffer: VecDeque<TextSelectionHandle>,
 
@@ -1137,227 +1476,317 @@ pub struct FindTextSelectionsIter<'r, 's> {
     drain_buffer: bool,
 }
 
-impl<'r, 's> Iterator for FindTextSelectionsIter<'r, 's> {
+/// Iterator that finds text selections. This iterator owns the [`TextSelectionSet'] that is being compared against. Use [`FindTextSelectionsIter'] for an borrowed variant.
+pub struct FindTextSelectionsOwnedIter<'store> {
+    resource: &'store TextResource,
+    operator: TextSelectionOperator,
+    refset: TextSelectionSet,
+    index: usize,
+
+    /// Iterator over TextSelections in self (second-level)
+    textseliter: Option<TextSelectionIter<'store>>,
+
+    buffer: VecDeque<TextSelectionHandle>,
+
+    // once bufferiter is set, we simply drain the buffer
+    drain_buffer: bool,
+}
+
+impl<'store, 'q> Iterator for FindTextSelectionsIter<'store, 'q> {
     type Item = TextSelectionHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.refiter.is_none() {
-            //initialize iterator over reference text selections
             self.refiter = Some(self.refset.iter())
             //TODO: handle Not() operator differently!
         }
 
         if self.drain_buffer {
             self.buffer.pop_front()
-        } else if let Some((reftextselection, _, _)) = self.refiter.as_mut().unwrap().next() {
-            match self.operator {
-                TextSelectionOperator::Equals => {
-                    if let Ok(Some(handle)) =
-                        self.resource.known_textselection(&reftextselection.into())
-                    {
-                        Some(handle)
-                    } else {
-                        None
-                    }
-                }
-                TextSelectionOperator::Overlaps | TextSelectionOperator::Embeds => {
-                    if self.textseliter.is_none() {
-                        self.textseliter = Some(
-                            //we can restrict to a small subrange (= more efficient)
-                            self.resource
-                                .range(reftextselection.begin(), reftextselection.end()),
-                        );
-                    }
-                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle() //do not include the item itself
-                            && textselection.test(self.operator, reftextselection)
-                        {
-                            return Some(textselection.handle().expect("handle must exist"));
-                        }
-                    } else {
-                        return None;
-                    }
-                    //else:
-                    self.next() //recurse
-                }
-                TextSelectionOperator::OverlapsAll | TextSelectionOperator::EmbedsAll => {
-                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
-                    for textselection in self
-                        .resource
-                        .range(reftextselection.begin(), reftextselection.end())
-                    {
-                        if textselection.intid != reftextselection.intid //do not include the item itself
-                            && textselection.test(self.operator, reftextselection)
-                        {
-                            buffer2.push(textselection.handle().expect("handle must exist"))
-                        }
-                    }
-                    self.update_buffer(buffer2);
-                    self.next() //recurse
-                }
-                TextSelectionOperator::Embedded => {
-                    if self.textseliter.is_none() {
-                        // we can't restrict to a subrange but iterate over all (= less efficient)
-                        self.textseliter = Some(self.resource.iter());
-                    }
-                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle()
-                            && textselection.test(self.operator, reftextselection)
-                        {
-                            return Some(textselection.handle().expect("handle must exist"));
-                        }
-                    } else {
-                        return None;
-                    }
-                    //else:
-                    self.next() //recurse
-                }
-                TextSelectionOperator::EmbeddedAll => {
-                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
-                    for textselection in self.resource.iter() {
-                        if textselection.intid != reftextselection.intid
-                            && textselection.test(self.operator, reftextselection)
-                        {
-                            //do not include the item itself
-                            buffer2.push(textselection.handle().expect("handle must exist"))
-                        }
-                    }
-                    self.update_buffer(buffer2);
-                    self.next() //recurse
-                }
-                TextSelectionOperator::Precedes => {
-                    if self.textseliter.is_none() {
-                        self.textseliter = Some(
-                            //we can restrict to a small subrange (= more efficient)
-                            self.resource.range(0, reftextselection.begin()),
-                        );
-                    }
-                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle() //do not include the item itself
-                            && textselection.test(self.operator, reftextselection)
-                        {
-                            return Some(textselection.handle().expect("handle must exist"));
-                        }
-                    } else {
-                        return None;
-                    }
-                    //else:
-                    self.next() //recurse
-                }
-                TextSelectionOperator::Succeeds => {
-                    if self.textseliter.is_none() {
-                        self.textseliter = Some(
-                            //we can restrict to a small subrange (= more efficient)
-                            self.resource
-                                .range(reftextselection.end(), self.resource.textlen()),
-                        );
-                    }
-                    if let Some(textselection) = self.textseliter.as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle() //do not include the item itself
-                            && textselection.test(self.operator, reftextselection)
-                        {
-                            return Some(textselection.handle().expect("handle must exist"));
-                        }
-                    } else {
-                        return None;
-                    }
-                    //else:
-                    self.next() //recurse
-                }
-                _ => panic!("not implemented yet!"), //TODO
-            }
         } else {
-            if self.operator.all() {
-                //This is for the *All variants  that use a buffer:
-                //iteration done, start draining buffer stage
-                self.drain_buffer = true;
-                self.next() //recurse
-            } else {
-                None
+            match self.next_textselection() {
+                (result, false) => result,
+                (_, true) => self.next(), //recurse
             }
         }
     }
 }
 
-impl<'r, 's> FindTextSelectionsIter<'r, 's> {
+impl<'store> Iterator for FindTextSelectionsOwnedIter<'store> {
+    type Item = TextSelectionHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.drain_buffer {
+            self.buffer.pop_front()
+        } else {
+            match self.next_textselection() {
+                (result, false) => result,
+                (_, true) => self.next(), //recurse
+            }
+        }
+    }
+}
+
+/// Private trait implementing the actual behaviour for [`FindTextSelectionsIter`]
+trait FindTextSelections<'store> {
+    //getters:
+
+    fn buffer(&mut self) -> &mut VecDeque<TextSelectionHandle>;
+    fn set_drain_buffer(&mut self);
+    fn resource(&self) -> &'store TextResource;
+    fn operator(&self) -> &TextSelectionOperator;
+    fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>>;
+    fn next_reftextselection(&mut self) -> Option<TextSelection>;
+    fn set_textseliter(&mut self, iter: TextSelectionIter<'store>);
+
+    /// aux function for buffering
     fn update_buffer(&mut self, buffer2: Vec<TextSelectionHandle>) {
-        if self.buffer.is_empty() {
+        if self.buffer().is_empty() {
             //initial population of buffer
-            self.buffer = buffer2.into_iter().collect();
+            *self.buffer() = buffer2.into_iter().collect();
         } else {
             //remove items from buffer that are not in buffer2  (I want to use Vec::drain_filter() here but that's nightly-only still)
-            self.buffer = self
-                .buffer
+            *self.buffer() = self
+                .buffer()
                 .iter()
                 .filter(|handle| buffer2.contains(handle))
                 .map(|x| *x)
                 .collect();
         }
         //if the buffer is still empty, it will never be filled and we move on to the draining stage (will which immediately return None becasue there is nothing)
-        if self.buffer.is_empty() {
-            self.drain_buffer = true;
+        if self.buffer().is_empty() {
+            self.set_drain_buffer()
+        }
+    }
+
+    /// Main function invoked from calling iterator's next() method
+    /// Returns the next textselection (if any) and a boolean indicating whether to recurse further
+    fn next_textselection(&mut self) -> (Option<TextSelectionHandle>, bool) {
+        //                              ^--- indicates whether caller should recurse immediately or not
+        if let Some(reftextselection) = self.next_reftextselection() {
+            match self.operator() {
+                TextSelectionOperator::Equals {
+                    negate: false,
+                    all: false,
+                } => {
+                    if let Ok(Some(handle)) = self
+                        .resource()
+                        .known_textselection(&Offset::from(&reftextselection))
+                    {
+                        (Some(handle), false)
+                    } else {
+                        (None, false)
+                    }
+                }
+                TextSelectionOperator::Overlaps {
+                    negate: false,
+                    all: false,
+                }
+                | TextSelectionOperator::Embeds {
+                    negate: false,
+                    all: false,
+                } => {
+                    if self.textseliter().is_none() {
+                        self.set_textseliter(
+                            //we can restrict to a small subrange (= more efficient)
+                            self.resource()
+                                .range(reftextselection.begin(), reftextselection.end()),
+                        );
+                    }
+                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle() //do not include the item itself
+                            && reftextselection.test(self.operator(), &textselection)
+                        {
+                            return (
+                                Some(textselection.handle().expect("handle must exist")),
+                                false,
+                            );
+                        }
+                    } else {
+                        return (None, false);
+                    }
+                    //else:
+                    (None, true) //recurse
+                }
+                TextSelectionOperator::Overlaps {
+                    negate: false,
+                    all: true,
+                }
+                | TextSelectionOperator::Embeds {
+                    negate: false,
+                    all: true,
+                } => {
+                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
+                    for textselection in self
+                        .resource()
+                        .range(reftextselection.begin(), reftextselection.end())
+                    {
+                        if textselection.intid != reftextselection.intid //do not include the item itself
+                            && reftextselection.test(&self.operator(), &textselection)
+                        {
+                            buffer2.push(textselection.handle().expect("handle must exist"))
+                        }
+                    }
+                    self.update_buffer(buffer2);
+                    (None, true) //recurse
+                }
+                TextSelectionOperator::Embedded {
+                    negate: false,
+                    all: false,
+                } => {
+                    if self.textseliter().is_none() {
+                        // we can't restrict to a subrange but iterate over all (= less efficient)
+                        self.set_textseliter(self.resource().iter());
+                    }
+                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle()
+                            && reftextselection.test(&self.operator(), &textselection)
+                        {
+                            return (
+                                Some(textselection.handle().expect("handle must exist")),
+                                false,
+                            );
+                        }
+                    } else {
+                        return (None, false);
+                    }
+                    //else:
+                    (None, true) //recurse
+                }
+                TextSelectionOperator::Embedded {
+                    negate: false,
+                    all: true,
+                } => {
+                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
+                    for textselection in self.resource().iter() {
+                        if textselection.intid != reftextselection.intid
+                            && reftextselection.test(self.operator(), &textselection)
+                        {
+                            //do not include the item itself
+                            buffer2.push(textselection.handle().expect("handle must exist"))
+                        }
+                    }
+                    self.update_buffer(buffer2);
+                    (None, true) //recurse
+                }
+                TextSelectionOperator::Precedes {
+                    negate: false,
+                    all: false,
+                } => {
+                    if self.textseliter().is_none() {
+                        self.set_textseliter(
+                            //we can restrict to a small subrange (= more efficient)
+                            self.resource().range(0, reftextselection.begin()),
+                        );
+                    }
+                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle() //do not include the item itself
+                            && reftextselection.test(self.operator(), &textselection)
+                        {
+                            return (
+                                Some(textselection.handle().expect("handle must exist")),
+                                false,
+                            );
+                        }
+                    } else {
+                        return (None, false);
+                    }
+                    //else:
+                    (None, true) //recurse
+                }
+                TextSelectionOperator::Succeeds {
+                    negate: false,
+                    all: false,
+                } => {
+                    if self.textseliter().is_none() {
+                        //we can restrict to a small subrange (= more efficient)
+                        self.set_textseliter(
+                            self.resource()
+                                .range(reftextselection.end(), self.resource().textlen()),
+                        );
+                    }
+                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
+                        if textselection.handle() != reftextselection.handle() //do not include the item itself
+                            && reftextselection.test(self.operator(), &textselection)
+                        {
+                            return (
+                                Some(textselection.handle().expect("handle must exist")),
+                                false,
+                            );
+                        }
+                    } else {
+                        return (None, false);
+                    }
+                    //else:
+                    (None, true) //recurse
+                }
+                _ => panic!("not implemented yet!"), //TODO
+            }
+        } else {
+            if self.operator().all() {
+                //This is for the *All variants  that use a buffer:
+                //iteration done, start draining buffer stage
+                self.set_drain_buffer();
+                (None, true) //recurse
+            } else {
+                (None, false) //all done
+            }
         }
     }
 }
 
-//TODO: -------------v   This is essentially a builder for TextSelectionOperator, do we really need it??
+impl<'store, 'q> FindTextSelections<'store> for FindTextSelectionsIter<'store, 'q> {
+    fn buffer(&mut self) -> &mut VecDeque<TextSelectionHandle> {
+        &mut self.buffer
+    }
+    fn set_drain_buffer(&mut self) {
+        self.drain_buffer = true;
+    }
+    fn resource(&self) -> &'store TextResource {
+        self.resource
+    }
+    fn operator(&self) -> &TextSelectionOperator {
+        &self.operator
+    }
+    fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>> {
+        self.textseliter.as_mut()
+    }
 
-/// The TextRelationOperator, simply put, allows comparison of two text regions, specified by their offset. It
-/// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
-/// [`TextSelection`] instances (the realisation once an [`Offset`] is resolved) can be.
-///
-/// This enum encapsulates both the operator as well the the object of the operation (another
-/// `Offset`).
-///
-/// To apply it in e.g. a query, it is first converted to a [`TextSelectionOperator`].
-#[derive(Debug, Clone)]
-pub enum TextRelationOperator {
-    /// Offsets are equal
-    Equals(Offset),
-
-    /// Offset A that overlaps with offsets B (cf. textfabric's `&&`), commutative
-    Overlaps(Offset),
-
-    /// Offset B is embedded in an offset in A (cf. textfabric's `[[`)
-    Embeds(Offset),
-
-    /// Offset A is embedded in an offset in B (cf. textfabric's `[[`)
-    Embedded(Offset),
-
-    /// Offset A precedes offset B (come before) all offsets in B. There is no overlap (cf. textfabric's `<<`)
-    Precedes(Offset),
-
-    /// Offset A succeeds offset B (cf. textfabric's `>>`)
-    Succeeds(Offset),
-
-    // Offset A is immediately to the left of offset B
-    LeftAdjacent(Offset),
-
-    // Offset A is immediately to the right of offset B
-    RightAdjacent(Offset),
-
-    /// Offsets A and B have the same begin
-    SameBegin(Offset),
-
-    /// Offsets A and B have the same end
-    SameEnd(Offset),
-    //note: SameRange would be the same as Equals for this operator:
+    fn next_reftextselection(&mut self) -> Option<TextSelection> {
+        if let Some(refiter) = self.refiter.as_mut() {
+            refiter.next().map(|x| x.clone())
+        } else {
+            None
+        }
+    }
+    fn set_textseliter(&mut self, iter: TextSelectionIter<'store>) {
+        self.textseliter = Some(iter);
+    }
 }
 
-impl TextRelationOperator {
-    pub fn offset(&self) -> &Offset {
-        match self {
-            Self::Equals(offset)
-            | Self::Overlaps(offset)
-            | Self::Embeds(offset)
-            | Self::Embedded(offset)
-            | Self::Precedes(offset)
-            | Self::Succeeds(offset)
-            | Self::LeftAdjacent(offset)
-            | Self::RightAdjacent(offset)
-            | Self::SameBegin(offset)
-            | Self::SameEnd(offset) => offset,
-        }
+impl<'store> FindTextSelections<'store> for FindTextSelectionsOwnedIter<'store> {
+    fn buffer(&mut self) -> &mut VecDeque<TextSelectionHandle> {
+        &mut self.buffer
+    }
+    fn set_drain_buffer(&mut self) {
+        self.drain_buffer = true;
+    }
+    fn resource(&self) -> &'store TextResource {
+        self.resource
+    }
+    fn operator(&self) -> &TextSelectionOperator {
+        &self.operator
+    }
+    fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>> {
+        self.textseliter.as_mut()
+    }
+    fn next_reftextselection(&mut self) -> Option<TextSelection> {
+        let result = self.refset.get(self.index).map(|x| x.clone());
+        self.index += 1;
+        result
+    }
+    fn set_textseliter(&mut self, iter: TextSelectionIter<'store>) {
+        self.textseliter = Some(iter);
     }
 }
 

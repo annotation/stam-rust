@@ -786,12 +786,28 @@ where
         }
     }
 
+    pub fn unwrap_owned<'slf>(self) -> T {
+        match self {
+            Self::Borrowed { item, .. } => {
+                panic!("Can't use WrappedItem::unwrap_owned() on a borrowed type")
+            }
+            Self::Owned { item, .. } => item,
+        }
+    }
+
     /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
     /// This only works on Borrowed types though! Will panic on owned types!
     pub fn expect<'slf>(&'slf self, msg: &str) -> &'store T {
         match self {
             Self::Borrowed { item, .. } => *item,
             Self::Owned { .. } => panic!("{}", msg),
+        }
+    }
+
+    pub fn is_ref(&self) -> bool {
+        match self {
+            Self::Borrowed { .. } => true,
+            _ => false,
         }
     }
 }
