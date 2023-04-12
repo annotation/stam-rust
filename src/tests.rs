@@ -182,8 +182,20 @@ fn textselectionoperator_equals_1vs1() {
         begin: 12,
         end: 24,
     };
-    assert!(a.test(&TextSelectionOperator::Equals, &b));
-    assert!(a.test(&TextSelectionOperator::Overlaps, &b));
+    assert!(a.test(
+        &TextSelectionOperator::Equals {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(a.test(
+        &TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
 }
 
 #[test]
@@ -199,7 +211,13 @@ fn textselectionoperator_equals_false_1vs1() {
         end: 25,
     };
     //not equal
-    assert!(!a.test(&TextSelectionOperator::Equals, &b));
+    assert!(!a.test(
+        &TextSelectionOperator::Equals {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
 }
 
 #[test]
@@ -215,8 +233,20 @@ fn textselectionoperator_overlaps1_1vs1() {
         end: 25,
     };
     //overlaps
-    assert!(a.test(&TextSelectionOperator::Overlaps, &b));
-    assert!(b.test(&TextSelectionOperator::Overlaps, &a));
+    assert!(a.test(
+        &TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
 }
 
 #[test]
@@ -231,8 +261,20 @@ fn textselectionoperator_overlaps2_1vs1() {
         begin: 18,
         end: 32,
     };
-    assert!(a.test(&TextSelectionOperator::Overlaps, &b));
-    assert!(b.test(&TextSelectionOperator::Overlaps, &a));
+    assert!(a.test(
+        &TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
 }
 
 #[test]
@@ -247,8 +289,20 @@ fn textselectionoperator_overlaps_false_1vs1() {
         begin: 24,
         end: 48,
     };
-    assert!(!a.test(&TextSelectionOperator::Overlaps, &b));
-    assert!(!b.test(&TextSelectionOperator::Overlaps, &a));
+    assert!(!a.test(
+        &TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
 }
 
 #[test]
@@ -263,9 +317,27 @@ fn textselectionoperator_embed_1vs1() {
         begin: 11,
         end: 25,
     };
-    assert!(a.test(&TextSelectionOperator::Embedded, &b));
-    assert!(!b.test(&TextSelectionOperator::Embedded, &a));
-    assert!(b.test(&TextSelectionOperator::Embeds, &a));
+    assert!(a.test(
+        &TextSelectionOperator::Embedded {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::Embedded {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::Embeds {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
 }
 
 #[test]
@@ -281,8 +353,20 @@ fn textselectionoperator_embed_false_1vs1() {
         end: 32,
     };
     //overlap is not embedding
-    assert!(!a.test(&TextSelectionOperator::Embedded, &b));
-    assert!(!b.test(&TextSelectionOperator::Embedded, &a));
+    assert!(!a.test(
+        &TextSelectionOperator::Embedded {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::Embedded {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
 }
 
 #[test]
@@ -297,10 +381,34 @@ fn textselectionoperator_precedes_1vs1() {
         begin: 24,
         end: 48,
     };
-    assert!(a.test(&TextSelectionOperator::Precedes, &b));
-    assert!(!b.test(&TextSelectionOperator::Precedes, &a));
-    assert!(b.test(&TextSelectionOperator::Succeeds, &a));
-    assert!(!a.test(&TextSelectionOperator::Succeeds, &b));
+    assert!(a.test(
+        &TextSelectionOperator::Precedes {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::Precedes {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::Succeeds {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(!a.test(
+        &TextSelectionOperator::Succeeds {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
 }
 
 #[test]
@@ -315,10 +423,34 @@ fn textselectionoperator_precedes2_1vs1() {
         begin: 24,
         end: 48,
     };
-    assert!(a.test(&TextSelectionOperator::Precedes, &b));
-    assert!(!b.test(&TextSelectionOperator::Precedes, &a));
-    assert!(b.test(&TextSelectionOperator::Succeeds, &a));
-    assert!(!a.test(&TextSelectionOperator::Succeeds, &b));
+    assert!(a.test(
+        &TextSelectionOperator::Precedes {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::Precedes {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::Succeeds {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(!a.test(
+        &TextSelectionOperator::Succeeds {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
 }
 
 #[test]
@@ -333,10 +465,34 @@ fn textselectionoperator_adjacent_1vs1() {
         begin: 24,
         end: 48,
     };
-    assert!(a.test(&TextSelectionOperator::LeftAdjacent, &b));
-    assert!(!b.test(&TextSelectionOperator::LeftAdjacent, &a));
-    assert!(b.test(&TextSelectionOperator::RightAdjacent, &a));
-    assert!(!a.test(&TextSelectionOperator::RightAdjacent, &b));
+    assert!(a.test(
+        &TextSelectionOperator::LeftAdjacent {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::LeftAdjacent {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::RightAdjacent {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(!a.test(
+        &TextSelectionOperator::RightAdjacent {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
 }
 
 #[test]
@@ -352,10 +508,34 @@ fn textselectionoperator_adjacent_false_1vs1() {
         end: 48,
     };
     //these are all not adjacent
-    assert!(!a.test(&TextSelectionOperator::LeftAdjacent, &b));
-    assert!(!b.test(&TextSelectionOperator::LeftAdjacent, &a));
-    assert!(!b.test(&TextSelectionOperator::RightAdjacent, &a));
-    assert!(!a.test(&TextSelectionOperator::RightAdjacent, &b));
+    assert!(!a.test(
+        &TextSelectionOperator::LeftAdjacent {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::LeftAdjacent {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::RightAdjacent {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(!a.test(
+        &TextSelectionOperator::RightAdjacent {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
 }
 
 #[test]
@@ -370,10 +550,34 @@ fn textselectionoperator_samebegin_1vs1() {
         begin: 12,
         end: 18,
     };
-    assert!(a.test(&TextSelectionOperator::SameBegin, &b));
-    assert!(b.test(&TextSelectionOperator::SameBegin, &a));
-    assert!(!a.test(&TextSelectionOperator::SameEnd, &b));
-    assert!(!b.test(&TextSelectionOperator::SameEnd, &a));
+    assert!(a.test(
+        &TextSelectionOperator::SameBegin {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::SameBegin {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(!a.test(
+        &TextSelectionOperator::SameEnd {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::SameEnd {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
 }
 
 #[test]
@@ -388,10 +592,34 @@ fn textselectionoperator_sameend_1vs1() {
         begin: 17,
         end: 24,
     };
-    assert!(a.test(&TextSelectionOperator::SameEnd, &b));
-    assert!(b.test(&TextSelectionOperator::SameEnd, &a));
-    assert!(!a.test(&TextSelectionOperator::SameBegin, &b));
-    assert!(!b.test(&TextSelectionOperator::SameBegin, &a));
+    assert!(a.test(
+        &TextSelectionOperator::SameEnd {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::SameEnd {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
+    assert!(!a.test(
+        &TextSelectionOperator::SameBegin {
+            all: false,
+            negate: false
+        },
+        &b
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::SameBegin {
+            all: false,
+            negate: false
+        },
+        &a
+    ));
 }
 
 #[test]

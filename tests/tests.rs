@@ -1365,6 +1365,35 @@ pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
     Ok(store)
 }
 
+pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
+    let store = AnnotationStore::new()
+        .with_id("example6".into())
+        .add(TextResource::from_string(
+            "humanrights".into(),
+            "All human beings are born free and equal in dignity and rights.".into(),
+            Config::default(),
+        ))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Sentence1".into())
+                .with_target(SelectorBuilder::TextSelector(
+                    "humanrights".into(),
+                    Offset::whole(),
+                )),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Phrase1".into())
+                .with_target(SelectorBuilder::TextSelector(
+                    "humanrights".into(),
+                    Offset::simple(17, 40),
+                )),
+        )?;
+
+    Ok(store)
+}
+
 pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
     let resource = store.resource(&"humanrights".into()).unwrap();
     store.annotate_builders(
@@ -1506,5 +1535,21 @@ fn test_annotations_by_textselection() -> Result<(), StamError> {
     assert_ne!(count, 0);
     assert_eq!(count_annotations, store.annotations_len());
     assert_ne!(count_annotations, 0);
+    Ok(())
+}
+
+#[test]
+fn text_example6_sanity() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let resource = store.resource(&"humanrights".into()).unwrap();
+    assert_eq!(
+        resource.text(),
+        "All human beings are born free and equal in dignity and rights."
+    );
+    let sentence = store.annotation(&"Sentence1".into()).unwrap();
+    assert_eq!(
+        sentence.text().next().unwrap(),
+        "All human beings are born free and equal in dignity and rights."
+    );
     Ok(())
 }
