@@ -1551,5 +1551,25 @@ fn text_example6_sanity() -> Result<(), StamError> {
         sentence.text().next().unwrap(),
         "All human beings are born free and equal in dignity and rights."
     );
+
+    Ok(())
+}
+
+#[test]
+fn text_find_textselections_embedded() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let phrase1 = store.annotation(&"Phrase1".into()).unwrap();
+    let mut count = 0;
+    for reftextsel in phrase1.textselections() {
+        for textsel in reftextsel.find_textselections(TextSelectionOperator::Embedded {
+            all: false,
+            negate: false,
+        }) {
+            count += 1;
+            assert_eq!(textsel.begin(), 0);
+            assert_eq!(textsel.end(), 63);
+        }
+    }
+    assert_eq!(count, 1);
     Ok(())
 }

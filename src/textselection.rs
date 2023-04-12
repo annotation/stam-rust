@@ -501,7 +501,7 @@ impl<'store> From<WrappedItem<'store, TextSelection>> for TextSelectionSet {
                 .expect("Resource must have a handle"),
         );
         if textselection.is_ref() {
-            tset.add(textselection.to_owned().unwrap_owned());
+            tset.add(textselection.unwrap().clone());
         } else {
             tset.add(textselection.unwrap_owned());
         }
