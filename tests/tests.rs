@@ -1646,3 +1646,22 @@ fn test_find_annotations_embeds() -> Result<(), StamError> {
     assert_eq!(count, 1);
     Ok(())
 }
+
+#[test]
+fn test_find_annotations_embeds_2() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let sentence1 = store.annotation(&"Sentence1".into()).unwrap();
+    let mut count = 0;
+    for annotation in sentence1
+        .find_annotations(TextSelectionOperator::Embeds {
+            all: false,
+            negate: false,
+        })
+        .unwrap()
+    {
+        count += 1;
+        assert_eq!(annotation.id(), Some("Phrase1"));
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
