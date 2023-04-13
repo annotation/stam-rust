@@ -1599,6 +1599,11 @@ fn test_textselectioniter_range_bigger() -> Result<(), StamError> {
         assert_eq!(textsel.end(), 40);
     }
     assert_eq!(count, 1);
+    count = 0;
+    for _textsel in resource.range(0, 64) {
+        count += 1;
+    }
+    assert_eq!(count, 2);
     Ok(())
 }
 

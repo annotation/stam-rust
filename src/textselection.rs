@@ -1397,7 +1397,7 @@ impl TextResource {
             resource: self,
             operator,
             refset,
-            refiter: None,
+            index: 0,
             textseliter: None,
             buffer: VecDeque::new(),
             drain_buffer: false,
@@ -1465,7 +1465,7 @@ pub struct FindTextSelectionsIter<'store, 'q> {
     refset: &'q TextSelectionSet,
 
     //Iterator over the reference text selections in the operator (first-level)
-    refiter: Option<TextSelectionSetIter<'q>>,
+    index: usize,
 
     /// Iterator over TextSelections in self (second-level)
     textseliter: Option<TextSelectionIter<'store>>,
@@ -1496,15 +1496,14 @@ impl<'store, 'q> Iterator for FindTextSelectionsIter<'store, 'q> {
     type Item = TextSelectionHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.refiter.is_none() {
-            self.refiter = Some(self.refset.iter())
-            //TODO: handle Not() operator differently!
-        }
-
         if self.drain_buffer {
             self.buffer.pop_front()
         } else {
             match self.next_textselection() {
+                (None, false) => {
+                    self.update();
+                    None
+                }
                 (result, false) => result,
                 (_, true) => self.next(), //recurse
             }
@@ -1520,6 +1519,10 @@ impl<'store> Iterator for FindTextSelectionsOwnedIter<'store> {
             self.buffer.pop_front()
         } else {
             match self.next_textselection() {
+                (None, false) => {
+                    self.update();
+                    None
+                }
                 (result, false) => result,
                 (_, true) => self.next(), //recurse
             }
@@ -1536,8 +1539,9 @@ trait FindTextSelections<'store> {
     fn resource(&self) -> &'store TextResource;
     fn operator(&self) -> &TextSelectionOperator;
     fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>>;
-    fn next_reftextselection(&mut self) -> Option<TextSelection>;
+    fn reftextselection(&mut self) -> Option<TextSelection>;
     fn set_textseliter(&mut self, iter: TextSelectionIter<'store>);
+    fn update(&mut self);
 
     /// aux function for buffering
     fn update_buffer(&mut self, buffer2: Vec<TextSelectionHandle>) {
@@ -1563,7 +1567,7 @@ trait FindTextSelections<'store> {
     /// Returns the next textselection (if any) and a boolean indicating whether to recurse further
     fn next_textselection(&mut self) -> (Option<TextSelectionHandle>, bool) {
         //                              ^--- indicates whether caller should recurse immediately or not
-        if let Some(reftextselection) = self.next_reftextselection() {
+        if let Some(reftextselection) = self.reftextselection() {
             match self.operator() {
                 TextSelectionOperator::Equals {
                     negate: false,
@@ -1586,7 +1590,6 @@ trait FindTextSelections<'store> {
                     negate: false,
                     all: false,
                 } => {
-                    eprintln!("DEBUG: {:?}", reftextselection);
                     if self.textseliter().is_none() {
                         self.set_textseliter(
                             //we can restrict to a small subrange (= more efficient)
@@ -1752,13 +1755,14 @@ impl<'store, 'q> FindTextSelections<'store> for FindTextSelectionsIter<'store, '
     fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>> {
         self.textseliter.as_mut()
     }
+    fn update(&mut self) {
+        self.textseliter = None;
+        self.index += 1;
+    }
 
-    fn next_reftextselection(&mut self) -> Option<TextSelection> {
-        if let Some(refiter) = self.refiter.as_mut() {
-            refiter.next().map(|x| x.clone())
-        } else {
-            None
-        }
+    fn reftextselection(&mut self) -> Option<TextSelection> {
+        let result = self.refset.get(self.index).map(|x| x.clone());
+        result
     }
     fn set_textseliter(&mut self, iter: TextSelectionIter<'store>) {
         self.textseliter = Some(iter);
@@ -1781,9 +1785,12 @@ impl<'store> FindTextSelections<'store> for FindTextSelectionsOwnedIter<'store> 
     fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>> {
         self.textseliter.as_mut()
     }
-    fn next_reftextselection(&mut self) -> Option<TextSelection> {
-        let result = self.refset.get(self.index).map(|x| x.clone());
+    fn update(&mut self) {
+        self.textseliter = None;
         self.index += 1;
+    }
+    fn reftextselection(&mut self) -> Option<TextSelection> {
+        let result = self.refset.get(self.index).map(|x| x.clone());
         result
     }
     fn set_textseliter(&mut self, iter: TextSelectionIter<'store>) {
