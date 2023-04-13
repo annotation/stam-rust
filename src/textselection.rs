@@ -1539,9 +1539,28 @@ trait FindTextSelections<'store> {
     fn resource(&self) -> &'store TextResource;
     fn operator(&self) -> &TextSelectionOperator;
     fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>>;
-    fn reftextselection(&mut self) -> Option<TextSelection>;
+    fn reftextselection(&self) -> Option<TextSelection>;
     fn set_textseliter(&mut self, iter: TextSelectionIter<'store>);
     fn update(&mut self);
+
+    /// This method returns an iterator over TextSelections in the resource
+    /// It attempts to return the smallest sliced iterator possible, depending
+    /// on the operator
+    fn new_textseliter(&self, reftextselection: &TextSelection) -> TextSelectionIter<'store> {
+        match self.operator() {
+            TextSelectionOperator::Embeds { .. } => self
+                .resource()
+                .range(reftextselection.begin(), reftextselection.end()),
+            TextSelectionOperator::Succeeds { .. }
+            | TextSelectionOperator::RightAdjacent { .. } => self
+                .resource()
+                .range(reftextselection.end(), self.resource().textlen()),
+            TextSelectionOperator::Precedes { .. } | TextSelectionOperator::LeftAdjacent { .. } => {
+                self.resource().range(0, reftextselection.begin())
+            }
+            _ => self.resource().iter(), //return the maximum slice
+        }
+    }
 
     /// aux function for buffering
     fn update_buffer(&mut self, buffer2: Vec<TextSelectionHandle>) {
@@ -1568,170 +1587,62 @@ trait FindTextSelections<'store> {
     fn next_textselection(&mut self) -> (Option<TextSelectionHandle>, bool) {
         //                              ^--- indicates whether caller should recurse immediately or not
         if let Some(reftextselection) = self.reftextselection() {
-            match self.operator() {
-                TextSelectionOperator::Equals {
-                    negate: false,
-                    all: false,
-                } => {
-                    if let Ok(Some(handle)) = self
-                        .resource()
-                        .known_textselection(&Offset::from(&reftextselection))
+            if let TextSelectionOperator::Equals {
+                negate: false,
+                all: false,
+            } = self.operator()
+            {
+                if let Ok(Some(handle)) = self
+                    .resource()
+                    .known_textselection(&Offset::from(&reftextselection))
+                {
+                    return (Some(handle), false);
+                } else {
+                    return (None, false);
+                }
+            };
+            if self.operator().all() {
+                // --------  the 'all' modifier is on ---------
+                let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
+                for textselection in self.new_textseliter(&reftextselection) {
+                    if textselection.intid != reftextselection.intid
+                        && reftextselection.test(self.operator(), &textselection)
                     {
-                        (Some(handle), false)
-                    } else {
-                        (None, false)
+                        //do not include the item itself
+                        buffer2.push(textselection.handle().expect("handle must exist"))
                     }
                 }
-                TextSelectionOperator::Overlaps {
-                    negate: false,
-                    all: false,
-                }
-                | TextSelectionOperator::Embeds {
-                    negate: false,
-                    all: false,
-                } => {
-                    if self.textseliter().is_none() {
-                        self.set_textseliter(
-                            //we can restrict to a small subrange (= more efficient)
-                            self.resource()
-                                .range(reftextselection.begin(), reftextselection.end()),
-                        );
-                    }
-                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle() //do not include the item itself
-                            && reftextselection.test(self.operator(), &textselection)
-                        {
-                            return (
-                                Some(textselection.handle().expect("handle must exist")),
-                                false,
-                            );
-                        }
-                    } else {
-                        return (None, false);
-                    }
-                    //else:
-                    (None, true) //recurse
-                }
-                TextSelectionOperator::Overlaps {
-                    negate: false,
-                    all: true,
-                }
-                | TextSelectionOperator::Embeds {
-                    negate: false,
-                    all: true,
-                } => {
-                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
-                    for textselection in self
-                        .resource()
-                        .range(reftextselection.begin(), reftextselection.end())
-                    {
-                        if textselection.intid != reftextselection.intid //do not include the item itself
-                            && reftextselection.test(&self.operator(), &textselection)
-                        {
-                            buffer2.push(textselection.handle().expect("handle must exist"))
-                        }
-                    }
-                    self.update_buffer(buffer2);
-                    (None, true) //recurse
-                }
-                TextSelectionOperator::Embedded {
-                    negate: false,
-                    all: false,
-                } => {
-                    if self.textseliter().is_none() {
-                        // we can't restrict to a subrange but iterate over all (= less efficient)
-                        self.set_textseliter(self.resource().iter());
-                    }
-                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle()
-                            && reftextselection.test(&self.operator(), &textselection)
-                        {
-                            return (
-                                Some(textselection.handle().expect("handle must exist")),
-                                false,
-                            );
-                        }
-                    } else {
-                        return (None, false);
-                    }
-                    //else:
-                    (None, true) //recurse
-                }
-                TextSelectionOperator::Embedded {
-                    negate: false,
-                    all: true,
-                } => {
-                    let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
-                    for textselection in self.resource().iter() {
-                        if textselection.intid != reftextselection.intid
-                            && reftextselection.test(self.operator(), &textselection)
-                        {
-                            //do not include the item itself
-                            buffer2.push(textselection.handle().expect("handle must exist"))
-                        }
-                    }
-                    self.update_buffer(buffer2);
-                    (None, true) //recurse
-                }
-                TextSelectionOperator::Precedes {
-                    negate: false,
-                    all: false,
-                } => {
-                    if self.textseliter().is_none() {
-                        self.set_textseliter(
-                            //we can restrict to a small subrange (= more efficient)
-                            self.resource().range(0, reftextselection.begin()),
-                        );
-                    }
-                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle() //do not include the item itself
-                            && reftextselection.test(self.operator(), &textselection)
-                        {
-                            return (
-                                Some(textselection.handle().expect("handle must exist")),
-                                false,
-                            );
-                        }
-                    } else {
-                        return (None, false);
-                    }
-                    //else:
-                    (None, true) //recurse
-                }
-                TextSelectionOperator::Succeeds {
-                    negate: false,
-                    all: false,
-                } => {
-                    if self.textseliter().is_none() {
+                self.update_buffer(buffer2);
+                (None, true) //signal recurse
+            } else {
+                //------ normal behaviour ----------
+                if self.textseliter().is_none() {
+                    self.set_textseliter(
                         //we can restrict to a small subrange (= more efficient)
-                        self.set_textseliter(
-                            self.resource()
-                                .range(reftextselection.end(), self.resource().textlen()),
+                        self.new_textseliter(&reftextselection),
+                    );
+                }
+                if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
+                    if textselection.handle() != reftextselection.handle() //do not include the item itself
+                        && reftextselection.test(self.operator(), &textselection)
+                    {
+                        return (
+                            Some(textselection.handle().expect("handle must exist")),
+                            false,
                         );
                     }
-                    if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
-                        if textselection.handle() != reftextselection.handle() //do not include the item itself
-                            && reftextselection.test(self.operator(), &textselection)
-                        {
-                            return (
-                                Some(textselection.handle().expect("handle must exist")),
-                                false,
-                            );
-                        }
-                    } else {
-                        return (None, false);
-                    }
-                    //else:
-                    (None, true) //recurse
+                } else {
+                    return (None, false);
                 }
-                _ => panic!("not implemented yet!"), //TODO
+                //else:
+                (None, true) //signal recurse
             }
         } else {
             if self.operator().all() {
                 //This is for the *All variants  that use a buffer:
                 //iteration done, start draining buffer stage
                 self.set_drain_buffer();
-                (None, true) //recurse
+                (None, true) //signal recurse
             } else {
                 (None, false) //all done
             }
@@ -1760,7 +1671,7 @@ impl<'store, 'q> FindTextSelections<'store> for FindTextSelectionsIter<'store, '
         self.index += 1;
     }
 
-    fn reftextselection(&mut self) -> Option<TextSelection> {
+    fn reftextselection(&self) -> Option<TextSelection> {
         let result = self.refset.get(self.index).map(|x| x.clone());
         result
     }
@@ -1789,7 +1700,7 @@ impl<'store> FindTextSelections<'store> for FindTextSelectionsOwnedIter<'store> 
         self.textseliter = None;
         self.index += 1;
     }
-    fn reftextselection(&mut self) -> Option<TextSelection> {
+    fn reftextselection(&self) -> Option<TextSelection> {
         let result = self.refset.get(self.index).map(|x| x.clone());
         result
     }
