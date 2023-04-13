@@ -1586,6 +1586,7 @@ trait FindTextSelections<'store> {
                     negate: false,
                     all: false,
                 } => {
+                    eprintln!("DEBUG: {:?}", reftextselection);
                     if self.textseliter().is_none() {
                         self.set_textseliter(
                             //we can restrict to a small subrange (= more efficient)
