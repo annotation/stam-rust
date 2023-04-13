@@ -428,7 +428,7 @@ impl<'store, 'slf> WrappedItem<'store, TextSelection> {
         &'slf self,
         operator: TextSelectionOperator,
         annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf {
+    ) -> impl Iterator<Item = WrappedItem<'store, Annotation>> {
         let tset: TextSelectionSet = self.clone().into();
         self.resource()
             .find_textselections(operator, tset)
