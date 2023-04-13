@@ -279,7 +279,41 @@ We are not going to list them here, but they can be recognized by the keyword `_
 
 ### Searching
 
-(TODO)
+There are several methods available, on various objects, to enable searching. These all start with the prefix `find_`, and like those in the previous section, they return iterators producing `WrappedItem<T>` items.
+
+
+| Method                               |  T                    | Description                         |
+| -------------------------------------| ----------------------| ------------------------------------|
+| `TextResource.find_text()`           | `TextSelection`       | Finds a particular substring in the resource's text. | 
+| `TextSelection.find_text()`          | `TextSelection`       | Finds a particular substring within the specified text selection. |
+| `TextResource.find_text_regex()`     | `TextSelection`       | Idem, but as powerful regular expressed based search. | 
+| `TextSelection.find_text_regex()`    | `TextSelection`       | Idem, but as powerful regular expressed based search. |
+| `TextSelection.find_textselections()` | `TextSelection`      | Finds text selections that are in a specific relation with this text selection, the relation is expressed via a `TextSelectionOperator`.
+| `TextSelectionSet.find_textselections()`| `TextSelection`    | Finds text selections that are in a specific relation with these text selections, the relation is expressed via a `TextSelectionOperator`.
+| `TextSelection.find_annotations()`   | `Annotation`          | Finds other annotations via a relationship that holds between its text selections and this text selection
+| `Annotation.find_textselections()`   | `TextSelection`       | Finds other that selections that are in a specific relations with the text selections pertaining to the annotation.
+| `Annotation.find_annotations()`      | `Annotation`          | Finds other annotations via a relationship that holds between the respective text selections.
+| `TextSelectionSet.find_annotations()`| `Annotation`          | Finds annotations that are in a specific relation with these text selections.
+| -------------------------------------|-----------------------|-------------------------------------|
+
+Many of these methods take a `TextSelectionOperator` as parameter, this expresses a relation between two text selections (or two sets of text selections). This library defines the following enum variants for `TextSelectionOperator`:
+
+* `Equals` - Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
+* `Overlaps` - Each TextSelection in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
+* `Embeds` - All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
+* `Embedded` - All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
+* `Precedes` - Each TextSelection in A precedes (comes before) a textselection in B  (cf. textfabric's `<<`)
+* `Succeeds` - Each TextSelection In A succeeds (comes after) a textselection in B (cf. textfabric's `>>`)
+* `LeftAdjacent` - Each TextSelection in A is ends where at least one TextSelection in B begins.
+* `RightAdjacent` - Each TextSelection in A is begis where at least one TextSelection in A ends.
+* `SameBegin` - Each TextSelection in A starts where a TextSelection in B starts
+* `SameEnd` - Each TextSelection in A starts where a TextSelection in B ends
+
+There are some modifiers you can set for each operator
+
+* `all` (bool) - If this is set, then for each `TextSelection` in A, the relationship must hold with **ALL** of the text selections in B. The normal behaviour, when this is set to false, is a match with any item suffices (and may be returned).
+* `negate` (bool) - Inverses the operator (negation).
+
 
 ## API Reference Documentation
 
