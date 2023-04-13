@@ -98,6 +98,7 @@ pub enum Type {
     DataValue,
     TextResource,
     TextSelection,
+    TextSelectionSet,
     Config,
 }
 
@@ -115,6 +116,7 @@ impl TryFrom<&str> for Type {
             "datavalue" | "value" | "values" => Ok(Self::DataValue),
             "resource" | "textresource" | "resources" | "textresources" => Ok(Self::TextResource),
             "textselection" | "textselections" => Ok(Self::TextSelection),
+            "textselectionset" => Ok(Self::TextSelectionSet),
             "config" | "configuration" => Ok(Self::Config),
             _ => Err(StamError::OtherError("Unknown type supplied")),
         }
@@ -132,6 +134,7 @@ impl Type {
             Self::DataValue => "DataValue",
             Self::TextResource => "TextResource",
             Self::TextSelection => "TextSelection",
+            Self::TextSelectionSet => "TextSelectionSet",
             Self::Config => "Config",
         }
     }
