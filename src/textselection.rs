@@ -1592,6 +1592,7 @@ trait FindTextSelections<'store> {
                 all: false,
             } = self.operator()
             {
+                //this operator is handled separately, we don't need a secondary iterator (texteliter) for it at all
                 if let Ok(Some(handle)) = self
                     .resource()
                     .known_textselection(&Offset::from(&reftextselection))
@@ -1601,8 +1602,11 @@ trait FindTextSelections<'store> {
                     return (None, false);
                 }
             };
+
             if self.operator().all() {
                 // --------  the 'all' modifier is on ---------
+                // The relationship A <operator> B (A=store, B=ref) must hold for each item in A with ALL items in B, otherwise NONE will be returned
+                // note: negation is considered by the test() and self.new_textseliter() methods
                 let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
                 for textselection in self.new_textseliter(&reftextselection) {
                     if textselection.intid != reftextselection.intid
@@ -1616,11 +1620,12 @@ trait FindTextSelections<'store> {
                 (None, true) //signal recurse
             } else {
                 //------ normal behaviour ----------
+                // The relationship A <operator> B (A=store, B=ref) must hold for each item in A with ANY item in B, all matches are immediately returned
+                // note: negation is considered by the test() and self.new_textseliter() methods
                 if self.textseliter().is_none() {
-                    self.set_textseliter(
-                        //we can restrict to a small subrange (= more efficient)
-                        self.new_textseliter(&reftextselection),
-                    );
+                    //sets the iterastor for TextSelections in the store to iterator over,
+                    //which we prefer to keep as small as possible (based on the operator)
+                    self.set_textseliter(self.new_textseliter(&reftextselection));
                 }
                 if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
                     if textselection.handle() != reftextselection.handle() //do not include the item itself
