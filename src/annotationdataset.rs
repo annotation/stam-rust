@@ -728,15 +728,22 @@ impl AnnotationDataSet {
                 .expect("item must have intid when in store"));
         }
         if key.is_none() {
-            return Err(StamError::IncompleteError(
-                format!(
-                    "id={:?} key={:?} value={:?}",
-                    annotationdata.map(|data| data.id()),
-                    key,
-                    value
-                ),
-                "Key supplied to AnnotationDataSet.insert_data() (or with_data()) can not be None",
-            ));
+            if id.is_handle() {
+                return Err(StamError::HandleError(
+                    "AnnotationData Handle supplied to AnnotationDataSet.insert_data() (often via with_data()) was not found in this set",
+                ));
+            } else {
+                return Err(StamError::IncompleteError(
+                    format!(
+                        "id={:?} key={:?} value={:?} current_set={:?}",
+                        id,
+                        key,
+                        value,
+                        self.id().unwrap_or("(no id)")
+                    ),
+                    "Key supplied to AnnotationDataSet.insert_data() (often via with_data()) can not be None",
+                ));
+            }
         }
 
         let datakey: Result<&DataKey, _> = self.get(&key);

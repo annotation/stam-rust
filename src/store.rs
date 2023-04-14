@@ -355,12 +355,6 @@ pub trait StoreFor<T: Storable>: Configurable {
                     if *existing_item == item {
                         return Ok(existing_item.handle().unwrap());
                     }
-                    eprintln!(
-                        "DEBUG: existing {:p} ({:?}) vs provide ({:?})",
-                        existing_item,
-                        existing_item.id(),
-                        item.id()
-                    );
                     //in all other cases, we return an error
                     return Err(StamError::DuplicateIdError(
                         id.to_string(),

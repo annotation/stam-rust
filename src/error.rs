@@ -174,12 +174,12 @@ impl From<&StamError> for String {
             ),
             StamError::IncompleteError(data, contextmsg) => {
                 format!(
-                    "IncompleteError: Not enough data to build {} ({})",
+                    "IncompleteError: Not enough data to build: {} ({})",
                     data, contextmsg
                 )
             }
             StamError::ValueError(value, contextmsg) => {
-                format!("ValueError: Unexpected value {} - ({})", value, contextmsg)
+                format!("ValueError: Unexpected value: {} - ({})", value, contextmsg)
             }
             StamError::OtherError(contextmsg) => {
                 format!("OtherError: {}", contextmsg)
