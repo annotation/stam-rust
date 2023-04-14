@@ -524,14 +524,13 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
         &'slf self,
         operator: TextSelectionOperator,
     ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
-        if let Some(iter) = self.find_textselections(operator) {
-            Some(
-                iter.filter_map(|tsel| tsel.annotations(self.store()))
-                    .flatten(),
-            )
-        } else {
-            None
-        }
+        Some(
+            self.find_textselections(operator)
+                .into_iter()
+                .flatten()
+                .filter_map(|tsel| tsel.annotations(self.store()))
+                .flatten(),
+        )
     }
 }
 
