@@ -588,7 +588,7 @@ impl TextResource {
                 Cursor::BeginAligned(begin),
                 "Begin cursor is out of bounds",
             ))
-        } else if end >= self.textlen() {
+        } else if end > self.textlen() {
             Err(StamError::CursorOutOfBounds(
                 Cursor::BeginAligned(end),
                 "End cursor is out of bounds",
