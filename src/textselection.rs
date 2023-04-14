@@ -1,6 +1,5 @@
 use regex::{Regex, RegexSet};
 use sealed::sealed;
-use std::borrow::{Borrow, Cow};
 use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
@@ -9,9 +8,9 @@ use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::slice::Iter;
 
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 
-use crate::annotation::{Annotation, AnnotationHandle, TargetIter, TargetIterItem};
+use crate::annotation::{Annotation, TargetIter, TargetIterItem};
 use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;
 use crate::error::StamError;

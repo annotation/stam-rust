@@ -2,7 +2,6 @@ use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -21,7 +20,7 @@ use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::text::*;
-use crate::textselection::{TextSelection, TextSelectionHandle, TextSelectionOperator};
+use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
 
 /// An Annotation Store is an unordered collection of annotations, resources and
@@ -1131,11 +1130,11 @@ impl AnnotationStore {
         textselection: &TextSelection,
     ) -> Option<&Vec<AnnotationHandle>> {
         if let Some(handle) = textselection.handle() {
-            //existing textselection. Quick lookup in the reverse
-            /// index. Returns a reference to a vector.
+            // existing textselection. Quick lookup in the reverse
+            // index. Returns a reference to a vector.
             self.textrelationmap.get(resource_handle, handle)
         } else {
-            //we can just cast a TextSelection into an offset and see if it exists as existing textselection
+            // we can just cast a TextSelection into an offset and see if it exists as existing textselection
             self.annotations_by_offset(resource_handle, &textselection.into())
         }
     }

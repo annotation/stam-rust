@@ -782,7 +782,7 @@ where
 
     pub fn unwrap_owned<'slf>(self) -> T {
         match self {
-            Self::Borrowed { item, .. } => {
+            Self::Borrowed { .. } => {
                 panic!("Can't use WrappedItem::unwrap_owned() on a borrowed type")
             }
             Self::Owned { item, .. } => item,
