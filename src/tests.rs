@@ -722,3 +722,11 @@ fn split_text() {
     assert_eq!(textselections[5].begin(), 16);
     assert_eq!(textselections[5].end(), 18);
 }
+
+#[test]
+fn textselection_out_of_bounds() {
+    let resource =
+        TextResource::from_string("testres".into(), "Hello world".into(), Config::default());
+    let result = resource.textselection(&Offset::simple(0, 999));
+    assert!(result.is_err());
+}

@@ -583,7 +583,17 @@ impl TextResource {
     ) -> Result<TextSelection, StamError> {
         let begin = self.beginaligned_cursor(&offset.begin)?;
         let end = self.beginaligned_cursor(&offset.end)?;
-        if end > begin {
+        if begin >= self.textlen() {
+            Err(StamError::CursorOutOfBounds(
+                Cursor::BeginAligned(begin),
+                "Begin cursor is out of bounds",
+            ))
+        } else if end >= self.textlen() {
+            Err(StamError::CursorOutOfBounds(
+                Cursor::BeginAligned(end),
+                "End cursor is out of bounds",
+            ))
+        } else if end > begin {
             Ok(TextSelection {
                 intid: None,
                 begin,
