@@ -798,9 +798,15 @@ where
         }
     }
 
-    pub fn is_ref(&self) -> bool {
+    pub fn is_borrowed(&self) -> bool {
         match self {
             Self::Borrowed { .. } => true,
+            _ => false,
+        }
+    }
+    pub fn is_owned(&self) -> bool {
+        match self {
+            Self::Owned { .. } => true,
             _ => false,
         }
     }

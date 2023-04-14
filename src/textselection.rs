@@ -373,7 +373,7 @@ impl<'store, 'slf> WrappedItem<'store, TextSelection> {
         &'slf self,
         annotationstore: &'store AnnotationStore,
     ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>>> {
-        if !self.is_ref() {
+        if !self.is_borrowed() {
             if let Some(textselection) = self.to_ref() {
                 return textselection.annotations(annotationstore);
             }
@@ -395,10 +395,10 @@ impl<'store, 'slf> WrappedItem<'store, TextSelection> {
     /// Converts the TextSelection to a reference to an item in the store, if not possible or already a reference, None is returned.
     pub fn to_ref(&self) -> Option<WrappedItem<'store, TextSelection>> {
         // textselection is owned, we need a reference for this to work
-        if self.is_ref() {
+        if self.is_borrowed() {
             None
         } else if let Ok(textselection) = self.store().textselection(&self.into()) {
-            if textselection.is_ref() {
+            if textselection.is_borrowed() {
                 Some(textselection)
             } else {
                 None
@@ -628,7 +628,7 @@ impl<'store> From<WrappedItem<'store, TextSelection>> for TextSelectionSet {
                 .handle()
                 .expect("Resource must have a handle"),
         );
-        if textselection.is_ref() {
+        if textselection.is_borrowed() {
             tset.add(textselection.unwrap().clone());
         } else {
             tset.add(textselection.unwrap_owned());
