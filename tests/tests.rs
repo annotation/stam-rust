@@ -1703,9 +1703,9 @@ fn test_find_annotations_embeds() -> Result<(), StamError> {
 #[test]
 fn test_find_annotations_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let phrase1 = store.annotation(&"Sentence1".into()).unwrap();
+    let sentence = store.annotation(&"Sentence1".into()).unwrap();
     let mut count = 0;
-    for annotation in phrase1
+    for annotation in sentence
         .find_annotations(TextSelectionOperator::Embeds {
             all: false,
             negate: false,
@@ -1723,8 +1723,8 @@ fn test_find_annotations_embeds_2() -> Result<(), StamError> {
 fn test_find_annotations_overlaps() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
-    let phrase1 = store.annotation(&"Phrase1".into()).unwrap();
-    let annotations: Vec<_> = phrase1
+    let phrase = store.annotation(&"Phrase1".into()).unwrap();
+    let annotations: Vec<_> = phrase
         .find_annotations(TextSelectionOperator::Overlaps {
             all: false,
             negate: false,
@@ -1746,8 +1746,8 @@ fn test_find_annotations_overlaps() -> Result<(), StamError> {
 fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
-    let phrase1 = store.annotation(&"Phrase2".into()).unwrap();
-    let annotations: Vec<_> = phrase1
+    let phrase = store.annotation(&"Phrase2".into()).unwrap();
+    let annotations: Vec<_> = phrase
         .find_annotations(TextSelectionOperator::Overlaps {
             all: false,
             negate: false,
@@ -1762,5 +1762,48 @@ fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
     assert!(annotations
         .iter()
         .any(|annotation| annotation.id().unwrap() == "Sentence1"));
+    Ok(())
+}
+
+#[test]
+fn test_find_annotations_precedes() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    setup_example_6b(&mut store)?;
+    let phrase = store.annotation(&"Phrase2".into()).unwrap();
+    let annotations: Vec<_> = phrase
+        .find_annotations(TextSelectionOperator::Precedes {
+            all: false,
+            negate: false,
+        })
+        .into_iter()
+        .flatten()
+        .collect();
+    assert_eq!(annotations.len(), 1);
+    assert!(annotations
+        .iter()
+        .any(|annotation| annotation.id().unwrap() == "Phrase3"));
+    Ok(())
+}
+
+#[test]
+fn test_find_annotations_succeeds() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    setup_example_6b(&mut store)?;
+    let phrase = store.annotation(&"Phrase3".into()).unwrap();
+    let annotations: Vec<_> = phrase
+        .find_annotations(TextSelectionOperator::Succeeds {
+            all: false,
+            negate: false,
+        })
+        .into_iter()
+        .flatten()
+        .collect();
+    assert_eq!(annotations.len(), 2);
+    assert!(annotations
+        .iter()
+        .any(|annotation| annotation.id().unwrap() == "Phrase1"));
+    assert!(annotations
+        .iter()
+        .any(|annotation| annotation.id().unwrap() == "Phrase2"));
     Ok(())
 }
