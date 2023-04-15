@@ -22,11 +22,15 @@ where
     /// For bytes, use `Self.text().len()` instead.
     fn textlen(&self) -> usize;
 
+    /// Returns a string reference to a slice of text as specified by the offset
     fn text_by_offset(&'slf self, offset: &Offset) -> Result<&'store str, StamError>;
 
+    /// Finds the utf-8 byte position where the specified text subslice begins
     fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize>;
 
+    /// Converts a unicode character position to a UTF-8 byte position
     fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError>;
+    /// Converts a UTF-8 byte position into a unicode position
     fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError>;
 
     fn find_text_regex<'regex>(
@@ -36,6 +40,13 @@ where
         allow_overlap: bool,
     ) -> Result<FindRegexIter<'store, 'regex>, StamError>;
 
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text()` on that instead.
     fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b>;
 
     /// Returns an iterator of ['TextSelection`] instances that represent partitions

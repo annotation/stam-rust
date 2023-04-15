@@ -836,7 +836,8 @@ impl<'store> Text<'store, 'store> for TextResource {
     ///
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text()` on that instead.
     fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b> {
         FindTextIter {
             resource: self,
