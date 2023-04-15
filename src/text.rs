@@ -87,6 +87,7 @@ where
     /// Resolves a begin-aligned cursor to an absolute cursor (i.e. relative to the TextResource).
     fn absolute_cursor(&self, cursor: usize) -> usize;
 
+    /// Resolves a relative offset (relative to another TextSelection) to an absolute one (in terms of to the underlying TextResource)
     fn absolute_offset(&self, offset: &Offset) -> Result<Offset, StamError> {
         Ok(Offset::simple(
             self.absolute_cursor(self.beginaligned_cursor(&offset.begin)?),

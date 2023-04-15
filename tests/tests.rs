@@ -1200,6 +1200,21 @@ fn test_read_include() -> Result<(), StamError> {
 }
 
 #[test]
+fn test_find_text() -> Result<(), StamError> {
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let mut count = 0;
+    for result in resource.find_text("world") {
+        count += 1;
+        assert_eq!(result.begin(), 6);
+        assert_eq!(result.end(), 11);
+        assert_eq!(result.text(), "world");
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn test_search_text_regex_single() -> Result<(), StamError> {
     let resource = TextResource::new("testres".into(), Config::default()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
