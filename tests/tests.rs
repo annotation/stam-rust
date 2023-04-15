@@ -1423,11 +1423,28 @@ pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
                 .with_id("Phrase1".into())
                 .with_target(SelectorBuilder::TextSelector(
                     "humanrights".into(),
-                    Offset::simple(17, 40),
+                    Offset::simple(17, 40), //"are born free and equal"
                 )),
         )?;
 
     Ok(store)
+}
+
+pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle, StamError> {
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("Phrase2".into())
+            .with_target(
+                SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(4, 24)), //"human beings are born",
+            ),
+    )?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("Phrase3".into())
+            .with_target(
+                SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(44, 62)), //"dignity and rights",
+            ),
+    )
 }
 
 pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
@@ -1686,9 +1703,9 @@ fn test_find_annotations_embeds() -> Result<(), StamError> {
 #[test]
 fn test_find_annotations_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let sentence1 = store.annotation(&"Sentence1".into()).unwrap();
+    let phrase1 = store.annotation(&"Sentence1".into()).unwrap();
     let mut count = 0;
-    for annotation in sentence1
+    for annotation in phrase1
         .find_annotations(TextSelectionOperator::Embeds {
             all: false,
             negate: false,
@@ -1699,5 +1716,51 @@ fn test_find_annotations_embeds_2() -> Result<(), StamError> {
         assert_eq!(annotation.id(), Some("Phrase1"));
     }
     assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn test_find_annotations_overlaps() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    setup_example_6b(&mut store)?;
+    let phrase1 = store.annotation(&"Phrase1".into()).unwrap();
+    let annotations: Vec<_> = phrase1
+        .find_annotations(TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false,
+        })
+        .into_iter()
+        .flatten()
+        .collect();
+    assert_eq!(annotations.len(), 2);
+    assert!(annotations
+        .iter()
+        .any(|annotation| annotation.id().unwrap() == "Phrase2"));
+    assert!(annotations
+        .iter()
+        .any(|annotation| annotation.id().unwrap() == "Sentence1"));
+    Ok(())
+}
+
+#[test]
+fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    setup_example_6b(&mut store)?;
+    let phrase1 = store.annotation(&"Phrase2".into()).unwrap();
+    let annotations: Vec<_> = phrase1
+        .find_annotations(TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false,
+        })
+        .into_iter()
+        .flatten()
+        .collect();
+    assert_eq!(annotations.len(), 2);
+    assert!(annotations
+        .iter()
+        .any(|annotation| annotation.id().unwrap() == "Phrase1"));
+    assert!(annotations
+        .iter()
+        .any(|annotation| annotation.id().unwrap() == "Sentence1"));
     Ok(())
 }

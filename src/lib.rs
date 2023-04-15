@@ -41,7 +41,7 @@ pub use selector::{
 };
 pub use store::*;
 pub use text::{FindRegexIter, FindRegexMatch, Text};
-pub use textselection::{TextSelection, TextSelectionOperator};
+pub use textselection::{TextSelection, TextSelectionOperator, TextSelectionSet};
 pub use types::*;
 
 pub use regex::{Regex, RegexSet};
