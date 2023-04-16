@@ -749,7 +749,6 @@ pub enum TextSelectionOperator {
     /// If modifier `all` is set: The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
     LeftAdjacent { all: bool, negate: bool },
 
-    /// The rightmost TextSelecti
     /// Each TextSelection in A is begis where at least one TextSelection in A ends.
     /// If modifier `all` is set: The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
     RightAdjacent { all: bool, negate: bool },
@@ -1709,11 +1708,12 @@ trait FindTextSelections<'store> {
                 .resource()
                 .range(reftextselection.begin(), reftextselection.end()),
             TextSelectionOperator::Succeeds { .. }
-            | TextSelectionOperator::RightAdjacent { .. } => self
-                .resource()
-                .range(reftextselection.end(), self.resource().textlen()),
-            TextSelectionOperator::Precedes { .. } | TextSelectionOperator::LeftAdjacent { .. } => {
+            | TextSelectionOperator::RightAdjacent { .. } => {
                 self.resource().range(0, reftextselection.begin())
+            }
+            TextSelectionOperator::Precedes { .. } | TextSelectionOperator::LeftAdjacent { .. } => {
+                self.resource()
+                    .range(reftextselection.end(), self.resource().textlen())
             }
             _ => self.resource().iter(), //return the maximum slice
         }
