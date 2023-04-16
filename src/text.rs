@@ -50,10 +50,38 @@ where
     fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b>;
 
     /// Returns an iterator of ['TextSelection`] instances that represent partitions
-    /// of the text given the specified delimiter.
+    /// of the text given the specified delimiter. No text is modified.
     ///
     /// The iterator returns wrapped [`TextSelection`] items.
     fn split_text<'b>(&'slf self, delimiter: &'b str) -> SplitTextIter<'store, 'b>;
+
+    /// Trims all occurrences of any character in `chars` from both the beginning and end of the text,
+    /// returning a smaller TextSelection. No text is modified.
+    fn trim_text(
+        &'slf self,
+        chars: &[char],
+    ) -> Result<WrappedItem<'store, TextSelection>, StamError> {
+        let mut trimbegin = 0;
+        let mut trimend = 0;
+        for c in self.text().chars() {
+            if chars.contains(&c) {
+                trimbegin += 1;
+            } else {
+                break;
+            }
+        }
+        for c in self.text().chars().rev() {
+            if chars.contains(&c) {
+                trimend -= 1;
+            } else {
+                break;
+            }
+        }
+        self.textselection(&Offset::new(
+            Cursor::BeginAligned(trimbegin),
+            Cursor::EndAligned(trimend),
+        ))
+    }
 
     /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
     /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).

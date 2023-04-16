@@ -1435,7 +1435,7 @@ pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle,
         AnnotationBuilder::new()
             .with_id("Phrase2".into())
             .with_target(
-                SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(4, 24)), //"human beings are born",
+                SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(4, 25)), //"human beings are born",
             ),
     )?;
     store.annotate(
