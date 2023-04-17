@@ -799,8 +799,6 @@ impl<'store> Text<'store, 'store> for TextResource {
     /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
     /// the entire expression is returned.
     ///
-    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
-    ///
     /// The `allow_overlap` parameter determines if the matching expressions are allowed to
     /// overlap. It you are doing some form of tokenisation, you also likely want this set to
     /// false. All of this only matters if you supply multiple regular expressions.

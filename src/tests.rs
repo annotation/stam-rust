@@ -724,6 +724,16 @@ fn split_text() {
 }
 
 #[test]
+fn trim_text() {
+    let resource = TextResource::new("testres".into(), Config::default())
+        .with_string("  To be or not to be   ".into());
+    let textselection = resource.trim_text(&[' ']).unwrap();
+    assert_eq!(textselection.begin(), 2);
+    assert_eq!(textselection.end(), 20);
+    assert_eq!(textselection.text(), "To be or not to be");
+}
+
+#[test]
 fn textselection_out_of_bounds() {
     let resource =
         TextResource::from_string("testres".into(), "Hello world".into(), Config::default());
