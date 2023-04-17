@@ -164,7 +164,7 @@ impl TextSelection {
 
     /// Returns the begin cursor of this text selection in another. Returns None if they are not embedded.
     /// **Note:** this does *NOT* check whether the textselections pertain to the same resource, that is up to the caller.
-    pub fn relative_begin_in(&self, container: &TextSelection) -> Option<usize> {
+    pub fn relative_begin(&self, container: &TextSelection) -> Option<usize> {
         if self.begin() >= container.begin() {
             Some(self.begin() - container.begin())
         } else {
@@ -174,7 +174,7 @@ impl TextSelection {
 
     /// Returns the end cursor (begin-aligned) of this text selection in another. Returns None if they are not embedded.
     /// **Note:** this does *NOT* check whether the textselections pertain to the same resource, that is up to the caller.
-    pub fn relative_end_in(&self, container: &TextSelection) -> Option<usize> {
+    pub fn relative_end(&self, container: &TextSelection) -> Option<usize> {
         if self.end() >= container.end() {
             Some(self.end() - container.end())
         } else {
@@ -184,11 +184,10 @@ impl TextSelection {
 
     /// Returns the offset of this text selection in another. Returns None if they are not embedded.
     /// **Note:** this does *NOT* check whether the textselections pertain to the same resource, that is up to the caller.
-    pub fn relative_offset_in(&self, container: &TextSelection) -> Option<Offset> {
-        if let (Some(begin), Some(end)) = (
-            self.relative_begin_in(container),
-            self.relative_end_in(container),
-        ) {
+    pub fn relative_offset(&self, container: &TextSelection) -> Option<Offset> {
+        if let (Some(begin), Some(end)) =
+            (self.relative_begin(container), self.relative_end(container))
+        {
             Some(Offset::simple(begin, end))
         } else {
             None
