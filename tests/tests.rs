@@ -1279,6 +1279,38 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
 }
 
 #[test]
+fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
+    let resource = TextResource::new("testres".into(), Config::default()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
+            .into(),
+    );
+    let mut count = 0;
+    for result in resource.find_text_regex(
+        &[
+            Regex::new(r"eavesdropping").unwrap(),
+            Regex::new(r"\.").unwrap(),
+        ],
+        None,
+        true,
+    )? {
+        count += 1;
+        if count == 1 {
+            assert_eq!(result.textselections().len(), 1);
+            assert_eq!(result.textselections()[0].begin(), 25);
+            assert_eq!(result.textselections()[0].end(), 38);
+            assert_eq!(result.as_str(), Some("eavesdropping"));
+        } else {
+            assert_eq!(result.textselections().len(), 1);
+            assert_eq!(result.textselections()[0].begin(), 86);
+            assert_eq!(result.textselections()[0].end(), 87);
+            assert_eq!(result.as_str(), Some("."));
+        }
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
 fn test_search_text_regex_single_capture() -> Result<(), StamError> {
     let resource = TextResource::new("testres".into(), Config::default()).with_string(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
