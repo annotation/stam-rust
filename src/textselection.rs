@@ -939,7 +939,7 @@ impl TextSelectionSet {
     }
 
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
-    /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
+    /// A boolean is returned with the test result.
     pub fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
         if self.is_empty() {
             return false;
@@ -1078,7 +1078,7 @@ impl TextSelectionSet {
     }
 
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
-    /// The operator contains the other part of the equation that is tested against. A boolean is returned with the test result.
+    /// A boolean is returned with the test result.
     pub fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
         if self.is_empty() {
             return false;
