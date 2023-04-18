@@ -224,7 +224,7 @@ where
             Err(StamError::InvalidOffset(
                 Cursor::BeginAligned(beginbyte),
                 Cursor::BeginAligned(endbyte),
-                "End must be greater than begin. (Cursor should be interpreted as UTF-8 bytes in this error context only)",
+                "End must be greater than or equal to begin. (Cursor should be interpreted as UTF-8 bytes in this error context only)",
             ))
         } else {
             Ok(&self.text()[beginbyte..endbyte])
@@ -712,10 +712,6 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
 /// Rather than operator on single [`TextSelection`] instances, te implementation goes a bit
 /// further and can act also on the basis of [`TextSelectionSet`] rather than [`TextSelection`],
 /// allowing you to compare two sets, each containing possibly multiple TextSelections, at once.
-///
-/// This enum encapsulates both the operator as well the the object of the operation (a
-/// `TextSelectionSet`). As a whole, it can then be applied to another [`TextSelectionSet`] or
-/// [`TextSelection`] via its [`TextSelectionSet::test()`] method.
 #[derive(Debug, Clone, Copy)]
 pub enum TextSelectionOperator {
     /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive

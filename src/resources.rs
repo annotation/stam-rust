@@ -593,7 +593,7 @@ impl TextResource {
                 Cursor::BeginAligned(end),
                 "End cursor is out of bounds",
             ))
-        } else if end > begin {
+        } else if end >= begin {
             Ok(TextSelection {
                 intid: None,
                 begin,
