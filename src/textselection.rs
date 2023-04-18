@@ -394,6 +394,26 @@ impl<'store, 'slf> WrappedItem<'store, TextSelection> {
         }
     }
 
+    /// Returns the number of annotations that reference this text selection
+    pub fn annotations_len(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
+        if !self.is_borrowed() {
+            if let Some(textselection) = self.to_ref() {
+                return textselection.annotations_len(annotationstore);
+            } else {
+                //there can be no annotations for an owned (aka unknown) textselection
+                return 0;
+            }
+        }
+
+        if let Some(vec) = annotationstore
+            .annotations_by_textselection(self.store().handle().unwrap(), self.unwrap())
+        {
+            vec.len()
+        } else {
+            0
+        }
+    }
+
     /// Converts the TextSelection to a reference to an item in the store, if not possible or already a reference, None is returned.
     pub fn to_ref(&self) -> Option<WrappedItem<'store, TextSelection>> {
         // textselection is owned, we need a reference for this to work
