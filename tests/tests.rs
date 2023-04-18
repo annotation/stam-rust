@@ -1807,3 +1807,24 @@ fn test_find_annotations_succeeds() -> Result<(), StamError> {
         .any(|annotation| annotation.id().unwrap() == "Phrase2"));
     Ok(())
 }
+
+#[test]
+fn test_textselections_relative_offset() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let sentence1 = store
+        .annotation(&"Sentence1".into())
+        .unwrap()
+        .textselections()
+        .next()
+        .unwrap();
+    let phrase1 = store
+        .annotation(&"Phrase1".into())
+        .unwrap()
+        .textselections()
+        .next()
+        .unwrap();
+    let offset = phrase1.relative_offset(&sentence1).unwrap();
+    assert_eq!(offset.begin, Cursor::BeginAligned(17)); //happens to be the same as absolute offset since Sentence1 covers all..
+    assert_eq!(offset.end, Cursor::BeginAligned(40));
+    Ok(())
+}

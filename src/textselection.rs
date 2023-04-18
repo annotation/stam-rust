@@ -175,8 +175,8 @@ impl TextSelection {
     /// Returns the end cursor (begin-aligned) of this text selection in another. Returns None if they are not embedded.
     /// **Note:** this does *NOT* check whether the textselections pertain to the same resource, that is up to the caller.
     pub fn relative_end(&self, container: &TextSelection) -> Option<usize> {
-        if self.end() >= container.end() {
-            Some(self.end() - container.end())
+        if self.end() <= container.end() {
+            Some(self.end() - container.begin())
         } else {
             None
         }
