@@ -370,7 +370,7 @@ impl<'store, 'regex> Iterator for FindRegexIter<'store, 'regex> {
                 for (j, m2) in self.nextmatches.iter_mut().enumerate() {
                     if j != i && m2.is_some() {
                         if m2.as_ref().unwrap().begin() >= m.begin()
-                            && m2.as_ref().unwrap().begin() <= m.end()
+                            && m2.as_ref().unwrap().begin() < m.end()
                         {
                             //(note: no need to check whether m2.end in range m.begin-m.end)
                             *m2 = self.matchiters[j].next();
