@@ -218,4 +218,17 @@ impl<'store, 'slf> WrappedItem<'store, DataKey> {
             None
         }
     }
+
+    /// Returns the number of annotations that make use of this key.
+    ///  Note: this method has suffix `_count` instead of `_len` because it is not O(1) but does actual counting (O(n) at worst).
+    pub fn annotations_count(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
+        if let Some(iter) = annotationstore.annotations_by_key(
+            self.set().handle().expect("set must have handle"),
+            self.handle().expect("data must have handle"),
+        ) {
+            iter.count()
+        } else {
+            0
+        }
+    }
 }

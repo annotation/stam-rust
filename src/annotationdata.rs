@@ -249,6 +249,18 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
             None
         }
     }
+
+    /// Returns the number of annotations ([`Annotation`]) that make use of this data.
+    pub fn annotations_len(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
+        if let Some(vec) = annotationstore.annotations_by_data(
+            self.set().handle().expect("set must have handle"),
+            self.handle().expect("data must have handle"),
+        ) {
+            vec.len()
+        } else {
+            0
+        }
+    }
 }
 
 /// This is the builder for `AnnotationData`. It contains public IDs or handles that will be resolved.
