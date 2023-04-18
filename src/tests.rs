@@ -724,6 +724,26 @@ fn split_text() {
 }
 
 #[test]
+fn split_text_whitespace() {
+    //with leading and trailing 'empty' texts
+    let resource = TextResource::new("testres".into(), Config::default())
+        .with_string("\nTo be or not to be\nthat is the question\n".into());
+    let textselections: Vec<_> = resource.split_text("\n").collect();
+    eprintln!("{:?}", textselections);
+    assert_eq!(textselections.len(), 4);
+}
+
+#[test]
+fn split_text_none() {
+    //with no occurrences at all
+    let resource = TextResource::new("testres".into(), Config::default())
+        .with_string("To be or not to be".into());
+    let textselections: Vec<_> = resource.split_text("?").collect();
+    eprintln!("{:?}", textselections);
+    assert_eq!(textselections.len(), 1);
+}
+
+#[test]
 fn trim_text() {
     let resource = TextResource::new("testres".into(), Config::default())
         .with_string("  To be or not to be   ".into());
