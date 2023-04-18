@@ -365,7 +365,8 @@ impl<'store, 'slf> WrappedItem<'store, TextSelection> {
     pub fn resource(&'slf self) -> &'store TextResource {
         self.store()
     }
-    /// Iterates over all annotations that are reference by this TextSelection, if any.
+
+    /// Iterates over all annotations that are referenced by this TextSelection, if any.
     /// Note that you need to explicitly specify the `AnnotationStore` for this method.
     pub fn annotations(
         &'slf self,
@@ -374,6 +375,9 @@ impl<'store, 'slf> WrappedItem<'store, TextSelection> {
         if !self.is_borrowed() {
             if let Some(textselection) = self.to_ref() {
                 return textselection.annotations(annotationstore);
+            } else {
+                //there can be no annotations for an owned (aka unknown) textselection
+                return None;
             }
         }
 

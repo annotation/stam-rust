@@ -1673,6 +1673,20 @@ fn test_example6_sanity() -> Result<(), StamError> {
 }
 
 #[test]
+fn test_annotations_by_textselection_none() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let resource = store.resource(&"humanrights".into()).unwrap();
+    let textselection = resource.textselection(&Offset::simple(1, 14))?; //no annotations for this random selection
+    let v: Vec<_> = textselection
+        .annotations(&store)
+        .into_iter()
+        .flatten()
+        .collect();
+    assert!(v.is_empty());
+    Ok(())
+}
+
+#[test]
 fn test_find_textselections_embedded() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let phrase1 = store.annotation(&"Phrase1".into()).unwrap();
