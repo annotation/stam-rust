@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="https://github.com/annotation/stam/raw/master/logo.png" alt="stam logo" width="320" />
+</p>
+
 [![Crate](https://img.shields.io/crates/v/stam.svg)](https://crates.io/crates/stam)
 [![Docs](https://docs.rs/stam/badge.svg)](https://docs.rs/stam/)
 [![GitHub build](https://github.com/annotation/stam-rust/actions/workflows/stam.yml/badge.svg?branch=master)](https://github.com/annotation/stam-rust/actions/)
