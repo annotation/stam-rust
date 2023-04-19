@@ -1,7 +1,7 @@
 [![Crate](https://img.shields.io/crates/v/stam.svg)](https://crates.io/crates/stam)
 [![Docs](https://docs.rs/stam/badge.svg)](https://docs.rs/stam/)
-[![GitHub build](https://github.com/annotation/stam/actions/workflows/stam.yml/badge.svg?branch=master)](https://github.com/annotation/stam/actions/)
-[![GitHub release](https://img.shields.io/github/release/annotation/stam.svg)](https://GitHub.com/annotation/stam/releases/)
+[![GitHub build](https://github.com/annotation/stam-rust/actions/workflows/stam.yml/badge.svg?branch=master)](https://github.com/annotation/stam-rust/actions/)
+[![GitHub release](https://img.shields.io/github/release/annotation/stam-rust.svg)](https://GitHub.com/annotation/stam-rust/releases/)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 
 # STAM Library
