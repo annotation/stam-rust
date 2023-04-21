@@ -664,9 +664,8 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
 
         Some(self.data().filter_map(move |annotationdata| {
             if (set_handle.is_none() || set_handle == annotationdata.set().handle())
-                && key_handle.is_none()
-                || key_handle == annotationdata.key().handle()
-                    && annotationdata.value().test(&value)
+                && (key_handle.is_none() || key_handle == annotationdata.key().handle())
+                && annotationdata.value().test(&value)
             {
                 Some(annotationdata)
             } else {

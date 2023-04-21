@@ -29,7 +29,7 @@ pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetBuilder, Annotat
 pub use annotationstore::{AnnotationStore, AnnotationStoreBuilder};
 pub use config::{Config, Configurable};
 pub use datakey::{DataKey, DataKeyHandle};
-pub use datavalue::DataValue;
+pub use datavalue::{DataOperator, DataValue};
 pub use error::StamError;
 pub use file::*;
 pub use json::{FromJson, ToJson};

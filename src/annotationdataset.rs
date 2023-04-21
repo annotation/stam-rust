@@ -12,7 +12,7 @@ use crate::config::{get_global_config, Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::DataValue;
+use crate::datavalue::{DataOperator, DataValue};
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
@@ -853,6 +853,37 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
         self.unwrap()
             .data_by_value(key, value)
             .map(|annotationdata| annotationdata.wrap_in(self.unwrap()).unwrap())
+    }
+
+    /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.
+    /// Provide `key`  as an Options, if set to `None`, all keys will be searched.
+    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    pub fn find_data<'a>(
+        &'slf self,
+        key: Option<Item<DataKey>>,
+        value: DataOperator<'a>,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, AnnotationData>> + '_>
+    where
+        'slf: 'store,
+        'a: 'slf,
+    {
+        let mut key_handle: Option<DataKeyHandle> = None; //this means 'any' in this context
+        if let Some(key) = key {
+            key_handle = key.to_handle(self.unwrap());
+            if key_handle.is_none() {
+                //requested key doesn't exist, bail out early, we won't find anything at all
+                return None;
+            }
+        };
+        Some(self.data().filter_map(move |annotationdata| {
+            if (key_handle.is_none() || key_handle == annotationdata.key().handle())
+                && annotationdata.value().test(&value)
+            {
+                Some(annotationdata)
+            } else {
+                None
+            }
+        }))
     }
 
     /// Returns all annotations that use this dataset. Use
