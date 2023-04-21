@@ -1015,6 +1015,55 @@ fn data_by_value_high() -> Result<(), StamError> {
     Ok(())
 }
 
+#[test]
+fn find_data_exact() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let annotationset = store.annotationset(&"testdataset".into()).unwrap();
+    let mut count = 0;
+    for annotationdata in annotationset
+        .find_data(Some("pos".into()), DataOperator::Equals("noun"))
+        .into_iter()
+        .flatten()
+    {
+        count += 1;
+        assert_eq!(annotationdata.unwrap().id(), Some("D1"));
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn find_data_by_key() -> Result<(), StamError> {
+    let store = setup_example_3()?;
+    let annotationset = store.annotationset(&"testdataset".into()).unwrap();
+    let mut count = 0;
+    for _ in annotationset
+        .find_data(Some("type".into()), DataOperator::Any)
+        .into_iter()
+        .flatten()
+    {
+        count += 1;
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
+fn find_data_all() -> Result<(), StamError> {
+    let store = setup_example_3()?;
+    let annotationset = store.annotationset(&"testdataset".into()).unwrap();
+    let mut count = 0;
+    for _ in annotationset
+        .find_data(None, DataOperator::Any)
+        .into_iter()
+        .flatten()
+    {
+        count += 1;
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
 pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::new()
         .with_id("test".into())
