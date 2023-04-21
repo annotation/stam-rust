@@ -13,8 +13,8 @@ use crate::annotationdata::{
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::config::{Config, Configurable};
-use crate::datakey::DataKey;
-use crate::datavalue::DataValue;
+use crate::datakey::{DataKey, DataKeyHandle};
+use crate::datavalue::{DataOperator, DataValue};
 use crate::error::*;
 use crate::file::*;
 use crate::resources::TextResource;
@@ -628,6 +628,50 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
             }
             _ => None,
         }
+    }
+
+    /// Finds the [`AnnotationData'] in the annotation. Returns an iterator over all matches.
+    /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
+    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
+    pub fn find_data<'a>(
+        &'slf self,
+        set: Option<Item<AnnotationDataSet>>,
+        key: Option<Item<DataKey>>,
+        value: DataOperator<'a>,
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf>
+    where
+        'a: 'slf,
+    {
+        let mut set_handle: Option<AnnotationDataSetHandle> = None;
+        let mut key_handle: Option<DataKeyHandle> = None;
+
+        if let Some(set) = set {
+            if let Ok(set) = self.store().get(&set) {
+                set_handle = Some(set.handle().expect("set must have handle"));
+                if let Some(key) = key {
+                    key_handle = key.to_handle(set);
+                    if key_handle.is_none() {
+                        //key doesn't exist, bail out early, we won't find anything at all
+                        return None;
+                    }
+                }
+            } else {
+                //set doesn't exist, bail out early, we won't find anything at all
+                return None;
+            }
+        }
+
+        return Some(self.data().filter_map(move |annotationdata| {
+            if (set_handle.is_none() || set_handle == annotationdata.set().handle())
+                && key_handle.is_none()
+                || key_handle == annotationdata.key().handle()
+                    && annotationdata.value().test(&value)
+            {
+                Some(annotationdata)
+            } else {
+                None
+            }
+        }));
     }
 }
 

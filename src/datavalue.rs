@@ -32,6 +32,7 @@ pub enum DataValue {
 
 pub enum DataOperator<'a> {
     Null,
+    Any,
     Equals(&'a str),
     EqualsInt(isize),
     EqualsFloat(f64),
@@ -56,6 +57,7 @@ pub enum DataOperator<'a> {
 impl<'a> DataValue {
     pub fn test(&self, operator: &DataOperator<'a>) -> bool {
         match (self, operator) {
+            (_, DataOperator::Any) => true,
             (Self::Null, DataOperator::Null) => true,
             (Self::Bool(true), DataOperator::True) => true,
             (Self::Bool(false), DataOperator::False) => true,
@@ -300,6 +302,24 @@ impl PartialEq<DataValue> for isize {
         match other {
             DataValue::Int(v) => v == self,
             _ => false,
+        }
+    }
+}
+
+impl<'a> TryFrom<DataOperator<'a>> for DataValue {
+    type Error = StamError;
+
+    fn try_from(operator: DataOperator<'a>) -> Result<Self, Self::Error> {
+        match operator {
+            DataOperator::Null => Ok(Self::Null),
+            DataOperator::Equals(s) => Ok(Self::String(s.to_string())),
+            DataOperator::EqualsFloat(f) => Ok(Self::Float(f)),
+            DataOperator::EqualsInt(i) => Ok(Self::Int(i)),
+            DataOperator::True => Ok(Self::Bool(true)),
+            DataOperator::False => Ok(Self::Bool(false)),
+            _ => Err(StamError::OtherError(
+                "Data operator can not be converted to a single DataValue",
+            )),
         }
     }
 }

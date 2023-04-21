@@ -853,8 +853,8 @@ where
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-/// `Any` offers various ways of referring to a data structure of type `T` in the core STAM model
-/// It abstracts over public IDs, handles, and references.
+/// `Item` offers various ways of referring to a data structure of type `T` in the core STAM model
+/// It abstracts over public IDs (both owned an and borrowed), handles, and references.
 pub enum Item<'a, T>
 where
     T: Storable,
@@ -1255,5 +1255,14 @@ where
             Self::Ref(r) => r.id() == Some(other),
             _ => false,
         }
+    }
+}
+
+impl<'store, T> PartialEq<&T> for WrappedItem<'store, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &&T) -> bool {
+        self.handle().is_some() && (self.handle() == other.handle())
     }
 }
