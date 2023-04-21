@@ -994,22 +994,22 @@ fn text_by_annotation() -> Result<(), StamError> {
 }
 
 #[test]
-fn find_data_low() -> Result<(), StamError> {
+fn data_by_value_low() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let annotationset: &AnnotationDataSet = store.get(&"testdataset".into())?;
     let annotationdata: Option<&AnnotationData> =
-        annotationset.find_data(Item::from("pos"), &DataValue::String("noun".into()));
+        annotationset.data_by_value(Item::from("pos"), &DataValue::String("noun".into()));
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
 }
 
 #[test]
-fn find_data_high() -> Result<(), StamError> {
+fn data_by_value_high() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let annotationset = store.annotationset(&"testdataset".into()).unwrap();
     let annotationdata =
-        annotationset.find_data(Item::from("pos"), &DataValue::String("noun".into()));
+        annotationset.data_by_value(Item::from("pos"), &DataValue::String("noun".into()));
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -1537,7 +1537,7 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
     annotate_regex(&mut store)?;
 
     let set = store.annotationset(&"myset".into()).unwrap();
-    let data = set.find_data("type".into(), &"header".into()).unwrap();
+    let data = set.data_by_value("type".into(), &"header".into()).unwrap();
     let vec = store.annotations_by_data(set.handle().unwrap(), data.handle().unwrap());
     assert_eq!(vec.unwrap().len(), 4);
     Ok(())

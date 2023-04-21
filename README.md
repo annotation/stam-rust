@@ -302,7 +302,8 @@ There are several methods available, on various objects, to enable searching. Th
 | `Annotation.find_textselections()`   | `TextSelection`       | Finds other that selections that are in a specific relations with the text selections pertaining to the annotation.
 | `Annotation.find_annotations()`      | `Annotation`          | Finds other annotations via a relationship that holds between the respective text selections.
 | `TextSelectionSet.find_annotations()`| `Annotation`          | Finds annotations that are in a specific relation with these text selections.
-| `AnnotationDataSet.find_data()`      | `AnnotationData`      | Returns AnnotationData matching the search criteria, this is not an iterator but returns a single instance only
+| `AnnotationDataSet.find_data()`      | `AnnotationData`      | Finds `AnnotationData` in a set, matching the search criteria.
+| `Annotation.find_data()`             | `AnnotationData`      | Finds `AnnotationData` in an annotation, matching the search criteria.
 | -------------------------------------|-----------------------|-------------------------------------|
 
 Many of these methods take a `TextSelectionOperator` as parameter, this expresses a relation between two text selections (or two sets of text selections). This library defines the following enum variants for `TextSelectionOperator`:

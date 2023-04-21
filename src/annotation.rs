@@ -632,6 +632,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
 
     /// Finds the [`AnnotationData'] in the annotation. Returns an iterator over all matches.
     /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
+    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn find_data<'a>(
         &'slf self,
@@ -642,8 +643,8 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     where
         'a: 'slf,
     {
-        let mut set_handle: Option<AnnotationDataSetHandle> = None;
-        let mut key_handle: Option<DataKeyHandle> = None;
+        let mut set_handle: Option<AnnotationDataSetHandle> = None; //None means 'any' in this context
+        let mut key_handle: Option<DataKeyHandle> = None; //idem
 
         if let Some(set) = set {
             if let Ok(set) = self.store().get(&set) {
@@ -651,17 +652,17 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
                 if let Some(key) = key {
                     key_handle = key.to_handle(set);
                     if key_handle.is_none() {
-                        //key doesn't exist, bail out early, we won't find anything at all
+                        //requested key doesn't exist, bail out early, we won't find anything at all
                         return None;
                     }
                 }
             } else {
-                //set doesn't exist, bail out early, we won't find anything at all
+                //requested set doesn't exist, bail out early, we won't find anything at all
                 return None;
             }
         }
 
-        return Some(self.data().filter_map(move |annotationdata| {
+        Some(self.data().filter_map(move |annotationdata| {
             if (set_handle.is_none() || set_handle == annotationdata.set().handle())
                 && key_handle.is_none()
                 || key_handle == annotationdata.key().handle()
@@ -671,7 +672,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
             } else {
                 None
             }
-        }));
+        }))
     }
 }
 

@@ -676,7 +676,7 @@ impl AnnotationDataSet {
 
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
     /// This is a low level method, use the similar [`WrappedItem<AnnotationDataSet>.find_data()`] for a higher level version.
-    pub fn find_data(&self, key: Item<DataKey>, value: &DataValue) -> Option<&AnnotationData> {
+    pub fn data_by_value(&self, key: Item<DataKey>, value: &DataValue) -> Option<&AnnotationData> {
         if key.is_none() {
             None
         } else {
@@ -760,7 +760,7 @@ impl AnnotationDataSet {
 
         if !newkey && id.is_none() && safety {
             // there is a chance that this key and value combination already occurs, check it
-            if let Some(data) = self.find_data(Item::from(datakey_handle), &value) {
+            if let Some(data) = self.data_by_value(Item::from(datakey_handle), &value) {
                 return Ok(data.handle().expect("item must have intid if in store"));
             }
         }
@@ -843,15 +843,15 @@ impl AnnotationDataSet {
 }
 
 impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
-    /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
-    /// Returns a fat pointer.
-    pub fn find_data(
+    /// Returns [`AnnotationData'] in the annotation dataset that matches they key and value.
+    /// Returns a single match, use `Self::find_data()` for a more extensive search.
+    pub fn data_by_value(
         &self,
         key: Item<DataKey>,
         value: &DataValue,
     ) -> Option<WrappedItem<'store, AnnotationData>> {
         self.unwrap()
-            .find_data(key, value)
+            .data_by_value(key, value)
             .map(|annotationdata| annotationdata.wrap_in(self.unwrap()).unwrap())
     }
 
