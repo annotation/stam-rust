@@ -599,7 +599,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
             self.store()
                 .textselection(
                     targetitem.selector(),
-                    targetitem.ancestors().iter().map(|x| x.as_ref()),
+                    Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
                 )
                 .ok() //ignores errors!
         })

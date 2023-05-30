@@ -394,7 +394,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                         //it allows us to combine two things in one and save an iteration.
                         match self.textselection(
                             targetitem.selector(),
-                            Box::new(targetitem.ancestors().iter().map(|x| x.as_ref())),
+                            Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
                         ) {
                             Ok(textselection) => {
                                 extend_textrelationmap.push((res_handle, *textselection, handle))
@@ -1277,22 +1277,24 @@ impl AnnotationStore {
         //MAYBE TODO: move to Textual?
         &self,
         selector: &Selector,
-        subselectors: impl Iterator<Item = &'b Selector>,
+        subselectors: Option<impl Iterator<Item = &'b Selector>>,
     ) -> Result<WrappedItem<TextSelection>, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get(&res_id.into())?;
                 let mut textselection = resource.textselection(offset)?;
-                for selector in subselectors {
-                    if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
-                        //each annotation selector selects a subslice of the previous textselection
-                        textselection = textselection.textselection(&suboffset)?;
+                if let Some(subselectors) = subselectors {
+                    for selector in subselectors {
+                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
+                            //each annotation selector selects a subslice of the previous textselection
+                            textselection = textselection.textselection(&suboffset)?;
+                        }
                     }
                 }
                 Ok(textselection)
             }
             _ => Err(StamError::WrongSelectorType(
-                "selector for Annotationstore::text_selection() must be a TextSelector",
+                "selector for Annotationstore::textselection() must be a TextSelector",
             )),
         }
     }
