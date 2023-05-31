@@ -47,7 +47,10 @@ where
     ///
     /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
     /// [`Self.textselection()`] and then run `find_text()` on that instead.
-    fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b>;
+    fn find_text<'fragment>(
+        &'slf self,
+        fragment: &'fragment str,
+    ) -> FindTextIter<'store, 'fragment>;
 
     /// Returns an iterator of ['TextSelection`] instances that represent partitions
     /// of the text given the specified delimiter. No text is modified.

@@ -320,7 +320,10 @@ where
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
-    fn find_text<'b, 'c>(&'b self, fragment: &'c str) -> FindTextIter<'b, 'c> {
+    fn find_text<'fragment>(
+        &'slf self,
+        fragment: &'fragment str,
+    ) -> FindTextIter<'store, 'fragment> {
         FindTextIter {
             resource: self.store(),
             fragment,
