@@ -52,6 +52,72 @@ where
         fragment: &'fragment str,
     ) -> FindTextIter<'store, 'fragment>;
 
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text()` on that instead.
+    fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store>;
+
+    /// Searches for the multiple text fragment in sequence. Returns a vector with (wrapped) [`TextSelection`] instances.
+    ///
+    /// Matches must appear in the exact order specified, but *may* have other intermittent text,
+    /// determined by the `allow_skip_char` closure. A recommended closure for natural language
+    /// text is: `|c| !c.is_alphabetic()`
+    ///
+    /// The `case_sensitive` parameter determines if the search is case sensitive or not, case insensitive searches have a performance penalty.
+    fn find_text_sequence<'fragment, F>(
+        &'slf self,
+        fragments: &'fragment [&'fragment str],
+        allow_skip_char: F,
+        case_sensitive: bool,
+    ) -> Option<Vec<WrappedItem<'store, TextSelection>>>
+    where
+        F: Fn(char) -> bool,
+    {
+        let mut results: Vec<WrappedItem<'store, TextSelection>> =
+            Vec::with_capacity(fragments.len());
+        let mut begin: usize = 0;
+        let mut textselectionresult = self.textselection(&Offset::whole());
+        for fragment in fragments {
+            if let Ok(searchtext) = textselectionresult {
+                if let Some(m) = if case_sensitive {
+                    searchtext.find_text(fragment).next()
+                } else {
+                    searchtext.find_text_nocase(fragment).next()
+                } {
+                    if m.begin > begin {
+                        //we skipped some text since last match, check the characters in between matches
+                        let skipped_text = self
+                            .textselection(&Offset::simple(begin, m.begin))
+                            .expect("textselection must succeed")
+                            .text();
+                        for c in skipped_text.chars() {
+                            if !allow_skip_char(c) {
+                                return None;
+                            }
+                        }
+                    }
+                    begin = m.end;
+                    results.push(m);
+                } else {
+                    return None;
+                }
+                //slice (shorten) new text for next test
+                textselectionresult = searchtext.textselection(&Offset::new(
+                    Cursor::BeginAligned(begin - searchtext.begin), //offset must be relative
+                    Cursor::EndAligned(0),
+                ));
+            } else {
+                return None;
+            }
+        }
+
+        Some(results)
+    }
+
     /// Returns an iterator of ['TextSelection`] instances that represent partitions
     /// of the text given the specified delimiter. No text is modified.
     ///
@@ -477,35 +543,92 @@ impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
     type Item = WrappedItem<'a, TextSelection>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
+            let beginbytepos = self
+                .resource
+                .subslice_utf8_offset(text)
+                .expect("bytepos must be valid");
+            if let Some(foundbytepos) = text.find(self.fragment) {
+                let endbytepos = foundbytepos + self.fragment.len();
+                let newbegin = self
+                    .resource
+                    .utf8byte_to_charpos(beginbytepos + foundbytepos)
+                    .expect("utf-8 byte must resolve to valid charpos");
+                let newend = self
+                    .resource
+                    .utf8byte_to_charpos(beginbytepos + endbytepos)
+                    .expect("utf-8 byte must resolve to valid charpos");
+                //set offset for next run
+                self.offset = Offset {
+                    begin: Cursor::BeginAligned(newend),
+                    end: self.offset.end,
+                };
+                match self
+                    .resource
+                    .textselection(&Offset::simple(newbegin, newend))
+                {
+                    Ok(textselection) => Some(textselection),
+                    Err(e) => {
+                        eprintln!("WARNING: FindTextIter ended prematurely: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+}
+/// This iterator is produced by [`TextResource.find_text_nocase()`] and searches a text for a single fragment, without regard for casing.
+/// It has more overhead than the exact (case sensitive) variant [`FindTextIter`].
+pub struct FindNoCaseTextIter<'a> {
+    pub(crate) resource: &'a TextResource,
+    pub(crate) fragment: String,
+    pub(crate) offset: Offset,
+}
+
+impl<'a> Iterator for FindNoCaseTextIter<'a> {
+    type Item = WrappedItem<'a, TextSelection>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
+            let text = text.to_lowercase();
             let begincharpos = self
                 .resource
                 .beginaligned_cursor(&self.offset.begin)
                 .expect("charpos must be valid");
             let beginbytepos = self
                 .resource
-                .subslice_utf8_offset(text)
-                .expect("bytepos must be valid");
-            text.find(self.fragment).map(|foundbytepos| {
+                .utf8byte(begincharpos)
+                .expect("bytepos must be retrievable");
+            if let Some(foundbytepos) = text.as_str().find(self.fragment.as_str()) {
                 let endbytepos = foundbytepos + self.fragment.len();
-                let newbegin = begincharpos
-                    + self
-                        .resource
-                        .utf8byte_to_charpos(beginbytepos + foundbytepos)
-                        .expect("utf-8 byte must resolve to valid charpos");
-                let newend = begincharpos
-                    + self
-                        .resource
-                        .utf8byte_to_charpos(beginbytepos + endbytepos)
-                        .expect("utf-8 byte must resolve to valid charpos");
+                let newbegin = self
+                    .resource
+                    .utf8byte_to_charpos(beginbytepos + foundbytepos)
+                    .expect("utf-8 byte must resolve to valid charpos");
+                let newend = self
+                    .resource
+                    .utf8byte_to_charpos(beginbytepos + endbytepos)
+                    .expect("utf-8 byte must resolve to valid charpos");
                 //set offset for next run
                 self.offset = Offset {
                     begin: Cursor::BeginAligned(newend),
                     end: self.offset.end,
                 };
-                self.resource
+                match self
+                    .resource
                     .textselection(&Offset::simple(newbegin, newend))
-                    .expect("textselection must be returned")
-            })
+                {
+                    Ok(textselection) => Some(textselection),
+                    Err(e) => {
+                        eprintln!("WARNING: FindNoCaseTextIter ended prematurely: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            }
         } else {
             None
         }

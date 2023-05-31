@@ -833,14 +833,34 @@ impl<'store> Text<'store, 'store> for TextResource {
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
+    /// This search is case sensitive, use [`Self.find_text_nocase()`] to search case insensitive.
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
     /// [`Self.textselection()`] and then run `find_text()` on that instead.
-    fn find_text<'a, 'b>(&'a self, fragment: &'b str) -> FindTextIter<'a, 'b> {
+    fn find_text<'fragment>(
+        &'store self,
+        fragment: &'fragment str,
+    ) -> FindTextIter<'store, 'fragment> {
         FindTextIter {
             resource: self,
             fragment,
+            offset: Offset::whole(),
+        }
+    }
+
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
+    fn find_text_nocase(&'store self, fragment: &str) -> FindNoCaseTextIter<'store> {
+        FindNoCaseTextIter {
+            resource: self,
+            fragment: fragment.to_lowercase(),
             offset: Offset::whole(),
         }
     }

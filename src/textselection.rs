@@ -331,6 +331,22 @@ where
         }
     }
 
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
+    fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
+        FindNoCaseTextIter {
+            resource: self.store(),
+            fragment: fragment.to_lowercase(),
+            offset: Offset::from(self.deref()),
+        }
+    }
+
     fn split_text<'b>(&'slf self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
         SplitTextIter {
             resource: self.store(),

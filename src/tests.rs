@@ -698,8 +698,8 @@ fn find_text_multi() {
     assert_eq!(textselections.len(), 2);
     assert_eq!(textselections[0].begin(), 3);
     assert_eq!(textselections[0].end(), 5);
-    assert_eq!(textselections[1].begin(), 21);
-    assert_eq!(textselections[1].end(), 23);
+    assert_eq!(textselections[1].begin(), 16);
+    assert_eq!(textselections[1].end(), 18);
 }
 
 #[test]
