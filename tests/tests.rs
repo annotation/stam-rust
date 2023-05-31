@@ -1296,6 +1296,40 @@ fn test_find_text_sequence() -> Result<(), StamError> {
 }
 
 #[test]
+fn test_find_text_sequence2() -> Result<(), StamError> {
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hello, world!".into());
+    let results = resource
+        .find_text_sequence(&["Hello", "world"], |c| !c.is_alphabetic(), true)
+        .expect("results must be found");
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].begin(), 0);
+    assert_eq!(results[0].end(), 5);
+    assert_eq!(results[0].text(), "Hello");
+    assert_eq!(results[1].begin(), 7);
+    assert_eq!(results[1].end(), 12);
+    assert_eq!(results[1].text(), "world");
+    Ok(())
+}
+
+#[test]
+fn test_find_text_sequence_nocase() -> Result<(), StamError> {
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let results = resource
+        .find_text_sequence(&["hello", "world"], |c| !c.is_alphabetic(), false)
+        .expect("results must be found");
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].begin(), 0);
+    assert_eq!(results[0].end(), 5);
+    assert_eq!(results[0].text(), "Hello");
+    assert_eq!(results[1].begin(), 6);
+    assert_eq!(results[1].end(), 11);
+    assert_eq!(results[1].text(), "world");
+    Ok(())
+}
+
+#[test]
 fn test_split_text() -> Result<(), StamError> {
     let resource =
         TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
