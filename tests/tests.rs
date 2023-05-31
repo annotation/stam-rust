@@ -1330,6 +1330,16 @@ fn test_find_text_sequence_nocase() -> Result<(), StamError> {
 }
 
 #[test]
+fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
+    let resource =
+        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let results =
+        resource.find_text_sequence(&["hello", "world", "hi"], |c| !c.is_alphabetic(), false);
+    assert!(results.is_none());
+    Ok(())
+}
+
+#[test]
 fn test_split_text() -> Result<(), StamError> {
     let resource =
         TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
