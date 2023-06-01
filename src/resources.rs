@@ -397,6 +397,15 @@ impl TextResource {
         Ok(self)
     }
 
+    /// Sets the filename for writing, will force a write to it when the underlying store is serialized.
+    /// *CAUTION*: This method does not load a file so it will overwrite any existing file!
+    // Use [`Self.from_file()`] or [`Self.with_file()`] instead to load from file.
+    pub fn with_filename(mut self, filename: &str) -> Self {
+        self.filename = Some(filename.to_string());
+        self.mark_changed();
+        self
+    }
+
     /// Sets the text of the TextResource from string, kept in memory entirely
     /// The use of [`Self.from_string()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
