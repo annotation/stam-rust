@@ -1,21 +1,42 @@
-use crate::datavalue::DataOperator;
 use crate::error::StamError;
 use crate::types::*;
 use crate::{
-    AnnotationDataHandle, AnnotationDataSetHandle, AnnotationHandle, AnnotationStore,
-    DataKeyHandle, TextResourceHandle, TextSelection, TextSelectionOperator,
-    TextSelectionOperatorKind,
+    Annotation, AnnotationData, AnnotationDataHandle, AnnotationDataSet, AnnotationDataSetHandle,
+    AnnotationHandle, AnnotationStore, DataKey, DataKeyHandle, DataOperator, Item, Storable,
+    TextResource, TextResourceHandle, TextSelection, TextSelectionHandle, TextSelectionOperator,
 };
 use smallvec::SmallVec;
 use std::iter::IntoIterator;
 use std::slice::Iter;
 
-pub struct Query<'store, 'q> {
-    store: &'store AnnotationStore,
-    subqueries: Vec<SelectQuery<'q>>,
+pub struct Query<'q> {
+    subqueries: &'q [SelectQuery<'q>],
+
+    /// subquery b depends on a (a goes first), this only lists the dependencies used for nesting
+    nesting: Vec<(usize, usize)>,
 }
 
-pub struct SelectQuery<'q, T> {
+impl<'q> Query<'q> {
+    pub fn new(subqueries: &'q [SelectQuery<'q>]) -> Self {
+        //TODO: compute nesting
+        Self {
+            subqueries,
+            nesting: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SelectQueryType {
+    Text,
+    Data,
+    Annotation,
+    Resource,
+}
+
+pub struct SelectQuery<'q> {
+    tp: SelectQueryType,
+
     /// Name for the Result Set
     varname: Option<&'q str>,
 
@@ -23,39 +44,97 @@ pub struct SelectQuery<'q, T> {
     constraints: Vec<Constraint<'q>>,
 }
 
-impl<T> SelectQuery<T> {
-    pub fn new() -> Self {
+impl<'q> SelectQuery<'q> {
+    pub fn new(tp: SelectQueryType, varname: &'q str, constraints: Vec<Constraint<'q>>) -> Self {
         Self {
+            tp,
             varname: None,
-            constraint: Vec::new(),
+            constraints,
         }
     }
-    pub fn with_name(&mut self, name: &'q str) -> &mut Self {
-        self.varname = Some(name);
-        self
-    }
-    pub fn with_constraint(&mut self, constraint: Constraint<'q>) -> &mut Self {
+    pub fn constrain(&mut self, constraint: Constraint<'q>) -> &mut Self {
         self.constraints.push(constraint);
         self
     }
-    pub fn with_constraints(&mut self, constraints: Vec<Constraint<'q>>) -> &mut Self {
-        self.constraints = constraints;
-        self
-    }
-
-    /// Evaluate the Select Query (lazily!), will most-likely return a wrapped Iterator
-    /// Run collect() on the ResultSet to actually you get the results
-    pub fn eval(&self, context: &Context<'store, 'q>) -> ResultSet<T>;
 }
 
-impl SelectQuery<TextSelection> {
-    pub fn eval(&self, context: &Context<'store, 'q>) -> ResultSet<TextSelection> {
-        let store: &AnnotationStore = context.store;
-        let mut results: ResultSet<TextSelection> = ResultSet::Empty();
-        for constraint in constraints {
-            results = constraint.eval(&mut context)
+trait QueryEval<'store, 'q, T>
+where
+    T: Storable,
+{
+    /// Evaluate the Select Query (lazily!), returns an iterator
+    fn eval(&self, context: &Context<'store, 'q>) -> Option<dyn Iterator<Item = T::HandleType>>;
+}
+
+impl<'store, 'q, T> QueryEval<'store, 'q, T> for SelectQuery<'q>
+where
+    T: Storable,
+{
+    fn eval(&self, context: &Context<'store, 'q>) -> Option<dyn Iterator<Item = T::HandleType>> {
+        let mut iter = None;
+        for constraint in self.constraints.iter() {
+            iter = constraint.eval(iter, context);
+            if iter.is_none() {
+                return iter;
+            }
         }
-        results
+        iter
+    }
+}
+
+trait ConstraintEval<'store, 'q, T>
+where
+    T: Storable,
+{
+    /// Evaluate the constraint (lazily!), returns an iterator derived from the input iterator
+    fn eval(
+        &self,
+        iter: Option<dyn Iterator<Item = T::HandleType>>,
+        context: &Context<'store, 'q>,
+    ) -> Option<dyn Iterator<Item = T::HandleType>>;
+}
+
+impl<'store, 'q> ConstraintEval<'store, 'q, Annotation> for Constraint<'q> {
+    fn eval(
+        &self,
+        iter: Option<dyn Iterator<Item = AnnotationHandle>>,
+        context: &Context<'store, 'q>,
+    ) -> Option<dyn Iterator<Item = AnnotationHandle>> {
+        match self {
+            Constraint::AnnotationData {
+                dataset,
+                key,
+                operator,
+            } => {
+                if let Some(dataset) = context.store.annotationset(dataset) {
+                    if iter.is_none() {
+                        //first constraint, create iterator: AnnotationData -> Annotation
+                        return dataset
+                            .find_data(Some(key), operator)
+                            .into_iter()
+                            .flatten()
+                            .map(|data| data.annotations(context.store).into_iter().flatten())
+                            .flatten();
+                    } else {
+                        //filter existing iterator
+                        if let Some(key) = dataset.key(key) {
+                            return iter.into_iter().flatten().filter(|annotationhandle| {
+                                if let Some(annotation) = context.store.annotation(annotationhandle)
+                                {
+                                    for data in annotation.data() {
+                                        if data.key() == key.unwrap() {
+                                            return data.test(operator);
+                                        }
+                                    }
+                                }
+                                false
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        return None;
     }
 }
 
@@ -84,12 +163,6 @@ impl<'store, 'q> Context<'store, 'q> {
     }
 }
 
-trait QueryIterator<'store, T> {
-    pub fn create(
-        context: Context<'store>,
-    ) -> Result<impl Iterator<Item = T::HandleType>, StamError>;
-}
-
 // Generic type for ResultSet
 pub enum ResultSet<T>
 where
@@ -111,6 +184,16 @@ where
         match self {
             Self::Vec(..) => self,
             Self::Iterator(iter) => Self::Vec(iter.collect()),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        if let Self::Empty = self {
+            true
+        } else if Self::Vec(v) = self {
+            v.is_empty()
+        } else {
+            false
         }
     }
 
@@ -184,7 +267,7 @@ pub enum Constraint<'q> {
         key: Item<'q, DataKey>,
         operator: DataOperator<'q>,
     },
-
+    /*
     TextRelation(TextSelectionOperator, &'q TextSelectionSet),
 
     /// Constrain by annotation selection set
@@ -240,6 +323,7 @@ pub enum Constraint<'q> {
     And(Vec<Constraint<'q>>),
     Or(Vec<Constraint<'q>>),
     Not(Box<Constraint<'q>>),
+    */
 }
 
 /*
@@ -253,7 +337,6 @@ impl<'a, T> IntoIterator for SelectionSet<'a, T> {
         }
     }
 }
-*/
 
 impl AnnotationStore {
     pub fn query<'store, 'q>(&'store self, query: Query<'store, 'q>) -> QueryIter<'store, 'q> {
@@ -343,3 +426,4 @@ impl<'store, 'q> Iterator for QueryIter<'store, 'q> {
         }
     }
 }
+*/
