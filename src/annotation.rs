@@ -673,6 +673,24 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
             }
         }))
     }
+
+    /// Tests if the annotation has certain data, returns a boolean.
+    /// If you want to actually retrieve the data, use `find_data()` instead.
+    ///
+    /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
+    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
+    pub fn has_data<'a>(
+        &'slf self,
+        set: Option<Item<AnnotationDataSet>>,
+        key: Option<Item<DataKey>>,
+        value: DataOperator<'a>,
+    ) -> bool {
+        match self.find_data(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
+    }
 }
 
 /// Helper structure for deserialisation
