@@ -864,10 +864,10 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
         &'slf self,
         key: Option<Item<DataKey>>,
         value: DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, AnnotationData>> + '_>
+    ) -> Option<impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'store>
     where
-        'slf: 'store,
-        'a: 'slf,
+        'store: 'slf,
+        'a: 'store,
     {
         let mut key_handle: Option<DataKeyHandle> = None; //this means 'any' in this context
         if let Some(key) = key {
@@ -877,7 +877,7 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
                 return None;
             }
         };
-        Some(self.data().filter_map(move |annotationdata| {
+        Some(self.unwrap().data().filter_map(move |annotationdata| {
             if (key_handle.is_none() || key_handle == annotationdata.key().handle())
                 && annotationdata.value().test(&value)
             {

@@ -5,14 +5,15 @@ use smallvec::SmallVec;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
-use crate::annotationdata::AnnotationDataHandle;
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
 };
 use crate::config::{get_global_config, set_global_config, Config, Configurable};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
-use crate::datakey::DataKeyHandle;
+use crate::datakey::{DataKey, DataKeyHandle};
+use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
@@ -1404,6 +1405,33 @@ impl AnnotationStore {
             self.dataset_annotation_map.totalcount(),
             self.annotation_annotation_map.totalcount(),
         )
+    }
+
+    /// Finds the [`AnnotationData'] in the annotation. Returns an iterator over all matches.
+    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
+    ///
+    /// Provide `key` as an Option, if set to `None`, all keys in the specified set will be searched.
+    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
+    pub fn find_data<'a>(
+        &'a self,
+        set: Item<AnnotationDataSet>,
+        key: Option<Item<DataKey>>,
+        value: DataOperator<'a>,
+    ) -> Option<impl Iterator<Item = WrappedItem<'a, AnnotationData>>> {
+        //if let Some(set) = set {
+        if let Some(annotationset) = self.annotationset(&set) {
+            return annotationset.find_data(key, value);
+        }
+        /*} else {
+            //this doesn't work:
+            return Some(
+                self.annotationsets()
+                    .filter_map(|annotationset| annotationset.find_data(key, value))
+                    .flatten(),
+            );
+        }*/
+        None
     }
 }
 
