@@ -856,6 +856,8 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
     }
 
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.
+    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
+    ///
     /// Provide `key`  as an Options, if set to `None`, all keys will be searched.
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
@@ -892,7 +894,7 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
     /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
-    pub fn has_data<'a>(&'slf self, key: Option<Item<DataKey>>, value: DataOperator<'a>) -> bool {
+    pub fn test_data<'a>(&'slf self, key: Option<Item<DataKey>>, value: DataOperator<'a>) -> bool {
         match self.find_data(key, value) {
             Some(mut iter) => iter.next().is_some(),
             None => false,
