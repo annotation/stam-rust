@@ -1407,12 +1407,11 @@ impl AnnotationStore {
         )
     }
 
-    /// Finds the [`AnnotationData'] in the annotation. Returns an iterator over all matches.
+    /// Finds the [`AnnotationData'] in a specific set. Returns an iterator over all matches.
     /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
     ///
     /// Provide `key` as an Option, if set to `None`, all keys in the specified set will be searched.
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn find_data<'a>(
         &'a self,
         set: Item<AnnotationDataSet>,
@@ -1432,6 +1431,23 @@ impl AnnotationStore {
             );
         }*/
         None
+    }
+
+    /// Tests if for annotation data in a specific set, returns a boolean.
+    /// If you want to actually retrieve the data, use `find_data()` instead.
+    ///
+    /// Provide `key` as Option, if set to `None`, all keys will be searched.
+    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    pub fn test_data<'a>(
+        &'a self,
+        set: Item<AnnotationDataSet>,
+        key: Option<Item<DataKey>>,
+        value: DataOperator<'a>,
+    ) -> bool {
+        match self.find_data(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
     }
 }
 
