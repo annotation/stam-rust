@@ -261,6 +261,18 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
             0
         }
     }
+
+    pub fn test(&self, key: Option<&Item<DataKey>>, operator: &DataOperator) -> bool {
+        if let Some(key) = key {
+            if self.key().handle() == key.to_handle(self.store()) {
+                self.test_value(operator)
+            } else {
+                false
+            }
+        } else {
+            self.test_value(operator)
+        }
+    }
 }
 
 /// This is the builder for `AnnotationData`. It contains public IDs or handles that will be resolved.
@@ -364,7 +376,7 @@ pub enum DataOperator<'a> {
 }
 
 impl AnnotationData {
-    pub fn test(&self, operator: &DataOperator) -> bool {
+    pub fn test_value(&self, operator: &DataOperator) -> bool {
         match operator {
             DataOperator::Equals(other) => {
                 self.intid == other.intid && self.part_of_set == other.part_of_set
