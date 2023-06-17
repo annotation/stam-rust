@@ -231,4 +231,9 @@ impl<'store, 'slf> WrappedItem<'store, DataKey> {
             0
         }
     }
+
+    /// Tests whether two DataKeys are the same
+    pub fn test(&'slf self, other: &Item<DataKey>) -> bool {
+        self.handle() == other.to_handle(self.store())
+    }
 }

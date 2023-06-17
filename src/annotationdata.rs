@@ -265,12 +265,12 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
     pub fn test(&self, key: Option<&Item<DataKey>>, operator: &DataOperator) -> bool {
         if let Some(key) = key {
             if self.key().handle() == key.to_handle(self.store()) {
-                self.test_value(operator)
+                self.value().test(operator)
             } else {
                 false
             }
         } else {
-            self.test_value(operator)
+            self.value().test(operator)
         }
     }
 }
@@ -361,11 +361,5 @@ impl<'a> From<AnnotationDataJson> for AnnotationDataBuilder<'a> {
             key: helper.key.into(),
             value: helper.value.unwrap_or(DataValue::Null),
         }
-    }
-}
-
-impl AnnotationData {
-    pub fn test_value(&self, operator: &DataOperator) -> bool {
-        self.value().test(operator)
     }
 }
