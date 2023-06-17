@@ -9,7 +9,7 @@ use crate::annotation::Annotation;
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::DataValue;
+use crate::datavalue::{DataOperator, DataValue};
 use crate::error::StamError;
 use crate::store::*;
 use crate::types::*;
@@ -364,24 +364,8 @@ impl<'a> From<AnnotationDataJson> for AnnotationDataBuilder<'a> {
     }
 }
 
-pub enum DataOperator<'a> {
-    Equals(&'a AnnotationData),
-    GreaterThan(&'a AnnotationData),
-    GreaterThanOrEqual(&'a AnnotationData),
-    LessThan(&'a AnnotationData),
-    LessThanOrEqual(&'a AnnotationData),
-    Key(&'a DataKey),
-    DataSet(&'a AnnotationDataSet),
-    Not(Box<DataOperator<'a>>),
-}
-
 impl AnnotationData {
     pub fn test_value(&self, operator: &DataOperator) -> bool {
-        match operator {
-            DataOperator::Equals(other) => {
-                self.intid == other.intid && self.part_of_set == other.part_of_set
-            }
-            _ => panic!("data operator not implemented yet"),
-        }
+        self.value().test(operator)
     }
 }
