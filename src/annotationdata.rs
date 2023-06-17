@@ -263,14 +263,10 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
     }
 
     pub fn test(&self, key: Option<&Item<DataKey>>, operator: &DataOperator) -> bool {
-        if let Some(key) = key {
-            if self.key().handle() == key.to_handle(self.store()) {
-                self.value().test(operator)
-            } else {
-                false
-            }
-        } else {
+        if key.is_none() || self.key().test(key.unwrap()) {
             self.value().test(operator)
+        } else {
+            false
         }
     }
 }
