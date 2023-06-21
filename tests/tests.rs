@@ -2111,14 +2111,10 @@ fn test_textselections_scale_test_overlap() -> Result<(), StamError> {
     //iterate over all textselections unsorted
 
     let mut count = 0;
-    for annotation in selection.find_annotations(
-        TextSelectionOperator::Overlaps {
-            all: false,
-            negate: false,
-        },
-        &store,
-    ) {
-        println!("{:?}", annotation.id());
+    for _textselection in selection.find_textselections(TextSelectionOperator::Overlaps {
+        all: false,
+        negate: false,
+    }) {
         count += 1;
     }
 
