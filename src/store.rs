@@ -653,10 +653,12 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
-        match self.iter.next() {
-            Some(Some(item)) => Some(self.store.wrap(item).expect("wrap must succeed")),
-            Some(None) => self.next(),
-            None => None,
+        loop {
+            match self.iter.next() {
+                Some(Some(item)) => return Some(self.store.wrap(item).expect("wrap must succeed")),
+                Some(None) => continue,
+                None => return None,
+            }
         }
     }
 
@@ -679,10 +681,12 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
-        match self.iter.next() {
-            Some(Some(item)) => Some(item),
-            Some(None) => self.next(),
-            None => None,
+        loop {
+            match self.iter.next() {
+                Some(Some(item)) => return Some(item),
+                Some(None) => continue,
+                None => return None,
+            }
         }
     }
 

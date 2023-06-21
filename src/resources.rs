@@ -1020,58 +1020,60 @@ impl<'a> Iterator for TextSelectionIter<'a> {
     type Item = WrappedItem<'a, TextSelection>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(begin2enditer) = &mut self.begin2enditer {
-            if let Some((_end, handle)) = begin2enditer.next() {
-                let textselection: &TextSelection = self
-                    .resource
-                    .get(&handle.into())
-                    .expect("handle must exist");
-                return Some(
-                    textselection
-                        .wrap_in(self.resource)
-                        .expect("wrap must succeed"),
-                );
-            }
-            //fall back to final clause
-        } else {
-            if let Some((_begin, posindexitem)) = self.iter.next() {
-                self.begin2enditer = Some(posindexitem.begin2end.iter());
-                return self.next();
+        loop {
+            if let Some(begin2enditer) = &mut self.begin2enditer {
+                if let Some((_end, handle)) = begin2enditer.next() {
+                    let textselection: &TextSelection = self
+                        .resource
+                        .get(&handle.into())
+                        .expect("handle must exist");
+                    return Some(
+                        textselection
+                            .wrap_in(self.resource)
+                            .expect("wrap must succeed"),
+                    );
+                }
+                //fall back to final clause
             } else {
-                return None;
+                if let Some((_begin, posindexitem)) = self.iter.next() {
+                    self.begin2enditer = Some(posindexitem.begin2end.iter());
+                    continue;
+                } else {
+                    return None;
+                }
             }
+            //final clause
+            self.begin2enditer = None;
         }
-        //final clause
-        self.begin2enditer = None;
-        self.next()
     }
 }
 
 impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if let Some(end2beginiter) = &mut self.end2beginiter {
-            if let Some((_begin, handle)) = end2beginiter.next() {
-                let textselection: &TextSelection = self
-                    .resource
-                    .get(&handle.into())
-                    .expect("handle must exist");
-                return Some(
-                    textselection
-                        .wrap_in(self.resource)
-                        .expect("wrap must succeed"),
-                );
-            }
-            //fall back to final clause
-        } else {
-            if let Some((_, posindexitem)) = self.iter.next_back() {
-                self.end2beginiter = Some(posindexitem.end2begin.iter());
-                return self.next_back();
+        loop {
+            if let Some(end2beginiter) = &mut self.end2beginiter {
+                if let Some((_begin, handle)) = end2beginiter.next() {
+                    let textselection: &TextSelection = self
+                        .resource
+                        .get(&handle.into())
+                        .expect("handle must exist");
+                    return Some(
+                        textselection
+                            .wrap_in(self.resource)
+                            .expect("wrap must succeed"),
+                    );
+                }
+                //fall back to final clause
             } else {
-                return None;
+                if let Some((_, posindexitem)) = self.iter.next_back() {
+                    self.end2beginiter = Some(posindexitem.end2begin.iter());
+                    continue;
+                } else {
+                    return None;
+                }
             }
+            //final clause
+            self.end2beginiter = None;
         }
-        //final clause
-        self.end2beginiter = None;
-        self.next_back()
     }
 }

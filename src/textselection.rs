@@ -1917,30 +1917,32 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
     type Item = TargetIterItem<'a, TextSelection>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let selectoritem = self.iter.next();
-        if let Some(selectoritem) = selectoritem {
-            match selectoritem.selector().as_ref() {
-                Selector::InternalTextSelector {
-                    resource,
-                    textselection,
-                } => {
-                    let resource: &TextResource = self
-                        .iter
-                        .store
-                        .get(&resource.into())
-                        .expect("Resource must exist");
-                    let textselection: &TextSelection = resource
-                        .get(&textselection.into())
-                        .expect("TextSelection must exist");
-                    Some(TargetIterItem {
-                        item: textselection.wrap_in(resource).expect("wrap must succeed"),
-                        selectoriteritem: selectoritem,
-                    })
+        loop {
+            let selectoritem = self.iter.next();
+            if let Some(selectoritem) = selectoritem {
+                match selectoritem.selector().as_ref() {
+                    Selector::InternalTextSelector {
+                        resource,
+                        textselection,
+                    } => {
+                        let resource: &TextResource = self
+                            .iter
+                            .store
+                            .get(&resource.into())
+                            .expect("Resource must exist");
+                        let textselection: &TextSelection = resource
+                            .get(&textselection.into())
+                            .expect("TextSelection must exist");
+                        return Some(TargetIterItem {
+                            item: textselection.wrap_in(resource).expect("wrap must succeed"),
+                            selectoriteritem: selectoritem,
+                        });
+                    }
+                    _ => continue,
                 }
-                _ => self.next(),
+            } else {
+                return None;
             }
-        } else {
-            None
         }
     }
 }

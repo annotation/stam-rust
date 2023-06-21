@@ -793,24 +793,26 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
     type Item = TargetIterItem<'a, TextResource>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let selectoritem = self.iter.next();
-        if let Some(selectoritem) = selectoritem {
-            match selectoritem.selector().as_ref() {
-                Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                    let resource: &TextResource = self
-                        .iter
-                        .store
-                        .get(&res_id.into())
-                        .expect("Resource must exist");
-                    Some(TargetIterItem {
-                        item: resource.wrap_in(self.store).expect("wrap must succeed"),
-                        selectoriteritem: selectoritem,
-                    })
+        loop {
+            let selectoritem = self.iter.next();
+            if let Some(selectoritem) = selectoritem {
+                match selectoritem.selector().as_ref() {
+                    Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
+                        let resource: &TextResource = self
+                            .iter
+                            .store
+                            .get(&res_id.into())
+                            .expect("Resource must exist");
+                        return Some(TargetIterItem {
+                            item: resource.wrap_in(self.store).expect("wrap must succeed"),
+                            selectoriteritem: selectoritem,
+                        });
+                    }
+                    _ => continue,
                 }
-                _ => self.next(),
+            } else {
+                return None;
             }
-        } else {
-            None
         }
     }
 }
@@ -819,26 +821,28 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
     type Item = TargetIterItem<'a, AnnotationDataSet>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let selectoritem = self.iter.next();
-        if let Some(selectoritem) = selectoritem {
-            match selectoritem.selector().as_ref() {
-                Selector::DataSetSelector(set_id) => {
-                    let annotationset: &AnnotationDataSet = self
-                        .iter
-                        .store
-                        .get(&set_id.into())
-                        .expect("Dataset must exist");
-                    Some(TargetIterItem {
-                        item: annotationset
-                            .wrap_in(self.store)
-                            .expect("wrap must succeed"),
-                        selectoriteritem: selectoritem,
-                    })
+        loop {
+            let selectoritem = self.iter.next();
+            if let Some(selectoritem) = selectoritem {
+                match selectoritem.selector().as_ref() {
+                    Selector::DataSetSelector(set_id) => {
+                        let annotationset: &AnnotationDataSet = self
+                            .iter
+                            .store
+                            .get(&set_id.into())
+                            .expect("Dataset must exist");
+                        return Some(TargetIterItem {
+                            item: annotationset
+                                .wrap_in(self.store)
+                                .expect("wrap must succeed"),
+                            selectoriteritem: selectoritem,
+                        });
+                    }
+                    _ => continue,
                 }
-                _ => self.next(),
+            } else {
+                return None;
             }
-        } else {
-            None
         }
     }
 }
@@ -847,24 +851,26 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
     type Item = TargetIterItem<'a, Annotation>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let selectoritem = self.iter.next();
-        if let Some(selectoritem) = selectoritem {
-            match selectoritem.selector().as_ref() {
-                Selector::AnnotationSelector(a_id, _) => {
-                    let annotation: &Annotation = self
-                        .iter
-                        .store
-                        .get(&a_id.into())
-                        .expect("Annotation must exist");
-                    Some(TargetIterItem {
-                        item: annotation.wrap_in(self.store).expect("wrap must succeed"),
-                        selectoriteritem: selectoritem,
-                    })
+        loop {
+            let selectoritem = self.iter.next();
+            if let Some(selectoritem) = selectoritem {
+                match selectoritem.selector().as_ref() {
+                    Selector::AnnotationSelector(a_id, _) => {
+                        let annotation: &Annotation = self
+                            .iter
+                            .store
+                            .get(&a_id.into())
+                            .expect("Annotation must exist");
+                        return Some(TargetIterItem {
+                            item: annotation.wrap_in(self.store).expect("wrap must succeed"),
+                            selectoriteritem: selectoritem,
+                        });
+                    }
+                    _ => continue,
                 }
-                _ => self.next(),
+            } else {
+                return None;
             }
-        } else {
-            None
         }
     }
 }
