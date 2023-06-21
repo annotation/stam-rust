@@ -2031,3 +2031,98 @@ fn test_textselections_relative_offset() -> Result<(), StamError> {
     assert_eq!(offset.end, Cursor::BeginAligned(40));
     Ok(())
 }
+
+pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle), StamError> {
+    let mut store = AnnotationStore::new();
+    let mut text = String::with_capacity(n);
+    for _ in 0..n {
+        text.push('x');
+    }
+    let resource_handle =
+        store.insert(TextResource::new("dummy".into(), Config::default()).with_string(text))?;
+
+    let dataset_handle = store.insert(AnnotationDataSet::new(Config::default()).with_data(
+        "D1".into(),
+        "type".into(),
+        "bigram".into(),
+    )?)?;
+
+    for x in 0..n - 2 {
+        store.annotate(
+            AnnotationBuilder::new()
+                .with_target(SelectorBuilder::TextSelector(
+                    resource_handle.into(),
+                    Offset::simple(x, x + 2),
+                ))
+                .with_data_by_id(dataset_handle.into(), "D1".into()),
+        )?;
+    }
+    Ok((store, resource_handle))
+}
+
+#[test]
+fn test_textselections_scale_unsorted_iter() -> Result<(), StamError> {
+    let n = 100000;
+    let (store, resource_handle) = setup_example_7(n)?;
+
+    let resource = store
+        .resource(&resource_handle.into())
+        .expect("resource must exist");
+
+    //iterate over all textselections unsorted
+    let mut count = 0;
+    for _ in resource.textselections() {
+        count += 1;
+    }
+    assert_eq!(count, n - 2);
+
+    Ok(())
+}
+
+#[test]
+fn test_textselections_scale_sorted_iter() -> Result<(), StamError> {
+    let n = 100000;
+    let (store, resource_handle) = setup_example_7(n)?;
+
+    let resource = store
+        .resource(&resource_handle.into())
+        .expect("resource must exist");
+
+    //iterate over all textselections unsorted
+    let mut count = 0;
+    for _ in resource.iter() {
+        count += 1;
+    }
+    assert_eq!(count, n - 2);
+
+    Ok(())
+}
+
+#[test]
+fn test_textselections_scale_test_overlap() -> Result<(), StamError> {
+    let n = 100000;
+    let (store, resource_handle) = setup_example_7(n)?;
+
+    let resource = store
+        .resource(&resource_handle.into())
+        .expect("resource must exist");
+
+    let selection = resource.textselection(&Offset::simple(100, 105))?;
+    //iterate over all textselections unsorted
+
+    let mut count = 0;
+    for annotation in selection.find_annotations(
+        TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false,
+        },
+        &store,
+    ) {
+        println!("{:?}", annotation.id());
+        count += 1;
+    }
+
+    assert_eq!(count, 6);
+
+    Ok(())
+}
