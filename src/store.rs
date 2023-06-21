@@ -6,6 +6,7 @@ use std::ops::Deref;
 use std::slice::{Iter, IterMut};
 
 use nanoid::nanoid;
+use smallvec::SmallVec;
 
 use crate::config::Configurable;
 use crate::error::StamError;
@@ -809,6 +810,25 @@ where
             Self::Owned { .. } => true,
             _ => false,
         }
+    }
+}
+
+pub struct WrappedItemSet<'store, T>
+where
+    T: Storable,
+{
+    items: SmallVec<[WrappedItem<'store, T>; 1]>,
+}
+
+impl<'store, T> IntoIterator for WrappedItemSet<'store, T>
+where
+    T: Storable,
+{
+    type Item = WrappedItem<'store, T>;
+    type IntoIter = <SmallVec<[WrappedItem<'store, T>; 1]> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
     }
 }
 

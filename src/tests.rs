@@ -760,3 +760,163 @@ fn textselection_out_of_bounds() {
     let result = resource.textselection(&Offset::simple(0, 999));
     assert!(result.is_err());
 }
+
+#[test]
+fn search_1() {
+    /* Text Fabric query:
+    book name=Genesis|Exodus
+       chapter number=2
+          sentence
+              vb:word pos=verb gender=feminine number=plural
+              nn:word pos=noun gender=feminine number=singular
+    nn < vb
+    */
+
+    let store =
+        AnnotationStore::from_file("test.annotationstore.stam.json", Config::default()).unwrap();
+
+    &store
+        .find_data(
+            "someset".into(),
+            Some("name".into()),
+            DataOperator::Or(vec![
+                DataOperator::Equals("Genesis"),
+                DataOperator::Equals("Exodus"),
+            ]),
+        )
+        .into_iter()
+        .flatten()
+        .filter(|data| data.test(Some(&"type".into()), &DataOperator::Equals("book")))
+        .map(|data| data.annotations(&store))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|annotation_book| annotation_book.resources())
+        .flatten()
+        .map(|resource_book| {
+            &store
+                .find_data(
+                    "someset".into(),
+                    Some("type".into()),
+                    DataOperator::Equals("chapter"),
+                )
+                .into_iter()
+                .flatten()
+                .filter(|data| data.test(Some(&"number".into()), &DataOperator::EqualsInt(2)))
+                .map(|data| data.annotations(&store))
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter(|annotation_chapter| {
+                    annotation_chapter
+                        .resources()
+                        .any(|resource2| *resource_book == *resource2)
+                })
+                .map(|annotation| {
+                    // V-- make a generic SelectionSet<TextSelection>
+                    let text_chapter: TextSelectionSet = annotation.textselections().collect();
+                    text_chapter
+                })
+                .map(|textselectionset| {})
+        });
+
+    &store.select_resources() // -> SelectQuery<TextResource>
+        .constrain(FilterData(
+            Some("someset".into()),
+            Some("name".into()),
+            DataOperator::Or(vec![
+                DataOperator::Equals("Genesis"),
+                DataOperator::Equals("Exodus"),
+            ]),
+        ))
+        .constrain(FilterData(
+            Some("someset".into()),
+            Some("type".into()),
+            DataOperator::Equals("book")
+        ))
+        .map(|resource_book| {
+            &store.select_text() // -> SelectQuery<TextSelection>
+                .constrain(FilterData(
+                    Some("someset".into()),
+                    Some("type".into()),
+                    DataOperator::Equals("chapter"),
+                ))
+                .constrain(FilterData(
+                    Some("someset".into()),
+                    Some("number".into()),
+                    DataOperator::EqualsInt(2),
+                ))
+                .constrain(Resource(resource_book))
+                .map(|text_chapter| {
+                    &store.select_text() 
+                        .constrain(TextRelation(text_chapter, TextSelectionOperator::Embeds))
+                        .constrain(FilterData(
+                            Some("someset".into()),
+                            Some("type".into()),
+                            DataOperator::Equals("sentence"),
+                        ))
+                        .map(|text_sentence| {
+                            &store.select_text()
+                                .constrain(TextRelation(text_sentence, TextSelectionOperator::Embeds))
+                                .constrain(FilterData(
+                                    Some("someset".into()),
+                                    Some("type".into()),
+                                    DataOperator::Equals("nn"),
+                                ))
+                                .map(|text_nn| {
+                                    &store.select_text()
+                                        .constrain(TextRelation(text_nn, TextSelectionOperator::LeftAdjacent))
+                                        .constrain(FilterData(
+                                            Some("someset".into()),
+                                            Some("type".into()),
+                                            DataOperator::Equals("vb"),
+                                        ))
+                                        .map(|text_vb| {
+                                            (resource_book, text_chapter, text_sentence, text_nn, text_vb)
+                                        })
+                                })
+                        })
+
+                    
+                })
+                
+
+        })
+
+
+
+    Ok(())
+
+    /*
+    store
+        .resources()
+        .filter(|resource| {
+            resource
+                .annotations()
+                .into_iter()
+                .flatten()
+                .filter(|annotation| {
+                    annotation.test_data(
+                        Some("someset".into()),
+                        Some("type".into()),
+                        DataOperator::Equals("book"),
+                    ) && annotation.test_data(
+                        Some("someset".into()),
+                        Some("name".into()),
+                        DataOperator::Or(vec![
+                            DataOperator::Equals("Genesis"),
+                            DataOperator::Equals("Exodus"),
+                        ]),
+                    )
+                })
+                .next()
+                .is_some()
+        })
+        .map(|resource|
+            store.find_data()
+
+
+        )
+        .collect();
+    */
+}
