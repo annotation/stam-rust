@@ -1693,13 +1693,15 @@ impl<'store, 'q> Iterator for FindTextSelectionsIter<'store, 'q> {
         if self.drain_buffer {
             self.buffer.pop_front()
         } else {
-            match self.next_textselection() {
-                (None, false) => {
-                    self.update();
-                    None
+            loop {
+                match self.next_textselection() {
+                    (None, false) => {
+                        self.update();
+                        return None;
+                    }
+                    (result, false) => return result,
+                    (_, true) => continue, //loop
                 }
-                (result, false) => result,
-                (_, true) => self.next(), //recurse
             }
         }
     }
@@ -1712,13 +1714,15 @@ impl<'store> Iterator for FindTextSelectionsOwnedIter<'store> {
         if self.drain_buffer {
             self.buffer.pop_front()
         } else {
-            match self.next_textselection() {
-                (None, false) => {
-                    self.update();
-                    None
+            loop {
+                match self.next_textselection() {
+                    (None, false) => {
+                        self.update();
+                        return None;
+                    }
+                    (result, false) => return result,
+                    (_, true) => continue, //loop
                 }
-                (result, false) => result,
-                (_, true) => self.next(), //recurse
             }
         }
     }
