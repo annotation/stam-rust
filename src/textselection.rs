@@ -1744,6 +1744,7 @@ trait FindTextSelections<'store> {
     /// This method returns an iterator over TextSelections in the resource
     /// It attempts to return the smallest sliced iterator possible, depending
     /// on the operator
+    /// The reference text selection is always in the subject position for the associated [`TextSelectionOperator`] (`operator()`)
     fn new_textseliter(&self, reftextselection: &TextSelection) -> TextSelectionIter<'store> {
         match self.operator() {
             TextSelectionOperator::Embeds { .. } => self
@@ -1756,6 +1757,9 @@ trait FindTextSelections<'store> {
             TextSelectionOperator::Precedes { .. } | TextSelectionOperator::LeftAdjacent { .. } => {
                 self.resource()
                     .range(reftextselection.end(), self.resource().textlen())
+            }
+            TextSelectionOperator::Overlaps { .. } | TextSelectionOperator::Embedded { .. } => {
+                self.resource().range(0, reftextselection.end())
             }
             _ => self.resource().iter(), //return the maximum slice
         }
