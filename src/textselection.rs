@@ -1760,7 +1760,7 @@ trait FindTextSelections<'store> {
             }
             TextSelectionOperator::Overlaps { .. } | TextSelectionOperator::Embedded { .. } => {
                 //this is more efficient for reference text selections at the beginning of a text than at the end
-                //(we could reverse the iterator to more efficiently find fragments more at the end, but then we have bookkeeping to do to also revert
+                //(we could reverse the iterator to more efficiently find fragments more at the end, but then we have bookkeeping to do to store and finally revert
                 //the results, as they need to be in textual order)
                 self.resource().range(0, reftextselection.end())
             }
