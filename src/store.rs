@@ -920,7 +920,7 @@ where
     }
 }
 
-///////////////////////////////// Any
+///////////////////////////////// Item
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -1335,5 +1335,75 @@ where
 {
     fn eq(&self, other: &&T) -> bool {
         self.handle().is_some() && (self.handle() == other.handle())
+    }
+}
+
+pub struct ItemSet<'a, T>
+where
+    T: Storable,
+{
+    items: SmallVec<[Item<'a, T>; 1]>,
+}
+
+impl<'a, T> ItemSet<'a, T>
+where
+    T: Storable,
+{
+    pub fn new_empty() -> Self {
+        ItemSet { items: smallvec!() }
+    }
+
+    pub fn new(item: Item<'a, T>) -> Self {
+        ItemSet {
+            items: smallvec!(item),
+        }
+    }
+
+    pub fn add(&mut self, item: Item<'a, T>) {
+        self.items.push(item)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Item<'a, T>> {
+        self.items.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for ItemSet<'a, T>
+where
+    T: Storable,
+{
+    type Item = Item<'a, T>;
+    type IntoIter = <SmallVec<[Item<'a, T>; 1]> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
+impl<'store, T> From<Item<'store, T>> for ItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from(item: Item<'store, T>) -> Self {
+        ItemSet {
+            items: smallvec!(item),
+        }
+    }
+}
+
+impl<'store, T> FromIterator<Item<'store, T>> for ItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        T: Storable,
+        I: IntoIterator<Item = Item<'store, T>>,
+    {
+        let mut itemset = ItemSet { items: smallvec!() };
+        for item in iter {
+            itemset.add(item)
+        }
+        itemset
     }
 }
