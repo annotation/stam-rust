@@ -34,15 +34,27 @@ where
     }
 }
 
-pub trait SelectQueryIterator<'store>: Iterator
+pub trait SelectQueryIterator: Iterator
 where
     Self::QueryItem: Storable,
 {
     type QueryItem;
 
     /// Returns the iterator
-    fn iterator(&self) -> Option<Box<dyn Iterator<Item = WrappedItem<'store, Self::QueryItem>>>>;
     fn init_iterator(&mut self);
+}
+
+impl<'store, 'q> SelectQueryIterator for SelectQuery<'store, 'q, TextResource> {
+    type QueryItem = TextResource;
+
+    fn init_iterator(&mut self) {
+        if let Some(constraint) = self.constraints.iter().next() {
+        } else {
+            //unconstrained
+            let iterator = self.store.resources();
+            self.iterator = Some(Box::new(iterator));
+        }
+    }
 }
 
 pub enum Constraint<'q> {
@@ -52,7 +64,7 @@ pub enum Constraint<'q> {
         value: DataOperator<'q>,
     },
     Resource(Item<'q, TextResource>),
-    TextRelation(ItemSet<TextSelection>, TextSelectionOperator),
+    //    TextRelation(ItemSet<TextSelection>, TextSelectionOperator),
     //for later:
     //AnnotationRelationIn(SelectionSet<Annotation>),
     //AnnotationRelationOut(SelectionSet<Annotation>),
@@ -62,13 +74,19 @@ pub enum Constraint<'q> {
 impl<'store, 'q, T> Iterator for SelectQuery<'store, 'q, T>
 where
     T: Storable,
-    Self: SelectQueryIterator<'store, QueryItem = T>,
+    Self: SelectQueryIterator<QueryItem = T>,
 {
     type Item = WrappedItemSet<'store, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(iter) = self.iterator().as_mut() {
+            if let Some(iter) = self.iterator.as_mut() {
+                if let Some(item) = iter.next() {
+                    //process further constraints:
+                    for constraint in self.constraints.iter().skip(1) {}
+                } else {
+                    return None;
+                }
             } else {
                 self.init_iterator();
             }

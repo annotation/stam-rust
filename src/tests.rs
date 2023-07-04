@@ -820,7 +820,8 @@ fn search_1() {
                 .map(|textselectionset| {})
         });
 
-    &store.select_resources() // -> SelectQuery<TextResource>
+    &store
+        .select_resources() // -> SelectQuery<TextResource>
         .constrain(FilterData(
             Some("someset".into()),
             Some("name".into()),
@@ -832,10 +833,11 @@ fn search_1() {
         .constrain(FilterData(
             Some("someset".into()),
             Some("type".into()),
-            DataOperator::Equals("book")
+            DataOperator::Equals("book"),
         ))
         .map(|resource_book| {
-            &store.select_text() // -> SelectQuery<TextSelection>
+            &store
+                .select_text() // -> SelectQuery<TextSelection>
                 .constrain(FilterData(
                     Some("someset".into()),
                     Some("type".into()),
@@ -848,7 +850,8 @@ fn search_1() {
                 ))
                 .constrain(Resource(resource_book))
                 .map(|text_chapter| {
-                    &store.select_text() 
+                    &store
+                        .select_text()
                         .constrain(TextRelation(text_chapter, TextSelectionOperator::Embeds))
                         .constrain(FilterData(
                             Some("someset".into()),
@@ -856,34 +859,42 @@ fn search_1() {
                             DataOperator::Equals("sentence"),
                         ))
                         .map(|text_sentence| {
-                            &store.select_text()
-                                .constrain(TextRelation(text_sentence, TextSelectionOperator::Embeds))
+                            &store
+                                .select_text()
+                                .constrain(TextRelation(
+                                    text_sentence,
+                                    TextSelectionOperator::Embeds,
+                                ))
                                 .constrain(FilterData(
                                     Some("someset".into()),
                                     Some("type".into()),
                                     DataOperator::Equals("nn"),
                                 ))
                                 .map(|text_nn| {
-                                    &store.select_text()
-                                        .constrain(TextRelation(text_nn, TextSelectionOperator::LeftAdjacent))
+                                    &store
+                                        .select_text()
+                                        .constrain(TextRelation(
+                                            text_nn,
+                                            TextSelectionOperator::LeftAdjacent,
+                                        ))
                                         .constrain(FilterData(
                                             Some("someset".into()),
                                             Some("type".into()),
                                             DataOperator::Equals("vb"),
                                         ))
                                         .map(|text_vb| {
-                                            (resource_book, text_chapter, text_sentence, text_nn, text_vb)
+                                            (
+                                                resource_book,
+                                                text_chapter,
+                                                text_sentence,
+                                                text_nn,
+                                                text_vb,
+                                            )
                                         })
                                 })
                         })
-
-                    
                 })
-                
-
-        })
-
-
+        });
 
     Ok(())
 
