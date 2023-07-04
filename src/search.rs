@@ -34,24 +34,15 @@ where
     }
 }
 
-pub trait SelectQueryIterator<'store, T>
+pub trait SelectQueryIterator<'store>: Iterator
 where
-    T: Storable,
+    Self::QueryItem: Storable,
 {
-    /// REturns the iterator
-    fn iterator(&self) -> Option<Box<dyn Iterator<Item = WrappedItem<'store, T>>>>;
+    type QueryItem;
+
+    /// Returns the iterator
+    fn iterator(&self) -> Option<Box<dyn Iterator<Item = WrappedItem<'store, Self::QueryItem>>>>;
     fn init_iterator(&mut self);
-}
-
-impl<'store, 'q, T> SelectQueryIterator<'store, T> for SelectQuery<'store, 'q, T> {
-    fn iterator(&self) -> Option<Box<dyn Iterator<Item = WrappedItem<'store, T>>>> {
-        self.iterator
-    }
-}
-
-impl<'store, 'q> SelectQueryIterator<'store, TextResource>
-    for SelectQuery<'store, 'q, TextResource>
-{
 }
 
 pub enum Constraint<'q> {
@@ -68,10 +59,10 @@ pub enum Constraint<'q> {
     //DataSet(Item<'a, AnnotationDataSet>),
 }
 
-impl<'store, 'q, T, Q> Iterator for Q
+impl<'store, 'q, T> Iterator for SelectQuery<'store, 'q, T>
 where
     T: Storable,
-    Q: SelectQueryIterator<'store, T>,
+    Self: SelectQueryIterator<'store, QueryItem = T>,
 {
     type Item = WrappedItemSet<'store, T>;
 
