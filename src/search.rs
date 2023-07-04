@@ -13,7 +13,7 @@ where
 {
     store: &'store AnnotationStore,
     constraints: Vec<Constraint<'q>>,
-    iterator: Option<Box<dyn Iterator<Item = WrappedItem<'store, T>>>>,
+    iterator: Option<Box<dyn Iterator<Item = WrappedItem<'store, T>> + 'store>>,
 }
 
 impl<'store, 'q, T> SelectQuery<'store, 'q, T>
