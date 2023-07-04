@@ -824,6 +824,16 @@ impl<'store, T> WrappedItemSet<'store, T>
 where
     T: Storable,
 {
+    pub fn new_empty() -> Self {
+        WrappedItemSet { items: smallvec!() }
+    }
+
+    pub fn new(item: WrappedItem<'store, T>) -> Self {
+        WrappedItemSet {
+            items: smallvec!(item),
+        }
+    }
+
     pub fn add(&mut self, item: WrappedItem<'store, T>) {
         self.items.push(item)
     }
