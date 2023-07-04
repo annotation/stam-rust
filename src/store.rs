@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::slice::{Iter, IterMut};
 
 use nanoid::nanoid;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::config::Configurable;
 use crate::error::StamError;
@@ -829,6 +829,17 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         self.items.into_iter()
+    }
+}
+
+impl<'store, T> From<WrappedItem<'store, T>> for WrappedItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from(item: WrappedItem<'store, T>) -> Self {
+        WrappedItemSet {
+            items: smallvec!(item),
+        }
     }
 }
 

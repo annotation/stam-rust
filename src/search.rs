@@ -63,7 +63,7 @@ pub enum Constraint<'q> {
         key: Item<'q, DataKey>,
         value: DataOperator<'q>,
     },
-    Resource(Item<'q, TextResource>),
+    TextResource(Item<'q, TextResource>),
     //    TextRelation(ItemSet<TextSelection>, TextSelectionOperator),
     //for later:
     //AnnotationRelationIn(SelectionSet<Annotation>),
@@ -77,7 +77,7 @@ where
     Self: SelectQueryIterator<'store, QueryItem = T>,
     AnnotationStore: StoreFor<T>,
 {
-    type Item = WrappedItem<'store, T>;
+    type Item = WrappedItemSet<'store, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -92,7 +92,7 @@ where
                         }
                     }
                     if constraints_met {
-                        return Some(item);
+                        return Some(item.into());
                     }
                 } else {
                     return None;
@@ -131,7 +131,7 @@ where
                         self.iterator = Some(Box::new(iterator));
                     }
                 }
-                _ => unimplemented!(),
+                _ => unimplemented!(), //TODO: remove
             }
         } else {
             //unconstrained
@@ -160,10 +160,72 @@ where
                 }
                 return false;
             }
-            _ => unimplemented!(),
+            _ => unimplemented!(), //TODO: remove
         }
     }
 }
+
+/*
+impl<'store, 'q> SelectQueryIterator<'store> for SelectQuery<'store, 'q, TextSelection>
+where
+    'q: 'store,
+{
+    type QueryItem = TextSelection;
+
+    /// Initializes the iterator based on the first constraint
+    fn init_iterator(&mut self) {
+        if let Some(constraint) = self.constraints.iter().next() {
+            match constraint {
+                Constraint::FilterData { set, key, value } => {
+                    if let Some(iterator) =
+                        self.store
+                            .find_data(set.clone(), Some(key.clone()), value.clone())
+                    //MAYBE TODO: optimize the clones out
+                    {
+                        let iterator = iterator
+                            .map(|data| data.annotations(self.store))
+                            .into_iter()
+                            .flatten()
+                            .flatten()
+                            .map(|annotation| annotation.textselections().collect())
+                            .map(|resource| resource.item);
+                        self.iterator = Some(Box::new(iterator));
+                    }
+                }
+                _ => unimplemented!(), //TODO: remove
+            }
+        } else {
+            //unconstrained
+            let iterator = self.store.resources();
+            self.iterator = Some(Box::new(iterator));
+        }
+    }
+
+    fn test_item(&self, constraint: &Constraint, item: &WrappedItem<TextSelection>) -> bool {
+        match constraint {
+            Constraint::FilterData { set, key, value } => {
+                if let Some(iter) = item.annotations_metadata() {
+                    for annotation in iter {
+                        for data in annotation.data() {
+                            if self
+                                .store
+                                .wrap(data.set())
+                                .expect("wrap must succeed")
+                                .test(set)
+                                && data.test(Some(&key), &value)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+            _ => unimplemented!(), //TODO: remove
+        }
+    }
+}
+*/
 
 impl AnnotationStore {
     pub fn select_resources<'a>(&'a self) -> SelectQuery<'a, '_, TextResource> {
