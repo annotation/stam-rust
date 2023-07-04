@@ -30,6 +30,7 @@ pub enum DataValue {
     List(Vec<DataValue>),
 }
 
+#[derive(Clone)]
 pub enum DataOperator<'a> {
     Null,
     Any,

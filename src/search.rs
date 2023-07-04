@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKey;
@@ -40,15 +42,39 @@ where
 {
     type QueryItem;
 
-    /// Returns the iterator
+    /// Initializes the iterator based on the first constraint
     fn init_iterator(&mut self);
 }
 
-impl<'store, 'q> SelectQueryIterator for SelectQuery<'store, 'q, TextResource> {
+impl<'store, 'q> SelectQueryIterator for SelectQuery<'store, 'q, TextResource>
+where
+    'q: 'store,
+{
     type QueryItem = TextResource;
 
+    /// Initializes the iterator based on the first constraint
     fn init_iterator(&mut self) {
         if let Some(constraint) = self.constraints.iter().next() {
+            match constraint {
+                Constraint::FilterData { set, key, value } => {
+                    if let Some(iterator) =
+                        self.store
+                            .find_data(set.clone(), Some(key.clone()), value.clone())
+                    //MAYBE TODO: optimize the clones out
+                    {
+                        let iterator = iterator
+                            .map(|data| data.annotations(self.store))
+                            .into_iter()
+                            .flatten()
+                            .flatten()
+                            .map(|annotation| annotation.resources())
+                            .flatten()
+                            .map(|resource| resource.item);
+                        self.iterator = Some(Box::new(iterator));
+                    }
+                }
+                _ => !unimplemented!(),
+            }
         } else {
             //unconstrained
             let iterator = self.store.resources();
@@ -59,8 +85,8 @@ impl<'store, 'q> SelectQueryIterator for SelectQuery<'store, 'q, TextResource> {
 
 pub enum Constraint<'q> {
     FilterData {
-        set: Option<Item<'q, AnnotationDataSet>>,
-        key: Option<Item<'q, DataKey>>,
+        set: Item<'q, AnnotationDataSet>,
+        key: Item<'q, DataKey>,
         value: DataOperator<'q>,
     },
     Resource(Item<'q, TextResource>),
