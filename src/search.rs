@@ -164,3 +164,9 @@ where
         }
     }
 }
+
+impl AnnotationStore {
+    pub fn select_resources<'a>(&'a self) -> SelectQuery<'a, '_, TextResource> {
+        SelectQuery::new(self)
+    }
+}

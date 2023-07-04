@@ -822,38 +822,41 @@ fn search_1() {
 
     &store
         .select_resources() // -> SelectQuery<TextResource>
-        .constrain(FilterData(
-            Some("someset".into()),
-            Some("name".into()),
-            DataOperator::Or(vec![
+        .constrain(Constraint::FilterData {
+            set: "someset".into(),
+            key: "name".into(),
+            value: DataOperator::Or(vec![
                 DataOperator::Equals("Genesis"),
                 DataOperator::Equals("Exodus"),
             ]),
-        ))
-        .constrain(FilterData(
-            Some("someset".into()),
-            Some("type".into()),
-            DataOperator::Equals("book"),
-        ))
+        })
+        .constrain(Constraint::FilterData {
+            set: "someset".into(),
+            key: "type".into(),
+            value: DataOperator::Equals("book"),
+        })
         .map(|resource_book| {
             &store
                 .select_text() // -> SelectQuery<TextSelection>
-                .constrain(FilterData(
+                .constrain(Constraint::FilterData(
                     Some("someset".into()),
                     Some("type".into()),
                     DataOperator::Equals("chapter"),
                 ))
-                .constrain(FilterData(
+                .constrain(Constraint::FilterData(
                     Some("someset".into()),
                     Some("number".into()),
                     DataOperator::EqualsInt(2),
                 ))
-                .constrain(Resource(resource_book))
+                .constrain(Constraint::Resource(resource_book))
                 .map(|text_chapter| {
                     &store
                         .select_text()
-                        .constrain(TextRelation(text_chapter, TextSelectionOperator::Embeds))
-                        .constrain(FilterData(
+                        .constrain(Constraint::TextRelation(
+                            text_chapter,
+                            TextSelectionOperator::Embeds,
+                        ))
+                        .constrain(Constraint::FilterData(
                             Some("someset".into()),
                             Some("type".into()),
                             DataOperator::Equals("sentence"),
