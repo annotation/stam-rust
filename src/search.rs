@@ -49,6 +49,43 @@ where
     fn test_item<'store>(&self, item: &WrappedItem<'store, Self::QueryItem>) -> bool;
 }
 
+pub enum Constraint<'q> {
+    FilterData {
+        set: Item<'q, AnnotationDataSet>,
+        key: Item<'q, DataKey>,
+        value: DataOperator<'q>,
+    },
+    Resource(Item<'q, TextResource>),
+    //    TextRelation(ItemSet<TextSelection>, TextSelectionOperator),
+    //for later:
+    //AnnotationRelationIn(SelectionSet<Annotation>),
+    //AnnotationRelationOut(SelectionSet<Annotation>),
+    //DataSet(Item<'a, AnnotationDataSet>),
+}
+
+impl<'store, 'q, T> Iterator for SelectQuery<'store, 'q, T>
+where
+    T: Storable,
+    Self: SelectQueryIterator<QueryItem = T>,
+{
+    type Item = WrappedItem<'store, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(iter) = self.iterator.as_mut() {
+                if let Some(item) = iter.next() {
+                    //process further constraints:
+                    self.test_item(&item);
+                } else {
+                    return None;
+                }
+            } else {
+                self.init_iterator();
+            }
+        }
+    }
+}
+
 impl<'store, 'q> SelectQueryIterator for SelectQuery<'store, 'q, TextResource>
 where
     'q: 'store,
@@ -89,7 +126,7 @@ where
         for constraint in self.constraints.iter().skip(1) {
             match constraint {
                 Constraint::FilterData { set, key, value } => {
-                    if let Some(iter) = item.annotations() {
+                    if let Some(iter) = item.annotations_metadata() {
                         for annotation in iter {
                             for data in annotation.data() {
                                 if self
@@ -110,42 +147,5 @@ where
             }
         }
         true
-    }
-}
-
-pub enum Constraint<'q> {
-    FilterData {
-        set: Item<'q, AnnotationDataSet>,
-        key: Item<'q, DataKey>,
-        value: DataOperator<'q>,
-    },
-    Resource(Item<'q, TextResource>),
-    //    TextRelation(ItemSet<TextSelection>, TextSelectionOperator),
-    //for later:
-    //AnnotationRelationIn(SelectionSet<Annotation>),
-    //AnnotationRelationOut(SelectionSet<Annotation>),
-    //DataSet(Item<'a, AnnotationDataSet>),
-}
-
-impl<'store, 'q, T> Iterator for SelectQuery<'store, 'q, T>
-where
-    T: Storable,
-    Self: SelectQueryIterator<QueryItem = T>,
-{
-    type Item = WrappedItem<'store, T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(iter) = self.iterator.as_mut() {
-                if let Some(item) = iter.next() {
-                    //process further constraints:
-                    self.test_item(&item);
-                } else {
-                    return None;
-                }
-            } else {
-                self.init_iterator();
-            }
-        }
     }
 }
