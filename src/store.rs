@@ -820,6 +820,15 @@ where
     items: SmallVec<[WrappedItem<'store, T>; 1]>,
 }
 
+impl<'store, T> WrappedItemSet<'store, T>
+where
+    T: Storable,
+{
+    pub fn add(&mut self, item: WrappedItem<'store, T>) {
+        self.items.push(item)
+    }
+}
+
 impl<'store, T> IntoIterator for WrappedItemSet<'store, T>
 where
     T: Storable,
@@ -840,6 +849,23 @@ where
         WrappedItemSet {
             items: smallvec!(item),
         }
+    }
+}
+
+impl<'store, T> FromIterator<WrappedItem<'store, T>> for WrappedItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        T: Storable,
+        I: IntoIterator<Item = WrappedItem<'store, T>>,
+    {
+        let mut itemset = WrappedItemSet { items: smallvec!() };
+        for item in iter {
+            itemset.add(item)
+        }
+        itemset
     }
 }
 
