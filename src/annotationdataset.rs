@@ -933,4 +933,9 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationDataSet> {
             None
         }
     }
+
+    /// Tests whether two AnnotationDataSets are the same
+    pub fn test(&'slf self, other: &Item<AnnotationDataSet>) -> bool {
+        self.handle() == other.to_handle(self.store())
+    }
 }

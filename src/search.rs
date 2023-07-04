@@ -44,6 +44,9 @@ where
 
     /// Initializes the iterator based on the first constraint
     fn init_iterator(&mut self);
+
+    /// Tests a retrieved item against remaining constraints
+    fn test_item<'store>(&self, item: &WrappedItem<'store, Self::QueryItem>) -> bool;
 }
 
 impl<'store, 'q> SelectQueryIterator for SelectQuery<'store, 'q, TextResource>
@@ -73,13 +76,40 @@ where
                         self.iterator = Some(Box::new(iterator));
                     }
                 }
-                _ => !unimplemented!(),
+                _ => unimplemented!(),
             }
         } else {
             //unconstrained
             let iterator = self.store.resources();
             self.iterator = Some(Box::new(iterator));
         }
+    }
+
+    fn test_item(&self, item: &WrappedItem<TextResource>) -> bool {
+        for constraint in self.constraints.iter().skip(1) {
+            match constraint {
+                Constraint::FilterData { set, key, value } => {
+                    if let Some(iter) = item.annotations() {
+                        for annotation in iter {
+                            for data in annotation.data() {
+                                if self
+                                    .store
+                                    .wrap(data.set())
+                                    .expect("wrap must succeed")
+                                    .test(set)
+                                    && data.test(Some(&key), &value)
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    return false;
+                }
+                _ => unimplemented!(),
+            }
+        }
+        true
     }
 }
 
@@ -102,14 +132,14 @@ where
     T: Storable,
     Self: SelectQueryIterator<QueryItem = T>,
 {
-    type Item = WrappedItemSet<'store, T>;
+    type Item = WrappedItem<'store, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(iter) = self.iterator.as_mut() {
                 if let Some(item) = iter.next() {
                     //process further constraints:
-                    for constraint in self.constraints.iter().skip(1) {}
+                    self.test_item(&item);
                 } else {
                     return None;
                 }
