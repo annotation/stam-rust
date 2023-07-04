@@ -837,6 +837,10 @@ where
     pub fn add(&mut self, item: WrappedItem<'store, T>) {
         self.items.push(item)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &WrappedItem<'store, T>> {
+        self.items.iter()
+    }
 }
 
 impl<'store, T> IntoIterator for WrappedItemSet<'store, T>
