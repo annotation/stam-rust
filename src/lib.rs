@@ -37,7 +37,7 @@ pub use json::{FromJson, ToJson};
 pub use resources::{
     PositionMode, TextResource, TextResourceBuilder, TextResourceHandle, TextSelectionIter,
 };
-pub use search::{Constraint, SelectQuery, SelectQueryIterator};
+pub use search::{Constraint, SelectQuery};
 pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };

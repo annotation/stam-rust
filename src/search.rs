@@ -15,7 +15,7 @@ where
 {
     store: &'store AnnotationStore,
     constraints: Vec<Constraint<'q>>,
-    iterator: Option<Box<dyn Iterator<Item = WrappedItem<'store, T>> + 'store>>,
+    iterator: Option<Box<dyn Iterator<Item = WrappedItemSet<'store, T>> + 'store>>,
 }
 
 impl<'store, 'q, T> SelectQuery<'store, 'q, T>
@@ -40,7 +40,8 @@ where
     }
 }
 
-pub trait SelectQueryIterator<'store>
+/// This internal trait abstracts over some common methods used by the Iterator implementation for SelectQuery
+trait SelectQueryIterator<'store>
 where
     Self::QueryItem: Storable,
 {
@@ -50,10 +51,10 @@ where
     fn init_iterator(&mut self);
 
     /// Tests a retrieved item against remaining constraints
-    fn test_item(
+    fn test_itemset(
         &self,
         constraint: &Constraint,
-        item: &WrappedItem<'store, Self::QueryItem>,
+        item: &WrappedItemSet<'store, Self::QueryItem>,
     ) -> bool;
 }
 
@@ -86,7 +87,7 @@ where
                     //process further constraints:
                     let mut constraints_met = true;
                     for constraint in self.constraints.iter().skip(1) {
-                        if !self.test_item(constraint, &item) {
+                        if !self.test_itemset(constraint, &item) {
                             constraints_met = false;
                             break;
                         }
@@ -127,45 +128,54 @@ where
                             .flatten()
                             .map(|annotation| annotation.resources())
                             .flatten()
-                            .map(|resource| resource.item);
+                            .map(|resource| WrappedItemSet::new(resource.item));
                         self.iterator = Some(Box::new(iterator));
                     }
                 }
                 _ => unimplemented!(), //TODO: remove
             }
         } else {
-            //unconstrained
-            let iterator = self.store.resources();
+            //unconstrained: all resources
+            let iterator = self
+                .store
+                .resources()
+                .map(|resource| WrappedItemSet::new(resource));
             self.iterator = Some(Box::new(iterator));
         }
     }
 
-    fn test_item(&self, constraint: &Constraint, item: &WrappedItem<TextResource>) -> bool {
-        match constraint {
-            Constraint::FilterData { set, key, value } => {
-                if let Some(iter) = item.annotations_metadata() {
-                    for annotation in iter {
-                        for data in annotation.data() {
-                            if self
-                                .store
-                                .wrap(data.set())
-                                .expect("wrap must succeed")
-                                .test(set)
-                                && data.test(Some(&key), &value)
-                            {
-                                return true;
+    fn test_itemset(
+        &self,
+        constraint: &Constraint,
+        itemset: &WrappedItemSet<TextResource>,
+    ) -> bool {
+        //if a single item in an itemset matches, the itemset as a whole is valid
+        for item in itemset.iter() {
+            match constraint {
+                Constraint::FilterData { set, key, value } => {
+                    if let Some(iter) = item.annotations_metadata() {
+                        for annotation in iter {
+                            for data in annotation.data() {
+                                if self
+                                    .store
+                                    .wrap(data.set())
+                                    .expect("wrap must succeed")
+                                    .test(set)
+                                    && data.test(Some(&key), &value)
+                                {
+                                    return true;
+                                }
                             }
                         }
                     }
                 }
-                return false;
+                _ => unimplemented!(), //TODO: remove
             }
-            _ => unimplemented!(), //TODO: remove
         }
+        false
     }
 }
 
-/*
 impl<'store, 'q> SelectQueryIterator<'store> for SelectQuery<'store, 'q, TextSelection>
 where
     'q: 'store,
@@ -187,45 +197,63 @@ where
                             .into_iter()
                             .flatten()
                             .flatten()
-                            .map(|annotation| annotation.textselections().collect())
-                            .map(|resource| resource.item);
+                            .map(|annotation| {
+                                let itemset: WrappedItemSet<'store, TextSelection> =
+                                    annotation.textselections().collect();
+                                itemset
+                            });
                         self.iterator = Some(Box::new(iterator));
                     }
                 }
                 _ => unimplemented!(), //TODO: remove
             }
         } else {
-            //unconstrained
-            let iterator = self.store.resources();
+            //unconstrained: all textselections in all resources (order not guaranteed!)
+            let iterator = self
+                .store
+                .resources()
+                .map(|resource| {
+                    resource
+                        .unwrap()
+                        .textselections()
+                        .map(|textselection| WrappedItemSet::new(textselection))
+                })
+                .flatten();
             self.iterator = Some(Box::new(iterator));
         }
     }
 
-    fn test_item(&self, constraint: &Constraint, item: &WrappedItem<TextSelection>) -> bool {
-        match constraint {
-            Constraint::FilterData { set, key, value } => {
-                if let Some(iter) = item.annotations_metadata() {
-                    for annotation in iter {
-                        for data in annotation.data() {
-                            if self
-                                .store
-                                .wrap(data.set())
-                                .expect("wrap must succeed")
-                                .test(set)
-                                && data.test(Some(&key), &value)
-                            {
-                                return true;
+    fn test_itemset(
+        &self,
+        constraint: &Constraint,
+        itemset: &WrappedItemSet<TextSelection>,
+    ) -> bool {
+        //if a single item in an itemset matches, the itemset as a whole is valid
+        for item in itemset.iter() {
+            match constraint {
+                Constraint::FilterData { set, key, value } => {
+                    if let Some(iter) = item.annotations(self.store) {
+                        for annotation in iter {
+                            for data in annotation.data() {
+                                if self
+                                    .store
+                                    .wrap(data.set())
+                                    .expect("wrap must succeed")
+                                    .test(set)
+                                    && data.test(Some(&key), &value)
+                                {
+                                    return true;
+                                }
                             }
                         }
                     }
                 }
-                return false;
+                _ => unimplemented!(), //TODO: remove
             }
-            _ => unimplemented!(), //TODO: remove
         }
+        false
     }
 }
-*/
 
 impl AnnotationStore {
     pub fn select_resources<'a>(&'a self) -> SelectQuery<'a, '_, TextResource> {
