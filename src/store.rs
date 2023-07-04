@@ -1123,6 +1123,7 @@ where
     }
 }
 
+// This also works for WrappedItem
 impl<'a, T> From<&'a T> for Item<'a, T>
 where
     T: Storable,
@@ -1405,5 +1406,30 @@ where
             itemset.add(item)
         }
         itemset
+    }
+}
+
+// this also works for WrappedItem
+impl<'a, T> From<&'a T> for ItemSet<'a, T>
+where
+    T: Storable,
+{
+    fn from(instance: &'a T) -> Self {
+        Self {
+            items: smallvec!(Item::Ref(instance)),
+        }
+    }
+}
+
+impl<'a, T> From<WrappedItemSet<'a, T>> for ItemSet<'a, T>
+where
+    T: Storable,
+{
+    fn from(itemset: WrappedItemSet<'a, T>) -> Self {
+        let mut c = Self::new_empty();
+        for item in itemset {
+            c.add(item.unwrap().into());
+        }
+        c
     }
 }
