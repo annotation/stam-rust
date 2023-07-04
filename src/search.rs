@@ -34,9 +34,13 @@ where
         self.constraints.push(constraint);
         self
     }
+
+    pub fn store(&self) -> &'store AnnotationStore {
+        self.store
+    }
 }
 
-pub trait SelectQueryIterator: Iterator
+pub trait SelectQueryIterator<'store>
 where
     Self::QueryItem: Storable,
 {
@@ -46,7 +50,11 @@ where
     fn init_iterator(&mut self);
 
     /// Tests a retrieved item against remaining constraints
-    fn test_item<'store>(&self, item: &WrappedItem<'store, Self::QueryItem>) -> bool;
+    fn test_item(
+        &self,
+        constraint: &Constraint,
+        item: &WrappedItem<'store, Self::QueryItem>,
+    ) -> bool;
 }
 
 pub enum Constraint<'q> {
@@ -66,7 +74,8 @@ pub enum Constraint<'q> {
 impl<'store, 'q, T> Iterator for SelectQuery<'store, 'q, T>
 where
     T: Storable,
-    Self: SelectQueryIterator<QueryItem = T>,
+    Self: SelectQueryIterator<'store, QueryItem = T>,
+    AnnotationStore: StoreFor<T>,
 {
     type Item = WrappedItem<'store, T>;
 
@@ -75,7 +84,16 @@ where
             if let Some(iter) = self.iterator.as_mut() {
                 if let Some(item) = iter.next() {
                     //process further constraints:
-                    self.test_item(&item);
+                    let mut constraints_met = true;
+                    for constraint in self.constraints.iter().skip(1) {
+                        if !self.test_item(constraint, &item) {
+                            constraints_met = false;
+                            break;
+                        }
+                    }
+                    if constraints_met {
+                        return Some(item);
+                    }
                 } else {
                     return None;
                 }
@@ -86,7 +104,7 @@ where
     }
 }
 
-impl<'store, 'q> SelectQueryIterator for SelectQuery<'store, 'q, TextResource>
+impl<'store, 'q> SelectQueryIterator<'store> for SelectQuery<'store, 'q, TextResource>
 where
     'q: 'store,
 {
@@ -122,30 +140,27 @@ where
         }
     }
 
-    fn test_item(&self, item: &WrappedItem<TextResource>) -> bool {
-        for constraint in self.constraints.iter().skip(1) {
-            match constraint {
-                Constraint::FilterData { set, key, value } => {
-                    if let Some(iter) = item.annotations_metadata() {
-                        for annotation in iter {
-                            for data in annotation.data() {
-                                if self
-                                    .store
-                                    .wrap(data.set())
-                                    .expect("wrap must succeed")
-                                    .test(set)
-                                    && data.test(Some(&key), &value)
-                                {
-                                    return true;
-                                }
+    fn test_item(&self, constraint: &Constraint, item: &WrappedItem<TextResource>) -> bool {
+        match constraint {
+            Constraint::FilterData { set, key, value } => {
+                if let Some(iter) = item.annotations_metadata() {
+                    for annotation in iter {
+                        for data in annotation.data() {
+                            if self
+                                .store
+                                .wrap(data.set())
+                                .expect("wrap must succeed")
+                                .test(set)
+                                && data.test(Some(&key), &value)
+                            {
+                                return true;
                             }
                         }
                     }
-                    return false;
                 }
-                _ => unimplemented!(),
+                return false;
             }
+            _ => unimplemented!(),
         }
-        true
     }
 }
