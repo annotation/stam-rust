@@ -2,7 +2,6 @@
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
 //use serde_json::Result;
 
 use crate::annotation::Annotation;

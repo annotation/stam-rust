@@ -5,7 +5,6 @@ use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 use std::slice::Iter;
 
 use smallvec::SmallVec;
@@ -211,16 +210,16 @@ where
     fn text(&'slf self) -> &'store str {
         let resource = self.store(); //courtesy of WrappedItem
         let beginbyte = resource
-            .utf8byte(self.as_ref().begin())
+            .utf8byte(self.begin())
             .expect("utf8byte conversion should succeed");
         let endbyte = resource
-            .utf8byte(self.as_ref().end())
+            .utf8byte(self.end())
             .expect("utf8byte conversion should succeed");
         &resource.text()[beginbyte..endbyte]
     }
 
     fn textlen(&self) -> usize {
-        self.as_ref().end - self.as_ref().begin
+        self.end() - self.begin()
     }
 
     /// Returns a string reference to a slice of text as specified by the offset
@@ -274,7 +273,7 @@ where
         Ok(self
             .store()
             .utf8byte_to_charpos(self.absolute_cursor(beginbyte + bytecursor))?
-            - self.as_ref().begin())
+            - self.begin())
     }
 
     /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
@@ -314,7 +313,7 @@ where
             matchiters: Vec::new(),
             nextmatches: Vec::new(),
             text: self.text(),
-            begincharpos: self.as_ref().begin(),
+            begincharpos: self.begin(),
             beginbytepos: self
                 .store()
                 .subslice_utf8_offset(text)
@@ -336,7 +335,7 @@ where
         FindTextIter {
             resource: self.store(),
             fragment,
-            offset: Offset::from(self.as_ref()),
+            offset: Offset::from(self),
         }
     }
 
@@ -352,7 +351,7 @@ where
         FindNoCaseTextIter {
             resource: self.store(),
             fragment: fragment.to_lowercase(),
-            offset: Offset::from(self.as_ref()),
+            offset: Offset::from(self),
         }
     }
 
@@ -385,7 +384,7 @@ where
     }
 
     fn absolute_cursor(&self, cursor: usize) -> usize {
-        self.as_ref().begin + cursor
+        self.begin() + cursor
     }
 }
 

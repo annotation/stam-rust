@@ -1022,7 +1022,7 @@ fn find_data_exact() -> Result<(), StamError> {
         .flatten()
     {
         count += 1;
-        assert_eq!(annotationdata.as_ref().id(), Some("D1"));
+        assert_eq!(annotationdata.id(), Some("D1"));
     }
     assert_eq!(count, 1);
     Ok(())
