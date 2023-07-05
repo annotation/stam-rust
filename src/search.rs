@@ -6,7 +6,7 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::textselection::TextSelection;
+use crate::textselection::{TextSelection, TextSelectionOperator};
 use crate::types::*;
 
 pub struct SelectQuery<'store, T>
@@ -61,14 +61,14 @@ where
     ) -> bool;
 }
 
-pub enum Constraint<'q> {
-    FilterData {
-        set: Item<'q, AnnotationDataSet>,
-        key: Item<'q, DataKey>,
-        value: DataOperator<'q>,
+pub enum Constraint<'a> {
+    AnnotationData {
+        set: Item<'a, AnnotationDataSet>,
+        key: Item<'a, DataKey>,
+        value: DataOperator<'a>,
     },
-    TextResource(ItemSet<'q, TextResource>),
-    //    TextRelation(ItemSet<TextSelection>, TextSelectionOperator),
+    TextResource(ItemSet<'a, TextResource>),
+    TextRelation(ItemSet<'a, TextSelection>, TextSelectionOperator),
     //for later:
     //AnnotationRelationIn(SelectionSet<Annotation>),
     //AnnotationRelationOut(SelectionSet<Annotation>),
@@ -115,7 +115,7 @@ impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextResource> {
     fn init_iterator(&mut self) {
         if let Some(constraint) = self.constraints.iter().next() {
             match *constraint {
-                Constraint::FilterData { set, key, value } => {
+                Constraint::AnnotationData { set, key, value } => {
                     if let Some(iterator) =
                         self.store
                             .find_data(set.clone(), Some(key.clone()), value.clone())
@@ -152,7 +152,7 @@ impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextResource> {
         //if a single item in an itemset matches, the itemset as a whole is valid
         for item in itemset.iter() {
             match constraint {
-                Constraint::FilterData { set, key, value } => {
+                Constraint::AnnotationData { set, key, value } => {
                     if let Some(iter) = item.annotations_metadata() {
                         for annotation in iter {
                             for data in annotation.data() {
@@ -183,7 +183,7 @@ impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextSelection> 
     fn init_iterator(&mut self) {
         if let Some(constraint) = self.constraints.iter().next() {
             match constraint {
-                Constraint::FilterData { set, key, value } => {
+                Constraint::AnnotationData { set, key, value } => {
                     if let Some(iterator) =
                         self.store
                             .find_data(set.clone(), Some(key.clone()), value.clone())
@@ -242,7 +242,7 @@ impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextSelection> 
         //if a single item in an itemset matches, the itemset as a whole is valid
         for item in itemset.iter() {
             match constraint {
-                Constraint::FilterData { set, key, value } => {
+                Constraint::AnnotationData { set, key, value } => {
                     if let Some(iter) = item.annotations(self.store) {
                         for annotation in iter {
                             for data in annotation.data() {

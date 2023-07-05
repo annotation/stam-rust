@@ -775,6 +775,7 @@ fn search_1() {
     let store =
         AnnotationStore::from_file("test.annotationstore.stam.json", Config::default()).unwrap();
 
+    /*
     &store
         .find_data(
             "someset".into(),
@@ -819,10 +820,11 @@ fn search_1() {
                 })
                 .map(|textselectionset| {})
         });
+    */
 
     &store
         .select_resources() // -> SelectQuery<TextResource>
-        .constrain(Constraint::FilterData {
+        .constrain(&Constraint::AnnotationData {
             set: "someset".into(),
             key: "name".into(),
             value: DataOperator::Or(vec![
@@ -830,7 +832,7 @@ fn search_1() {
                 DataOperator::Equals("Exodus"),
             ]),
         })
-        .constrain(Constraint::FilterData {
+        .constrain(&Constraint::AnnotationData {
             set: "someset".into(),
             key: "type".into(),
             value: DataOperator::Equals("book"),
@@ -838,53 +840,62 @@ fn search_1() {
         .map(|resource_book| {
             &store
                 .select_text() // -> SelectQuery<TextSelection>
-                .constrain(Constraint::FilterData {
+                .constrain(&Constraint::AnnotationData {
                     set: "someset".into(),
                     key: "type".into(),
                     value: DataOperator::Equals("chapter"),
                 })
-                .constrain(Constraint::FilterData {
+                .constrain(&Constraint::AnnotationData {
                     set: "someset".into(),
                     key: "number".into(),
                     value: DataOperator::EqualsInt(2),
                 })
-                .constrain(Constraint::TextResource(resource_book.into()))
+                .constrain(&Constraint::TextResource(resource_book.into()))
                 .map(|text_chapter| {
                     &store
                         .select_text()
-                        .constrain(Constraint::TextRelation(
-                            text_chapter,
-                            TextSelectionOperator::Embeds,
+                        .constrain(&Constraint::TextRelation(
+                            text_chapter.into(),
+                            TextSelectionOperator::Embeds {
+                                all: false,
+                                negate: false,
+                            },
                         ))
-                        .constrain(Constraint::FilterData(
-                            Some("someset".into()),
-                            Some("type".into()),
-                            DataOperator::Equals("sentence"),
-                        ))
+                        .constrain(&Constraint::AnnotationData {
+                            set: "someset".into(),
+                            key: "type".into(),
+                            value: DataOperator::Equals("sentence"),
+                        })
                         .map(|text_sentence| {
                             &store
                                 .select_text()
-                                .constrain(TextRelation(
-                                    text_sentence,
-                                    TextSelectionOperator::Embeds,
+                                .constrain(&Constraint::TextRelation(
+                                    text_sentence.into(),
+                                    TextSelectionOperator::Embeds {
+                                        all: false,
+                                        negate: false,
+                                    },
                                 ))
-                                .constrain(FilterData(
-                                    Some("someset".into()),
-                                    Some("type".into()),
-                                    DataOperator::Equals("nn"),
-                                ))
+                                .constrain(&Constraint::AnnotationData {
+                                    set: "someset".into(),
+                                    key: "type".into(),
+                                    value: DataOperator::Equals("nn"),
+                                })
                                 .map(|text_nn| {
                                     &store
                                         .select_text()
-                                        .constrain(TextRelation(
-                                            text_nn,
-                                            TextSelectionOperator::LeftAdjacent,
+                                        .constrain(&Constraint::TextRelation(
+                                            text_nn.into(),
+                                            TextSelectionOperator::LeftAdjacent {
+                                                all: false,
+                                                negate: false,
+                                            },
                                         ))
-                                        .constrain(FilterData(
-                                            Some("someset".into()),
-                                            Some("type".into()),
-                                            DataOperator::Equals("vb"),
-                                        ))
+                                        .constrain(&Constraint::AnnotationData {
+                                            set: "someset".into(),
+                                            key: "type".into(),
+                                            value: DataOperator::Equals("vb"),
+                                        })
                                         .map(|text_vb| {
                                             (
                                                 resource_book,
@@ -898,8 +909,6 @@ fn search_1() {
                         })
                 })
         });
-
-    Ok(())
 
     /*
     store
