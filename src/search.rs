@@ -9,16 +9,19 @@ use crate::store::*;
 use crate::textselection::TextSelection;
 use crate::types::*;
 
-pub struct SelectQuery<'store, 'q, T>
+pub struct SelectQuery<'store, T>
 where
     T: Storable,
 {
     store: &'store AnnotationStore,
-    constraints: Vec<Constraint<'q>>,
+    constraints: Vec<&'store Constraint<'store>>,
+    //                  v----- dyn: iterator can be of various types at run-time
+    //              v--- needed to make things Sized, we have ownership over the iterator
     iterator: Option<Box<dyn Iterator<Item = WrappedItemSet<'store, T>> + 'store>>,
+    //                                        ^---- We used a ItemSet instead of just an Item because we may want to retain groupings of results
 }
 
-impl<'store, 'q, T> SelectQuery<'store, 'q, T>
+impl<'store, T> SelectQuery<'store, T>
 where
     T: Storable,
 {
@@ -30,7 +33,7 @@ where
         }
     }
 
-    pub fn constrain(&mut self, constraint: Constraint<'q>) -> &mut Self {
+    pub fn constrain(&mut self, constraint: &'store Constraint<'store>) -> &mut Self {
         self.constraints.push(constraint);
         self
     }
@@ -53,7 +56,7 @@ where
     /// Tests a retrieved item against remaining constraints
     fn test_itemset(
         &self,
-        constraint: &Constraint,
+        constraint: &'store Constraint,
         item: &WrappedItemSet<'store, Self::QueryItem>,
     ) -> bool;
 }
@@ -64,7 +67,7 @@ pub enum Constraint<'q> {
         key: Item<'q, DataKey>,
         value: DataOperator<'q>,
     },
-    TextResource(Item<'q, TextResource>),
+    TextResource(ItemSet<'q, TextResource>),
     //    TextRelation(ItemSet<TextSelection>, TextSelectionOperator),
     //for later:
     //AnnotationRelationIn(SelectionSet<Annotation>),
@@ -72,7 +75,7 @@ pub enum Constraint<'q> {
     //DataSet(Item<'a, AnnotationDataSet>),
 }
 
-impl<'store, 'q, T> Iterator for SelectQuery<'store, 'q, T>
+impl<'store, T> Iterator for SelectQuery<'store, T>
 where
     T: Storable,
     Self: SelectQueryIterator<'store, QueryItem = T>,
@@ -105,16 +108,13 @@ where
     }
 }
 
-impl<'store, 'q> SelectQueryIterator<'store> for SelectQuery<'store, 'q, TextResource>
-where
-    'q: 'store,
-{
+impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextResource> {
     type QueryItem = TextResource;
 
     /// Initializes the iterator based on the first constraint
     fn init_iterator(&mut self) {
         if let Some(constraint) = self.constraints.iter().next() {
-            match constraint {
+            match *constraint {
                 Constraint::FilterData { set, key, value } => {
                     if let Some(iterator) =
                         self.store
@@ -176,10 +176,7 @@ where
     }
 }
 
-impl<'store, 'q> SelectQueryIterator<'store> for SelectQuery<'store, 'q, TextSelection>
-where
-    'q: 'store,
-{
+impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextSelection> {
     type QueryItem = TextSelection;
 
     /// Initializes the iterator based on the first constraint
@@ -204,6 +201,20 @@ where
                             });
                         self.iterator = Some(Box::new(iterator));
                     }
+                }
+                Constraint::TextResource(itemset) => {
+                    let iterator = self
+                        .store
+                        .resources()
+                        .filter(|resource| itemset.iter().any(|item| resource.test(item)))
+                        .map(|resource| {
+                            resource
+                                .unwrap()
+                                .textselections()
+                                .map(|textselection| WrappedItemSet::new(textselection))
+                        })
+                        .flatten();
+                    self.iterator = Some(Box::new(iterator));
                 }
                 _ => unimplemented!(), //TODO: remove
             }
@@ -256,7 +267,11 @@ where
 }
 
 impl AnnotationStore {
-    pub fn select_resources<'a>(&'a self) -> SelectQuery<'a, '_, TextResource> {
+    pub fn select_resources<'a>(&'a self) -> SelectQuery<'a, TextResource> {
+        SelectQuery::new(self)
+    }
+
+    pub fn select_text<'a>(&'a self) -> SelectQuery<'a, TextSelection> {
         SelectQuery::new(self)
     }
 }

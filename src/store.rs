@@ -1339,6 +1339,7 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ItemSet<'a, T>
 where
     T: Storable,

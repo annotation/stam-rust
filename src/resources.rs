@@ -620,6 +620,11 @@ impl TextResource {
 }
 
 impl<'store, 'slf> WrappedItem<'store, TextResource> {
+    /// Test if this item is equal to the specified one
+    pub fn test(&self, item: &Item<TextResource>) -> bool {
+        self.handle().is_some() && (self.handle() == item.to_handle(self.store()))
+    }
+
     /// Returns all annotations that reference any text selection in the resource. Use
     /// [`Self.annotations_metadata()`] instead if you are looking for annotations that reference
     /// the resource as is via a ResourceSelector. These are **NOT** include here.

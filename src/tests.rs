@@ -838,17 +838,17 @@ fn search_1() {
         .map(|resource_book| {
             &store
                 .select_text() // -> SelectQuery<TextSelection>
-                .constrain(Constraint::FilterData(
-                    Some("someset".into()),
-                    Some("type".into()),
-                    DataOperator::Equals("chapter"),
-                ))
-                .constrain(Constraint::FilterData(
-                    Some("someset".into()),
-                    Some("number".into()),
-                    DataOperator::EqualsInt(2),
-                ))
-                .constrain(Constraint::Resource(resource_book))
+                .constrain(Constraint::FilterData {
+                    set: "someset".into(),
+                    key: "type".into(),
+                    value: DataOperator::Equals("chapter"),
+                })
+                .constrain(Constraint::FilterData {
+                    set: "someset".into(),
+                    key: "number".into(),
+                    value: DataOperator::EqualsInt(2),
+                })
+                .constrain(Constraint::TextResource(resource_book.into()))
                 .map(|text_chapter| {
                     &store
                         .select_text()
