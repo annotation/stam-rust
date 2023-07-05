@@ -6,6 +6,7 @@ use std::ops::Deref;
 use std::slice::{Iter, IterMut};
 
 use nanoid::nanoid;
+use smallvec::{smallvec, SmallVec};
 
 use crate::config::Configurable;
 use crate::error::StamError;
@@ -675,9 +676,11 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
-/// It is used for example in serialization.
+/// It is heavily used as a return type all through the higher-level API.
 #[derive(Debug)]
 pub struct ResultItem<'store, T>
 where
@@ -734,6 +737,123 @@ where
         self.item.id()
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Groups multiple result items together
+/// This can never be an empty set, it must contain one or more items
+#[derive(Debug)]
+pub struct ResultItemSet<'store, T>
+where
+    T: Storable,
+{
+    items: SmallVec<[&'store T; 1]>,
+    store: &'store T::StoreType,
+}
+
+impl<'store, T> ResultItemSet<'store, T>
+where
+    T: Storable,
+{
+    pub fn new(item: ResultItem<'store, T>) -> Self {
+        Self {
+            items: smallvec!(item.as_ref()),
+            store: item.store(),
+        }
+    }
+
+    pub fn store(&self) -> &'store T::StoreType {
+        self.store
+    }
+
+    pub fn add(&mut self, item: ResultItem<'store, T>) -> bool {
+        if std::ptr::eq(self.store(), item.store()) {
+            self.items.push(item.as_ref());
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Collects items from an iterator and return a ResultItemSet.
+    /// Returns None if the iterator was empty.
+    /// This does not use the FromIterator trait becauase we have the extra constraint of a non-empty iterator.
+    pub fn from_iter<I>(iter: I) -> Option<Self>
+    where
+        T: Storable,
+        I: IntoIterator<Item = ResultItem<'store, T>>,
+    {
+        let mut items: SmallVec<[&'store T; 1]> = SmallVec::new();
+        let mut store: Option<&'store T::StoreType> = None;
+        for item in iter {
+            if store.is_none() {
+                store = Some(item.store());
+            }
+            items.push(item.as_ref());
+        }
+        if items.is_empty() {
+            None
+        } else {
+            Some(Self {
+                items,
+                store: store.unwrap(),
+            })
+        }
+    }
+
+    /// Iterates over all the result in this set
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = ResultItem<'store, T>> + 'a {
+        self.items
+            .iter()
+            .map(|item| self.store().wrap(item).expect("wrap must succeed"))
+    }
+}
+
+impl<'store, T> From<ResultItem<'store, T>> for ResultItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from(item: ResultItem<'store, T>) -> Self {
+        Self {
+            items: smallvec!(item.as_ref()),
+            store: item.store(),
+        }
+    }
+}
+
+impl<'store, T> From<&ResultItem<'store, T>> for ResultItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from(item: &ResultItem<'store, T>) -> Self {
+        Self {
+            items: smallvec!(item.as_ref()),
+            store: item.store(),
+        }
+    }
+}
+
+/*
+impl<'store, T> IntoIterator for ResultItemSet<'store, T>
+where
+    T: Storable,
+{
+    type Item = ResultItem<'store, T>;
+    type IntoIter = std::iter::Map<
+        <SmallVec<[&'store T; 1]> as IntoIterator>::IntoIter,
+        fn(&'store T) -> ResultItem<'store, T>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter().map(|item| ResultItem {
+            item: item,
+            store: self.store,
+        })
+    }
+}
+*/
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // the following structure may be a bit obscure but it required internally to
 // make serialization via serde work on our stores
