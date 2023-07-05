@@ -28,9 +28,9 @@ fn parse_json_annotationdatabuilder() -> Result<(), std::io::Error> {
 
     let data: AnnotationDataBuilder = serde_json::from_str(json)?;
 
-    assert_eq!(data.id, Item::from("D2"));
+    assert_eq!(data.id, RequestItem::from("D2"));
     assert_eq!(data.id, "D2"); //can also be compared with &str etc
-    assert_eq!(data.key, Item::from("pos"));
+    assert_eq!(data.key, RequestItem::from("pos"));
     assert_eq!(data.key, "pos");
     assert_eq!(data.value, DataValue::String("verb".into()));
     assert_eq!(data.value, "verb"); //shorter version

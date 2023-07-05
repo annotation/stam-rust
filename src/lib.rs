@@ -46,9 +46,4 @@ pub use types::*;
 
 pub use regex::{Regex, RegexSet};
 
-pub type TextSelectionRef<'a> = WrappedItem<'a, TextSelection>;
-pub type AnnotationRef<'a> = WrappedItem<'a, Annotation>;
-pub type AnnotationDataRef<'a> = WrappedItem<'a, AnnotationData>;
-pub type AnnotationDataSetRef<'a> = WrappedItem<'a, AnnotationDataSet>;
-
 mod tests;

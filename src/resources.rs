@@ -21,7 +21,9 @@ use crate::selector::{Offset, Selector, SelfSelector};
 use crate::store::*;
 use crate::text::*;
 use crate::textselection::PositionIndexItem;
-use crate::textselection::{PositionIndex, TextSelection, TextSelectionHandle};
+use crate::textselection::{
+    PositionIndex, ResultTextSelection, TextSelection, TextSelectionHandle,
+};
 use crate::types::*;
 
 /// This holds the textual resource to be annotated. It holds the full text in memory.
@@ -140,31 +142,31 @@ impl Handle for TextResourceHandle {
 }
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&TextResourceHandle> for Item<'a, TextResource> {
+impl<'a> From<&TextResourceHandle> for RequestItem<'a, TextResource> {
     fn from(handle: &TextResourceHandle) -> Self {
-        Item::Handle(*handle)
+        RequestItem::Handle(*handle)
     }
 }
-impl<'a> From<Option<&TextResourceHandle>> for Item<'a, TextResource> {
+impl<'a> From<Option<&TextResourceHandle>> for RequestItem<'a, TextResource> {
     fn from(handle: Option<&TextResourceHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(*handle)
+            RequestItem::Handle(*handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
-impl<'a> From<TextResourceHandle> for Item<'a, TextResource> {
+impl<'a> From<TextResourceHandle> for RequestItem<'a, TextResource> {
     fn from(handle: TextResourceHandle) -> Self {
-        Item::Handle(handle)
+        RequestItem::Handle(handle)
     }
 }
-impl<'a> From<Option<TextResourceHandle>> for Item<'a, TextResource> {
+impl<'a> From<Option<TextResourceHandle>> for RequestItem<'a, TextResource> {
     fn from(handle: Option<TextResourceHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(handle)
+            RequestItem::Handle(handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
@@ -516,7 +518,7 @@ impl TextResource {
 
     /// Returns an unsorted iterator over all textselections in this resource
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
-    pub fn textselections(&self) -> impl Iterator<Item = WrappedItem<TextSelection>> {
+    pub fn textselections(&self) -> impl Iterator<Item = ResultItem<TextSelection>> {
         self.store().iter().filter_map(|item| {
             item.as_ref()
                 .map(|textselection| textselection.wrap_in(self).expect("Wrap must succeed"))
@@ -542,8 +544,8 @@ impl TextResource {
         }
     }
 
-    /// Returns a sorted double-ended iterator over all textselections in this resource
-    /// For unsorted (slightly more performant), use [`TextResource::textselections()`] instead.
+    /// returns a sorted double-ended iterator over all textselections in this resource
+    /// for unsorted (slightly more performant), use [`textresource::textselections()`] instead.
     pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
         self.range(0, self.textlen())
     }
@@ -619,18 +621,17 @@ impl TextResource {
     }
 }
 
-impl<'store, 'slf> WrappedItem<'store, TextResource> {
+impl<'store, 'slf> ResultItem<'store, TextResource> {
     /// Returns all annotations that reference any text selection in the resource. Use
     /// [`Self.annotations_metadata()`] instead if you are looking for annotations that reference
     /// the resource as is via a ResourceSelector. These are **NOT** include here.
     pub fn annotations(
         &'slf self,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + '_> {
-        if let Some(iter) = self
-            .store()
-            .annotations_by_resource(self.handle().expect("resource must have handle"))
-        {
-            Some(iter.filter_map(|a_handle| self.store().annotation(&Item::Handle(a_handle))))
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
+        if let Some(iter) = self.store().annotations_by_resource(self.handle()) {
+            Some(
+                iter.filter_map(|a_handle| self.store().annotation(&RequestItem::Handle(a_handle))),
+            )
         } else {
             None
         }
@@ -640,18 +641,158 @@ impl<'store, 'slf> WrappedItem<'store, TextResource> {
     /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
     pub fn annotations_metadata(
         &'slf self,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + '_> {
-        if let Some(vec) = self
-            .store()
-            .annotations_by_resource_metadata(self.handle().expect("resource must have handle"))
-        {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
+        if let Some(vec) = self.store().annotations_by_resource_metadata(self.handle()) {
             Some(
-                vec.iter()
-                    .filter_map(|a_handle| self.store().annotation(&Item::Handle(*a_handle))),
+                vec.iter().filter_map(|a_handle| {
+                    self.store().annotation(&RequestItem::Handle(*a_handle))
+                }),
             )
         } else {
             None
         }
+    }
+
+    pub fn textselections(&'slf self) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+        self.as_ref().textselections()
+    }
+
+    pub fn textselections_len(&self) -> usize {
+        self.as_ref().textselections_len()
+    }
+
+    /// Returns a sorted double-ended iterator over a range of all textselections and returns all
+    /// textselections that either start or end in this range (depending on the direction you're
+    /// iterating in)
+    pub fn range<'a>(&'a self, begin: usize, end: usize) -> TextSelectionIter<'a> {
+        self.as_ref().range(begin, end)
+    }
+
+    /// returns a sorted double-ended iterator over all textselections in this resource
+    /// for unsorted (slightly more performant), use [`textresource::textselections()`] instead.
+    pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
+        self.as_ref().iter()
+    }
+
+    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use
+    /// By passing a [`PositionMode`] parameter you can specify whether you want only positions where a textselection begins, ends or both.
+    pub fn positions<'a>(&'a self, mode: PositionMode) -> Box<dyn Iterator<Item = &'a usize> + 'a> {
+        self.as_ref().positions(mode)
+    }
+
+    /// Lookup a position (unicode point) in the PositionIndex. Low-level function.
+    /// Only works for positions at which a TextSelection starts or ends (non-inclusive), returns None otherwise
+    pub fn position(&self, index: usize) -> Option<&PositionIndexItem> {
+        self.as_ref().position(index)
+    }
+
+    /// Returns the number of positions in the positionindex
+    pub fn positionindex_len(&self) -> usize {
+        self.as_ref().positionindex_len()
+    }
+}
+
+// expose methods on higher-level for convenience:
+impl<'store> Text<'store, 'store> for ResultItem<'store, TextResource> {
+    /// Returns the length of the text in unicode points
+    /// For bytes, use `self.text().len()` instead.
+    fn textlen(&self) -> usize {
+        self.as_ref().textlen()
+    }
+
+    /// Returns a reference to the full text of this resource
+    fn text(&'store self) -> &'store str {
+        self.as_ref().text()
+    }
+
+    /// Returns a string reference to a slice of text as specified by the offset
+    fn text_by_offset(&'store self, offset: &Offset) -> Result<&'store str, StamError> {
+        self.as_ref().text_by_offset(offset)
+    }
+
+    fn absolute_cursor(&self, cursor: usize) -> usize {
+        cursor
+    }
+
+    /// Resolves a begin aligne cursor to UTF-8 byteposition
+    /// If you have a Cursor instance, pass it through [`Self.beginaligned_cursor()`] first.
+    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
+        self.as_ref().utf8byte(abscursor)
+    }
+
+    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in ['utf8byte()`]
+    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
+        self.as_ref().utf8byte_to_charpos(bytecursor)
+    }
+
+    /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
+    /// exists, the existing one will be returned.
+    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
+    ///
+    /// The [`TextSelection`] is returned in a fat pointer (`WrappedTextSelection`) that also contains reference to the underlying store.
+    fn textselection(
+        &'store self,
+        offset: &Offset,
+    ) -> Result<ResultTextSelection<'store>, StamError> {
+        self.as_ref().textselection(offset)
+    }
+
+    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
+    /// is held by the [`FindRegexMatch'] struct.
+    ///
+    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
+    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
+    /// the entire expression is returned.
+    ///
+    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
+    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
+    /// false. All of this only matters if you supply multiple regular expressions.
+    ///
+    /// Results are returned in the exact order they are found in the text
+    fn find_text_regex<'regex>(
+        &'store self,
+        expressions: &'regex [Regex],
+        precompiledset: Option<&RegexSet>,
+        allow_overlap: bool,
+    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
+        self.as_ref()
+            .find_text_regex(expressions, precompiledset, allow_overlap)
+    }
+
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// This search is case sensitive, use [`Self.find_text_nocase()`] to search case insensitive.
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text()` on that instead.
+    fn find_text<'fragment>(
+        &'store self,
+        fragment: &'fragment str,
+    ) -> FindTextIter<'store, 'fragment> {
+        self.as_ref().find_text(fragment)
+    }
+
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
+    fn find_text_nocase(&'store self, fragment: &str) -> FindNoCaseTextIter<'store> {
+        self.as_ref().find_text_nocase(fragment)
+    }
+
+    fn split_text<'b>(&'store self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
+        self.as_ref().split_text(delimiter)
+    }
+
+    /// Finds the utf-8 byte position where the specified text subslice begins
+    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
+        self.as_ref().subslice_utf8_offset(subslice)
     }
 }
 
@@ -781,22 +922,21 @@ impl<'store> Text<'store, 'store> for TextResource {
     /// exists, the existing one will be returned.
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store.
-    ///
-    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections (i.e. those pertaining to annotations) only.
+    /// The [`TextSelection`] is returned in a fat pointer (`WrappedTextSelection`) that also contains reference to the underlying store.
     fn textselection(
         &'store self,
         offset: &Offset,
-    ) -> Result<WrappedItem<'store, TextSelection>, StamError> {
+    ) -> Result<ResultTextSelection<'store>, StamError> {
         match self.known_textselection(offset) {
             Ok(Some(handle)) => {
                 //existing textselection
                 let textselection: &TextSelection = self.get(&handle.into())?; //shouldn't fail here anymore
-                textselection.wrap_in(self)
+                let wrapped = textselection.wrap_in(self)?;
+                Ok(ResultTextSelection::Bound(wrapped))
             }
             Ok(None) => {
                 let textselection: TextSelection = self.textselection_by_offset(offset)?;
-                textselection.wrap_owned_in(self)
+                Ok(ResultTextSelection::Unbound(self, textselection))
             }
             Err(err) => Err(err), //an error occured, propagate
         }
@@ -1017,7 +1157,7 @@ pub struct TextSelectionIter<'a> {
 }
 
 impl<'a> Iterator for TextSelectionIter<'a> {
-    type Item = WrappedItem<'a, TextSelection>;
+    type Item = ResultItem<'a, TextSelection>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {

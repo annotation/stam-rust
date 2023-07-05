@@ -24,7 +24,7 @@ use crate::selector::{
 };
 use crate::store::*;
 use crate::text::Text;
-use crate::textselection::TextSelection;
+use crate::textselection::ResultTextSelection;
 use crate::types::*;
 
 /// `Annotation` represents a particular *instance of annotation* and is the central
@@ -64,31 +64,31 @@ impl Handle for AnnotationHandle {
 }
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&AnnotationHandle> for Item<'a, Annotation> {
+impl<'a> From<&AnnotationHandle> for RequestItem<'a, Annotation> {
     fn from(handle: &AnnotationHandle) -> Self {
-        Item::Handle(*handle)
+        RequestItem::Handle(*handle)
     }
 }
-impl<'a> From<Option<&AnnotationHandle>> for Item<'a, Annotation> {
+impl<'a> From<Option<&AnnotationHandle>> for RequestItem<'a, Annotation> {
     fn from(handle: Option<&AnnotationHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(*handle)
+            RequestItem::Handle(*handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
-impl<'a> From<AnnotationHandle> for Item<'a, Annotation> {
+impl<'a> From<AnnotationHandle> for RequestItem<'a, Annotation> {
     fn from(handle: AnnotationHandle) -> Self {
-        Item::Handle(handle)
+        RequestItem::Handle(handle)
     }
 }
-impl<'a> From<Option<AnnotationHandle>> for Item<'a, Annotation> {
+impl<'a> From<Option<AnnotationHandle>> for RequestItem<'a, Annotation> {
     fn from(handle: Option<AnnotationHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(handle)
+            RequestItem::Handle(handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
@@ -138,7 +138,7 @@ impl PartialEq<Annotation> for Annotation {
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
 pub struct AnnotationBuilder<'a> {
-    pub(crate) id: Item<'a, Annotation>,
+    pub(crate) id: RequestItem<'a, Annotation>,
     pub(crate) data: Vec<AnnotationDataBuilder<'a>>,
     pub(crate) target: WithAnnotationTarget<'a>,
 }
@@ -165,7 +165,7 @@ impl<'a> From<SelectorBuilder<'a>> for WithAnnotationTarget<'a> {
 impl<'a> Default for AnnotationBuilder<'a> {
     fn default() -> Self {
         Self {
-            id: Item::None,
+            id: RequestItem::None,
             target: WithAnnotationTarget::Unset,
             data: Vec::new(),
         }
@@ -176,7 +176,7 @@ impl Annotation {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json_string(&self, store: &AnnotationStore) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: WrappedItem<Self> = WrappedItem::borrow(self, store)?;
+        let wrapped: ResultItem<Self> = ResultItem::new(self, store)?;
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation to string: {}", e))
         })
@@ -189,7 +189,7 @@ impl<'a> AnnotationBuilder<'a> {
     }
 
     pub fn with_id(mut self, id: String) -> Self {
-        self.id = Item::Id(id);
+        self.id = RequestItem::Id(id);
         self
     }
 
@@ -216,8 +216,8 @@ impl<'a> AnnotationBuilder<'a> {
     /// use multiple annotations instead if each it interpretable independent of the others.
     pub fn with_data(
         self,
-        annotationset: Item<'a, AnnotationDataSet>,
-        key: Item<'a, DataKey>,
+        annotationset: RequestItem<'a, AnnotationDataSet>,
+        key: RequestItem<'a, DataKey>,
         value: DataValue,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
@@ -231,10 +231,10 @@ impl<'a> AnnotationBuilder<'a> {
     /// Use this method instead of [`Self::with_data()`]  if you want to assign a public identifier (last argument)
     pub fn with_data_with_id(
         self,
-        dataset: Item<'a, AnnotationDataSet>,
-        key: Item<'a, DataKey>,
+        dataset: RequestItem<'a, AnnotationDataSet>,
+        key: RequestItem<'a, DataKey>,
         value: DataValue,
-        id: Item<'a, AnnotationData>,
+        id: RequestItem<'a, AnnotationData>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id,
@@ -248,8 +248,8 @@ impl<'a> AnnotationBuilder<'a> {
     /// Useful if you have an Id or reference instance already.
     pub fn with_data_by_id(
         self,
-        dataset: Item<'a, AnnotationDataSet>,
-        id: Item<'a, AnnotationData>,
+        dataset: RequestItem<'a, AnnotationDataSet>,
+        id: RequestItem<'a, AnnotationData>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id,
@@ -284,7 +284,7 @@ impl<'a> AnnotationBuilder<'a> {
     }
 }
 
-impl<'a> Serialize for WrappedItem<'a, Annotation> {
+impl<'a> Serialize for ResultItem<'a, Annotation> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -294,7 +294,7 @@ impl<'a> Serialize for WrappedItem<'a, Annotation> {
         state.serialize_field("@id", &self.id())?;
         // we need to wrap the selector in a smart pointer so it has a reference to the annotation store
         // only as a smart pointer can it be serialized (because it needs to look up the resource IDs)
-        let target = WrappedSelector::new(&self.target, &self.store());
+        let target = WrappedSelector::new(&self.as_ref().target(), &self.store());
         state.serialize_field("target", &target)?;
         let wrappeddata = AnnotationDataRefSerializer { annotation: &self };
         state.serialize_field("data", &wrappeddata)?;
@@ -304,7 +304,7 @@ impl<'a> Serialize for WrappedItem<'a, Annotation> {
 
 //Helper for serialising annotationdata under annotations
 struct AnnotationDataRefSerializer<'a, 'b> {
-    annotation: &'b WrappedItem<'a, Annotation>,
+    annotation: &'b ResultItem<'a, Annotation>,
 }
 
 struct AnnotationDataRef<'a> {
@@ -331,8 +331,8 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
     where
         S: Serializer,
     {
-        let mut seq = serializer.serialize_seq(Some(self.annotation.data.len()))?;
-        for (datasethandle, datahandle) in self.annotation.data.iter() {
+        let mut seq = serializer.serialize_seq(Some(self.annotation.as_ref().data.len()))?;
+        for (datasethandle, datahandle) in self.annotation.as_ref().data.iter() {
             let store: &AnnotationStore = self.annotation.store();
             let annotationset: &AnnotationDataSet = store
                 .get(&datasethandle.into())
@@ -393,8 +393,8 @@ impl AnnotationStore {
             } else {
                 // this data referenced a dataset that does not exist yet, create it
                 let dataset_id: String = match dataitem.annotationset {
-                    Item::Id(dataset_id) => dataset_id,
-                    Item::IdRef(dataset_id) => dataset_id.to_string(),
+                    RequestItem::Id(dataset_id) => dataset_id,
+                    RequestItem::IdRef(dataset_id) => dataset_id.to_string(),
                     _ =>
                     // if no dataset was specified at all, we create one named 'default-annotationset'
                     // the name is not prescribed by the STAM spec, the fact that we
@@ -446,7 +446,7 @@ impl AnnotationStore {
 
         // Has the caller set a public ID for this annotation?
         let public_id: Option<String> = match builder.id {
-            Item::Id(id) => Some(id),
+            RequestItem::Id(id) => Some(id),
             _ => None,
         };
 
@@ -508,28 +508,26 @@ impl<'a> Annotation {
     }
 }
 
-impl<'store, 'slf> WrappedItem<'store, Annotation> {
+impl<'store, 'slf> ResultItem<'store, Annotation> {
     /// Iterate over the annotation data, returns [`WrappedItem<AnnotationData>`].
-    pub fn data(&'slf self) -> impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf {
+    pub fn data(&'slf self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf {
         //                               this was the magic bit I needed to make it work ---^
-        self.unwrap() // <-- deref() also works here
-            .data()
-            .map(|(dataset_handle, data_handle)| {
-                let annotationset: &'store AnnotationDataSet = self
-                    .store()
-                    .get(&dataset_handle.into())
-                    .expect("dataset must exist");
-                let annotationdata: WrappedItem<'store, AnnotationData> = annotationset
-                    .annotationdata(&data_handle.into())
-                    .expect("data must exist");
-                annotationdata
-            })
+        self.as_ref().data().map(|(dataset_handle, data_handle)| {
+            let annotationset: &'store AnnotationDataSet = self
+                .store()
+                .get(&dataset_handle.into())
+                .expect("dataset must exist");
+            let annotationdata: ResultItem<'store, AnnotationData> = annotationset
+                .annotationdata(&data_handle.into())
+                .expect("data must exist");
+            annotationdata
+        })
     }
 
     /// Iterates over the resources this annotation points to
     pub fn resources(&'slf self) -> TargetIter<'store, TextResource> {
         let selector_iter: SelectorIter<'store> = self
-            .unwrap() // <-- deref() doesn't work here, need 'store lifetime
+            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
             .target()
             .iter(self.store(), true, true);
         //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
@@ -548,7 +546,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
         track_ancestors: bool,
     ) -> TargetIter<'store, Annotation> {
         let selector_iter: SelectorIter<'store> = self
-            .unwrap() // <-- deref() doesn't work here, need 'store lifetime
+            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
             .target()
             .iter(self.store(), recursive, track_ancestors);
         TargetIter {
@@ -561,14 +559,14 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterates over all the annotations that reference this annotation, if any
     pub fn annotations_reverse(
         &'slf self,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'slf> {
         if let Some(v) = self
             .store()
-            .annotations_by_annotation_reverse(self.handle().unwrap())
+            .annotations_by_annotation_reverse(self.handle())
         {
             Some(v.iter().map(|a_handle| {
                 self.store()
-                    .annotation(&Item::Handle(*a_handle))
+                    .annotation(&RequestItem::Handle(*a_handle))
                     .expect("annotation handle must be valid")
             }))
         } else {
@@ -579,7 +577,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
     pub fn annotationsets(&'slf self) -> TargetIter<'store, AnnotationDataSet> {
         let selector_iter: SelectorIter<'store> = self
-            .unwrap() // <-- deref() doesn't work here, need 'store lifetime
+            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
             .target()
             .iter(self.store(), true, false);
         TargetIter {
@@ -590,9 +588,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     }
 
     /// Iterate over all resources with text selections this annotation refers to (i.e. via [`Selector::TextSelector`])
-    pub fn textselections(
-        &'slf self,
-    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'slf {
+    pub fn textselections(&'slf self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'slf {
         self.resources().filter_map(|targetitem| {
             //process offset relative offset
             //MAYBE TODO: rewrite AnnotationStore::textselection to something in Textual trait
@@ -614,13 +610,13 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Returns the resource the annotation points to. Only works for TextSelector,
     /// ResourceSelector and AnnotationSelector, and not for complex selectors.
     /// Returns a WrongSelectorType error if the annotation does not point at any resource.
-    pub fn resource(&'slf self) -> Option<WrappedItem<'store, TextResource>> {
-        match self.target() {
+    pub fn resource(&'slf self) -> Option<ResultItem<'store, TextResource>> {
+        match self.as_ref().target() {
             Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                self.store().resource(&Item::Handle(*res_id))
+                self.store().resource(&RequestItem::Handle(*res_id))
             }
             Selector::AnnotationSelector(a_id, _) => {
-                if let Some(annotation) = self.store().annotation(&Item::Handle(*a_id)) {
+                if let Some(annotation) = self.store().annotation(&RequestItem::Handle(*a_id)) {
                     annotation.resource()
                 } else {
                     None
@@ -638,10 +634,10 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn find_data<'a>(
         &'slf self,
-        set: Option<Item<AnnotationDataSet>>,
-        key: Option<Item<DataKey>>,
+        set: Option<RequestItem<AnnotationDataSet>>,
+        key: Option<RequestItem<DataKey>>,
         value: DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf>
+    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf>
     where
         'a: 'slf,
     {
@@ -666,8 +662,8 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
 
         Some(self.data().filter_map(move |annotationdata| {
             if (set_handle.is_none() || set_handle == annotationdata.set().handle())
-                && (key_handle.is_none() || key_handle == annotationdata.key().handle())
-                && annotationdata.value().test(&value)
+                && (key_handle.is_none() || key_handle.unwrap() == annotationdata.key().handle())
+                && annotationdata.as_ref().value().test(&value)
             {
                 Some(annotationdata)
             } else {
@@ -684,8 +680,8 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn test_data<'a>(
         &'slf self,
-        set: Option<Item<AnnotationDataSet>>,
-        key: Option<Item<DataKey>>,
+        set: Option<RequestItem<AnnotationDataSet>>,
+        key: Option<RequestItem<DataKey>>,
         value: DataOperator<'a>,
     ) -> bool {
         match self.find_data(set, key, value) {
@@ -753,39 +749,51 @@ where
     }
 }
 
-pub struct TargetIterItem<'a, T>
+pub struct TargetIterItem<'store, T>
 where
     T: Storable,
 {
-    pub(crate) item: WrappedItem<'a, T>,
-    pub(crate) selectoriteritem: SelectorIterItem<'a>,
+    pub(crate) item: ResultItem<'store, T>,
+    pub(crate) selectoriteritem: SelectorIterItem<'store>,
 }
 
 impl<'a, T> Deref for TargetIterItem<'a, T>
 where
     T: Storable,
 {
-    type Target = T;
-    fn deref(&self) -> &T {
+    type Target = ResultItem<'a, T>;
+
+    fn deref(&self) -> &Self::Target {
         &self.item
     }
 }
 
-impl<'a, T> TargetIterItem<'a, T>
+impl<'store, T> TargetIterItem<'store, T>
 where
     T: Storable,
 {
     pub fn depth(&self) -> usize {
         self.selectoriteritem.depth()
     }
-    pub fn selector<'b>(&'b self) -> &'b Cow<'a, Selector> {
+    pub fn selector<'b>(&'b self) -> &'b Cow<'store, Selector> {
         self.selectoriteritem.selector()
     }
-    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'a> {
+    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'store> {
         self.selectoriteritem.ancestors()
     }
     pub fn is_leaf(&self) -> bool {
         self.selectoriteritem.is_leaf()
+    }
+
+    // some copied methods from ResultItem:
+    pub fn as_ref(&self) -> &'store T {
+        self.item.as_ref()
+    }
+    pub fn handle(&self) -> T::HandleType {
+        self.item.handle()
+    }
+    pub fn id(&self) -> Option<&'store str> {
+        self.item.id()
     }
 }
 

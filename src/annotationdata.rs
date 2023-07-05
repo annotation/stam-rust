@@ -54,31 +54,31 @@ impl Handle for AnnotationDataHandle {
 }
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&AnnotationDataHandle> for Item<'a, AnnotationData> {
+impl<'a> From<&AnnotationDataHandle> for RequestItem<'a, AnnotationData> {
     fn from(handle: &AnnotationDataHandle) -> Self {
-        Item::Handle(*handle)
+        RequestItem::Handle(*handle)
     }
 }
-impl<'a> From<Option<&AnnotationDataHandle>> for Item<'a, AnnotationData> {
+impl<'a> From<Option<&AnnotationDataHandle>> for RequestItem<'a, AnnotationData> {
     fn from(handle: Option<&AnnotationDataHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(*handle)
+            RequestItem::Handle(*handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
-impl<'a> From<AnnotationDataHandle> for Item<'a, AnnotationData> {
+impl<'a> From<AnnotationDataHandle> for RequestItem<'a, AnnotationData> {
     fn from(handle: AnnotationDataHandle) -> Self {
-        Item::Handle(handle)
+        RequestItem::Handle(handle)
     }
 }
-impl<'a> From<Option<AnnotationDataHandle>> for Item<'a, AnnotationData> {
+impl<'a> From<Option<AnnotationDataHandle>> for RequestItem<'a, AnnotationData> {
     fn from(handle: Option<AnnotationDataHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(handle)
+            RequestItem::Handle(handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
@@ -125,7 +125,7 @@ impl PartialEq<AnnotationData> for AnnotationData {
     }
 }
 
-impl<'a> Serialize for WrappedItem<'a, AnnotationData> {
+impl<'a> Serialize for ResultItem<'a, AnnotationData> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -136,13 +136,13 @@ impl<'a> Serialize for WrappedItem<'a, AnnotationData> {
             state.serialize_field("@id", id)?;
         }
         state.serialize_field("key", &self.key().id())?;
-        state.serialize_field("value", self.value())?;
+        state.serialize_field("value", self.as_ref().value())?;
         state.end()
     }
 }
 
 // This is just a newtype wrapping the one above, and used if one explicitly wants to serialize a set (needed if serialized from Annotation context)
-pub(crate) struct AnnotationDataRefWithSet<'a>(pub(crate) WrappedItem<'a, AnnotationData>);
+pub(crate) struct AnnotationDataRefWithSet<'a>(pub(crate) ResultItem<'a, AnnotationData>);
 
 impl<'a> Serialize for AnnotationDataRefWithSet<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -153,7 +153,7 @@ impl<'a> Serialize for AnnotationDataRefWithSet<'a> {
         state.serialize_field("@type", "AnnotationData")?;
         state.serialize_field("@id", &self.0.id())?;
         state.serialize_field("key", &self.0.key().id())?;
-        state.serialize_field("value", self.0.value())?;
+        state.serialize_field("value", self.0.as_ref().value())?;
         state.end()
     }
 }
@@ -211,22 +211,26 @@ impl AnnotationData {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json(&self, store: &AnnotationDataSet) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: WrappedItem<Self> = WrappedItem::borrow(self, store)?;
+        let wrapped: ResultItem<Self> = ResultItem::new(self, store)?;
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation dataset to string: {}", e))
         })
     }
 }
 
-impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
+impl<'store, 'slf> ResultItem<'store, AnnotationData> {
     /// Return a reference to the AnnotationDataSet that holds this data (and its key)
     pub fn set(&'slf self) -> &'store AnnotationDataSet {
         self.store()
     }
 
-    pub fn key(&'slf self) -> WrappedItem<'store, DataKey> {
+    pub fn value(&'slf self) -> &'store DataValue {
+        self.as_ref().value()
+    }
+
+    pub fn key(&'slf self) -> ResultItem<'store, DataKey> {
         self.store()
-            .key(&Item::Handle(self.deref().key()))
+            .key(&RequestItem::Handle(self.as_ref().key()))
             .expect("AnnotationData must always have a key at this point")
     }
 
@@ -236,14 +240,15 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
     pub fn annotations(
         &'slf self,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'slf> {
         if let Some(vec) = annotationstore.annotations_by_data(
             self.set().handle().expect("set must have handle"),
-            self.handle().expect("data must have handle"),
+            self.handle(),
         ) {
             Some(
-                vec.iter()
-                    .filter_map(|a_handle| annotationstore.annotation(&Item::Handle(*a_handle))),
+                vec.iter().filter_map(|a_handle| {
+                    annotationstore.annotation(&RequestItem::Handle(*a_handle))
+                }),
             )
         } else {
             None
@@ -254,7 +259,7 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
     pub fn annotations_len(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
         if let Some(vec) = annotationstore.annotations_by_data(
             self.set().handle().expect("set must have handle"),
-            self.handle().expect("data must have handle"),
+            self.handle(),
         ) {
             vec.len()
         } else {
@@ -262,9 +267,9 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
         }
     }
 
-    pub fn test(&self, key: Option<&Item<DataKey>>, operator: &DataOperator) -> bool {
+    pub fn test(&self, key: Option<&RequestItem<DataKey>>, operator: &DataOperator) -> bool {
         if key.is_none() || self.key().test(key.unwrap()) {
-            self.value().test(operator)
+            self.as_ref().value().test(operator)
         } else {
             false
         }
@@ -279,19 +284,19 @@ impl<'store, 'slf> WrappedItem<'store, AnnotationData> {
 #[serde(from = "AnnotationDataJson")]
 pub struct AnnotationDataBuilder<'a> {
     #[serde(rename = "@id")]
-    pub(crate) id: Item<'a, AnnotationData>,
+    pub(crate) id: RequestItem<'a, AnnotationData>,
     #[serde(rename = "set")]
-    pub(crate) annotationset: Item<'a, AnnotationDataSet>,
-    pub(crate) key: Item<'a, DataKey>,
+    pub(crate) annotationset: RequestItem<'a, AnnotationDataSet>,
+    pub(crate) key: RequestItem<'a, DataKey>,
     pub(crate) value: DataValue,
 }
 
 impl<'a> Default for AnnotationDataBuilder<'a> {
     fn default() -> Self {
         Self {
-            id: Item::None,
-            annotationset: Item::None,
-            key: Item::None,
+            id: RequestItem::None,
+            annotationset: RequestItem::None,
+            key: RequestItem::None,
             value: DataValue::Null,
         }
     }
@@ -302,30 +307,30 @@ impl<'a> AnnotationDataBuilder<'a> {
         Self::default()
     }
 
-    pub fn with_id(mut self, id: Item<'a, AnnotationData>) -> Self {
+    pub fn with_id(mut self, id: RequestItem<'a, AnnotationData>) -> Self {
         self.id = id;
         self
     }
 
-    pub fn id(&self) -> &Item<AnnotationData> {
+    pub fn id(&self) -> &RequestItem<AnnotationData> {
         &self.id
     }
 
-    pub fn with_annotationset(mut self, annotationset: Item<'a, AnnotationDataSet>) -> Self {
+    pub fn with_annotationset(mut self, annotationset: RequestItem<'a, AnnotationDataSet>) -> Self {
         self.annotationset = annotationset;
         self
     }
 
-    pub fn annotationset(&self) -> &Item<AnnotationDataSet> {
+    pub fn annotationset(&self) -> &RequestItem<AnnotationDataSet> {
         &self.annotationset
     }
 
-    pub fn with_key(mut self, key: Item<'a, DataKey>) -> Self {
+    pub fn with_key(mut self, key: RequestItem<'a, DataKey>) -> Self {
         self.key = key;
         self
     }
 
-    pub fn key(&self) -> &Item<DataKey> {
+    pub fn key(&self) -> &RequestItem<DataKey> {
         &self.key
     }
 

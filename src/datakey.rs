@@ -56,31 +56,31 @@ impl Handle for DataKeyHandle {
     }
 }
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&DataKeyHandle> for Item<'a, DataKey> {
+impl<'a> From<&DataKeyHandle> for RequestItem<'a, DataKey> {
     fn from(handle: &DataKeyHandle) -> Self {
-        Item::Handle(*handle)
+        RequestItem::Handle(*handle)
     }
 }
-impl<'a> From<Option<&DataKeyHandle>> for Item<'a, DataKey> {
+impl<'a> From<Option<&DataKeyHandle>> for RequestItem<'a, DataKey> {
     fn from(handle: Option<&DataKeyHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(*handle)
+            RequestItem::Handle(*handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
-impl<'a> From<DataKeyHandle> for Item<'a, DataKey> {
+impl<'a> From<DataKeyHandle> for RequestItem<'a, DataKey> {
     fn from(handle: DataKeyHandle) -> Self {
-        Item::Handle(handle)
+        RequestItem::Handle(handle)
     }
 }
-impl<'a> From<Option<DataKeyHandle>> for Item<'a, DataKey> {
+impl<'a> From<Option<DataKeyHandle>> for RequestItem<'a, DataKey> {
     fn from(handle: Option<DataKeyHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(handle)
+            RequestItem::Handle(handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
@@ -178,25 +178,26 @@ impl DataKey {
     }
 }
 
-impl<'store, 'slf> WrappedItem<'store, DataKey> {
+impl<'store, 'slf> ResultItem<'store, DataKey> {
     /// Shortcut to return a reference to the dataset
     pub fn set(&'slf self) -> &'store AnnotationDataSet {
         self.store()
     }
 
+    /// Returns the global id that identifies the key. This is a bit shorter than using get_id()
+    pub fn as_str(&'slf self) -> &'store str {
+        self.as_ref().as_str()
+    }
+
     /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key. The iterator returns the data as [`WrappedItem<AnnotationData>`].
     pub fn data(
         &'slf self,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, AnnotationData>> + 'slf> {
-        if let Some(vec) = self
-            .store()
-            .data_by_key(&self.handle().expect("key must have handle").into())
-        {
-            Some(
-                vec.iter().filter_map(|data_handle| {
-                    self.store().annotationdata(&Item::Handle(*data_handle))
-                }),
-            )
+    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf> {
+        if let Some(vec) = self.store().data_by_key(&self.handle().into()) {
+            Some(vec.iter().filter_map(|data_handle| {
+                self.store()
+                    .annotationdata(&RequestItem::Handle(*data_handle))
+            }))
         } else {
             None
         }
@@ -208,12 +209,16 @@ impl<'store, 'slf> WrappedItem<'store, DataKey> {
     pub fn annotations(
         &'slf self,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'slf> {
         if let Some(iter) = annotationstore.annotations_by_key(
             self.set().handle().expect("set must have handle"),
-            self.handle().expect("key must have handle"),
+            self.handle(),
         ) {
-            Some(iter.filter_map(|a_handle| annotationstore.annotation(&Item::Handle(a_handle))))
+            Some(
+                iter.filter_map(|a_handle| {
+                    annotationstore.annotation(&RequestItem::Handle(a_handle))
+                }),
+            )
         } else {
             None
         }
@@ -224,7 +229,7 @@ impl<'store, 'slf> WrappedItem<'store, DataKey> {
     pub fn annotations_count(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
         if let Some(iter) = annotationstore.annotations_by_key(
             self.set().handle().expect("set must have handle"),
-            self.handle().expect("data must have handle"),
+            self.handle(),
         ) {
             iter.count()
         } else {
@@ -233,7 +238,7 @@ impl<'store, 'slf> WrappedItem<'store, DataKey> {
     }
 
     /// Tests whether two DataKeys are the same
-    pub fn test(&'slf self, other: &Item<DataKey>) -> bool {
-        self.handle() == other.to_handle(self.store())
+    pub fn test(&'slf self, other: &RequestItem<DataKey>) -> bool {
+        Some(self.handle()) == other.to_handle(self.store())
     }
 }

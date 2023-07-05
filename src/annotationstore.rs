@@ -21,7 +21,7 @@ use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::text::*;
-use crate::textselection::{TextSelection, TextSelectionHandle};
+use crate::textselection::{ResultTextSelection, TextSelection, TextSelectionHandle};
 use crate::types::*;
 
 /// An Annotation Store is an unordered collection of annotations, resources and
@@ -335,7 +335,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                             textselection_handle
                         } else {
                             //new, insert... (it's important never to insert the same one twice!)
-                            resource.insert(*textselection)?
+                            resource.insert(textselection.take()?)?
                         };
                     self.textrelationmap
                         .insert(*res_handle, textselection_handle, handle);
@@ -357,14 +357,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                 let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = self
                     .wrap(annotation)?
                     .annotationsets()
-                    .map(|targetitem| {
-                        (
-                            targetitem
-                                .handle()
-                                .expect("annotationset must have a handle"),
-                            handle,
-                        )
-                    })
+                    .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
                 self.dataset_annotation_map
                     .extend(target_datasets.into_iter());
@@ -374,12 +367,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = self
                     .wrap(annotation)?
                     .annotations(false, false)
-                    .map(|targetitem| {
-                        (
-                            targetitem.handle().expect("annotation must have a handle"),
-                            handle,
-                        )
-                    })
+                    .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
                 self.annotation_annotation_map
                     .extend(target_annotations.into_iter());
@@ -389,7 +377,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                 .wrap(annotation)?
                 .resources()
                 .map(|targetitem| {
-                    let res_handle = targetitem.handle().expect("resource must have a handle");
+                    let res_handle = targetitem.handle();
                     if self.config.textrelationmap {
                         //process relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
@@ -397,9 +385,16 @@ impl StoreFor<Annotation> for AnnotationStore {
                             targetitem.selector(),
                             Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
                         ) {
-                            Ok(textselection) => {
-                                extend_textrelationmap.push((res_handle, *textselection, handle))
-                            }
+                            Ok(textselection) => match textselection {
+                                ResultTextSelection::Bound(item) => extend_textrelationmap.push((
+                                    res_handle,
+                                    item.as_ref().clone(),
+                                    handle,
+                                )),
+                                ResultTextSelection::Unbound(_, textselection) => {
+                                    extend_textrelationmap.push((res_handle, textselection, handle))
+                                }
+                            },
                             Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
                         }
                     }
@@ -1158,8 +1153,8 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
-        if let Some(resource) = self.resource(&Item::from(resource_handle)) {
-            if let Ok(textselection) = resource.textselection(&offset) {
+        if let Some(resource) = self.resource(&RequestItem::from(resource_handle)) {
+            if let Ok(textselection) = resource.as_ref().textselection(&offset) {
                 if let Some(textselection_handle) = textselection.handle() {
                     return self
                         .textrelationmap
@@ -1279,7 +1274,7 @@ impl AnnotationStore {
         &self,
         selector: &Selector,
         subselectors: Option<impl Iterator<Item = &'b Selector>>,
-    ) -> Result<WrappedItem<TextSelection>, StamError> {
+    ) -> Result<ResultTextSelection, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
                 let resource: &TextResource = self.get(&res_id.into())?;
@@ -1366,7 +1361,10 @@ impl AnnotationStore {
     /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`WrappedItem<Annotation>`]) that also contains reference to the store
     /// and which is immediately implements various methods for working with the type.
     /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
-    pub fn annotation(&self, annotation: &Item<Annotation>) -> Option<WrappedItem<Annotation>> {
+    pub fn annotation(
+        &self,
+        annotation: &RequestItem<Annotation>,
+    ) -> Option<ResultItem<Annotation>> {
         self.get(annotation)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
             .ok()
@@ -1376,8 +1374,8 @@ impl AnnotationStore {
     /// Returns `None` if it does not exist.
     pub fn annotationset(
         &self,
-        annotationset: &Item<AnnotationDataSet>,
-    ) -> Option<WrappedItem<AnnotationDataSet>> {
+        annotationset: &RequestItem<AnnotationDataSet>,
+    ) -> Option<ResultItem<AnnotationDataSet>> {
         self.get(annotationset)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
             .ok()
@@ -1385,7 +1383,10 @@ impl AnnotationStore {
 
     /// Get a [`TextResource'] by reference (as a fat pointer [`WrappedItem<TextResource'])
     /// Returns `None` if it does not exist.
-    pub fn resource(&self, resource: &Item<TextResource>) -> Option<WrappedItem<TextResource>> {
+    pub fn resource(
+        &self,
+        resource: &RequestItem<TextResource>,
+    ) -> Option<ResultItem<TextResource>> {
         self.get(resource)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
             .ok()
@@ -1414,10 +1415,10 @@ impl AnnotationStore {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
         &'a self,
-        set: Item<AnnotationDataSet>,
-        key: Option<Item<DataKey>>,
+        set: RequestItem<AnnotationDataSet>,
+        key: Option<RequestItem<DataKey>>,
         value: DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = WrappedItem<'a, AnnotationData>>> {
+    ) -> Option<impl Iterator<Item = ResultItem<'a, AnnotationData>>> {
         //if let Some(set) = set {
         if let Some(annotationset) = self.annotationset(&set) {
             return annotationset.find_data(key, value);
@@ -1440,8 +1441,8 @@ impl AnnotationStore {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn test_data<'a>(
         &'a self,
-        set: Item<AnnotationDataSet>,
-        key: Option<Item<DataKey>>,
+        set: RequestItem<AnnotationDataSet>,
+        key: Option<RequestItem<DataKey>>,
         value: DataOperator<'a>,
     ) -> bool {
         match self.find_data(set, key, value) {

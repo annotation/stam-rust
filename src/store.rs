@@ -256,24 +256,11 @@ where
     fn wrap_in<'store>(
         &'store self,
         store: &'store Self::StoreType,
-    ) -> Result<WrappedItem<'store, Self>, StamError>
+    ) -> Result<ResultItem<'store, Self>, StamError>
     where
         Self: Sized,
     {
         store.wrap(self)
-    }
-
-    /// Returns a wrapped reference to this item and the store that owns it. This allows for some
-    /// more introspection on the part of the item.
-    /// reverse of [`StoreFor<T>::wrap_owned()`]
-    fn wrap_owned_in<'store>(
-        self,
-        store: &'store Self::StoreType,
-    ) -> Result<WrappedItem<'store, Self>, StamError>
-    where
-        Self: Sized,
-    {
-        store.wrap_owned(self)
     }
 
     /// Set the internal ID. May only be called once (though currently not enforced).
@@ -435,31 +422,31 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Returns true if the store has the item
-    fn has<'a, 'b>(&'a self, item: &Item<'b, T>) -> bool {
+    fn has<'a, 'b>(&'a self, item: &RequestItem<'b, T>) -> bool {
         match item {
-            Item::Handle(handle) => self.store().get(handle.unwrap()).is_some(),
-            Item::Id(id) => {
+            RequestItem::Handle(handle) => self.store().get(handle.unwrap()).is_some(),
+            RequestItem::Id(id) => {
                 if let Some(idmap) = self.idmap() {
                     idmap.data.contains_key(id)
                 } else {
                     false
                 }
             }
-            Item::IdRef(id) => {
+            RequestItem::IdRef(id) => {
                 if let Some(idmap) = self.idmap() {
                     idmap.data.contains_key(*id)
                 } else {
                     false
                 }
             }
-            Item::Ref(instance) => {
+            RequestItem::Ref(instance) => {
                 if let (Some(idmap), Some(id)) = (self.idmap(), instance.id()) {
                     idmap.data.contains_key(id)
                 } else {
                     false
                 }
             }
-            Item::None => false,
+            RequestItem::None => false,
         }
     }
 
@@ -473,7 +460,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a reference to an item from the store
-    fn get<'a, 'b>(&'a self, item: &Item<'b, T>) -> Result<&'a T, StamError> {
+    fn get<'a, 'b>(&'a self, item: &RequestItem<'b, T>) -> Result<&'a T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store().get(handle.unwrap()) {
                 return Ok(item);
@@ -483,7 +470,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a mutable reference to an item from the store by internal ID
-    fn get_mut<'a, 'b>(&mut self, item: &Item<'b, T>) -> Result<&mut T, StamError> {
+    fn get_mut<'a, 'b>(&mut self, item: &RequestItem<'b, T>) -> Result<&mut T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
                 return Ok(item);
@@ -600,20 +587,11 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// Wraps the item in a smart pointer that also holds a reference to this store
     /// This method performs some extra checks to verify if the item is indeed owned by the store
     /// and returns an error if not.
-    fn wrap<'a>(&'a self, item: &'a T) -> Result<WrappedItem<T>, StamError>
+    fn wrap<'a>(&'a self, item: &'a T) -> Result<ResultItem<T>, StamError>
     where
         T: Storable<StoreType = Self>,
     {
-        WrappedItem::borrow(item, self)
-    }
-
-    /// Wraps the item in a smart pointer that also holds a reference to this store
-    /// Ownership is retained with this method, i.e. the store does *NOT* own the item.
-    fn wrap_owned<'a>(&'a self, item: T) -> Result<WrappedItem<T>, StamError>
-    where
-        T: Storable<StoreType = Self>,
-    {
-        WrappedItem::own(item, self)
+        ResultItem::new(item, self)
     }
 
     /// Wraps the entire store along with a reference to self
@@ -649,7 +627,7 @@ impl<'store, T> Iterator for StoreIter<'store, T>
 where
     T: Storable,
 {
-    type Item = WrappedItem<'store, T>;
+    type Item = ResultItem<'store, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
@@ -701,56 +679,32 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is used for example in serialization.
 #[derive(Debug)]
-pub enum WrappedItem<'store, T>
+pub struct ResultItem<'store, T>
 where
     T: Storable,
 {
-    Borrowed {
-        item: &'store T,
-        store: &'store T::StoreType,
-    },
-    Owned {
-        item: T,
-        store: &'store T::StoreType,
-    },
+    item: &'store T,
+    store: &'store T::StoreType,
 }
-impl<'store, T> Clone for WrappedItem<'store, T>
+
+impl<'store, T> Clone for ResultItem<'store, T>
 where
     T: Storable + Clone,
 {
     fn clone(&self) -> Self {
-        match self {
-            Self::Borrowed { item, store } => Self::Borrowed { item, store },
-            Self::Owned { item, store } => Self::Owned {
-                item: item.clone(),
-                store,
-            },
+        Self {
+            item: self.item,
+            store: self.store,
         }
     }
 }
 
-impl<'store, T> Deref for WrappedItem<'store, T>
-where
-    T: Storable,
-{
-    type Target = T;
-
-    /// This may be a cause for lifetime problems, as it returns a reference with the lifetime of WrappedItem
-    /// rather than the contained item. Use [`Self::unwrap()`] instead in those cases.
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Borrowed { item, .. } => item,
-            Self::Owned { item, .. } => &item,
-        }
-    }
-}
-
-impl<'store, T> WrappedItem<'store, T>
+impl<'store, T> ResultItem<'store, T>
 where
     T: Storable,
 {
     //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
-    pub(crate) fn borrow(item: &'store T, store: &'store T::StoreType) -> Result<Self, StamError> {
+    pub(crate) fn new(item: &'store T, store: &'store T::StoreType) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
         } else if store.owns(item) == Some(false) {
@@ -758,61 +712,26 @@ where
                 "Can't wrap an item in a store that doesn't own it!",
             ));
         }
-        Ok(WrappedItem::Borrowed { item, store })
-    }
-
-    pub(crate) fn own(item: T, store: &'store T::StoreType) -> Result<Self, StamError> {
-        Ok(WrappedItem::Owned { item, store })
+        Ok(Self { item, store })
     }
 
     pub fn store(&self) -> &'store T::StoreType {
-        match self {
-            Self::Borrowed { store, .. } | Self::Owned { store, .. } => store,
-        }
+        self.store
     }
 
-    /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
-    /// This only works on Borrowed types though! Will panic on owned types!
-    /// Using this is usually safe except when dealing with [`TextSelection`].
-    ///
-    /// If strict lifetime preservation is not an issue, you can get away with just using ['Self::deref()`],
-    /// which is implicit (deref coercion).
-    pub fn unwrap<'slf>(&'slf self) -> &'store T {
-        match self {
-            Self::Borrowed { item, .. } => *item,
-            Self::Owned { .. } => panic!("Can't use WrappedItem::unwrap() on an owned type"),
-        }
+    /// Returns the contained reference with the original lifetime
+    pub fn as_ref(&self) -> &'store T {
+        self.item
     }
 
-    pub fn unwrap_owned<'slf>(self) -> T {
-        match self {
-            Self::Borrowed { .. } => {
-                panic!("Can't use WrappedItem::unwrap_owned() on a borrowed type")
-            }
-            Self::Owned { item, .. } => item,
-        }
+    pub fn handle(&self) -> T::HandleType {
+        self.item
+            .handle()
+            .expect("handle was already guaranteed, this should always work")
     }
 
-    /// Returns the contained reference with the original lifetime, unlike [`Self.deref()`]!
-    /// This only works on Borrowed types though! Will panic on owned types!
-    pub fn expect<'slf>(&'slf self, msg: &str) -> &'store T {
-        match self {
-            Self::Borrowed { item, .. } => *item,
-            Self::Owned { .. } => panic!("{}", msg),
-        }
-    }
-
-    pub fn is_borrowed(&self) -> bool {
-        match self {
-            Self::Borrowed { .. } => true,
-            _ => false,
-        }
-    }
-    pub fn is_owned(&self) -> bool {
-        match self {
-            Self::Owned { .. } => true,
-            _ => false,
-        }
+    pub fn id(&self) -> Option<&'store str> {
+        self.item.id()
     }
 }
 
@@ -857,9 +776,9 @@ where
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-/// `Item` offers various ways of referring to a data structure of type `T` in the core STAM model
+/// `RequestItem` offers various ways of referring to a data structure of type `T` in the core STAM model
 /// It abstracts over public IDs (both owned an and borrowed), handles, and references.
-pub enum Item<'a, T>
+pub enum RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -878,7 +797,7 @@ where
     None,
 }
 
-impl<'a, T> Clone for Item<'a, T>
+impl<'a, T> Clone for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -893,7 +812,7 @@ where
     }
 }
 
-impl<'a, T> Default for Item<'a, T>
+impl<'a, T> Default for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -902,7 +821,7 @@ where
     }
 }
 
-impl<'a, T> PartialEq for Item<'a, T>
+impl<'a, T> PartialEq for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -923,7 +842,7 @@ where
     }
 }
 
-impl<'a, T> Item<'a, T>
+impl<'a, T> RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -984,7 +903,7 @@ where
     }
 }
 
-impl<'a, T> From<&'a str> for Item<'a, T>
+impl<'a, T> From<&'a str> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -996,7 +915,7 @@ where
         }
     }
 }
-impl<'a, T> From<Option<&'a str>> for Item<'a, T>
+impl<'a, T> From<Option<&'a str>> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1013,7 +932,7 @@ where
     }
 }
 
-impl<'a, T> From<String> for Item<'a, T>
+impl<'a, T> From<String> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1026,7 +945,7 @@ where
     }
 }
 
-impl<'a, T> From<&'a String> for Item<'a, T>
+impl<'a, T> From<&'a String> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1039,7 +958,7 @@ where
     }
 }
 
-impl<'a, T> From<Option<String>> for Item<'a, T>
+impl<'a, T> From<Option<String>> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1056,7 +975,7 @@ where
     }
 }
 
-impl<'a, T> From<&'a T> for Item<'a, T>
+impl<'a, T> From<&'a T> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1089,7 +1008,7 @@ where
 }
 */
 
-impl<'a, T> From<usize> for Item<'a, T>
+impl<'a, T> From<usize> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1098,7 +1017,7 @@ where
     }
 }
 
-impl<'a, T> From<Option<usize>> for Item<'a, T>
+impl<'a, T> From<Option<usize>> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1111,7 +1030,7 @@ where
     }
 }
 
-impl<'a, T> Item<'a, T>
+impl<'a, T> RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1120,11 +1039,11 @@ where
         S: StoreFor<T>,
     {
         match self {
-            Item::Id(id) => store.resolve_id(id.as_str()).ok(),
-            Item::IdRef(id) => store.resolve_id(id).ok(),
-            Item::Handle(handle) => Some(*handle),
-            Item::Ref(instance) => instance.handle(),
-            Item::None => None,
+            RequestItem::Id(id) => store.resolve_id(id.as_str()).ok(),
+            RequestItem::IdRef(id) => store.resolve_id(id).ok(),
+            RequestItem::Handle(handle) => Some(*handle),
+            RequestItem::Ref(instance) => instance.handle(),
+            RequestItem::None => None,
         }
     }
 
@@ -1133,17 +1052,17 @@ where
         S: StoreFor<T>,
     {
         match self {
-            Item::Id(id) => Some(id.as_str()),
-            Item::IdRef(id) => Some(id),
-            Item::Handle(_) => {
+            RequestItem::Id(id) => Some(id.as_str()),
+            RequestItem::IdRef(id) => Some(id),
+            RequestItem::Handle(_) => {
                 if let Some(instance) = self.to_ref(store) {
                     instance.id()
                 } else {
                     None
                 }
             }
-            Item::Ref(instance) => instance.id(),
-            Item::None => None,
+            RequestItem::Ref(instance) => instance.id(),
+            RequestItem::None => None,
         }
     }
 
@@ -1222,7 +1141,7 @@ where
     }
 }*/
 
-impl<'a, T> PartialEq<&str> for Item<'a, T>
+impl<'a, T> PartialEq<&str> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1234,7 +1153,7 @@ where
     }
 }
 
-impl<'a, T> PartialEq<str> for Item<'a, T>
+impl<'a, T> PartialEq<str> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1248,7 +1167,7 @@ where
     }
 }
 
-impl<'a, T> PartialEq<String> for Item<'a, T>
+impl<'a, T> PartialEq<String> for RequestItem<'a, T>
 where
     T: Storable,
 {
@@ -1262,11 +1181,12 @@ where
     }
 }
 
-impl<'store, T> PartialEq<&T> for WrappedItem<'store, T>
+impl<'store, T> PartialEq<&T> for ResultItem<'store, T>
 where
     T: Storable,
 {
     fn eq(&self, other: &&T) -> bool {
-        self.handle().is_some() && (self.handle() == other.handle())
+        let handle = self.as_ref().handle();
+        handle.is_some() && (handle == other.handle())
     }
 }

@@ -208,8 +208,8 @@ fn store_get_by_id() -> Result<(), StamError> {
     let store = setup_example_1()?;
 
     //test by public ID
-    let _resource: &TextResource = store.get(&Item::from("testres"))?;
-    let annotationset: &AnnotationDataSet = store.get(&Item::from("testdataset"))?;
+    let _resource: &TextResource = store.get(&RequestItem::from("testres"))?;
+    let annotationset: &AnnotationDataSet = store.get(&RequestItem::from("testdataset"))?;
     let _datakey: &DataKey = annotationset.get(&"pos".into())?;
     let _annotationdata: &AnnotationData = annotationset.get(&"D1".into())?;
     let _annotation: &Annotation = store.get(&"A1".into())?;
@@ -221,18 +221,18 @@ fn store_get_by_id_2() -> Result<(), StamError> {
     let store = setup_example_2()?;
 
     //test by public ID
-    let _resource: &TextResource = store.get(&Item::from("testres"))?;
-    let annotationset: &AnnotationDataSet = store.get(&Item::from("testdataset"))?;
-    let _datakey: &DataKey = annotationset.get(&Item::from("pos"))?;
-    let _annotationdata: &AnnotationData = annotationset.get(&Item::from("D1"))?;
-    let _annotation: &Annotation = store.get(&Item::from("A1"))?;
+    let _resource: &TextResource = store.get(&RequestItem::from("testres"))?;
+    let annotationset: &AnnotationDataSet = store.get(&RequestItem::from("testdataset"))?;
+    let _datakey: &DataKey = annotationset.get(&RequestItem::from("pos"))?;
+    let _annotationdata: &AnnotationData = annotationset.get(&RequestItem::from("D1"))?;
+    let _annotation: &Annotation = store.get(&RequestItem::from("A1"))?;
     Ok(())
 }
 
 #[test]
 fn store_iter_data() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let annotation = store.annotation(&Item::from("A1")).unwrap();
+    let annotation = store.annotation(&RequestItem::from("A1")).unwrap();
 
     let mut count = 0;
     for data in annotation.data() {
@@ -253,7 +253,7 @@ fn store_iter_data() -> Result<(), StamError> {
 #[test]
 fn resource_text() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let resource: &TextResource = store.get(&Item::from("testres"))?;
+    let resource: &TextResource = store.get(&RequestItem::from("testres"))?;
     let text = resource.text();
     assert_eq!(text, "Hello world");
     Ok(())
@@ -262,7 +262,7 @@ fn resource_text() -> Result<(), StamError> {
 #[test]
 fn store_get_text_slice() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let resource: &TextResource = store.get(&Item::from("testres"))?;
+    let resource: &TextResource = store.get(&RequestItem::from("testres"))?;
     let text = resource.text_by_offset(&Offset::new(
         Cursor::BeginAligned(0),
         Cursor::BeginAligned(5),
@@ -432,9 +432,9 @@ fn parse_json_annotationdata() -> Result<(), std::io::Error> {
 
     let data: AnnotationDataBuilder = serde_json::from_str(json)?;
 
-    assert_eq!(data.id(), &Item::from("D2"));
+    assert_eq!(data.id(), &RequestItem::from("D2"));
     assert_eq!(data.id(), "D2"); //can also be compared with &str etc
-    assert_eq!(data.key(), &Item::from("pos"));
+    assert_eq!(data.key(), &RequestItem::from("pos"));
     assert_eq!(data.key(), "pos");
     assert_eq!(data.value(), &DataValue::String("verb".into()));
     assert_eq!(data.value(), "verb"); //shorter version
@@ -464,19 +464,15 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 
     let data: AnnotationDataBuilder = serde_json::from_str(data)?;
 
-    assert_eq!(data.id(), &Item::from("D1"));
+    assert_eq!(data.id(), &RequestItem::from("D1"));
     assert_eq!(data.id(), "D1"); //can also be compared with &str etc
-    assert_eq!(data.annotationset(), &Item::from("testdataset"));
+    assert_eq!(data.annotationset(), &RequestItem::from("testdataset"));
     assert_eq!(data.annotationset(), "testdataset");
 
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut(&"testdataset".into()).unwrap();
     //we already had this annotation, check prior to insert
-    let datahandle1: AnnotationDataHandle = dataset
-        .annotationdata(&"D1".into())
-        .unwrap()
-        .handle()
-        .unwrap();
+    let datahandle1: AnnotationDataHandle = dataset.annotationdata(&"D1".into()).unwrap().handle();
     //insert (which doesn't really insert in this case) but returns the same existing handle
     let datahandle2 = dataset.build_insert_data(data, true).unwrap();
     assert_eq!(datahandle1, datahandle2);
@@ -621,7 +617,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
         count += 1;
         if count == 1 {
             assert_eq!(key.id(), Some("http://purl.org/dc/terms/creator"));
-            firstkeyhandle = key.handle();
+            firstkeyhandle = Some(key.handle());
         }
     }
     assert_eq!(count, 3);
@@ -631,7 +627,7 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(data.id(), Some("D1"));
-        assert_eq!(data.deref().key(), firstkeyhandle.unwrap());
+        assert_eq!(data.as_ref().key(), firstkeyhandle.unwrap());
         assert_eq!(data.value(), "proycon");
     }
     assert_eq!(count, 1);
@@ -852,7 +848,7 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
 fn existing_textselection() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let resource = store
-        .resource(&Item::from("testres"))
+        .resource(&RequestItem::from("testres"))
         .expect("test: resource must exist");
     let textselection = resource.textselection(&Offset::simple(6, 11))?;
 
@@ -998,7 +994,7 @@ fn data_by_value_low() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let annotationset: &AnnotationDataSet = store.get(&"testdataset".into())?;
     let annotationdata: Option<&AnnotationData> =
-        annotationset.data_by_value(Item::from("pos"), &DataValue::String("noun".into()));
+        annotationset.data_by_value(RequestItem::from("pos"), &DataValue::String("noun".into()));
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -1009,7 +1005,7 @@ fn data_by_value_high() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let annotationset = store.annotationset(&"testdataset".into()).unwrap();
     let annotationdata =
-        annotationset.data_by_value(Item::from("pos"), &DataValue::String("noun".into()));
+        annotationset.data_by_value(RequestItem::from("pos"), &DataValue::String("noun".into()));
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -1026,7 +1022,7 @@ fn find_data_exact() -> Result<(), StamError> {
         .flatten()
     {
         count += 1;
-        assert_eq!(annotationdata.unwrap().id(), Some("D1"));
+        assert_eq!(annotationdata.as_ref().id(), Some("D1"));
     }
     assert_eq!(count, 1);
     Ok(())
@@ -1663,7 +1659,7 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
 
     let set = store.annotationset(&"myset".into()).unwrap();
     let data = set.data_by_value("type".into(), &"header".into()).unwrap();
-    let vec = store.annotations_by_data(set.handle().unwrap(), data.handle().unwrap());
+    let vec = store.annotations_by_data(set.handle(), data.handle());
     assert_eq!(vec.unwrap().len(), 4);
     Ok(())
 }
@@ -1674,7 +1670,7 @@ fn test_lifetime_sanity_resources() -> Result<(), StamError> {
     //Gather references to resources in a vec, to ensure their lifetimes remain valid after the iterator
     let result: Vec<&TextResource> = store
         .resources()
-        .map(|resource| resource.unwrap())
+        .map(|resource| resource.as_ref())
         .collect();
     assert_eq!(result.len(), 1);
     Ok(())
@@ -1688,11 +1684,11 @@ fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
         .resources()
         .map(|resource| {
             (
-                resource.unwrap(),
+                resource.as_ref(),
                 resource
-                    .unwrap()
+                    .as_ref()
                     .textselections()
-                    .map(|textselection| textselection.unwrap())
+                    .map(|textselection| textselection.as_ref())
                     .collect(),
             )
         })
@@ -1710,8 +1706,8 @@ fn test_lifetime_sanity_annotationdata() -> Result<(), StamError> {
         .annotations()
         .map(|annotation| {
             (
-                annotation.unwrap(),
-                annotation.data().map(|data| data.unwrap()).collect(),
+                annotation.as_ref(),
+                annotation.data().map(|data| data.as_ref()).collect(),
             )
         })
         .collect();
@@ -1727,11 +1723,11 @@ fn test_lifetime_sanity_keys() -> Result<(), StamError> {
         .annotationsets()
         .map(|annotationset| {
             (
-                annotationset.unwrap(),
+                annotationset.as_ref(),
                 annotationset
-                    .unwrap()
+                    .as_ref()
                     .keys()
-                    .map(|key| key.unwrap())
+                    .map(|key| key.as_ref())
                     .collect(),
             )
         })
@@ -1749,9 +1745,9 @@ fn test_lifetime_sanity_annotationdata2() -> Result<(), StamError> {
     for annotation in store.annotations() {
         let mut subresult: Vec<&AnnotationData> = Vec::new();
         for data in annotation.data() {
-            subresult.push(data.unwrap())
+            subresult.push(data.as_ref())
         }
-        result.push((annotation.unwrap(), subresult));
+        result.push((annotation.as_ref(), subresult));
     }
     assert!(!result.is_empty());
     Ok(())

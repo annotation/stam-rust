@@ -5,7 +5,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::error::StamError;
 use crate::resources::TextResource;
 use crate::selector::Offset;
-use crate::textselection::TextSelection;
+use crate::textselection::{ResultTextSelection, TextSelection};
 
 use crate::store::*;
 use crate::types::*;
@@ -73,12 +73,11 @@ where
         fragments: &'fragment [&'fragment str],
         allow_skip_char: F,
         case_sensitive: bool,
-    ) -> Option<Vec<WrappedItem<'store, TextSelection>>>
+    ) -> Option<Vec<ResultTextSelection<'store>>>
     where
         F: Fn(char) -> bool,
     {
-        let mut results: Vec<WrappedItem<'store, TextSelection>> =
-            Vec::with_capacity(fragments.len());
+        let mut results: Vec<ResultTextSelection<'store>> = Vec::with_capacity(fragments.len());
         let mut begin: usize = 0;
         let mut textselectionresult = self.textselection(&Offset::whole());
         for fragment in fragments {
@@ -88,10 +87,10 @@ where
                 } else {
                     searchtext.find_text_nocase(fragment).next()
                 } {
-                    if m.begin > begin {
+                    if m.begin() > begin {
                         //we skipped some text since last match, check the characters in between matches
                         let skipped_text = self
-                            .textselection(&Offset::simple(begin, m.begin))
+                            .textselection(&Offset::simple(begin, m.begin()))
                             .expect("textselection must succeed")
                             .text();
                         for c in skipped_text.chars() {
@@ -100,14 +99,14 @@ where
                             }
                         }
                     }
-                    begin = m.end;
+                    begin = m.end();
                     results.push(m);
                 } else {
                     return None;
                 }
                 //slice (shorten) new text for next test
                 textselectionresult = searchtext.textselection(&Offset::new(
-                    Cursor::BeginAligned(begin - searchtext.begin), //offset must be relative
+                    Cursor::BeginAligned(begin - searchtext.begin()), //offset must be relative
                     Cursor::EndAligned(0),
                 ));
             } else {
@@ -126,10 +125,7 @@ where
 
     /// Trims all occurrences of any character in `chars` from both the beginning and end of the text,
     /// returning a smaller TextSelection. No text is modified.
-    fn trim_text(
-        &'slf self,
-        chars: &[char],
-    ) -> Result<WrappedItem<'store, TextSelection>, StamError> {
+    fn trim_text(&'slf self, chars: &[char]) -> Result<ResultTextSelection<'store>, StamError> {
         let mut trimbegin = 0;
         let mut trimend = 0;
         for c in self.text().chars() {
@@ -159,10 +155,8 @@ where
     /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store.
     ///
     /// Use [`Resource::has_textselection()`] instead if you want to limit to existing text selections on resources.
-    fn textselection(
-        &'slf self,
-        offset: &Offset,
-    ) -> Result<WrappedItem<'store, TextSelection>, StamError>;
+    fn textselection(&'slf self, offset: &Offset)
+        -> Result<ResultTextSelection<'store>, StamError>;
 
     /// Resolves a cursor to a begin aligned cursor, resolving all relative end-aligned positions
     fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
@@ -236,10 +230,10 @@ impl AnnotationStore {
         allow_overlap: bool,
     ) -> impl Iterator<Item = FindRegexMatch<'store, 'r>> {
         self.resources()
-            .filter_map(move |resource: WrappedItem<'store, TextResource>| {
+            .filter_map(move |resource: ResultItem<'store, TextResource>| {
                 //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
                 resource
-                    .unwrap()
+                    .as_ref()
                     .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
                     .ok() //ignore errors!
             })
@@ -325,7 +319,7 @@ impl<'r, 't> Iterator for Matches<'r, 't> {
 pub struct FindRegexMatch<'t, 'r> {
     expression: &'r Regex,
     expression_index: usize,
-    textselections: SmallVec<[WrappedItem<'t, TextSelection>; 2]>,
+    textselections: SmallVec<[ResultTextSelection<'t>; 2]>,
     //Records the numbers of the capture that match (1-indexed)
     capturegroups: SmallVec<[usize; 2]>,
     resource: &'t TextResource,
@@ -348,7 +342,7 @@ impl<'t, 'r> FindRegexMatch<'t, 'r> {
         self.expression_index
     }
 
-    pub fn textselections(&self) -> &[WrappedItem<'t, TextSelection>] {
+    pub fn textselections(&self) -> &[ResultTextSelection<'t>] {
         &self.textselections
     }
 
@@ -540,7 +534,7 @@ pub struct FindTextIter<'a, 'b> {
 }
 
 impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
-    type Item = WrappedItem<'a, TextSelection>;
+    type Item = ResultTextSelection<'a>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
             let beginbytepos = self
@@ -589,7 +583,7 @@ pub struct FindNoCaseTextIter<'a> {
 }
 
 impl<'a> Iterator for FindNoCaseTextIter<'a> {
-    type Item = WrappedItem<'a, TextSelection>;
+    type Item = ResultTextSelection<'a>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
             let text = text.to_lowercase();
@@ -643,7 +637,7 @@ pub struct SplitTextIter<'store, 'b> {
 }
 
 impl<'store, 'b> Iterator for SplitTextIter<'store, 'b> {
-    type Item = WrappedItem<'store, TextSelection>;
+    type Item = ResultTextSelection<'store>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(matchstr) = self.iter.next() {
             let beginbyte = self

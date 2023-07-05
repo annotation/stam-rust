@@ -272,7 +272,7 @@ impl AnnotationStore {
             self.config(),
             CsvTable::Annotation,
         )?;
-        for annotationset in self.annotationsets() {
+        for annotationset in self.annotationsets().map(|x| x.as_ref()) {
             if annotationset.changed() {
                 debug(self.config(), || {
                     format!(
@@ -299,7 +299,7 @@ impl AnnotationStore {
                 }
             }
         }
-        for resource in self.resources() {
+        for resource in self.resources().map(|x| x.as_ref()) {
             if resource.changed() {
                 resource.to_txt_file(
                     resource
@@ -355,7 +355,7 @@ where
                     .map_err(|e| {
                         StamError::SerializationError(format!("Failure serializing CSV: {:?}", e))
                     })?;
-                for dataset in self.annotationsets() {
+                for dataset in self.annotationsets().map(|x| x.as_ref()) {
                     if dataset.filename().is_none() {
                         return Err(StamError::SerializationError(format!(
                             "AnnotationDataSet must have a set filename for CSV serialization to work",
@@ -381,7 +381,7 @@ where
                             ))
                         })?;
                 }
-                for resource in self.resources() {
+                for resource in self.resources().map(|x| x.as_ref()) {
                     if resource.filename().is_none() {
                         return Err(StamError::SerializationError(format!(
                             "TextResource must have a set filename (plain text!) for CSV serialization to work",
@@ -411,28 +411,30 @@ where
             }
             CsvTable::Annotation => {
                 for annotation in self.annotations() {
-                    let out = if annotation.len() == 0 {
+                    let out = if annotation.as_ref().len() == 0 {
                         AnnotationCsv {
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
                             data_ids: Cow::Borrowed(""),
                             set_ids: Cow::Borrowed(""),
-                            selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            selectortype: AnnotationCsv::set_selectortype(
+                                annotation.as_ref().target(),
+                            ),
                             targetdataset: AnnotationCsv::set_targetdataset(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
                             targetresource: AnnotationCsv::set_targetresource(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
                             targetannotation: AnnotationCsv::set_targetannotation(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
-                            begin: AnnotationCsv::set_beginoffset(annotation.target()),
-                            end: AnnotationCsv::set_endoffset(annotation.target()),
+                            begin: AnnotationCsv::set_beginoffset(annotation.as_ref().target()),
+                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target()),
                         }
-                    } else if annotation.len() == 1 {
+                    } else if annotation.as_ref().len() == 1 {
                         //only one data item, we needn't make any copies
                         let data = annotation.data().next().unwrap();
                         if data.id().is_none() {
@@ -450,21 +452,23 @@ where
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
                             data_ids: Cow::Owned(data.id().unwrap().into()),
                             set_ids: Cow::Borrowed(set.id().unwrap()),
-                            selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            selectortype: AnnotationCsv::set_selectortype(
+                                annotation.as_ref().target(),
+                            ),
                             targetdataset: AnnotationCsv::set_targetdataset(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
                             targetresource: AnnotationCsv::set_targetresource(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
                             targetannotation: AnnotationCsv::set_targetannotation(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
-                            begin: AnnotationCsv::set_beginoffset(annotation.target()),
-                            end: AnnotationCsv::set_endoffset(annotation.target()),
+                            begin: AnnotationCsv::set_beginoffset(annotation.as_ref().target()),
+                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target()),
                         }
                     } else {
                         let mut data_ids = String::new();
@@ -492,21 +496,23 @@ where
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
                             data_ids: Cow::Owned(data_ids),
                             set_ids: Cow::Owned(set_ids),
-                            selectortype: AnnotationCsv::set_selectortype(annotation.target()),
+                            selectortype: AnnotationCsv::set_selectortype(
+                                annotation.as_ref().target(),
+                            ),
                             targetdataset: AnnotationCsv::set_targetdataset(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
                             targetresource: AnnotationCsv::set_targetresource(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
                             targetannotation: AnnotationCsv::set_targetannotation(
-                                annotation.target(),
+                                annotation.as_ref().target(),
                                 self,
                             ),
-                            begin: AnnotationCsv::set_beginoffset(annotation.target()),
-                            end: AnnotationCsv::set_endoffset(annotation.target()),
+                            begin: AnnotationCsv::set_beginoffset(annotation.as_ref().target()),
+                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target()),
                         }
                     };
                     writer.serialize(out).map_err(|e| {
@@ -562,7 +568,7 @@ impl ToCsv for AnnotationDataSet {
                         .id()
                         .map(|x| Cow::Borrowed(x))
                         .expect("key must have a public ID"),
-                    value: data.value().to_string(),
+                    value: data.as_ref().value().to_string(),
                 })
                 .map_err(|e| {
                     StamError::SerializationError(format!(
@@ -618,8 +624,8 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
             for (i, data_id) in self.data_ids.split(";").enumerate() {
                 let set_id = set_ids.get(i).unwrap_or(set_ids.last().unwrap()).deref();
                 builder = builder.with_data_by_id(
-                    Item::from(set_id.to_owned()), //had to make it owned because of borrow checker, would rather have kept reference
-                    Item::from(data_id.to_owned()),
+                    RequestItem::from(set_id.to_owned()), //had to make it owned because of borrow checker, would rather have kept reference
+                    RequestItem::from(data_id.to_owned()),
                 );
             }
             let mut selectortypes: SmallVec<[SelectorKind; 1]> = SmallVec::new();
@@ -684,7 +690,7 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                         let begin: Cursor = self.begin.as_str().try_into()?;
                         let end: Cursor = self.end.as_str().try_into()?;
                         SelectorBuilder::TextSelector(
-                            Item::Id(resource.to_string()),
+                            RequestItem::Id(resource.to_string()),
                             Offset::new(begin, end),
                         )
                     }
@@ -699,17 +705,17 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                                 None
                             };
                         SelectorBuilder::AnnotationSelector(
-                            Item::Id(annotation.to_string()),
+                            RequestItem::Id(annotation.to_string()),
                             offset,
                         )
                     }
                     SelectorKind::ResourceSelector => {
                         let resource = self.targetresource;
-                        SelectorBuilder::ResourceSelector(Item::Id(resource.to_string()))
+                        SelectorBuilder::ResourceSelector(RequestItem::Id(resource.to_string()))
                     }
                     SelectorKind::DataSetSelector => {
                         let dataset = self.targetdataset;
-                        SelectorBuilder::DataSetSelector(Item::Id(dataset.to_string()))
+                        SelectorBuilder::DataSetSelector(RequestItem::Id(dataset.to_string()))
                     }
                     _ => unreachable!(),
                 }
@@ -763,7 +769,7 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                                 "TextSelector",
                             ))?.deref().try_into()?;
                             SelectorBuilder::TextSelector(
-                                Item::Id(resource.to_string()),
+                                RequestItem::Id(resource.to_string()),
                                 Offset::new(begin, end),
                             )
                         }
@@ -793,7 +799,7 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                                 None
                             };
                             SelectorBuilder::AnnotationSelector(
-                                Item::Id(annotation.to_string()),
+                                RequestItem::Id(annotation.to_string()),
                                 offset,
                             )
                         }
@@ -807,7 +813,7 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                                 "ResourceSelector",
                                 ));
                             }
-                            SelectorBuilder::ResourceSelector(Item::Id(resource.to_string()))
+                            SelectorBuilder::ResourceSelector(RequestItem::Id(resource.to_string()))
                         }
                         SelectorKind::DataSetSelector => {
                             let dataset = targetdatasets.get(i).unwrap_or(targetdatasets.last().unwrap());
@@ -819,7 +825,7 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                                 "DataSetSelector",
                                 ));
                             }
-                            SelectorBuilder::DataSetSelector(Item::Id(dataset.to_string()))
+                            SelectorBuilder::DataSetSelector(RequestItem::Id(dataset.to_string()))
                         }
                         x =>
                             return Err(StamError::CsvError(
@@ -991,16 +997,16 @@ impl<'c, 'a> FromCsv<'c> for AnnotationDataSetBuilder<'a> {
             } else {
                 databuilders.push(AnnotationDataBuilder {
                     id: if record.id.is_none() || record.id.as_ref().unwrap().is_empty() {
-                        Item::None
+                        RequestItem::None
                     } else {
-                        Item::Id(record.id.as_ref().unwrap().to_string())
+                        RequestItem::Id(record.id.as_ref().unwrap().to_string())
                     },
                     key: if record.key.is_empty() {
-                        Item::None //will produce an error later on
+                        RequestItem::None //will produce an error later on
                     } else {
-                        Item::Id(record.key.to_string())
+                        RequestItem::Id(record.key.to_string())
                     },
-                    annotationset: Item::None, //we're confined to a single set so don't need this
+                    annotationset: RequestItem::None, //we're confined to a single set so don't need this
                     value: record.value.into(),
                 });
             }

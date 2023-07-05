@@ -42,31 +42,31 @@ pub struct TextSelection {
 pub struct TextSelectionHandle(u32);
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&TextSelectionHandle> for Item<'a, TextSelection> {
+impl<'a> From<&TextSelectionHandle> for RequestItem<'a, TextSelection> {
     fn from(handle: &TextSelectionHandle) -> Self {
-        Item::Handle(*handle)
+        RequestItem::Handle(*handle)
     }
 }
-impl<'a> From<Option<&TextSelectionHandle>> for Item<'a, TextSelection> {
+impl<'a> From<Option<&TextSelectionHandle>> for RequestItem<'a, TextSelection> {
     fn from(handle: Option<&TextSelectionHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(*handle)
+            RequestItem::Handle(*handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
-impl<'a> From<TextSelectionHandle> for Item<'a, TextSelection> {
+impl<'a> From<TextSelectionHandle> for RequestItem<'a, TextSelection> {
     fn from(handle: TextSelectionHandle) -> Self {
-        Item::Handle(handle)
+        RequestItem::Handle(handle)
     }
 }
-impl<'a> From<Option<TextSelectionHandle>> for Item<'a, TextSelection> {
+impl<'a> From<Option<TextSelectionHandle>> for RequestItem<'a, TextSelection> {
     fn from(handle: Option<TextSelectionHandle>) -> Self {
         if let Some(handle) = handle {
-            Item::Handle(handle)
+            RequestItem::Handle(handle)
         } else {
-            Item::None
+            RequestItem::None
         }
     }
 }
@@ -80,11 +80,20 @@ impl From<&TextSelection> for Offset {
     }
 }
 
-impl From<&WrappedItem<'_, TextSelection>> for Offset {
-    fn from(textselection: &WrappedItem<'_, TextSelection>) -> Offset {
+impl From<&ResultTextSelection<'_>> for Offset {
+    fn from(textselection: &ResultTextSelection<'_>) -> Offset {
         Offset {
             begin: Cursor::BeginAligned(textselection.begin()),
             end: Cursor::BeginAligned(textselection.end()),
+        }
+    }
+}
+
+impl From<&ResultItem<'_, TextSelection>> for Offset {
+    fn from(textselection: &ResultItem<'_, TextSelection>) -> Offset {
+        Offset {
+            begin: Cursor::BeginAligned(textselection.as_ref().begin()),
+            end: Cursor::BeginAligned(textselection.as_ref().end()),
         }
     }
 }
@@ -195,7 +204,267 @@ impl TextSelection {
     }
 }
 
-impl<'store, 'slf> Text<'store, 'slf> for WrappedItem<'store, TextSelection>
+impl<'store, 'slf> Text<'store, 'slf> for ResultItem<'store, TextSelection>
+where
+    'store: 'slf,
+{
+    fn text(&'slf self) -> &'store str {
+        let resource = self.store(); //courtesy of WrappedItem
+        let beginbyte = resource
+            .utf8byte(self.as_ref().begin())
+            .expect("utf8byte conversion should succeed");
+        let endbyte = resource
+            .utf8byte(self.as_ref().end())
+            .expect("utf8byte conversion should succeed");
+        &resource.text()[beginbyte..endbyte]
+    }
+
+    fn textlen(&self) -> usize {
+        self.as_ref().end - self.as_ref().begin
+    }
+
+    /// Returns a string reference to a slice of text as specified by the offset
+    fn text_by_offset(&'slf self, offset: &Offset) -> Result<&'store str, StamError> {
+        let beginbyte =
+            self.utf8byte(self.absolute_cursor(self.beginaligned_cursor(&offset.begin)?))?;
+        let endbyte =
+            self.utf8byte(self.absolute_cursor(self.beginaligned_cursor(&offset.end)?))?;
+        if endbyte < beginbyte {
+            Err(StamError::InvalidOffset(
+                Cursor::BeginAligned(beginbyte),
+                Cursor::BeginAligned(endbyte),
+                "End must be greater than or equal to begin. (Cursor should be interpreted as UTF-8 bytes in this error context only)",
+            ))
+        } else {
+            Ok(&self.text()[beginbyte..endbyte])
+        }
+    }
+
+    /// Finds the utf-8 byte position where the specified text subslice begins
+    /// The returned offset is relative to the TextSelection
+    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
+        let self_begin = self.text().as_ptr() as usize;
+        let sub_begin = subslice.as_ptr() as usize;
+        if sub_begin < self_begin || sub_begin > self_begin.wrapping_add(self.text().len()) {
+            None
+        } else {
+            Some(sub_begin.wrapping_sub(self_begin))
+        }
+    }
+
+    /// This converts a unicode point to utf-8 byte, all in *relative* offsets to this textselection
+    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
+        //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
+        //and can just call this same method on TextResource, which has the proper indices for this
+        let beginbyte = self
+            .store()
+            .subslice_utf8_offset(self.text())
+            .expect("subslice should succeed");
+        Ok(self.store().utf8byte(self.absolute_cursor(abscursor))? - beginbyte)
+    }
+
+    /// This converts utf-8 byte to charpos, all in *relative* offsets to this textselection
+    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
+        //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
+        //and can just call this same method on TextResource, which has the proper indices for this
+        let beginbyte = self
+            .store()
+            .subslice_utf8_offset(self.text())
+            .expect("subslice should succeed");
+        Ok(self
+            .store()
+            .utf8byte_to_charpos(self.absolute_cursor(beginbyte + bytecursor))?
+            - self.as_ref().begin())
+    }
+
+    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
+    /// is held by the [`FindRegexMatch'] struct.
+    ///
+    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
+    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
+    /// the entire expression is returned.
+    ///
+    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
+    ///
+    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
+    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
+    /// false. All of this only matters if you supply multiple regular expressions.
+    ///
+    /// Results are returned in the exact order they are found in the text
+    fn find_text_regex<'regex>(
+        &'slf self,
+        expressions: &'regex [Regex],
+        precompiledset: Option<&RegexSet>,
+        allow_overlap: bool,
+    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
+        debug(self.store().config(), || {
+            format!(
+                "TextSelection::find_text_regex: expressions={:?}",
+                expressions
+            )
+        });
+        let text = self.text();
+        let selectexpressions =
+            find_text_regex_select_expressions(text, expressions, precompiledset)?;
+        //Returns an iterator that does the remainder of the actual searching
+        Ok(FindRegexIter {
+            resource: self.store(),
+            expressions,
+            selectexpressions,
+            matchiters: Vec::new(),
+            nextmatches: Vec::new(),
+            text: self.text(),
+            begincharpos: self.as_ref().begin(),
+            beginbytepos: self
+                .store()
+                .subslice_utf8_offset(text)
+                .expect("Subslice must be found"),
+            allow_overlap,
+        })
+    }
+
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
+    fn find_text<'fragment>(
+        &'slf self,
+        fragment: &'fragment str,
+    ) -> FindTextIter<'store, 'fragment> {
+        FindTextIter {
+            resource: self.store(),
+            fragment,
+            offset: Offset::from(self.as_ref()),
+        }
+    }
+
+    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
+    /// The iterator returns [`TextSelection`] items.
+    ///
+    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    ///
+    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
+    fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
+        FindNoCaseTextIter {
+            resource: self.store(),
+            fragment: fragment.to_lowercase(),
+            offset: Offset::from(self.as_ref()),
+        }
+    }
+
+    fn split_text<'b>(&'slf self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
+        SplitTextIter {
+            resource: self.store(),
+            iter: self.store().text().split(delimiter),
+            byteoffset: self
+                .subslice_utf8_offset(self.text())
+                .expect("subslice must succeed for split_text"),
+        }
+    }
+
+    /// Returns a [`TextSelection'] that corresponds to the offset **WITHIN** the textselection.
+    /// This returns a [`TextSelection`] with absolute coordinates in the resource.
+    ///
+    /// If the textselection is known (i.e. it has associated annotations), it will be returned as such with a handle (borrowed).
+    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
+    ///
+    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store (the [`TextResource`]).
+    ///
+    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections (i.e. those pertaining to annotations) only.
+    fn textselection(
+        &'slf self,
+        offset: &Offset,
+    ) -> Result<ResultTextSelection<'store>, StamError> {
+        let resource = self.store(); //courtesy of WrappedItem
+        let offset = self.absolute_offset(&offset)?; //turns the relative offset into an absolute one (i.e. offsets in TextResource)
+        resource.textselection(&offset)
+    }
+
+    fn absolute_cursor(&self, cursor: usize) -> usize {
+        self.as_ref().begin + cursor
+    }
+}
+
+impl<'store, 'slf> ResultItem<'store, TextSelection> {
+    pub fn begin(&'slf self) -> usize {
+        self.as_ref().begin()
+    }
+
+    pub fn end(&'slf self) -> usize {
+        self.as_ref().end()
+    }
+
+    pub fn resource(&'slf self) -> &'store TextResource {
+        self.store()
+    }
+
+    /// Iterates over all annotations that are referenced by this TextSelection, if any.
+    /// Note that you need to explicitly specify the `AnnotationStore` for this method.
+    pub fn annotations(
+        &'slf self,
+        annotationstore: &'store AnnotationStore,
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+        if let Some(vec) = annotationstore
+            .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
+        {
+            Some(vec.iter().map(|a_handle| {
+                annotationstore
+                    .annotation(&RequestItem::Handle(*a_handle))
+                    .unwrap()
+            }))
+        } else {
+            None
+        }
+    }
+
+    /// Returns the number of annotations that reference this text selection
+    pub fn annotations_len(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
+        if let Some(vec) = annotationstore
+            .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
+        {
+            vec.len()
+        } else {
+            0
+        }
+    }
+
+    /// Applies a [`TextSelectionOperator`] to find all other text selections that
+    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
+    /// (as [`WrappedItem<TextSelection>`]).
+    /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
+    pub fn find_textselections(
+        &'slf self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+        let tset: TextSelectionSet = self.clone().into();
+        self.resource().find_textselections(operator, tset)
+    }
+
+    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
+    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
+    /// (as [`WrappedItem<TextSelection>`]).
+    /// If you are interested in the text selections only, use [`Self.find_textselections()`] instead.
+    pub fn find_annotations(
+        &'slf self,
+        operator: TextSelectionOperator,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        let tset: TextSelectionSet = self.clone().into();
+        self.resource()
+            .find_textselections(operator, tset)
+            .filter_map(|tsel| tsel.annotations(annotationstore))
+            .flatten()
+    }
+}
+
+//******************************************************************************
+// This is a fair bit of code duplication from ResultItem<TextSelection> unfortunately:
+
+impl<'store, 'slf> Text<'store, 'slf> for ResultTextSelection<'store>
 where
     'store: 'slf,
 {
@@ -211,7 +480,7 @@ where
     }
 
     fn textlen(&self) -> usize {
-        self.end - self.begin
+        self.end() - self.begin()
     }
 
     /// Returns a string reference to a slice of text as specified by the offset
@@ -327,7 +596,7 @@ where
         FindTextIter {
             resource: self.store(),
             fragment,
-            offset: Offset::from(self.deref()),
+            offset: Offset::from(self),
         }
     }
 
@@ -343,7 +612,7 @@ where
         FindNoCaseTextIter {
             resource: self.store(),
             fragment: fragment.to_lowercase(),
-            offset: Offset::from(self.deref()),
+            offset: Offset::from(self),
         }
     }
 
@@ -369,114 +638,18 @@ where
     fn textselection(
         &'slf self,
         offset: &Offset,
-    ) -> Result<WrappedItem<'store, TextSelection>, StamError> {
+    ) -> Result<ResultTextSelection<'store>, StamError> {
         let resource = self.store(); //courtesy of WrappedItem
         let offset = self.absolute_offset(&offset)?; //turns the relative offset into an absolute one (i.e. offsets in TextResource)
         resource.textselection(&offset)
     }
 
     fn absolute_cursor(&self, cursor: usize) -> usize {
-        self.begin + cursor
+        self.begin() + cursor
     }
 }
 
-impl<'store, 'slf> WrappedItem<'store, TextSelection> {
-    pub fn resource(&'slf self) -> &'store TextResource {
-        self.store()
-    }
-
-    /// Iterates over all annotations that are referenced by this TextSelection, if any.
-    /// Note that you need to explicitly specify the `AnnotationStore` for this method.
-    pub fn annotations(
-        &'slf self,
-        annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>>> {
-        if !self.is_borrowed() {
-            if let Some(textselection) = self.to_ref() {
-                return textselection.annotations(annotationstore);
-            } else {
-                //there can be no annotations for an owned (aka unknown) textselection
-                return None;
-            }
-        }
-
-        if let Some(vec) = annotationstore
-            .annotations_by_textselection(self.store().handle().unwrap(), self.unwrap())
-        {
-            Some(vec.iter().map(|a_handle| {
-                annotationstore
-                    .annotation(&Item::Handle(*a_handle))
-                    .unwrap()
-            }))
-        } else {
-            None
-        }
-    }
-
-    /// Returns the number of annotations that reference this text selection
-    pub fn annotations_len(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
-        if !self.is_borrowed() {
-            if let Some(textselection) = self.to_ref() {
-                return textselection.annotations_len(annotationstore);
-            } else {
-                //there can be no annotations for an owned (aka unknown) textselection
-                return 0;
-            }
-        }
-
-        if let Some(vec) = annotationstore
-            .annotations_by_textselection(self.store().handle().unwrap(), self.unwrap())
-        {
-            vec.len()
-        } else {
-            0
-        }
-    }
-
-    /// Converts the TextSelection to a reference to an item in the store, if not possible or already a reference, None is returned.
-    pub fn to_ref(&self) -> Option<WrappedItem<'store, TextSelection>> {
-        // textselection is owned, we need a reference for this to work
-        if self.is_borrowed() {
-            None
-        } else if let Ok(textselection) = self.store().textselection(&self.into()) {
-            if textselection.is_borrowed() {
-                Some(textselection)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    /// Applies a [`TextSelectionOperator`] to find all other text selections that
-    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`WrappedItem<TextSelection>`]).
-    /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
-    pub fn find_textselections(
-        &'slf self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> {
-        let tset: TextSelectionSet = self.clone().into();
-        self.resource().find_textselections(operator, tset)
-    }
-
-    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`WrappedItem<TextSelection>`]).
-    /// If you are interested in the text selections only, use [`Self.find_textselections()`] instead.
-    pub fn find_annotations(
-        &'slf self,
-        operator: TextSelectionOperator,
-        annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = WrappedItem<'store, Annotation>> {
-        let tset: TextSelectionSet = self.clone().into();
-        self.resource()
-            .find_textselections(operator, tset)
-            .filter_map(|tsel| tsel.annotations(annotationstore))
-            .flatten()
-    }
-}
+//******************************************************************************
 
 impl<'store, 'slf> TextSelectionSet {
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
@@ -488,19 +661,19 @@ impl<'store, 'slf> TextSelectionSet {
         self,
         operator: TextSelectionOperator,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, TextSelection>>> {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, TextSelection>>> {
         if let Some(resource) = annotationstore.resource(&self.resource().into()) {
             Some(
                 resource
-                    .unwrap()
+                    .as_ref()
                     .textselections_by_operator(operator, self)
                     .map(move |ts_handle| {
                         let textselection: &'store TextSelection = resource
-                            .unwrap()
-                            .get(&Item::Handle(ts_handle))
+                            .as_ref()
+                            .get(&RequestItem::Handle(ts_handle))
                             .expect("textselection handle must be valid");
                         textselection
-                            .wrap_in(resource.unwrap())
+                            .wrap_in(resource.as_ref())
                             .expect("wrap must succeed")
                     }),
             )
@@ -518,22 +691,22 @@ impl<'store, 'slf> TextSelectionSet {
         &'slf self,
         operator: TextSelectionOperator,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'slf>
+    ) -> Option<impl Iterator<Item = ResultItem<'store, TextSelection>> + 'slf>
     where
         'store: 'slf,
     {
         if let Some(resource) = annotationstore.resource(&self.resource().into()) {
             Some(
                 resource
-                    .unwrap()
+                    .as_ref()
                     .textselections_by_operator_ref(operator, self)
                     .map(move |ts_handle| {
                         let textselection: &'store TextSelection = resource
-                            .unwrap()
-                            .get(&Item::Handle(ts_handle))
+                            .as_ref()
+                            .get(&RequestItem::Handle(ts_handle))
                             .expect("textselection handle must be valid");
                         textselection
-                            .wrap_in(resource.unwrap())
+                            .wrap_in(resource.as_ref())
                             .expect("wrap must succeed")
                     }),
             )
@@ -543,7 +716,7 @@ impl<'store, 'slf> TextSelectionSet {
     }
 }
 
-impl<'store, 'slf> WrappedItem<'store, Annotation> {
+impl<'store, 'slf> ResultItem<'store, Annotation> {
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the text relations pertaining to the annotations. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`WrappedItem<TextSelection>`]).
@@ -551,7 +724,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     pub fn find_textselections(
         &'slf self,
         operator: TextSelectionOperator,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, TextSelection>>> {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, TextSelection>>> {
         //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
         let tset: TextSelectionSet = self.textselections().collect();
         tset.find_textselections(operator, self.store())
@@ -564,7 +737,7 @@ impl<'store, 'slf> WrappedItem<'store, Annotation> {
     pub fn find_annotations(
         &'slf self,
         operator: TextSelectionOperator,
-    ) -> Option<impl Iterator<Item = WrappedItem<'store, Annotation>> + 'slf> {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'slf> {
         Some(
             self.find_textselections(operator)
                 .into_iter()
@@ -661,25 +834,37 @@ pub struct TextSelectionSet {
     sorted: bool,
 }
 
-impl<'store> From<WrappedItem<'store, TextSelection>> for TextSelectionSet {
-    fn from(textselection: WrappedItem<'store, TextSelection>) -> Self {
+impl<'store> From<ResultItem<'store, TextSelection>> for TextSelectionSet {
+    fn from(textselection: ResultItem<'store, TextSelection>) -> Self {
         let mut tset = Self::new(
             textselection
                 .store()
                 .handle()
                 .expect("Resource must have a handle"),
         );
-        if textselection.is_borrowed() {
-            tset.add(textselection.unwrap().clone());
-        } else {
-            tset.add(textselection.unwrap_owned());
-        }
+        tset.add(textselection.as_ref().clone());
         tset
     }
 }
 
-impl<'store> FromIterator<WrappedItem<'store, TextSelection>> for TextSelectionSet {
-    fn from_iter<T: IntoIterator<Item = WrappedItem<'store, TextSelection>>>(iter: T) -> Self {
+impl<'store> From<ResultTextSelection<'store>> for TextSelectionSet {
+    fn from(textselection: ResultTextSelection<'store>) -> Self {
+        let mut tset = Self::new(
+            textselection
+                .store()
+                .handle()
+                .expect("Resource must have a handle"),
+        );
+        tset.add(match textselection {
+            ResultTextSelection::Unbound(.., item) => item,
+            ResultTextSelection::Bound(item) => item.as_ref().clone(),
+        });
+        tset
+    }
+}
+
+impl<'store> FromIterator<ResultItem<'store, TextSelection>> for TextSelectionSet {
+    fn from_iter<T: IntoIterator<Item = ResultItem<'store, TextSelection>>>(iter: T) -> Self {
         let mut tset = Self {
             data: SmallVec::new(),
             resource: TextResourceHandle::new(0), //dummy! to be set later
@@ -691,7 +876,29 @@ impl<'store> FromIterator<WrappedItem<'store, TextSelection>> for TextSelectionS
                 tset.resource = item.resource().handle().expect("resource must have handle");
                 first = false;
             }
-            tset.add(*item);
+            tset.add(item.as_ref().clone());
+        }
+        tset
+    }
+}
+
+impl<'store> FromIterator<ResultTextSelection<'store>> for TextSelectionSet {
+    fn from_iter<T: IntoIterator<Item = ResultTextSelection<'store>>>(iter: T) -> Self {
+        let mut tset = Self {
+            data: SmallVec::new(),
+            resource: TextResourceHandle::new(0), //dummy! to be set later
+            sorted: false,
+        };
+        let mut first = true;
+        for item in iter {
+            if first {
+                tset.resource = item.store().handle().expect("resource must have handle");
+                first = false;
+            }
+            tset.add(match item {
+                ResultTextSelection::Unbound(.., item) => item,
+                ResultTextSelection::Bound(item) => item.as_ref().clone(),
+            });
         }
         tset
     }
@@ -1621,14 +1828,14 @@ impl TextResource {
         &'store self,
         operator: TextSelectionOperator,
         refset: &'q TextSelectionSet,
-    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> + 'q
+    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> + 'q
     where
         'store: 'q, //store lives at least as long as 'q
     {
         self.textselections_by_operator_ref(operator, refset)
             .map(|ts_handle| {
                 let textselection: &'store TextSelection = self
-                    .get(&Item::Handle(ts_handle))
+                    .get(&RequestItem::Handle(ts_handle))
                     .expect("textselection handle must be valid");
                 textselection.wrap_in(self).expect("wrap must succeed")
             })
@@ -1641,11 +1848,11 @@ impl TextResource {
         &'store self,
         operator: TextSelectionOperator,
         refset: TextSelectionSet,
-    ) -> impl Iterator<Item = WrappedItem<'store, TextSelection>> {
+    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
         self.textselections_by_operator(operator, refset)
             .map(|ts_handle| {
                 let textselection: &'store TextSelection = self
-                    .get(&Item::Handle(ts_handle))
+                    .get(&RequestItem::Handle(ts_handle))
                     .expect("textselection handle must be valid");
                 textselection.wrap_in(self).expect("wrap must succeed")
             })
@@ -1815,11 +2022,11 @@ trait FindTextSelections<'store> {
                 // note: negation is considered by the test() and self.new_textseliter() methods
                 let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
                 for textselection in self.new_textseliter(&reftextselection) {
-                    if textselection.intid != reftextselection.intid
-                        && reftextselection.test(self.operator(), &textselection)
+                    if Some(textselection.handle()) != reftextselection.handle()
+                        && reftextselection.test(self.operator(), textselection.as_ref())
                     {
                         //do not include the item itself
-                        buffer2.push(textselection.handle().expect("handle must exist"))
+                        buffer2.push(textselection.handle())
                     }
                 }
                 self.update_buffer(buffer2);
@@ -1834,13 +2041,10 @@ trait FindTextSelections<'store> {
                     self.set_textseliter(self.new_textseliter(&reftextselection));
                 }
                 if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
-                    if textselection.handle() != reftextselection.handle() //do not include the item itself
-                        && reftextselection.test(self.operator(), &textselection)
+                    if Some(textselection.handle()) != reftextselection.handle() //do not include the item itself
+                        && reftextselection.test(self.operator(), textselection.as_ref())
                     {
-                        return (
-                            Some(textselection.handle().expect("handle must exist")),
-                            false,
-                        );
+                        return (Some(textselection.handle()), false);
                     }
                 } else {
                     return (None, false);
@@ -1951,5 +2155,163 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
                 return None;
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum ResultTextSelection<'store> {
+    Bound(ResultItem<'store, TextSelection>),
+    Unbound(&'store TextResource, TextSelection),
+}
+
+impl<'store> ResultTextSelection<'store> {
+    /// Return the begin position (unicode points)
+    pub fn begin(&self) -> usize {
+        match self {
+            Self::Bound(item) => item.as_ref().begin(),
+            Self::Unbound(_, item) => item.begin(),
+        }
+    }
+
+    /// Return the end position (non-inclusive) in unicode points
+    pub fn end(&self) -> usize {
+        match self {
+            Self::Bound(item) => item.as_ref().end(),
+            Self::Unbound(_, item) => item.end(),
+        }
+    }
+
+    /// Returns the begin cursor of this text selection in another. Returns None if they are not embedded.
+    /// This also checks whether the textselections pertain to the same resource. Returns None otherwise.
+    pub fn relative_begin(&self, container: &ResultTextSelection<'store>) -> Option<usize> {
+        if self.store() != container.store() {
+            None
+        } else {
+            let container = match container {
+                Self::Bound(item) => item.as_ref(),
+                Self::Unbound(_, item) => &item,
+            };
+            match self {
+                Self::Bound(item) => item.as_ref().relative_begin(container),
+                Self::Unbound(_, item) => item.relative_begin(container),
+            }
+        }
+    }
+
+    /// Returns the end cursor (begin-aligned) of this text selection in another. Returns None if they are not embedded.
+    /// This also checks whether the textselections pertain to the same resource. Returns None otherwise.
+    pub fn relative_end(&self, container: &ResultTextSelection<'store>) -> Option<usize> {
+        let container = match container {
+            Self::Bound(item) => item.as_ref(),
+            Self::Unbound(_, item) => &item,
+        };
+        match self {
+            Self::Bound(item) => item.as_ref().relative_end(container),
+            Self::Unbound(_, item) => item.relative_end(container),
+        }
+    }
+
+    /// Returns the offset of this text selection in another. Returns None if they are not embedded.
+    /// This also checks whether the textselections pertain to the same resource. Returns None otherwise.
+    pub fn relative_offset(&self, container: &ResultTextSelection<'store>) -> Option<Offset> {
+        let container = match container {
+            Self::Bound(item) => item.as_ref(),
+            Self::Unbound(_, item) => &item,
+        };
+        match self {
+            Self::Bound(item) => item.as_ref().relative_offset(container),
+            Self::Unbound(_, item) => item.relative_offset(container),
+        }
+    }
+
+    pub fn store(&self) -> &'store TextResource {
+        match self {
+            Self::Bound(item) => item.store(),
+            Self::Unbound(store, ..) => store,
+        }
+    }
+
+    pub fn resource(&self) -> &'store TextResource {
+        self.store()
+    }
+
+    pub fn handle(&self) -> Option<TextSelectionHandle> {
+        match self {
+            Self::Bound(item) => Some(item.handle()),
+            Self::Unbound(..) => None,
+        }
+    }
+
+    pub fn take(self) -> Result<TextSelection, StamError> {
+        match self {
+            Self::Bound(_) => Err(StamError::AlreadyBound(
+                "Item is bound, can't be taken out!",
+            )),
+            Self::Unbound(_store, item) => Ok(item),
+        }
+    }
+
+    /// Iterates over all annotations that are referenced by this TextSelection, if any.
+    /// Note that you need to explicitly specify the `AnnotationStore` for this method.
+    pub fn annotations(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+        match self {
+            Self::Bound(item) => item.annotations(annotationstore),
+            Self::Unbound(..) => None,
+        }
+    }
+
+    /// Returns the number of annotations that reference this text selection
+    pub fn annotations_len(&self, annotationstore: &'store AnnotationStore) -> usize {
+        match self {
+            Self::Bound(item) => item.annotations_len(annotationstore),
+            Self::Unbound(..) => 0,
+        }
+    }
+
+    /// Applies a [`TextSelectionOperator`] to find all other text selections that
+    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
+    /// (as [`WrappedItem<TextSelection>`]).
+    /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
+    pub fn find_textselections(
+        &self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+        let mut tset: TextSelectionSet =
+            TextSelectionSet::new(self.resource().handle().expect("resource must have handle"));
+        tset.add(match self {
+            Self::Bound(item) => item.as_ref().clone().into(),
+            Self::Unbound(_, textselection) => textselection.clone(),
+        });
+        self.resource().find_textselections(operator, tset)
+    }
+
+    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
+    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
+    /// (as [`WrappedItem<TextSelection>`]).
+    /// If you are interested in the text selections only, use [`Self.find_textselections()`] instead.
+    pub fn find_annotations(
+        &self,
+        operator: TextSelectionOperator,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        let mut tset: TextSelectionSet =
+            TextSelectionSet::new(self.resource().handle().expect("resource must have handle"));
+        tset.add(match self {
+            Self::Bound(item) => item.as_ref().clone().into(),
+            Self::Unbound(_, textselection) => textselection.clone(),
+        });
+        self.resource()
+            .find_textselections(operator, tset)
+            .filter_map(|tsel| tsel.annotations(annotationstore))
+            .flatten()
+    }
+}
+
+impl<'store> From<ResultItem<'store, TextSelection>> for ResultTextSelection<'store> {
+    fn from(textselection: ResultItem<'store, TextSelection>) -> Self {
+        Self::Bound(textselection)
     }
 }

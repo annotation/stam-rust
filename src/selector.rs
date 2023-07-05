@@ -334,10 +334,10 @@ impl<'a> From<&SelectorBuilder<'a>> for SelectorKind {
 #[derive(Debug, Deserialize)]
 #[serde(from = "SelectorJson")]
 pub enum SelectorBuilder<'a> {
-    ResourceSelector(Item<'a,TextResource>),
-    AnnotationSelector(Item<'a,Annotation>, Option<Offset>),
-    TextSelector(Item<'a,TextResource>, Offset),
-    DataSetSelector(Item<'a,AnnotationDataSet>),
+    ResourceSelector(RequestItem<'a,TextResource>),
+    AnnotationSelector(RequestItem<'a,Annotation>, Option<Offset>),
+    TextSelector(RequestItem<'a,TextResource>, Offset),
+    DataSetSelector(RequestItem<'a,AnnotationDataSet>),
     MultiSelector(Vec<SelectorBuilder<'a>>),
     CompositeSelector(Vec<SelectorBuilder<'a>>),
     DirectionalSelector(Vec<SelectorBuilder<'a>>),
