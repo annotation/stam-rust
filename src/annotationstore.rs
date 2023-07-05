@@ -1070,6 +1070,14 @@ impl AnnotationStore {
         self.iter()
     }
 
+    /// Returns an iterator over all text resources ([`TextResource`] instances) in the store
+    pub fn resources_filtered<'a>(
+        &'a self,
+        itemset: ItemSet<'a, TextResource>,
+    ) -> StoreIter<'a, TextResource> {
+        self.iter_filtered(itemset)
+    }
+
     /// Returns an iterator over all [`AnnotationDataSet`] instances in the store
     pub fn annotationsets<'a>(&'a self) -> StoreIter<'a, AnnotationDataSet> {
         self.iter()

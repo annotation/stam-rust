@@ -559,6 +559,21 @@ pub trait StoreFor<T: Storable>: Configurable {
         StoreIter {
             store: self,
             iter: self.store().iter(),
+            filter: None,
+            count: 0,
+            len: self.store().len(),
+        }
+    }
+
+    /// Iterate over the store
+    fn iter_filtered<'a>(&'a self, filter: ItemSet<'a, T>) -> StoreIter<'a, T>
+    where
+        T: Storable<StoreType = Self>,
+    {
+        StoreIter {
+            store: self,
+            iter: self.store().iter(),
+            filter: Some(filter),
             count: 0,
             len: self.store().len(),
         }
@@ -642,6 +657,7 @@ where
 {
     store: &'store T::StoreType,
     iter: Iter<'store, Option<T>>,
+    filter: Option<ItemSet<'store, T>>,
     count: usize,
     len: usize,
 }
@@ -653,11 +669,22 @@ where
     type Item = WrappedItem<'store, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.count += 1;
-        match self.iter.next() {
-            Some(Some(item)) => Some(self.store.wrap(item).expect("wrap must succeed")),
-            Some(None) => self.next(),
-            None => None,
+        loop {
+            self.count += 1;
+            let item = self.iter.next();
+            if let (Some(Some(item)), Some(filterset)) = (item, &self.filter) {
+                if !filterset
+                    .iter()
+                    .any(|x| item.handle().is_some() && x.to_handle(self.store) == item.handle())
+                {
+                    continue;
+                }
+            }
+            match item {
+                Some(Some(item)) => return Some(self.store.wrap(item).expect("wrap must succeed")),
+                Some(None) => continue, //recurse
+                None => return None,
+            }
         }
     }
 
@@ -680,10 +707,12 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
-        match self.iter.next() {
-            Some(Some(item)) => Some(item),
-            Some(None) => self.next(),
-            None => None,
+        loop {
+            match self.iter.next() {
+                Some(Some(item)) => return Some(item),
+                Some(None) => continue, //recurse
+                None => return None,
+            }
         }
     }
 

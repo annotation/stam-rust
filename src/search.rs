@@ -14,7 +14,7 @@ where
     T: Storable,
 {
     store: &'store AnnotationStore,
-    constraints: Vec<&'store Constraint<'store>>,
+    constraints: Vec<Constraint<'store>>,
     //                  v----- dyn: iterator can be of various types at run-time
     //              v--- needed to make things Sized, we have ownership over the iterator
     iterator: Option<Box<dyn Iterator<Item = WrappedItemSet<'store, T>> + 'store>>,
@@ -33,7 +33,7 @@ where
         }
     }
 
-    pub fn constrain(&mut self, constraint: &'store Constraint<'store>) -> &mut Self {
+    pub fn constrain(&mut self, constraint: Constraint<'store>) -> &mut Self {
         self.constraints.push(constraint);
         self
     }
@@ -56,7 +56,7 @@ where
     /// Tests a retrieved item against remaining constraints
     fn test_itemset(
         &self,
-        constraint: &'store Constraint,
+        constraint: &Constraint,
         item: &WrappedItemSet<'store, Self::QueryItem>,
     ) -> bool;
 }
@@ -113,7 +113,7 @@ impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextResource> {
     /// Initializes the iterator based on the first constraint
     fn init_iterator(&mut self) {
         if let Some(constraint) = self.constraints.iter().next() {
-            match *constraint {
+            match constraint {
                 Constraint::AnnotationData { set, key, value } => {
                     if let Some(iterator) =
                         self.store
@@ -204,8 +204,7 @@ impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextSelection> 
                 Constraint::TextResource(itemset) => {
                     let iterator = self
                         .store
-                        .resources()
-                        .filter(|resource| itemset.iter().any(|item| resource.test(item)))
+                        .resources_filtered(itemset.clone())
                         .map(|resource| {
                             resource
                                 .unwrap()
@@ -214,6 +213,14 @@ impl<'store> SelectQueryIterator<'store> for SelectQuery<'store, TextSelection> 
                         })
                         .flatten();
                     self.iterator = Some(Box::new(iterator));
+                    /*
+                        .resources()
+                        .filter(|resource| {
+                            itemset
+                                .iter()
+                                .any(|x| x.to_handle(self.store) == resource.handle())
+                        })
+                    */
                 }
                 _ => unimplemented!(), //TODO: remove
             }

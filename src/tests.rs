@@ -824,7 +824,7 @@ fn search_1() {
 
     &store
         .select_resources() // -> SelectQuery<TextResource>
-        .constrain(&Constraint::AnnotationData {
+        .constrain(Constraint::AnnotationData {
             set: "someset".into(),
             key: "name".into(),
             value: DataOperator::Or(vec![
@@ -832,7 +832,7 @@ fn search_1() {
                 DataOperator::Equals("Exodus"),
             ]),
         })
-        .constrain(&Constraint::AnnotationData {
+        .constrain(Constraint::AnnotationData {
             set: "someset".into(),
             key: "type".into(),
             value: DataOperator::Equals("book"),
@@ -840,28 +840,28 @@ fn search_1() {
         .map(|resource_book| {
             &store
                 .select_text() // -> SelectQuery<TextSelection>
-                .constrain(&Constraint::AnnotationData {
+                .constrain(Constraint::AnnotationData {
                     set: "someset".into(),
                     key: "type".into(),
                     value: DataOperator::Equals("chapter"),
                 })
-                .constrain(&Constraint::AnnotationData {
+                .constrain(Constraint::AnnotationData {
                     set: "someset".into(),
                     key: "number".into(),
                     value: DataOperator::EqualsInt(2),
                 })
-                .constrain(&Constraint::TextResource(resource_book.into()))
+                .constrain(Constraint::TextResource(resource_book.clone().into()))
                 .map(|text_chapter| {
                     &store
                         .select_text()
-                        .constrain(&Constraint::TextRelation(
-                            text_chapter.into(),
+                        .constrain(Constraint::TextRelation(
+                            text_chapter.clone().into(),
                             TextSelectionOperator::Embeds {
                                 all: false,
                                 negate: false,
                             },
                         ))
-                        .constrain(&Constraint::AnnotationData {
+                        .constrain(Constraint::AnnotationData {
                             set: "someset".into(),
                             key: "type".into(),
                             value: DataOperator::Equals("sentence"),
@@ -869,14 +869,14 @@ fn search_1() {
                         .map(|text_sentence| {
                             &store
                                 .select_text()
-                                .constrain(&Constraint::TextRelation(
-                                    text_sentence.into(),
+                                .constrain(Constraint::TextRelation(
+                                    text_sentence.clone().into(),
                                     TextSelectionOperator::Embeds {
                                         all: false,
                                         negate: false,
                                     },
                                 ))
-                                .constrain(&Constraint::AnnotationData {
+                                .constrain(Constraint::AnnotationData {
                                     set: "someset".into(),
                                     key: "type".into(),
                                     value: DataOperator::Equals("nn"),
@@ -884,14 +884,14 @@ fn search_1() {
                                 .map(|text_nn| {
                                     &store
                                         .select_text()
-                                        .constrain(&Constraint::TextRelation(
-                                            text_nn.into(),
+                                        .constrain(Constraint::TextRelation(
+                                            text_nn.clone().into(),
                                             TextSelectionOperator::LeftAdjacent {
                                                 all: false,
                                                 negate: false,
                                             },
                                         ))
-                                        .constrain(&Constraint::AnnotationData {
+                                        .constrain(Constraint::AnnotationData {
                                             set: "someset".into(),
                                             key: "type".into(),
                                             value: DataOperator::Equals("vb"),
