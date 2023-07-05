@@ -898,11 +898,11 @@ fn search_1() {
                                         })
                                         .map(|text_vb| {
                                             (
-                                                resource_book,
-                                                text_chapter,
-                                                text_sentence,
-                                                text_nn,
-                                                text_vb,
+                                                resource_book.clone(),
+                                                text_chapter.clone(),
+                                                text_sentence.clone(),
+                                                text_nn.clone(),
+                                                text_vb.clone(),
                                             )
                                         })
                                 })

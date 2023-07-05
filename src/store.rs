@@ -813,6 +813,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct WrappedItemSet<'store, T>
 where
     T: Storable,
