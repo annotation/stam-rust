@@ -79,7 +79,6 @@ impl<'store, T> Iterator for SelectQuery<'store, T>
 where
     T: Storable,
     Self: SelectQueryIterator<'store, QueryItem = T>,
-    AnnotationStore: StoreFor<T>,
 {
     type Item = WrappedItemSet<'store, T>;
 
