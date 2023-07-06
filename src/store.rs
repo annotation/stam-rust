@@ -1315,3 +1315,73 @@ where
         handle.is_some() && (handle == other.handle())
     }
 }
+
+pub struct RequestItemSet<'a, T>
+where
+    T: Storable,
+{
+    items: SmallVec<[RequestItem<'a, T>; 1]>,
+}
+
+impl<'a, T> RequestItemSet<'a, T>
+where
+    T: Storable,
+{
+    pub fn new_empty() -> Self {
+        RequestItemSet { items: smallvec!() }
+    }
+
+    pub fn new(item: RequestItem<'a, T>) -> Self {
+        RequestItemSet {
+            items: smallvec!(item),
+        }
+    }
+
+    pub fn add(&mut self, item: RequestItem<'a, T>) {
+        self.items.push(item)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &RequestItem<'a, T>> {
+        self.items.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for RequestItemSet<'a, T>
+where
+    T: Storable,
+{
+    type Item = RequestItem<'a, T>;
+    type IntoIter = <SmallVec<[RequestItem<'a, T>; 1]> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
+impl<'store, T> From<RequestItem<'store, T>> for RequestItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from(item: RequestItem<'store, T>) -> Self {
+        RequestItemSet {
+            items: smallvec!(item),
+        }
+    }
+}
+
+impl<'store, T> FromIterator<RequestItem<'store, T>> for RequestItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        T: Storable,
+        I: IntoIterator<Item = RequestItem<'store, T>>,
+    {
+        let mut itemset = RequestItemSet { items: smallvec!() };
+        for item in iter {
+            itemset.add(item)
+        }
+        itemset
+    }
+}
