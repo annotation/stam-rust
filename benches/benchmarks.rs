@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use stam::{
-    Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, Config, Handle, Item, Offset,
-    Regex, SelectorBuilder, StoreFor, Text, TextResource,
+    Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, Config, Handle, Offset,
+    Regex, RequestItem, SelectorBuilder, StoreFor, Text, TextResource,
 };
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
@@ -123,9 +123,9 @@ pub fn bench_storefor(c: &mut Criterion) {
         )
         .unwrap();
 
-    let item: Item<Annotation> = Item::from(0);
+    let item: RequestItem<Annotation> = RequestItem::from(0);
     let handle: AnnotationHandle = AnnotationHandle::new(0);
-    let id: Item<Annotation> = Item::from("A1");
+    let id: RequestItem<Annotation> = RequestItem::from("A1");
 
     c.bench_function("store_get_by_handle", |b| {
         b.iter(|| {
