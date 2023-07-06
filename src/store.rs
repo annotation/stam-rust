@@ -775,6 +775,11 @@ where
         }
     }
 
+    pub fn first(&self) -> ResultItem<'store, T> {
+        self.store()
+            .wrap(items.get(0).expect("there must be an item"))
+    }
+
     /// Collects items from an iterator and return a ResultItemSet.
     /// Returns None if the iterator was empty.
     /// This does not use the FromIterator trait becauase we have the extra constraint of a non-empty iterator.
