@@ -59,15 +59,37 @@ pub enum Constraint<'a> {
     TextRelationVariable(Variable, TextSelectionOperator),
 }
 
-pub struct QueryIterator<'store, 'a> {
+pub struct QueryState<'store, 'slf> {
+    /// What query is being handled? (always procedes incrementally in the defined order)
+    queryindex: usize,
+
+    /// The iterator for the current query
+    iterator: SubIter<'store, 'slf>,
+
+    // note: this captures the result of the current state, in order to make it available for subsequent deeper iterators
+    result: QueryResultItem<'store>,
+}
+
+pub struct QueryIter<'store, 'slf> {
     store: &'store AnnotationStore,
 
-    queries: Vec<Query<'a>>,
+    queries: Vec<Query<'slf>>,
 
-    // note: these capture the current state of the search at any given point in time, they are not accumulators over all results!
-    results_textselections: Vec<Option<TextSelectionSet>>,
-    results_annotations: Vec<Option<ResultItemSet<'store, Annotation>>>,
-    results_resources: Vec<Option<ResultItemSet<'store, TextResource>>>,
+    statestack: Vec<QueryState<'store, 'slf>>,
+}
+
+/// Abstracts over different types of subiterators we may encounter during querying, the types are names after the type they return.
+pub enum SubIter<'store, 'slf> {
+    ResourceIter(Box<dyn Iterator<Item = ResultItemSet<'store, TextResource>> + 'slf>),
+    AnnotationIter(Box<dyn Iterator<Item = ResultItemSet<'store, Annotation>> + 'slf>),
+    TextSelectionIter(Box<dyn Iterator<Item = TextSelectionSet> + 'slf>),
+}
+
+pub enum QueryResultItem<'store> {
+    None,
+    TextSelection(TextSelectionSet),
+    Annotation(ResultItemSet<'store, Annotation>),
+    TextResource(ResultItemSet<'store, TextResource>),
 }
 
 impl<'a> Query<'a> {
@@ -106,16 +128,14 @@ impl Variable {
 }
 
 impl<'store> AnnotationStore {
-    pub fn query<'a, I>(&'store self, queries: I) -> Result<QueryIterator<'store, 'a>, StamError>
+    pub fn query<'a, I>(&'store self, queries: I) -> Result<QueryIter<'store, 'a>, StamError>
     where
         I: IntoIterator<Item = Query<'a>>,
     {
-        let mut qi = QueryIterator {
+        let mut qi = QueryIter {
             store: self,
             queries: Vec::new(),
-            results_textselections: Vec::new(),
-            results_annotations: Vec::new(),
-            results_resources: Vec::new(),
+            statestack: Vec::new(),
         };
         for query in queries {
             qi.add_query(query)?;
@@ -124,7 +144,7 @@ impl<'store> AnnotationStore {
     }
 }
 
-impl<'store, 'a> QueryIterator<'store, 'a> {
+impl<'store, 'a> QueryIter<'store, 'a> {
     pub(crate) fn add_query(&mut self, mut query: Query<'a>) -> Result<(), StamError> {
         //Encode existing variables in the query
         for (constraint, qualifier) in query.iter_mut() {
@@ -139,24 +159,7 @@ impl<'store, 'a> QueryIterator<'store, 'a> {
             }
         }
 
-        //Obtain a handle for this query and reserve an output place
-        if let Some(resulttype) = query.resulttype {
-            match resulttype {
-                ResultType::TextSelection => {
-                    self.results_textselections.push(None);
-                    query.handle = Some(self.results_textselections.len());
-                }
-                ResultType::Annotation => {
-                    self.results_annotations.push(None);
-                    query.handle = Some(self.results_annotations.len());
-                }
-                ResultType::TextResource => {
-                    self.results_resources.push(None);
-                    query.handle = Some(self.results_resources.len());
-                }
-            }
-        }
-
+        query.handle = Some(self.queries.len());
         self.queries.push(query);
         Ok(())
     }
@@ -181,4 +184,8 @@ impl<'store, 'a> QueryIterator<'store, 'a> {
     fn iter(&self) -> std::slice::Iter<Query<'a>> {
         self.queries.iter()
     }
+}
+
+impl<'store, 'slf> Iterator for QueryIter<'store, 'slf> {
+    type Item = Vec<QueryResultItem<'store>>;
 }
