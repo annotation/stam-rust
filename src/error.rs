@@ -87,6 +87,9 @@ pub enum StamError {
     /// Unexpected value error
     ValueError(String, &'static str),
 
+    /// Undefined variable in query
+    UndefinedVariable(String, &'static str),
+
     /// Category for other errors, try to use this sparingly
     OtherError(&'static str),
 }
@@ -180,6 +183,12 @@ impl From<&StamError> for String {
             }
             StamError::ValueError(value, contextmsg) => {
                 format!("ValueError: Unexpected value: {} - ({})", value, contextmsg)
+            }
+            StamError::UndefinedVariable(varname, contextmsg) => {
+                format!(
+                    "ValueError: Undefined variable in search query: {} - ({})",
+                    varname, contextmsg
+                )
             }
             StamError::OtherError(contextmsg) => {
                 format!("OtherError: {}", contextmsg)
