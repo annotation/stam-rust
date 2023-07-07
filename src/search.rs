@@ -1,5 +1,4 @@
 use smallvec::{smallvec, SmallVec};
-use std::ops::Deref;
 
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
@@ -239,6 +238,43 @@ impl<'store> QueryIter<'store> {
                 }
                 _ => unimplemented!("Constraint not implemented for target TextResource yet"),
             },
+            Some(ResultType::TextSelection) => match firstconstraint {
+                Some((Constraint::AnnotationData { set, key, value }, _qualifier)) => {
+                    //Get text selections by annotationdata
+                    Some(QueryState {
+                        iterator: SubIter::TextSelectionIter(Box::new(
+                            store
+                                .find_data(set.clone(), Some(key.clone()), value.clone())
+                                .into_iter()
+                                .flatten()
+                                .map(|data| data.annotations(store))
+                                .into_iter()
+                                .flatten()
+                                .flatten()
+                                .map(|annotation| annotation.textselections().collect()),
+                        )),
+                        result: QueryResultItem::None,
+                    })
+                }
+                None => {
+                    //unconstrained; all text selections in all resources (arbitrary order!)
+                    Some(QueryState {
+                        iterator: SubIter::TextSelectionIter(Box::new(
+                            store
+                                .resources()
+                                .map(|resource| {
+                                    resource
+                                        .textselections()
+                                        .map(|textselection| textselection.into())
+                                })
+                                .flatten(),
+                        )),
+                        result: QueryResultItem::None,
+                    })
+                }
+                _ => unimplemented!("Constraint not implemented for target TextResource yet"),
+            },
+            Some(ResultType::Annotation) => todo!(),
             None => return false,
         };
         if let Some(state) = state {
@@ -358,4 +394,12 @@ impl<'store> Iterator for QueryIter<'store> {
     }
 }
 
-impl<'store> QueryResultItems<'store> {}
+impl<'store> QueryResultItems<'store> {
+    pub fn iter(&self) -> impl Iterator<Item = &QueryResultItem<'store>> {
+        self.items.iter()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&QueryResultItem<'store>> {
+        self.items.get(index)
+    }
+}
