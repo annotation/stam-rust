@@ -60,9 +60,6 @@ pub enum Constraint<'a> {
 }
 
 pub struct QueryState<'store, 'slf> {
-    /// What query is being handled? (always procedes incrementally in the defined order)
-    queryindex: usize,
-
     /// The iterator for the current query
     iterator: SubIter<'store, 'slf>,
 
@@ -75,6 +72,7 @@ pub struct QueryIter<'store, 'slf> {
 
     queries: Vec<Query<'slf>>,
 
+    /// States in the stack hold iterators, each stack item corresponds to one further level of nesting
     statestack: Vec<QueryState<'store, 'slf>>,
 }
 
@@ -144,8 +142,12 @@ impl<'store> AnnotationStore {
     }
 }
 
-impl<'store, 'a> QueryIter<'store, 'a> {
-    pub(crate) fn add_query(&mut self, mut query: Query<'a>) -> Result<(), StamError> {
+impl<'store, 'slf> QueryIter<'store, 'slf> {
+    pub fn store(&self) -> &'store AnnotationStore {
+        self.store
+    }
+
+    pub(crate) fn add_query(&mut self, mut query: Query<'slf>) -> Result<(), StamError> {
         //Encode existing variables in the query
         for (constraint, qualifier) in query.iter_mut() {
             match constraint {
@@ -181,11 +183,151 @@ impl<'store, 'a> QueryIter<'store, 'a> {
     }
 
     /// Iterates over all queries
-    fn iter(&self) -> std::slice::Iter<Query<'a>> {
+    fn iter(&self) -> std::slice::Iter<Query<'slf>> {
         self.queries.iter()
+    }
+
+    /// Initializes a new state
+    pub fn init_state(&mut self, context: &QueryIter) -> Option<QueryState<'store, 'slf>> {
+        let queryindex = context.queries.len();
+        let query = context.queries.get(queryindex).expect("query must exist");
+        let firstconstraint = query.iter().next();
+
+        //create the subiterator based on the context
+        let mut state = match query.resulttype {
+            Some(ResultType::TextResource) => match firstconstraint {
+                Some((Constraint::AnnotationData { set, key, value }, _qualifier)) => {
+                    Some(QueryState {
+                        iterator: SubIter::ResourceIter(Box::new(
+                            context
+                                .store()
+                                .find_data(set.clone(), Some(key.clone()), value.clone())
+                                .into_iter()
+                                .flatten()
+                                .map(|data| data.annotations(self.store))
+                                .into_iter()
+                                .flatten()
+                                .flatten()
+                                .map(|annotation| annotation.resources())
+                                .flatten()
+                                .map(|resource| resource.item.into()),
+                        )),
+                        result: QueryResultItem::None,
+                    })
+                }
+                None => {
+                    //unconstrained; all resources
+                    Some(QueryState {
+                        iterator: SubIter::ResourceIter(Box::new(
+                            context.store().resources().map(|resource| resource.into()),
+                        )),
+                        result: QueryResultItem::None,
+                    })
+                }
+            },
+        };
+        // Do the first iteration
+        if let Some(state) = state.as_mut() {
+            state.next(query, context);
+            Some(*state)
+        } else {
+            //if tirst iteration fails, discard the entire state
+            None
+        }
+    }
+}
+
+impl<'store, 'slf> QueryState<'store, 'slf> {
+    ///Advances the query state, return true if a new result was obtained, false if the iterator ends without yielding a new result
+    pub fn next(&mut self, query: &Query<'slf>, context: &QueryIter<'store, 'slf>) -> bool {
+        loop {
+            match self.iterator {
+                SubIter::ResourceIter(mut iter) => {
+                    if let Some(result) = iter.next() {
+                        let mut constraints_met = true;
+                        for (constraint, _qualifier) in query.iter() {
+                            if !self.test_constraint(constraint, &result, query, context) {
+                                constraints_met = false;
+                                break;
+                            }
+                        }
+                        if constraints_met {
+                            self.result = QueryResultItem::TextResource(result);
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+trait TestConstraint<'store, 'slf, T> {
+    fn test_constraint(
+        &self,
+        constraint: &Constraint<'slf>,
+        itemset: &T,
+        query: &Query<'slf>,
+        context: &QueryIter<'store, 'slf>,
+    ) -> bool;
+}
+
+impl<'store, 'slf> TestConstraint<'store, 'slf, ResultItemSet<'store, TextResource>>
+    for QueryState<'store, 'slf>
+{
+    fn test_constraint(
+        &self,
+        constraint: &Constraint,
+        itemset: &ResultItemSet<'store, TextResource>,
+        query: &Query<'slf>,
+        context: &QueryIter<'store, 'slf>,
+    ) -> bool {
+        //if a single item in an itemset matches, the itemset as a whole is valid
+        for item in itemset.iter() {
+            match constraint {
+                Constraint::AnnotationData { set, key, value } => {
+                    if let Some(iter) = item.annotations_metadata() {
+                        for annotation in iter {
+                            for data in annotation.data() {
+                                if context
+                                    .store()
+                                    .wrap(data.set())
+                                    .expect("wrap must succeed")
+                                    .test(set)
+                                    && data.test(Some(&key), &value)
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => unimplemented!(), //todo: remove
+            }
+        }
+        false
     }
 }
 
 impl<'store, 'slf> Iterator for QueryIter<'store, 'slf> {
     type Item = Vec<QueryResultItem<'store>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            while self.statestack.len() < self.queries.len() {
+                if let Some(state) = self.init_state(self) {
+                    self.statestack.push(state);
+                } else {
+                    //no state could be found, we're done
+                    return None;
+                }
+            }
+
+            // get the final/rightmost state (with subiterator) from the stack
+            // if there is none: instantiate a new one on the left and call next() on the subiterator
+            //    if that fails, there are no more results
+            // if there is one: call next() and return the full results for the entire stack,
+            //     if the iterator is depleted, remove it and call next() on the superiterator (if that is depleted too, move left)
+        }
+    }
 }
