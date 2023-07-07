@@ -239,7 +239,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationData> {
     pub fn annotations(
         &'slf self,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'slf> {
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store> {
         if let Some(vec) = annotationstore.annotations_by_data(
             self.set().handle().expect("set must have handle"),
             self.handle(),
