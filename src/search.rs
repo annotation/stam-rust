@@ -60,6 +60,9 @@ pub enum Constraint<'a> {
 }
 
 pub struct QueryState<'store, 'slf> {
+    /// The query this state pertains too
+    queryindex: usize,
+
     /// The iterator for the current query
     iterator: SubIter<'store, 'slf>,
 
@@ -74,6 +77,9 @@ pub struct QueryIter<'store, 'slf> {
 
     /// States in the stack hold iterators, each stack item corresponds to one further level of nesting
     statestack: Vec<QueryState<'store, 'slf>>,
+
+    /// Signals that we're done with the entire stack
+    done: bool,
 }
 
 /// Abstracts over different types of subiterators we may encounter during querying, the types are names after the type they return.
@@ -198,6 +204,7 @@ impl<'store, 'slf> QueryIter<'store, 'slf> {
             Some(ResultType::TextResource) => match firstconstraint {
                 Some((Constraint::AnnotationData { set, key, value }, _qualifier)) => {
                     Some(QueryState {
+                        queryindex,
                         iterator: SubIter::ResourceIter(Box::new(
                             context
                                 .store()
@@ -218,6 +225,7 @@ impl<'store, 'slf> QueryIter<'store, 'slf> {
                 None => {
                     //unconstrained; all resources
                     Some(QueryState {
+                        queryindex,
                         iterator: SubIter::ResourceIter(Box::new(
                             context.store().resources().map(|resource| resource.into()),
                         )),
@@ -225,28 +233,54 @@ impl<'store, 'slf> QueryIter<'store, 'slf> {
                     })
                 }
             },
+            None => return None,
         };
         // Do the first iteration
         if let Some(state) = state.as_mut() {
-            state.next(query, context);
+            state.next(context);
             Some(*state)
         } else {
             //if tirst iteration fails, discard the entire state
             None
         }
     }
+
+    /// advance the rightmost iterator on the state
+    /// remove it if it's depleted
+    pub fn prepare_next(&mut self) -> bool {
+        loop {
+            if let Some(state) = self.statestack.last() {
+                //iterate the rightmost stack item and try again
+                if state.next(self) {
+                    return true;
+                }
+            } else {
+                //stack is empty, and we have no results, we're done
+                return false;
+            }
+            //remove the last item
+            self.statestack.pop();
+        }
+    }
 }
 
 impl<'store, 'slf> QueryState<'store, 'slf> {
+    pub fn query<'a>(&self, context: &'a QueryIter<'store, 'slf>) -> &'a Query<'slf> {
+        context
+            .queries
+            .get(self.queryindex)
+            .expect("queryindex must be valid")
+    }
+
     ///Advances the query state, return true if a new result was obtained, false if the iterator ends without yielding a new result
-    pub fn next(&mut self, query: &Query<'slf>, context: &QueryIter<'store, 'slf>) -> bool {
+    pub fn next(&mut self, context: &QueryIter<'store, 'slf>) -> bool {
         loop {
             match self.iterator {
                 SubIter::ResourceIter(mut iter) => {
                     if let Some(result) = iter.next() {
                         let mut constraints_met = true;
-                        for (constraint, _qualifier) in query.iter() {
-                            if !self.test_constraint(constraint, &result, query, context) {
+                        for (constraint, _qualifier) in self.query(context).iter() {
+                            if !self.test_constraint(constraint, &result, context) {
                                 constraints_met = false;
                                 break;
                             }
@@ -267,7 +301,6 @@ trait TestConstraint<'store, 'slf, T> {
         &self,
         constraint: &Constraint<'slf>,
         itemset: &T,
-        query: &Query<'slf>,
         context: &QueryIter<'store, 'slf>,
     ) -> bool;
 }
@@ -279,7 +312,6 @@ impl<'store, 'slf> TestConstraint<'store, 'slf, ResultItemSet<'store, TextResour
         &self,
         constraint: &Constraint,
         itemset: &ResultItemSet<'store, TextResource>,
-        query: &Query<'slf>,
         context: &QueryIter<'store, 'slf>,
     ) -> bool {
         //if a single item in an itemset matches, the itemset as a whole is valid
@@ -313,21 +345,30 @@ impl<'store, 'slf> Iterator for QueryIter<'store, 'slf> {
     type Item = Vec<QueryResultItem<'store>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            while self.statestack.len() < self.queries.len() {
-                if let Some(state) = self.init_state(self) {
-                    self.statestack.push(state);
-                } else {
-                    //no state could be found, we're done
-                    return None;
-                }
-            }
-
-            // get the final/rightmost state (with subiterator) from the stack
-            // if there is none: instantiate a new one on the left and call next() on the subiterator
-            //    if that fails, there are no more results
-            // if there is one: call next() and return the full results for the entire stack,
-            //     if the iterator is depleted, remove it and call next() on the superiterator (if that is depleted too, move left)
+        if self.done {
+            //iterator has been marked as done, do nothing else
+            return None;
         }
+
+        //populate the entire stack, producing a result at each level
+        while self.statestack.len() < self.queries.len() {
+            if let Some(state) = self.init_state(self) {
+                self.statestack.push(state); //the state will hold a result for that level
+            } else if !self.prepare_next() {
+                //if we didn't succeed in preparing the next iteration, it means the entire stack is depleted and we're done
+                return None;
+            }
+        }
+
+        //read the result in the stack's result buffer
+        let result = self.build_result();
+
+        // prepare the result buffer for next iteration
+        if !self.prepare_next() {
+            //no results next time? mark as done (otherwise the iterator would restart from scratch again)
+            self.done = true;
+        }
+
+        return Some(result);
     }
 }
