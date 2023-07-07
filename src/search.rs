@@ -61,31 +61,31 @@ pub enum Constraint<'q> {
     TextRelationVariable(Variable, TextSelectionOperator),
 }
 
-pub struct QueryState<'store, 'q> {
+pub struct QueryState<'store> {
     /// The iterator for the current query
-    iterator: SubIter<'store, 'q>,
+    iterator: SubIter<'store>,
 
     // note: this captures the result of the current state, in order to make it available for subsequent deeper iterators
     result: QueryResultItem<'store>,
 }
 
-pub struct QueryIter<'store, 'q> {
+pub struct QueryIter<'store> {
     store: &'store AnnotationStore,
 
-    queries: Vec<Query<'q>>,
+    queries: Vec<Query<'store>>,
 
     /// States in the stack hold iterators, each stack item corresponds to one further level of nesting
-    statestack: Vec<QueryState<'store, 'q>>,
+    statestack: Vec<QueryState<'store>>,
 
     /// Signals that we're done with the entire stack
     done: bool,
 }
 
 /// Abstracts over different types of subiterators we may encounter during querying, the types are names after the type they return.
-pub enum SubIter<'store, 'q> {
-    ResourceIter(Box<dyn Iterator<Item = ResultItemSet<'store, TextResource>> + 'q>),
-    AnnotationIter(Box<dyn Iterator<Item = ResultItemSet<'store, Annotation>> + 'q>),
-    TextSelectionIter(Box<dyn Iterator<Item = TextSelectionSet> + 'q>),
+pub enum SubIter<'store> {
+    ResourceIter(Box<dyn Iterator<Item = ResultItemSet<'store, TextResource>> + 'store>),
+    AnnotationIter(Box<dyn Iterator<Item = ResultItemSet<'store, Annotation>> + 'store>),
+    TextSelectionIter(Box<dyn Iterator<Item = TextSelectionSet> + 'store>),
 }
 
 #[derive(Clone, Debug)]
@@ -139,9 +139,9 @@ impl Variable {
 impl<'store> AnnotationStore {
     /// Instantiates a query, returns an iterator.
     /// No actual querying is done yet until you use the iterator.
-    pub fn query<'a, I>(&'store self, queries: I) -> Result<QueryIter<'store, 'a>, StamError>
+    pub fn query<I>(&'store self, queries: I) -> Result<QueryIter<'store>, StamError>
     where
-        I: IntoIterator<Item = Query<'a>>,
+        I: IntoIterator<Item = Query<'store>>,
     {
         let mut qi = QueryIter {
             store: self,
@@ -156,12 +156,12 @@ impl<'store> AnnotationStore {
     }
 }
 
-impl<'store, 'q> QueryIter<'store, 'q> {
+impl<'store> QueryIter<'store> {
     pub fn store(&self) -> &'store AnnotationStore {
         self.store
     }
 
-    pub(crate) fn add_query(&mut self, mut query: Query<'q>) -> Result<(), StamError> {
+    pub(crate) fn add_query(&mut self, mut query: Query<'store>) -> Result<(), StamError> {
         //Encode existing variables in the query
         for (constraint, qualifier) in query.iter_mut() {
             match constraint {
@@ -195,7 +195,7 @@ impl<'store, 'q> QueryIter<'store, 'q> {
     }
 
     /// Iterates over all queries
-    fn iter(&self) -> std::slice::Iter<Query<'q>> {
+    fn iter(&self) -> std::slice::Iter<Query<'store>> {
         self.queries.iter()
     }
 
@@ -298,15 +298,13 @@ impl<'store, 'q> QueryIter<'store, 'q> {
     }
 }
 
-trait TestConstraint<'store, 'q, T> {
-    fn test(&'q self, store: &'store AnnotationStore, itemset: &T) -> bool;
+trait TestConstraint<'store, T> {
+    fn test(&self, store: &'store AnnotationStore, itemset: &T) -> bool;
 }
 
-impl<'store, 'q> TestConstraint<'store, 'q, ResultItemSet<'store, TextResource>>
-    for Constraint<'q>
-{
+impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Constraint<'store> {
     fn test(
-        &'q self,
+        &self,
         store: &'store AnnotationStore,
         itemset: &ResultItemSet<'store, TextResource>,
     ) -> bool {
@@ -333,7 +331,7 @@ impl<'store, 'q> TestConstraint<'store, 'q, ResultItemSet<'store, TextResource>>
     }
 }
 
-impl<'store, 'q> Iterator for QueryIter<'store, 'q> {
+impl<'store> Iterator for QueryIter<'store> {
     type Item = QueryResultItems<'store>;
 
     fn next(&mut self) -> Option<Self::Item> {
