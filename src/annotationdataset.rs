@@ -924,6 +924,11 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
         }
     }
 
+    /// Tests whether two AnnotationDataSets are the same
+    pub fn test(&'slf self, other: &RequestItem<AnnotationDataSet>) -> bool {
+        Some(self.handle()) == other.to_handle(self.store())
+    }
+
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
     /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
     pub fn annotations_metadata(
