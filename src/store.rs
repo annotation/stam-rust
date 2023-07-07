@@ -751,6 +751,18 @@ where
     store: &'store T::StoreType,
 }
 
+impl<'store, T> Clone for ResultItemSet<'store, T>
+where
+    T: Storable,
+{
+    fn clone(&self) -> Self {
+        Self {
+            items: self.items.clone(),
+            store: self.store(),
+        }
+    }
+}
+
 impl<'store, T> ResultItemSet<'store, T>
 where
     T: Storable,
@@ -777,7 +789,8 @@ where
 
     pub fn first(&self) -> ResultItem<'store, T> {
         self.store()
-            .wrap(items.get(0).expect("there must be an item"))
+            .wrap(self.items.first().expect("there must be an item"))
+            .expect("wrap must succeed")
     }
 
     /// Collects items from an iterator and return a ResultItemSet.
