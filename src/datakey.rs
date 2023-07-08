@@ -107,8 +107,8 @@ impl Storable for DataKey {
         self.intid = Some(intid);
     }
 
-    fn with_id(mut self, id: String) -> Self {
-        self.id = id;
+    fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = id.into();
         self
     }
 
@@ -143,9 +143,9 @@ impl PartialEq<DataKey> for str {
 
 impl DataKey {
     ///Creates a new DataKey which you can add to an AnnotationDataSet using AnnotationDataSet.add_key()
-    pub fn new(id: String) -> Self {
+    pub fn new(id: impl Into<String>) -> Self {
         Self {
-            id,
+            id: id.into(),
             intid: None,
             part_of_set: None,
         }

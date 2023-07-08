@@ -102,8 +102,8 @@ impl Storable for AnnotationData {
         self.id.as_deref()
     }
 
-    fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
     fn set_handle(&mut self, intid: AnnotationDataHandle) {

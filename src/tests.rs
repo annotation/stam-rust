@@ -32,7 +32,7 @@ fn parse_json_annotationdatabuilder() -> Result<(), std::io::Error> {
     assert_eq!(data.id, "D2"); //can also be compared with &str etc
     assert_eq!(data.key, RequestItem::from("pos"));
     assert_eq!(data.key, "pos");
-    assert_eq!(data.value, DataValue::String("verb".into()));
+    assert_eq!(data.value, DataValue::from("verb"));
     assert_eq!(data.value, "verb"); //shorter version
     Ok(())
 }
@@ -141,14 +141,13 @@ fn parse_json_complexselector() -> Result<(), std::io::Error> {
 
 #[test]
 fn textresource() {
-    let resource =
-        TextResource::from_string("testres".into(), "Hello world".into(), Config::default());
+    let resource = TextResource::from_string("testres", "Hello world", Config::default());
     assert_eq!(resource.id(), Some("testres"));
 }
 
 #[test]
 fn serialize_datakey() {
-    let datakey = DataKey::new("pos".into());
+    let datakey = DataKey::new("pos");
     serde_json::to_string(&datakey).expect("serialization");
 }
 
@@ -624,8 +623,7 @@ fn textselectionoperator_sameend_1vs1() {
 
 #[test]
 fn unicode2utf8() {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
     assert_eq!(resource.utf8byte(0).unwrap(), 0); //H
     assert_eq!(resource.utf8byte(1).unwrap(), 1); //a
     assert_eq!(resource.utf8byte(2).unwrap(), 2); //l
@@ -649,8 +647,7 @@ fn unicode2utf8() {
 
 #[test]
 fn utf82unicode() {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
     assert_eq!(resource.utf8byte_to_charpos(0).unwrap(), 0); //H
     assert_eq!(resource.utf8byte_to_charpos(1).unwrap(), 1); //a
     assert_eq!(resource.utf8byte_to_charpos(2).unwrap(), 2); //l
@@ -674,8 +671,7 @@ fn utf82unicode() {
 
 #[test]
 fn find_text_single() {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
     let textselection = resource.find_text("världen").next().unwrap();
     assert_eq!(textselection.begin(), 6);
     assert_eq!(textselection.end(), 13);
@@ -683,8 +679,7 @@ fn find_text_single() {
 
 #[test]
 fn find_text_single2() {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
     let textselection = resource.find_text("Hallå").next().unwrap();
     assert_eq!(textselection.begin(), 0);
     assert_eq!(textselection.end(), 5);
@@ -692,8 +687,8 @@ fn find_text_single2() {
 
 #[test]
 fn find_text_multi() {
-    let resource = TextResource::new("testres".into(), Config::default())
-        .with_string("To be or not to be, that's the question".into());
+    let resource = TextResource::new("testres", Config::default())
+        .with_string("To be or not to be, that's the question");
     let textselections: Vec<_> = resource.find_text("be").collect();
     assert_eq!(textselections.len(), 2);
     assert_eq!(textselections[0].begin(), 3);
@@ -704,16 +699,15 @@ fn find_text_multi() {
 
 #[test]
 fn find_text_none() {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hallå världen".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
     let v: Vec<_> = resource.find_text("blah").collect();
     assert!(v.is_empty());
 }
 
 #[test]
 fn split_text() {
-    let resource = TextResource::new("testres".into(), Config::default())
-        .with_string("To be or not to be".into());
+    let resource =
+        TextResource::new("testres", Config::default()).with_string("To be or not to be");
     let textselections: Vec<_> = resource.split_text(" ").collect();
     eprintln!("{:?}", textselections);
     assert_eq!(textselections.len(), 6);
@@ -726,8 +720,8 @@ fn split_text() {
 #[test]
 fn split_text_whitespace() {
     //with leading and trailing 'empty' texts
-    let resource = TextResource::new("testres".into(), Config::default())
-        .with_string("\nTo be or not to be\nthat is the question\n".into());
+    let resource = TextResource::new("testres", Config::default())
+        .with_string("\nTo be or not to be\nthat is the question\n");
     let textselections: Vec<_> = resource.split_text("\n").collect();
     eprintln!("{:?}", textselections);
     assert_eq!(textselections.len(), 4);
@@ -736,8 +730,8 @@ fn split_text_whitespace() {
 #[test]
 fn split_text_none() {
     //with no occurrences at all
-    let resource = TextResource::new("testres".into(), Config::default())
-        .with_string("To be or not to be".into());
+    let resource =
+        TextResource::new("testres", Config::default()).with_string("To be or not to be");
     let textselections: Vec<_> = resource.split_text("?").collect();
     eprintln!("{:?}", textselections);
     assert_eq!(textselections.len(), 1);
@@ -745,8 +739,8 @@ fn split_text_none() {
 
 #[test]
 fn trim_text() {
-    let resource = TextResource::new("testres".into(), Config::default())
-        .with_string("  To be or not to be   ".into());
+    let resource =
+        TextResource::new("testres", Config::default()).with_string("  To be or not to be   ");
     let textselection = resource.trim_text(&[' ']).unwrap();
     assert_eq!(textselection.begin(), 2);
     assert_eq!(textselection.end(), 20);
@@ -755,8 +749,7 @@ fn trim_text() {
 
 #[test]
 fn textselection_out_of_bounds() {
-    let resource =
-        TextResource::from_string("testres".into(), "Hello world".into(), Config::default());
+    let resource = TextResource::from_string("testres", "Hello world", Config::default());
     let result = resource.textselection(&Offset::simple(0, 999));
     assert!(result.is_err());
 }

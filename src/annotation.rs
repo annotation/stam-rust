@@ -115,8 +115,8 @@ impl Storable for Annotation {
         self.intid = Some(handle);
     }
 
-    fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
 
@@ -188,8 +188,8 @@ impl<'a> AnnotationBuilder<'a> {
         Self::default()
     }
 
-    pub fn with_id(mut self, id: String) -> Self {
-        self.id = RequestItem::Id(id);
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = RequestItem::Id(id.into());
         self
     }
 

@@ -198,8 +198,8 @@ impl Storable for TextResource {
     fn handle(&self) -> Option<TextResourceHandle> {
         self.intid
     }
-    fn with_id(mut self, id: String) -> Self {
-        self.id = id;
+    fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = id.into();
         self
     }
     fn set_handle(&mut self, handle: TextResourceHandle) {
@@ -330,18 +330,18 @@ impl TextResourceBuilder {
         }
     }
 
-    pub fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
 
-    pub fn with_filename(mut self, filename: &str) -> Self {
-        self.filename = Some(filename.to_string());
+    pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
+        self.filename = Some(filename.into());
         self
     }
 
-    pub fn with_text(mut self, text: String) -> Self {
-        self.text = Some(text);
+    pub fn with_text(mut self, text: impl Into<String>) -> Self {
+        self.text = Some(text.into());
         self
     }
 
@@ -359,9 +359,9 @@ impl TextResourceBuilder {
 
 impl TextResource {
     /// Instantiates a new completely empty TextResource
-    pub fn new(id: String, config: Config) -> Self {
+    pub fn new(id: impl Into<String>, config: Config) -> Self {
         Self {
-            id,
+            id: id.into(),
             intid: None,
             text: String::new(),
             textlen: 0,
@@ -411,9 +411,9 @@ impl TextResource {
     /// Sets the text of the TextResource from string, kept in memory entirely
     /// The use of [`Self.from_string()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
-    pub fn with_string(mut self, text: String) -> Self {
+    pub fn with_string(mut self, text: impl Into<String>) -> Self {
         self.check_mutation();
-        self.text = text;
+        self.text = text.into();
         self.textlen = self.text.chars().count();
         if self.config.milestone_interval > 0 {
             self.create_milestones(self.config.milestone_interval)
@@ -456,11 +456,12 @@ impl TextResource {
     }
 
     /// Create a new TextResource from string, kept in memory entirely
-    pub fn from_string(id: String, text: String, config: Config) -> Self {
+    pub fn from_string(id: impl Into<String>, text: impl Into<String>, config: Config) -> Self {
+        let text = text.into();
         let textlen = text.chars().count();
         let mut resource = TextResource {
-            id,
-            text,
+            id: id.into(),
+            text: text.into(),
             intid: None,
             filename: None,
             changed: Arc::new(RwLock::new(false)),

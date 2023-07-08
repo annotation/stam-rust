@@ -240,7 +240,7 @@ where
 
     /// Builder pattern to set the public Id
     #[allow(unused_variables)]
-    fn with_id(self, id: String) -> Self
+    fn with_id(self, id: impl Into<String>) -> Self
     where
         Self: Sized,
     {
