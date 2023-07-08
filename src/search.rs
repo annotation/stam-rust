@@ -82,6 +82,8 @@ pub struct QueryIter<'store> {
 
 /// Abstracts over different types of subiterators we may encounter during querying, the types are names after the type they return.
 pub enum SubIter<'store> {
+    None,      //no iterator
+    Singleton, //not a real iterator but a pseudo one: a (single) result has been produced directly and is already stored into the result buffer. This signals QueryIter to pick it up from there
     ResourceIter(Box<dyn Iterator<Item = ResultItemSet<'store, TextResource>> + 'store>),
     AnnotationIter(Box<dyn Iterator<Item = ResultItemSet<'store, Annotation>> + 'store>),
     TextSelectionIter(Box<dyn Iterator<Item = TextSelectionSet> + 'store>),
@@ -167,7 +169,7 @@ impl<'store> QueryIter<'store> {
                 Constraint::TextResourceVariable(var)
                 | Constraint::TextRelationVariable(var, _) => {
                     if !var.is_encoded() {
-                        *var = self.resolve_variable(&var)?;
+                        *var = self.encode_variable(&var)?;
                     }
                 }
                 _ => continue,
@@ -177,7 +179,7 @@ impl<'store> QueryIter<'store> {
         Ok(())
     }
 
-    fn resolve_variable(&self, var: &Variable) -> Result<Variable, StamError> {
+    fn encode_variable(&self, var: &Variable) -> Result<Variable, StamError> {
         match var {
             Variable::Decoded(name) => {
                 for (i, query) in self.iter().enumerate() {
@@ -190,6 +192,19 @@ impl<'store> QueryIter<'store> {
                 Err(StamError::UndefinedVariable(name.clone(), ""))
             }
             Variable::Encoded(..) => Ok(var.clone()),
+        }
+    }
+
+    fn resolve_variable(&self, var: &Variable) -> QueryResultItem<'store> {
+        match var {
+            Variable::Decoded(_) => QueryResultItem::None, //variables must be encoded at this point
+            Variable::Encoded(_, handle) => {
+                if let Some(state) = self.statestack.get(*handle) {
+                    state.result.clone() //MAYBE TODO: see if we can get rid of the clone but then things get tricky very quickly
+                } else {
+                    QueryResultItem::None //unable to resolve query
+                }
+            }
         }
     }
 
@@ -226,6 +241,28 @@ impl<'store> QueryIter<'store> {
                         )),
                         result: QueryResultItem::None,
                     })
+                }
+                Some((Constraint::TextResource(itemset), _qualifier)) => {
+                    //Get resources directly
+                    if let Some(itemset) = itemset.resolve(store) {
+                        Some(QueryState {
+                            iterator: SubIter::Singleton, //no real iterator, but indicates we already prepared a single result, namely:
+                            result: QueryResultItem::TextResource(itemset),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some((Constraint::TextResourceVariable(var), _qualifier)) => {
+                    //Get resources via variable (a bit non-sensical since that implies we already have it earlier in another stack)
+                    if let QueryResultItem::TextResource(itemset) = self.resolve_variable(var) {
+                        Some(QueryState {
+                            iterator: SubIter::Singleton, //no real iterator, but indicates we already prepared a single result, namely:
+                            result: QueryResultItem::TextResource(itemset),
+                        })
+                    } else {
+                        None
+                    }
                 }
                 None => {
                     //unconstrained; all resources
@@ -313,6 +350,30 @@ impl<'store> QueryIter<'store> {
                             } else {
                                 break; //iterator depleted, break to pop state from stack
                             }
+                        }
+                        SubIter::Singleton => {
+                            let mut constraints_met = true;
+                            if let QueryResultItem::TextResource(result) = &state.result {
+                                for (constraint, _qualifier) in query.iter() {
+                                    if !constraint.test(store, result) {
+                                        constraints_met = false;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                //no result prepared? shouldn't happen, but deal with it if does:
+                                constraints_met = false;
+                            }
+                            //singleton pseudo-iterator can only be used once
+                            state.iterator = SubIter::None;
+                            if constraints_met {
+                                return true;
+                            } else {
+                                break;
+                            }
+                        }
+                        SubIter::None => {
+                            break; //iterator depleted, break to pop state from stack
                         }
                         _ => unimplemented!("further iterators not implemented yet"), //TODO
                     }
