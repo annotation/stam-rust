@@ -851,25 +851,44 @@ where
     }
 }
 
-/*
-impl<'store, T> IntoIterator for ResultItemSet<'store, T>
+impl<'a, T> IntoIterator for ResultItemSet<'a, T>
+where
+    T: Storable,
+{
+    type Item = ResultItem<'a, T>;
+    type IntoIter = ResultItemSetIntoIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ResultItemSetIntoIter {
+            items: self.items,
+            store: self.store,
+        }
+    }
+}
+
+// we need this type because we can't get away with just doing into_iter().map() as that results in an opaque type with a closure
+pub struct ResultItemSetIntoIter<'store, T>
+where
+    T: Storable,
+{
+    items: SmallVec<[&'store T; 1]>,
+    store: &'store T::StoreType,
+}
+
+impl<'store, T> Iterator for ResultItemSetIntoIter<'store, T>
 where
     T: Storable,
 {
     type Item = ResultItem<'store, T>;
-    type IntoIter = std::iter::Map<
-        <SmallVec<[&'store T; 1]> as IntoIterator>::IntoIter,
-        fn(&'store T) -> ResultItem<'store, T>,
-    >;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.into_iter().map(|item| ResultItem {
-            item: item,
-            store: self.store,
-        })
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(item) = self.items.pop() {
+            Some(self.store.wrap(item).expect("wrap must succeed"))
+        } else {
+            None
+        }
     }
 }
-*/
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
