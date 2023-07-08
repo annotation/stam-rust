@@ -1204,11 +1204,21 @@ where
         }
     }
 
+    /// Turns a requested item into a reference
     pub fn to_ref<'s, S>(&'a self, store: &'s S) -> Option<&'s T>
     where
         S: StoreFor<T>,
     {
         store.get(&self).ok()
+    }
+
+    /// Turns a requested item into a result item
+    /// This is the preferred higher-level construct over to_handle(), to_id() and to_ref()..
+    pub fn resolve<'s>(&'a self, store: &'s T::StoreType) -> Option<ResultItem<'s, T>> {
+        match store.get(&self) {
+            Ok(item) => Some(ResultItem { store, item }),
+            Err(_) => None,
+        }
     }
 }
 
@@ -1356,6 +1366,25 @@ where
 
     pub fn iter(&self) -> impl Iterator<Item = &RequestItem<'a, T>> {
         self.items.iter()
+    }
+
+    /// Turns a requested item into a result item
+    /// This is the preferred higher-level construct over to_handle(), to_id() and to_ref()..
+    pub fn resolve(&self, store: &'a T::StoreType) -> Option<ResultItemSet<'a, T>> {
+        let mut items = SmallVec::new();
+        for item in self.iter() {
+            if let Some(item) = item.resolve(store) {
+                items.push(item.as_ref());
+            } else {
+                //if an item does not resolve, the whole set is invalid
+                return None;
+            }
+        }
+        if items.is_empty() {
+            //Result set may never be empty
+            return None;
+        }
+        Some(ResultItemSet { items, store })
     }
 }
 
