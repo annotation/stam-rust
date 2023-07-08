@@ -866,7 +866,7 @@ where
     }
 }
 
-// we need this type because we get away with just doing into_iter().map() as that results in an opaque type with a closure
+// we need this type because we can't get away with just doing into_iter().map() as that results in an opaque type with a closure
 pub struct ResultItemSetIntoIter<'store, T>
 where
     T: Storable,
