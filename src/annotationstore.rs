@@ -656,8 +656,8 @@ impl<'a> AnnotationStoreBuilder<'a> {
     }
 
     /// Set the public ID for the [`AnnotationStore`] that will be built.
-    pub fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
 
@@ -1023,8 +1023,8 @@ impl AnnotationStore {
     }
 
     /// Sets the ID of the annotation store in a builder pattern
-    pub fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
 

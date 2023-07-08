@@ -9,16 +9,16 @@ const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
 
 #[test]
 fn instantiation_naive() -> Result<(), StamError> {
-    let mut store = AnnotationStore::new().with_id("test".into());
+    let mut store = AnnotationStore::new().with_id("test");
 
     let _res_intid = store.insert(TextResource::from_string(
-        "testres".into(),
-        "Hello world".into(),
+        "testres",
+        "Hello world",
         Config::default(),
     ));
 
-    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset".into());
-    annotationset.insert(DataKey::new("pos".into()))?;
+    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
+    annotationset.insert(DataKey::new("pos"))?;
     store.insert(annotationset)?;
 
     Ok(())
@@ -27,18 +27,18 @@ fn instantiation_naive() -> Result<(), StamError> {
 #[test]
 fn sanity_check() -> Result<(), StamError> {
     // Instantiate the store
-    let mut store = AnnotationStore::new().with_id("test".into());
+    let mut store = AnnotationStore::new().with_id("test");
 
     // Insert a text resource into the store
     let _res_handle = store.insert(TextResource::from_string(
-        "testres".into(),
-        "Hello world".into(),
+        "testres",
+        "Hello world",
         Config::default(),
     ));
 
     // Create a dataset with one key and insert it into the store
-    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset".into());
-    annotationset.insert(DataKey::new("pos".into()))?; //returns a DataKeyHandle, not further used in this test
+    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
+    annotationset.insert(DataKey::new("pos"))?; //returns a DataKeyHandle, not further used in this test
     let set_handle = store.insert(annotationset)?;
 
     //get by handle (internal id)
@@ -56,21 +56,21 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
     let store = AnnotationStore::new()
         .with_config(Config::default().with_debug(true))
-        .with_id("test".into())
+        .with_id("test")
         .add(TextResource::from_string(
-            "testres".into(),
-            "Hello world".into(),
+            "testres",
+            "Hello world",
             Config::default(),
         ))?
         .add(
             AnnotationDataSet::new(Config::default())
-                .with_id("testdataset".into())
-                .add(DataKey::new("pos".into()))?
+                .with_id("testdataset")
+                .add(DataKey::new("pos"))?
                 .with_data("D1".into(), "pos".into(), "noun".into())?,
         )?
         .with_annotation(
             Annotation::builder()
-                .with_id("A1".into())
+                .with_id("A1")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(6, 11),
@@ -83,16 +83,16 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
 pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
     let store = AnnotationStore::new()
-        .with_id("test".into())
+        .with_id("test")
         .add(TextResource::from_string(
-            "testres".to_string(),
-            "Hello world".into(),
+            "testres",
+            "Hello world",
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             Annotation::builder()
-                .with_id("A1".into())
+                .with_id("A1")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(6, 11),
@@ -110,16 +110,16 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
 pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
     let store = AnnotationStore::new()
-        .with_id("test".into())
+        .with_id("test")
         .add(TextResource::from_string(
-            "testres".to_string(),
-            "Hello world".into(),
+            "testres",
+            "Hello world",
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             Annotation::builder()
-                .with_id("A1".into())
+                .with_id("A1")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(6, 11),
@@ -133,7 +133,7 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
         )?
         .with_annotation(
             Annotation::builder()
-                .with_id("A2".into())
+                .with_id("A2")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(0, 5),
@@ -151,16 +151,16 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
 pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
     //this example includes a higher-order annotation with relative offset
     let store = AnnotationStore::new()
-        .with_id("test".into())
+        .with_id("test")
         .add(TextResource::from_string(
             "testres".to_string(),
-            "I have no special talent. I am only passionately curious. -- Albert Einstein".into(),
+            "I have no special talent. I am only passionately curious. -- Albert Einstein",
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             Annotation::builder()
-                .with_id("sentence2".into())
+                .with_id("sentence2")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(26, 57),
@@ -169,7 +169,7 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
         )?
         .with_annotation(
             Annotation::builder()
-                .with_id("sentence2word2".into())
+                .with_id("sentence2word2")
                 .with_target(SelectorBuilder::AnnotationSelector(
                     "sentence2".into(),
                     Some(Offset::simple(2, 4)),
@@ -830,7 +830,7 @@ fn textselection_relative() -> Result<(), StamError> {
 fn textselection_relative_endaligned() -> Result<(), StamError> {
     let store = setup_example_3()?.with_annotation(
         Annotation::builder()
-            .with_id("sentence2lastword".into())
+            .with_id("sentence2lastword")
             .with_target(SelectorBuilder::AnnotationSelector(
                 "sentence2".into(),
                 Some(Offset::new(Cursor::EndAligned(-8), Cursor::EndAligned(-1))),
@@ -1062,16 +1062,16 @@ fn find_data_all() -> Result<(), StamError> {
 
 pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::new()
-        .with_id("test".into())
+        .with_id("test")
         .add(TextResource::from_string(
-            "testres".to_string(),
-            "Hello world".into(),
+            "testres",
+            "Hello world",
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             Annotation::builder()
-                .with_id("WordAnnotation".into())
+                .with_id("WordAnnotation")
                 .with_target(SelectorBuilder::MultiSelector(vec![
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
@@ -1104,16 +1104,16 @@ fn test_multiselector_iter() -> Result<(), StamError> {
 
 pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::new()
-        .with_id("test".into())
+        .with_id("test")
         .add(TextResource::from_string(
-            "testres".to_string(),
-            "Hello world".into(),
+            "testres",
+            "Hello world",
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             Annotation::builder()
-                .with_id("A1".into())
+                .with_id("A1")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(6, 11),
@@ -1127,7 +1127,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         )?
         .with_annotation(
             Annotation::builder()
-                .with_id("A2".into())
+                .with_id("A2")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(0, 5),
@@ -1141,7 +1141,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         )?
         .with_annotation(
             Annotation::builder()
-                .with_id("WordAnnotation".into())
+                .with_id("WordAnnotation")
                 .with_target(SelectorBuilder::MultiSelector(vec![
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
@@ -1155,7 +1155,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         )?
         .with_annotation(
             Annotation::builder()
-                .with_id("AllPosAnnotation".into())
+                .with_id("AllPosAnnotation")
                 .with_target(SelectorBuilder::MultiSelector(vec![
                     SelectorBuilder::AnnotationSelector("A1".into(), Some(Offset::whole())),
                     SelectorBuilder::AnnotationSelector("A2".into(), Some(Offset::whole())),
@@ -1246,8 +1246,7 @@ fn test_read_include() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text() -> Result<(), StamError> {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
     let mut count = 0;
     for result in resource.find_text("world") {
         count += 1;
@@ -1261,8 +1260,7 @@ fn test_find_text() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_nocase() -> Result<(), StamError> {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
     let mut count = 0;
     for result in resource.find_text_nocase("hello") {
         count += 1;
@@ -1276,8 +1274,7 @@ fn test_find_text_nocase() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence() -> Result<(), StamError> {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
     let results = resource
         .find_text_sequence(&["Hello", "world"], |c| !c.is_alphabetic(), true)
         .expect("results must be found");
@@ -1293,8 +1290,7 @@ fn test_find_text_sequence() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence2() -> Result<(), StamError> {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hello, world!".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hello, world!");
     let results = resource
         .find_text_sequence(&["Hello", "world"], |c| !c.is_alphabetic(), true)
         .expect("results must be found");
@@ -1310,8 +1306,7 @@ fn test_find_text_sequence2() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence_nocase() -> Result<(), StamError> {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
     let results = resource
         .find_text_sequence(&["hello", "world"], |c| !c.is_alphabetic(), false)
         .expect("results must be found");
@@ -1327,8 +1322,7 @@ fn test_find_text_sequence_nocase() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
     let results =
         resource.find_text_sequence(&["hello", "world", "hi"], |c| !c.is_alphabetic(), false);
     assert!(results.is_none());
@@ -1337,8 +1331,7 @@ fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
 
 #[test]
 fn test_split_text() -> Result<(), StamError> {
-    let resource =
-        TextResource::new("testres".into(), Config::default()).with_string("Hello world".into());
+    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
     let mut count = 0;
     for result in resource.split_text(" ") {
         count += 1;
@@ -1358,9 +1351,8 @@ fn test_split_text() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into(), Config::default()).with_string(
-        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
-            .into(),
+    let resource = TextResource::new("testres", Config::default()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
     );
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"eavesdropping").unwrap()], None, true)? {
@@ -1376,9 +1368,8 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single2() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into(), Config::default()).with_string(
-        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
-            .into(),
+    let resource = TextResource::new("testres", Config::default()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
     );
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"\b\w{13}\b").unwrap()], None, true)? {
@@ -1401,9 +1392,8 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into(), Config::default()).with_string(
-        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
-            .into(),
+    let resource = TextResource::new("testres", Config::default()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
     );
     let mut count = 0;
     for result in resource.find_text_regex(
@@ -1433,9 +1423,8 @@ fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into(), Config::default()).with_string(
-        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
-            .into(),
+    let resource = TextResource::new("testres", Config::default()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
     );
     let mut count = 0;
     for result in resource.find_text_regex(
@@ -1465,9 +1454,8 @@ fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single_capture() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into(), Config::default()).with_string(
-        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
-            .into(),
+    let resource = TextResource::new("testres", Config::default()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
     );
     let mut count = 0;
     for result in resource.find_text_regex(
@@ -1487,9 +1475,8 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_double_capture() -> Result<(), StamError> {
-    let resource = TextResource::new("testres".into(), Config::default()).with_string(
-        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia."
-            .into(),
+    let resource = TextResource::new("testres", Config::default()).with_string(
+        "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
     );
     let mut count = 0;
     for result in resource.find_text_regex(
@@ -1576,60 +1563,45 @@ No one shall be held in slavery or servitude; slavery and the slave trade shall 
 
 pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::new()
-        .with_id("example5".into())
+        .with_id("example5")
         .add(TextResource::from_string(
-            "humanrights".into(),
-            EXAMPLE5_TEXT.to_string(),
+            "humanrights",
+            EXAMPLE5_TEXT,
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?;
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?;
     Ok(store)
 }
 
 pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::new()
-        .with_id("example6".into())
+        .with_id("example6")
         .add(TextResource::from_string(
-            "humanrights".into(),
-            "All human beings are born free and equal in dignity and rights.".into(),
+            "humanrights",
+            "All human beings are born free and equal in dignity and rights.",
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("Sentence1".into())
-                .with_target(SelectorBuilder::TextSelector(
-                    "humanrights".into(),
-                    Offset::whole(),
-                )),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("Phrase1".into())
-                .with_target(SelectorBuilder::TextSelector(
-                    "humanrights".into(),
-                    Offset::simple(17, 40), //"are born free and equal"
-                )),
-        )?;
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_annotation(AnnotationBuilder::new().with_id("Sentence1").with_target(
+            SelectorBuilder::TextSelector("humanrights".into(), Offset::whole()),
+        ))?
+        .with_annotation(AnnotationBuilder::new().with_id("Phrase1").with_target(
+            SelectorBuilder::TextSelector(
+                "humanrights".into(),
+                Offset::simple(17, 40), //"are born free and equal"
+            ),
+        ))?;
 
     Ok(store)
 }
 
 pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle, StamError> {
-    store.annotate(
-        AnnotationBuilder::new()
-            .with_id("Phrase2".into())
-            .with_target(
-                SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(4, 25)), //"human beings are born",
-            ),
-    )?;
-    store.annotate(
-        AnnotationBuilder::new()
-            .with_id("Phrase3".into())
-            .with_target(
-                SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(44, 62)), //"dignity and rights",
-            ),
-    )
+    store.annotate(AnnotationBuilder::new().with_id("Phrase2").with_target(
+        SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(4, 25)), //"human beings are born",
+    ))?;
+    store.annotate(AnnotationBuilder::new().with_id("Phrase3").with_target(
+        SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(44, 62)), //"dignity and rights",
+    ))
 }
 
 pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
@@ -2035,7 +2007,7 @@ pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle)
         text.push('x');
     }
     let resource_handle =
-        store.insert(TextResource::new("dummy".into(), Config::default()).with_string(text))?;
+        store.insert(TextResource::new("dummy", Config::default()).with_string(text))?;
 
     let dataset_handle = store.insert(AnnotationDataSet::new(Config::default()).with_data(
         "D1".into(),

@@ -173,8 +173,8 @@ produce the final type:
 
 ```rust
 let annotationset_handle = store.add(
-                   stam::AnnotationDataSetBuilder::new().with_id("testdataset".into())
-                                                 .with_key( stam::DataKey::new("pos".into()))?
+                   stam::AnnotationDataSetBuilder::new().with_id("testdataset"))
+                                                 .with_key( stam::DataKey::new("pos"))?
                                                  .with_data("D1".into(), "pos".into() , "noun".into()).build()?)?;
 ```
 
@@ -183,14 +183,14 @@ Let's now create a store and annotations from scratch, with an explicitly filled
 ```rust
 let store = stam::AnnotationStore::new()
     .with_config(stam::Config::default())
-    .with_id("test".into())
-    .add( stam::TextResource::from_string("testres".into(), "Hello world".into()))?
-    .add( stam::AnnotationDataSet::new().with_id("testdataset".into())
-           .add( stam::DataKey::new("pos".into()))?
+    .with_id("test")
+    .add( stam::TextResource::from_string("testres", "Hello world"))?
+    .add( stam::AnnotationDataSet::new().with_id("testdataset")
+           .add( stam::DataKey::new("pos"))?
            .with_data("D1".into(), "pos".into() , "noun".into())?
     )?
     .with_annotation( stam::Annotation::builder() 
-            .with_id("A1".into())
+            .with_id("A1")
             .target_text( "testres".into(), stam::Offset::simple(6,11)) 
             .with_data_by_id("testdataset".into(), "D1".into()) )?;
 ```
@@ -198,11 +198,11 @@ let store = stam::AnnotationStore::new()
 And here is the very same thing but the `AnnotationDataSet` is filled implicitly here:
 
 ```rust
-let store = stam::AnnotationStore::new().with_id("test".into())
-    .add( stam::TextResource::from_string("testres".to_string(),"Hello world".into()))?
-    .add( stam::AnnotationDataSet::new().with_id("testdataset".into()))?
+let store = stam::AnnotationStore::new().with_id("test")
+    .add( stam::TextResource::from_string("testres".to_string(),"Hello world"))?
+    .add( stam::AnnotationDataSet::new().with_id("testdataset"))?
     .with_annotation( stam::AnnotationBuilder::new()
-            .with_id("A1".into())
+            .with_id("A1")
             .target_text( "testres".into(), stam::Offset::simple(6,11)) 
             .with_data_with_id("testdataset".into(),"pos".into(),"noun".into(),"D1".into())
     )?;

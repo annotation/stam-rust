@@ -189,8 +189,8 @@ impl Storable for AnnotationDataSet {
     fn id(&self) -> Option<&str> {
         self.id.as_deref()
     }
-    fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
     fn handle(&self) -> Option<Self::HandleType> {
@@ -527,8 +527,8 @@ impl<'a> AnnotationDataSetBuilder<'a> {
     }
 
     /// Set the public ID for the [`AnnotationDataSet`] that will be built.
-    pub fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
 
@@ -830,8 +830,8 @@ impl AnnotationDataSet {
     }
 
     /// Sets the ID of the dataset in a builder pattern
-    pub fn with_id(mut self, id: String) -> Self {
-        self.id = Some(id);
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
         self
     }
 
