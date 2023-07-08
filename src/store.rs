@@ -1358,6 +1358,15 @@ where
     }
 }
 
+impl<'store, T> PartialEq<ResultItem<'store, T>> for ResultItem<'store, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &ResultItem<'store, T>) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
 pub struct RequestItemSet<'a, T>
 where
     T: Storable,
