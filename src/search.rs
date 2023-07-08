@@ -362,32 +362,36 @@ impl<'store> QueryIter<'store> {
         while !self.statestack.is_empty() {
             let queryindex = self.statestack.len() - 1;
             let store = self.store();
-            if let Some(state) = self.statestack.last_mut() {
+            if let Some(mut state) = self.statestack.pop() {
+                //we pop the state off the stack (we put it back again in cases where it's an undepleted iterator)
+                //but this allows us to take full ownership and not have a mutable borrow,
+                //which would get in the way as we also need to inspect prior results from the stack (immutably)
                 let query = self.queries.get(queryindex).expect("query must exist");
                 loop {
                     match &mut state.iterator {
-                        SubIter::ResourceIter(ref mut iter) => {
+                        SubIter::ResourceIter(iter) => {
                             if let Some(result) = iter.next() {
                                 let mut constraints_met = true;
                                 for (constraint, _qualifier) in query.iter() {
-                                    if !constraint.test(store, &result) {
+                                    if !self.test_constraint(store, constraint, &result) {
                                         constraints_met = false;
                                         break;
                                     }
                                 }
                                 if constraints_met {
                                     state.result = QueryResultItem::TextResource(result);
+                                    self.statestack.push(state);
                                     return true;
                                 }
                             } else {
-                                break; //iterator depleted, break to pop state from stack
+                                break; //iterator depleted
                             }
                         }
                         SubIter::Singleton => {
                             let mut constraints_met = true;
                             if let QueryResultItem::TextResource(result) = &state.result {
                                 for (constraint, _qualifier) in query.iter() {
-                                    if !constraint.test(store, result) {
+                                    if !self.test_constraint(store, constraint, result) {
                                         constraints_met = false;
                                         break;
                                     }
@@ -399,19 +403,20 @@ impl<'store> QueryIter<'store> {
                             //singleton pseudo-iterator can only be used once
                             state.iterator = SubIter::None;
                             if constraints_met {
+                                //push back altered state
+                                self.statestack.push(state);
                                 return true;
                             } else {
                                 break;
                             }
                         }
                         SubIter::None => {
-                            break; //iterator depleted, break to pop state from stack
+                            break; //iterator depleted
                         }
                         _ => unimplemented!("further iterators not implemented yet"), //TODO
                     }
                 }
             }
-            self.statestack.pop();
         }
         //mark as done (otherwise the iterator would restart from scratch again)
         self.done = true;
@@ -428,18 +433,24 @@ impl<'store> QueryIter<'store> {
 }
 
 trait TestConstraint<'store, T> {
-    fn test(&self, store: &'store AnnotationStore, itemset: &T) -> bool;
-}
-
-impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Constraint<'store> {
-    fn test(
+    fn test_constraint(
         &self,
         store: &'store AnnotationStore,
+        constraint: &Constraint<'store>,
+        itemset: &T,
+    ) -> bool;
+}
+
+impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for QueryIter<'store> {
+    fn test_constraint(
+        &self,
+        store: &'store AnnotationStore,
+        constraint: &Constraint<'store>,
         itemset: &ResultItemSet<'store, TextResource>,
     ) -> bool {
         //if a single item in an itemset matches, the itemset as a whole is valid (MAYBE TODO: reconsider?)
         for item in itemset.iter() {
-            match self {
+            match constraint {
                 Constraint::AnnotationData { set, key, value } => {
                     if let Some(iter) = item.annotations_metadata() {
                         for annotation in iter {
@@ -450,6 +461,20 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Con
                                     return true;
                                 }
                             }
+                        }
+                    }
+                }
+                Constraint::TextResource(refitemset) => {
+                    if let Some(refitemset) = refitemset.resolve(store) {
+                        if refitemset.iter().any(|refitem| refitem == item) {
+                            return true;
+                        }
+                    }
+                }
+                Constraint::TextResourceVariable(var) => {
+                    if let QueryResultItem::TextResource(refitemset) = self.resolve_variable(var) {
+                        if refitemset.iter().any(|refitem| refitem == item) {
+                            return true;
                         }
                     }
                 }
