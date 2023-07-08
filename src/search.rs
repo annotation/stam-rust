@@ -222,6 +222,7 @@ impl<'store> QueryIter<'store> {
 
         //create the subiterator based on the context
         let state = match query.resulttype {
+            ///////////////////////////////////////////////////////////////////////////////////////////////
             Some(ResultType::TextResource) => match firstconstraint {
                 Some((Constraint::AnnotationData { set, key, value }, _qualifier)) => {
                     //Get resources by annotationdata
@@ -275,6 +276,7 @@ impl<'store> QueryIter<'store> {
                 }
                 _ => unimplemented!("Constraint not implemented for target TextResource yet"),
             },
+            ///////////////////////////////////////////////////////////////////////////////////////////////
             Some(ResultType::TextSelection) => match firstconstraint {
                 Some((Constraint::AnnotationData { set, key, value }, _qualifier)) => {
                     //Get text selections by annotationdata
@@ -292,6 +294,34 @@ impl<'store> QueryIter<'store> {
                         )),
                         result: QueryResultItem::None,
                     })
+                }
+                Some((Constraint::TextResource(itemset), _qualifier)) => {
+                    //Get text selections pertaining to a resource
+                    if let Some(itemset) = itemset.resolve(store) {
+                        Some(QueryState {
+                            iterator: SubIter::TextSelectionIter(Box::new(
+                                itemset
+                                    .into_iter()
+                                    .map(|resource| resource.textselections())
+                                    .flatten()
+                                    .map(|textselection| textselection.into()),
+                            )),
+                            result: QueryResultItem::None,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some((Constraint::TextResourceVariable(var), _qualifier)) => {
+                    //Get resources via variable (a bit non-sensical since that implies we already have it earlier in another stack)
+                    if let QueryResultItem::TextResource(itemset) = self.resolve_variable(var) {
+                        Some(QueryState {
+                            iterator: SubIter::Singleton, //no real iterator, but indicates we already prepared a single result, namely:
+                            result: QueryResultItem::TextResource(itemset),
+                        })
+                    } else {
+                        None
+                    }
                 }
                 None => {
                     //unconstrained; all text selections in all resources (arbitrary order!)
@@ -311,7 +341,9 @@ impl<'store> QueryIter<'store> {
                 }
                 _ => unimplemented!("Constraint not implemented for target TextResource yet"),
             },
+            ///////////////////////////////////////////////////////////////////////////////////////////////
             Some(ResultType::Annotation) => todo!(),
+            ///////////////////////////////////////////////////////////////////////////////////////////////
             None => return false,
         };
         if let Some(state) = state {
@@ -405,7 +437,7 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Con
         store: &'store AnnotationStore,
         itemset: &ResultItemSet<'store, TextResource>,
     ) -> bool {
-        //if a single item in an itemset matches, the itemset as a whole is valid
+        //if a single item in an itemset matches, the itemset as a whole is valid (MAYBE TODO: reconsider?)
         for item in itemset.iter() {
             match self {
                 Constraint::AnnotationData { set, key, value } => {
