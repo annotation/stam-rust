@@ -1024,7 +1024,7 @@ where
     }
 
     // raises an ID error
-    pub fn error(&self, contextmsg: &'static str) -> StamError {
+    pub(crate) fn error(&self, contextmsg: &'static str) -> StamError {
         match self {
             Self::Handle(_) => StamError::HandleError(contextmsg),
             Self::Id(id) => StamError::IdNotFoundError(id.to_string(), contextmsg),
@@ -1049,13 +1049,63 @@ where
     }
 
     /// Returns the ID as str, returns None if only handle is contained
-    pub fn as_str(&'a self) -> Option<&'a str> {
+    pub fn as_str<'slf>(&'slf self) -> Option<&'slf str> {
         if let Self::Id(s) = self {
             Some(s.as_str())
         } else if let Self::IdRef(s) = self {
             Some(s)
         } else {
             None
+        }
+    }
+
+    pub fn to_handle<S>(&self, store: &S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        match self {
+            RequestItem::Id(id) => store.resolve_id(id.as_str()).ok(),
+            RequestItem::IdRef(id) => store.resolve_id(id).ok(),
+            RequestItem::Handle(handle) => Some(*handle),
+            RequestItem::Ref(instance) => instance.handle(),
+            RequestItem::None => None,
+        }
+    }
+
+    pub fn to_id<'slf, 'store, S>(&'slf self, store: &'store S) -> Option<&'slf str>
+    where
+        S: StoreFor<T>,
+        'store: 'slf,
+    {
+        match self {
+            RequestItem::Id(id) => Some(id.as_str()),
+            RequestItem::IdRef(id) => Some(id),
+            RequestItem::Handle(_) => {
+                if let Some(instance) = self.to_ref(store) {
+                    instance.id()
+                } else {
+                    None
+                }
+            }
+            RequestItem::Ref(instance) => instance.id(),
+            RequestItem::None => None,
+        }
+    }
+
+    /// Turns a requested item into a reference
+    pub fn to_ref<'store, 'slf, S>(&'slf self, store: &'store S) -> Option<&'store T>
+    where
+        S: StoreFor<T>,
+    {
+        store.get(&self).ok()
+    }
+
+    /// Turns a requested item into a result item
+    /// This is the preferred higher-level construct over to_handle(), to_id() and to_ref()..
+    pub fn resolve<'store>(&'a self, store: &'store T::StoreType) -> Option<ResultItem<'store, T>> {
+        match store.get(&self) {
+            Ok(item) => Some(ResultItem { store, item }),
+            Err(_) => None,
         }
     }
 }
@@ -1187,59 +1237,7 @@ where
     }
 }
 
-impl<'a, T> RequestItem<'a, T>
-where
-    T: Storable,
-{
-    pub fn to_handle<S>(&self, store: &S) -> Option<T::HandleType>
-    where
-        S: StoreFor<T>,
-    {
-        match self {
-            RequestItem::Id(id) => store.resolve_id(id.as_str()).ok(),
-            RequestItem::IdRef(id) => store.resolve_id(id).ok(),
-            RequestItem::Handle(handle) => Some(*handle),
-            RequestItem::Ref(instance) => instance.handle(),
-            RequestItem::None => None,
-        }
-    }
-
-    pub fn to_id<S>(&'a self, store: &'a S) -> Option<&'a str>
-    where
-        S: StoreFor<T>,
-    {
-        match self {
-            RequestItem::Id(id) => Some(id.as_str()),
-            RequestItem::IdRef(id) => Some(id),
-            RequestItem::Handle(_) => {
-                if let Some(instance) = self.to_ref(store) {
-                    instance.id()
-                } else {
-                    None
-                }
-            }
-            RequestItem::Ref(instance) => instance.id(),
-            RequestItem::None => None,
-        }
-    }
-
-    /// Turns a requested item into a reference
-    pub fn to_ref<'s, S>(&'a self, store: &'s S) -> Option<&'s T>
-    where
-        S: StoreFor<T>,
-    {
-        store.get(&self).ok()
-    }
-
-    /// Turns a requested item into a result item
-    /// This is the preferred higher-level construct over to_handle(), to_id() and to_ref()..
-    pub fn resolve<'s>(&'a self, store: &'s T::StoreType) -> Option<ResultItem<'s, T>> {
-        match store.get(&self) {
-            Ok(item) => Some(ResultItem { store, item }),
-            Err(_) => None,
-        }
-    }
-}
+impl<'a, T> RequestItem<'a, T> where T: Storable {}
 
 /*
 impl<'a, T> From<Option<T::HandleType>> for Any<'a, T>
