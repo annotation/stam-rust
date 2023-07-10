@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use stam::{
-    Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, Config, Handle, Offset,
-    Regex, RequestItem, SelectorBuilder, StoreFor, Text, TextResource,
+    Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, BuildItem, Config, Handle,
+    Offset, Regex, SelectorBuilder, StoreFor, Text, TextResource,
 };
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
@@ -14,7 +14,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
     let mut store = AnnotationStore::new();
 
     let resource_handle = store.add_resource_from_file(filename).unwrap();
-    let resource = store.resource(&resource_handle.into()).unwrap();
+    let resource = store.resource(resource_handle).unwrap();
 
     let singleexpression = Regex::new(r"\w+(?:[-_]\w+)*").unwrap();
 
@@ -83,18 +83,18 @@ pub fn bench_textsearch(c: &mut Criterion) {
 
 pub fn bench_storefor(c: &mut Criterion) {
     let store = AnnotationStore::new()
-        .with_id("test".into())
+        .with_id("test")
         .add(TextResource::from_string(
-            "testres".to_string(),
-            "Hello world".into(),
+            "testres",
+            "Hello world",
             Config::default(),
         ))
         .unwrap()
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset".into()))
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
         .unwrap()
         .with_annotation(
             Annotation::builder()
-                .with_id("A1".into())
+                .with_id("A1")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(6, 11),
@@ -109,7 +109,7 @@ pub fn bench_storefor(c: &mut Criterion) {
         .unwrap()
         .with_annotation(
             Annotation::builder()
-                .with_id("A2".into())
+                .with_id("A2")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
                     Offset::simple(0, 5),
@@ -123,9 +123,9 @@ pub fn bench_storefor(c: &mut Criterion) {
         )
         .unwrap();
 
-    let item: RequestItem<Annotation> = RequestItem::from(0);
+    let item: BuildItem<Annotation> = BuildItem::from(0);
     let handle: AnnotationHandle = AnnotationHandle::new(0);
-    let id: RequestItem<Annotation> = RequestItem::from("A1");
+    let id: BuildItem<Annotation> = BuildItem::from("A1");
 
     c.bench_function("store_get_by_handle", |b| {
         b.iter(|| {
