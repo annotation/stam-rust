@@ -1285,6 +1285,15 @@ where
     }
 }
 
+impl<'a, T> From<&ResultItem<'a, T>> for BuildItem<'a, T>
+where
+    T: Storable,
+{
+    fn from(result: &ResultItem<'a, T>) -> Self {
+        Self::Ref(result.as_ref())
+    }
+}
+
 impl<'a, T> PartialEq<&str> for BuildItem<'a, T>
 where
     T: Storable,
