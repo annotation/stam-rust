@@ -71,8 +71,8 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("A1")
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(6, 11),
                 ))
                 .with_existing_data("testdataset", "D1"),
@@ -93,8 +93,8 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("A1")
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(6, 11),
                 ))
                 .with_data_with_id("testdataset", "pos", "noun", "D1"),
@@ -115,8 +115,8 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("A1")
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(6, 11),
                 ))
                 .with_data_with_id("testdataset", "pos", "noun", "D1"),
@@ -124,8 +124,8 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("A2")
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(0, 5),
                 ))
                 .with_data_with_id("testdataset", "pos", "interjection", "D2"),
@@ -146,8 +146,8 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("sentence2")
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(26, 57),
                 ))
                 .with_data("testdataset", "type", "sentence"),
@@ -155,8 +155,8 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("sentence2word2")
-                .with_target(SelectorBuilder::AnnotationSelector(
-                    "sentence2".into(),
+                .with_target(SelectorBuilder::annotationselector(
+                    "sentence2",
                     Some(Offset::simple(2, 4)),
                 ))
                 .with_data("testdataset", "type", "word"),
@@ -324,16 +324,16 @@ fn annotate() -> Result<(), StamError> {
     let mut store = setup_example_1()?;
     store.annotate(
         AnnotationBuilder::new()
-            .with_target(SelectorBuilder::TextSelector(
-                "testres".into(),
+            .with_target(SelectorBuilder::textselector(
+                "testres",
                 Offset::simple(0, 5),
             ))
             .with_data("tokenset", "word", DataValue::Null),
     )?;
     store.annotate(
         AnnotationBuilder::new()
-            .with_target(SelectorBuilder::TextSelector(
-                "testres".into(),
+            .with_target(SelectorBuilder::textselector(
+                "testres",
                 Offset::simple(6, 11),
             ))
             .with_data("tokenset", "word", DataValue::Null),
@@ -346,8 +346,8 @@ fn annotate_existing_data() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     store.annotate(
         AnnotationBuilder::new()
-            .with_target(SelectorBuilder::TextSelector(
-                "testres".into(),
+            .with_target(SelectorBuilder::textselector(
+                "testres",
                 Offset::simple(0, 5),
             ))
             .with_data("testdataset", "pos", "noun"), //this one already exists so should not be recreated but found and referenced intead
@@ -372,8 +372,8 @@ fn add_after_borrow() -> Result<(), StamError> {
     assert_eq!(count, 1);
     store.annotate(
         AnnotationBuilder::new()
-            .with_target(SelectorBuilder::TextSelector(
-                "testres".into(),
+            .with_target(SelectorBuilder::textselector(
+                "testres",
                 Offset::simple(6, 11),
             ))
             .with_data("tokenset", "word", DataValue::Null),
@@ -389,8 +389,8 @@ fn add_during_borrowproblem() -> Result<(), StamError> {
     for (dataset, data) in annotation.clone().data() {
         store.annotate(
             AnnotationBuilder::new()
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(6, 11),
                 ))
                 .with_existing_data(dataset, data),
@@ -812,8 +812,8 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
     let store = setup_example_3()?.with_annotation(
         Annotation::builder()
             .with_id("sentence2lastword")
-            .with_target(SelectorBuilder::AnnotationSelector(
-                "sentence2".into(),
+            .with_target(SelectorBuilder::annotationselector(
+                "sentence2",
                 Some(Offset::new(Cursor::EndAligned(-8), Cursor::EndAligned(-1))),
             ))
             .with_data("testdataset", "type", "word"),
@@ -1053,9 +1053,9 @@ pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("WordAnnotation")
-                .with_target(SelectorBuilder::MultiSelector(vec![
-                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
-                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
+                .with_target(SelectorBuilder::multiselector([
+                    SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
+                    SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
                 ]))
                 .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
         )?;
@@ -1090,8 +1090,8 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("A1")
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(6, 11),
                 ))
                 .with_data_with_id("testdataset", "pos", "noun", "D1"),
@@ -1099,8 +1099,8 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("A2")
-                .with_target(SelectorBuilder::TextSelector(
-                    "testres".into(),
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
                     Offset::simple(0, 5),
                 ))
                 .with_data_with_id("testdataset", "pos", "interjection", "D2"),
@@ -1108,18 +1108,18 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         .with_annotation(
             Annotation::builder()
                 .with_id("WordAnnotation")
-                .with_target(SelectorBuilder::MultiSelector(vec![
-                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
-                    SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
+                .with_target(SelectorBuilder::multiselector([
+                    SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
+                    SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
                 ]))
                 .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
         )?
         .with_annotation(
             Annotation::builder()
                 .with_id("AllPosAnnotation")
-                .with_target(SelectorBuilder::MultiSelector(vec![
-                    SelectorBuilder::AnnotationSelector("A1".into(), Some(Offset::whole())),
-                    SelectorBuilder::AnnotationSelector("A2".into(), Some(Offset::whole())),
+                .with_target(SelectorBuilder::multiselector(vec![
+                    SelectorBuilder::annotationselector("A1", Some(Offset::whole())),
+                    SelectorBuilder::annotationselector("A2", Some(Offset::whole())),
                 ]))
                 .with_data_with_id("testdataset", "hastype", "pos", "AllPosAnnotationData"),
         )?;
@@ -1133,8 +1133,8 @@ fn test_multiselector2_creation_and_sanity() -> Result<(), StamError> {
     //annotate existing data (just to test sanity)
     store.annotate(
         AnnotationBuilder::new()
-            .with_target(SelectorBuilder::TextSelector(
-                "testres".into(),
+            .with_target(SelectorBuilder::textselector(
+                "testres",
                 Offset::simple(0, 5),
             ))
             .with_data(
@@ -1539,11 +1539,11 @@ pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(AnnotationBuilder::new().with_id("Sentence1").with_target(
-            SelectorBuilder::TextSelector("humanrights".into(), Offset::whole()),
+            SelectorBuilder::textselector("humanrights", Offset::whole()),
         ))?
         .with_annotation(AnnotationBuilder::new().with_id("Phrase1").with_target(
-            SelectorBuilder::TextSelector(
-                "humanrights".into(),
+            SelectorBuilder::textselector(
+                "humanrights",
                 Offset::simple(17, 40), //"are born free and equal"
             ),
         ))?;
@@ -1553,10 +1553,10 @@ pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
 
 pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle, StamError> {
     store.annotate(AnnotationBuilder::new().with_id("Phrase2").with_target(
-        SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(4, 25)), //"human beings are born",
+        SelectorBuilder::textselector("humanrights", Offset::simple(4, 25)), //"human beings are born",
     ))?;
     store.annotate(AnnotationBuilder::new().with_id("Phrase3").with_target(
-        SelectorBuilder::TextSelector("humanrights".into(), Offset::simple(44, 62)), //"dignity and rights",
+        SelectorBuilder::textselector("humanrights", Offset::simple(44, 62)), //"dignity and rights",
     ))
 }
 
@@ -1569,10 +1569,7 @@ pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
             .map(|foundmatch| {
                 let offset: Offset = foundmatch.textselections().first().unwrap().deref().into();
                 AnnotationBuilder::new()
-                    .with_target(SelectorBuilder::TextSelector(
-                        resource.handle().into(),
-                        offset,
-                    ))
+                    .with_target(SelectorBuilder::textselector(resource.handle(), offset))
                     .with_data("myset", "type", "header")
             })
             .collect(),
@@ -1972,8 +1969,8 @@ pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle)
     for x in 0..n - 2 {
         store.annotate(
             AnnotationBuilder::new()
-                .with_target(SelectorBuilder::TextSelector(
-                    resource_handle.into(),
+                .with_target(SelectorBuilder::textselector(
+                    resource_handle,
                     Offset::simple(x, x + 2),
                 ))
                 .with_existing_data(BuildItem::Handle(dataset_handle), "D1"),
