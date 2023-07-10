@@ -53,32 +53,12 @@ impl Handle for AnnotationDataHandle {
 }
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&AnnotationDataHandle> for RequestItem<'a, AnnotationData> {
-    fn from(handle: &AnnotationDataHandle) -> Self {
-        RequestItem::Handle(*handle)
-    }
-}
-impl<'a> From<Option<&AnnotationDataHandle>> for RequestItem<'a, AnnotationData> {
-    fn from(handle: Option<&AnnotationDataHandle>) -> Self {
-        if let Some(handle) = handle {
-            RequestItem::Handle(*handle)
-        } else {
-            RequestItem::None
-        }
-    }
-}
-impl<'a> From<AnnotationDataHandle> for RequestItem<'a, AnnotationData> {
-    fn from(handle: AnnotationDataHandle) -> Self {
-        RequestItem::Handle(handle)
-    }
-}
-impl<'a> From<Option<AnnotationDataHandle>> for RequestItem<'a, AnnotationData> {
-    fn from(handle: Option<AnnotationDataHandle>) -> Self {
-        if let Some(handle) = handle {
-            RequestItem::Handle(handle)
-        } else {
-            RequestItem::None
-        }
+impl<'a> ToHandle<AnnotationData> for AnnotationDataHandle {
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<AnnotationDataHandle>
+    where
+        S: StoreFor<AnnotationData>,
+    {
+        Some(*self)
     }
 }
 
@@ -229,7 +209,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationData> {
 
     pub fn key(&'slf self) -> ResultItem<'store, DataKey> {
         self.store()
-            .key(&RequestItem::Handle(self.as_ref().key()))
+            .key(self.as_ref().key())
             .expect("AnnotationData must always have a key at this point")
     }
 
@@ -245,9 +225,8 @@ impl<'store, 'slf> ResultItem<'store, AnnotationData> {
             self.handle(),
         ) {
             Some(
-                vec.iter().filter_map(|a_handle| {
-                    annotationstore.annotation(&RequestItem::Handle(*a_handle))
-                }),
+                vec.iter()
+                    .filter_map(|a_handle| annotationstore.annotation(*a_handle)),
             )
         } else {
             None
@@ -266,7 +245,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationData> {
         }
     }
 
-    pub fn test(&self, key: Option<&RequestItem<DataKey>>, operator: &DataOperator) -> bool {
+    pub fn test(&self, key: Option<&BuildItem<DataKey>>, operator: &DataOperator) -> bool {
         if key.is_none() || self.key().test(key.unwrap()) {
             self.as_ref().value().test(operator)
         } else {
@@ -283,19 +262,19 @@ impl<'store, 'slf> ResultItem<'store, AnnotationData> {
 #[serde(from = "AnnotationDataJson")]
 pub struct AnnotationDataBuilder<'a> {
     #[serde(rename = "@id")]
-    pub(crate) id: RequestItem<'a, AnnotationData>,
+    pub(crate) id: BuildItem<'a, AnnotationData>,
     #[serde(rename = "set")]
-    pub(crate) annotationset: RequestItem<'a, AnnotationDataSet>,
-    pub(crate) key: RequestItem<'a, DataKey>,
+    pub(crate) annotationset: BuildItem<'a, AnnotationDataSet>,
+    pub(crate) key: BuildItem<'a, DataKey>,
     pub(crate) value: DataValue,
 }
 
 impl<'a> Default for AnnotationDataBuilder<'a> {
     fn default() -> Self {
         Self {
-            id: RequestItem::None,
-            annotationset: RequestItem::None,
-            key: RequestItem::None,
+            id: BuildItem::None,
+            annotationset: BuildItem::None,
+            key: BuildItem::None,
             value: DataValue::Null,
         }
     }
@@ -306,30 +285,30 @@ impl<'a> AnnotationDataBuilder<'a> {
         Self::default()
     }
 
-    pub fn with_id(mut self, id: RequestItem<'a, AnnotationData>) -> Self {
+    pub fn with_id(mut self, id: BuildItem<'a, AnnotationData>) -> Self {
         self.id = id;
         self
     }
 
-    pub fn id(&self) -> &RequestItem<AnnotationData> {
+    pub fn id(&self) -> &BuildItem<AnnotationData> {
         &self.id
     }
 
-    pub fn with_annotationset(mut self, annotationset: RequestItem<'a, AnnotationDataSet>) -> Self {
+    pub fn with_annotationset(mut self, annotationset: BuildItem<'a, AnnotationDataSet>) -> Self {
         self.annotationset = annotationset;
         self
     }
 
-    pub fn annotationset(&self) -> &RequestItem<AnnotationDataSet> {
+    pub fn annotationset(&self) -> &BuildItem<AnnotationDataSet> {
         &self.annotationset
     }
 
-    pub fn with_key(mut self, key: RequestItem<'a, DataKey>) -> Self {
+    pub fn with_key(mut self, key: BuildItem<'a, DataKey>) -> Self {
         self.key = key;
         self
     }
 
-    pub fn key(&self) -> &RequestItem<DataKey> {
+    pub fn key(&self) -> &BuildItem<DataKey> {
         &self.key
     }
 

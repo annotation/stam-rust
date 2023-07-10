@@ -63,32 +63,41 @@ impl Handle for AnnotationHandle {
     }
 }
 
-// I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&AnnotationHandle> for RequestItem<'a, Annotation> {
-    fn from(handle: &AnnotationHandle) -> Self {
-        RequestItem::Handle(*handle)
+impl<'a> ToHandle<Annotation> for AnnotationHandle {
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<AnnotationHandle>
+    where
+        S: StoreFor<Annotation>,
+    {
+        Some(*self)
     }
 }
-impl<'a> From<Option<&AnnotationHandle>> for RequestItem<'a, Annotation> {
+
+// I tried making this generic but failed, so let's spell it out for the handle
+impl<'a> From<&AnnotationHandle> for BuildItem<'a, Annotation> {
+    fn from(handle: &AnnotationHandle) -> Self {
+        BuildItem::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&AnnotationHandle>> for BuildItem<'a, Annotation> {
     fn from(handle: Option<&AnnotationHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(*handle)
+            BuildItem::Handle(*handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
-impl<'a> From<AnnotationHandle> for RequestItem<'a, Annotation> {
+impl<'a> From<AnnotationHandle> for BuildItem<'a, Annotation> {
     fn from(handle: AnnotationHandle) -> Self {
-        RequestItem::Handle(handle)
+        BuildItem::Handle(handle)
     }
 }
-impl<'a> From<Option<AnnotationHandle>> for RequestItem<'a, Annotation> {
+impl<'a> From<Option<AnnotationHandle>> for BuildItem<'a, Annotation> {
     fn from(handle: Option<AnnotationHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(handle)
+            BuildItem::Handle(handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
@@ -138,7 +147,7 @@ impl PartialEq<Annotation> for Annotation {
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
 pub struct AnnotationBuilder<'a> {
-    pub(crate) id: RequestItem<'a, Annotation>,
+    pub(crate) id: BuildItem<'a, Annotation>,
     pub(crate) data: Vec<AnnotationDataBuilder<'a>>,
     pub(crate) target: WithAnnotationTarget<'a>,
 }
@@ -165,7 +174,7 @@ impl<'a> From<SelectorBuilder<'a>> for WithAnnotationTarget<'a> {
 impl<'a> Default for AnnotationBuilder<'a> {
     fn default() -> Self {
         Self {
-            id: RequestItem::None,
+            id: BuildItem::None,
             target: WithAnnotationTarget::Unset,
             data: Vec::new(),
         }
@@ -189,7 +198,7 @@ impl<'a> AnnotationBuilder<'a> {
     }
 
     pub fn with_id(mut self, id: impl Into<String>) -> Self {
-        self.id = RequestItem::Id(id.into());
+        self.id = BuildItem::Id(id.into());
         self
     }
 
@@ -216,8 +225,8 @@ impl<'a> AnnotationBuilder<'a> {
     /// use multiple annotations instead if each it interpretable independent of the others.
     pub fn with_data(
         self,
-        annotationset: RequestItem<'a, AnnotationDataSet>,
-        key: RequestItem<'a, DataKey>,
+        annotationset: BuildItem<'a, AnnotationDataSet>,
+        key: BuildItem<'a, DataKey>,
         value: DataValue,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
@@ -231,10 +240,10 @@ impl<'a> AnnotationBuilder<'a> {
     /// Use this method instead of [`Self::with_data()`]  if you want to assign a public identifier (last argument)
     pub fn with_data_with_id(
         self,
-        dataset: RequestItem<'a, AnnotationDataSet>,
-        key: RequestItem<'a, DataKey>,
+        dataset: BuildItem<'a, AnnotationDataSet>,
+        key: BuildItem<'a, DataKey>,
         value: DataValue,
-        id: RequestItem<'a, AnnotationData>,
+        id: BuildItem<'a, AnnotationData>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id,
@@ -248,8 +257,8 @@ impl<'a> AnnotationBuilder<'a> {
     /// Useful if you have an Id or reference instance already.
     pub fn with_data_by_id(
         self,
-        dataset: RequestItem<'a, AnnotationDataSet>,
-        id: RequestItem<'a, AnnotationData>,
+        dataset: BuildItem<'a, AnnotationDataSet>,
+        id: BuildItem<'a, AnnotationData>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id,
@@ -335,10 +344,10 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
         for (datasethandle, datahandle) in self.annotation.as_ref().data.iter() {
             let store: &AnnotationStore = self.annotation.store();
             let annotationset: &AnnotationDataSet = store
-                .get(&datasethandle.into())
+                .get(*datasethandle)
                 .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
             let annotationdata: &AnnotationData = annotationset
-                .get(&datahandle.into())
+                .get(*datahandle)
                 .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
             if annotationdata.id().is_none() {
                 //AnnotationData has no ID, we can't make a reference, therefore we serialize the whole thing (may lead to redundancy in the output)
@@ -393,8 +402,8 @@ impl AnnotationStore {
             } else {
                 // this data referenced a dataset that does not exist yet, create it
                 let dataset_id: String = match dataitem.annotationset {
-                    RequestItem::Id(dataset_id) => dataset_id,
-                    RequestItem::IdRef(dataset_id) => dataset_id.to_string(),
+                    BuildItem::Id(dataset_id) => dataset_id,
+                    BuildItem::IdRef(dataset_id) => dataset_id.to_string(),
                     _ =>
                     // if no dataset was specified at all, we create one named 'default-annotationset'
                     // the name is not prescribed by the STAM spec, the fact that we
@@ -405,7 +414,7 @@ impl AnnotationStore {
                 };
                 let inserted_intid =
                     self.insert(AnnotationDataSet::new(self.config().clone()).with_id(dataset_id))?;
-                self.get_mut(&inserted_intid.into())
+                self.get_mut(inserted_intid)
                     .expect("must exist after insertion")
             };
 
@@ -446,7 +455,7 @@ impl AnnotationStore {
 
         // Has the caller set a public ID for this annotation?
         let public_id: Option<String> = match builder.id {
-            RequestItem::Id(id) => Some(id),
+            BuildItem::Id(id) => Some(id),
             _ => None,
         };
 
@@ -515,10 +524,10 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
         self.as_ref().data().map(|(dataset_handle, data_handle)| {
             let annotationset: &'store AnnotationDataSet = self
                 .store()
-                .get(&dataset_handle.into())
+                .get(*dataset_handle)
                 .expect("dataset must exist");
             let annotationdata: ResultItem<'store, AnnotationData> = annotationset
-                .annotationdata(&data_handle.into())
+                .annotationdata(*data_handle)
                 .expect("data must exist");
             annotationdata
         })
@@ -566,7 +575,7 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
         {
             Some(v.iter().map(|a_handle| {
                 self.store()
-                    .annotation(&RequestItem::Handle(*a_handle))
+                    .annotation(*a_handle)
                     .expect("annotation handle must be valid")
             }))
         } else {
@@ -613,10 +622,10 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
     pub fn resource(&'slf self) -> Option<ResultItem<'store, TextResource>> {
         match self.as_ref().target() {
             Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                self.store().resource(&RequestItem::Handle(*res_id))
+                self.store().resource(*res_id)
             }
             Selector::AnnotationSelector(a_id, _) => {
-                if let Some(annotation) = self.store().annotation(&RequestItem::Handle(*a_id)) {
+                if let Some(annotation) = self.store().annotation(*a_id) {
                     annotation.resource()
                 } else {
                     None
@@ -634,8 +643,8 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn find_data<'a>(
         &'slf self,
-        set: Option<RequestItem<AnnotationDataSet>>,
-        key: Option<RequestItem<DataKey>>,
+        set: Option<BuildItem<AnnotationDataSet>>,
+        key: Option<BuildItem<DataKey>>,
         value: DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf>
     where
@@ -680,8 +689,8 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn test_data<'a>(
         &'slf self,
-        set: Option<RequestItem<AnnotationDataSet>>,
-        key: Option<RequestItem<DataKey>>,
+        set: Option<BuildItem<AnnotationDataSet>>,
+        key: Option<BuildItem<DataKey>>,
         value: DataOperator<'a>,
     ) -> bool {
         match self.find_data(set, key, value) {
@@ -806,11 +815,8 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
             if let Some(selectoritem) = selectoritem {
                 match selectoritem.selector().as_ref() {
                     Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                        let resource: &TextResource = self
-                            .iter
-                            .store
-                            .get(&res_id.into())
-                            .expect("Resource must exist");
+                        let resource: &TextResource =
+                            self.iter.store.get(*res_id).expect("Resource must exist");
                         return Some(TargetIterItem {
                             item: resource.wrap_in(self.store).expect("wrap must succeed"),
                             selectoriteritem: selectoritem,
@@ -834,11 +840,8 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
             if let Some(selectoritem) = selectoritem {
                 match selectoritem.selector().as_ref() {
                     Selector::DataSetSelector(set_id) => {
-                        let annotationset: &AnnotationDataSet = self
-                            .iter
-                            .store
-                            .get(&set_id.into())
-                            .expect("Dataset must exist");
+                        let annotationset: &AnnotationDataSet =
+                            self.iter.store.get(*set_id).expect("Dataset must exist");
                         return Some(TargetIterItem {
                             item: annotationset
                                 .wrap_in(self.store)
@@ -864,11 +867,8 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
             if let Some(selectoritem) = selectoritem {
                 match selectoritem.selector().as_ref() {
                     Selector::AnnotationSelector(a_id, _) => {
-                        let annotation: &Annotation = self
-                            .iter
-                            .store
-                            .get(&a_id.into())
-                            .expect("Annotation must exist");
+                        let annotation: &Annotation =
+                            self.iter.store.get(*a_id).expect("Annotation must exist");
                         return Some(TargetIterItem {
                             item: annotation.wrap_in(self.store).expect("wrap must succeed"),
                             selectoriteritem: selectoritem,

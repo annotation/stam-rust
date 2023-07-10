@@ -1,6 +1,7 @@
 use sealed::sealed;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::slice::{Iter, IterMut};
@@ -211,10 +212,7 @@ where
 }
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait Storable: PartialEq + TypeInfo
-where
-    Self: Sized,
-{
+pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     type HandleType: Handle;
     type StoreType: StoreFor<Self>;
 
@@ -336,10 +334,10 @@ pub trait StoreFor<T: Storable>: Configurable {
             //insert a mapping from the public ID to the internal numeric ID in the idmap
             if let Some(id) = item.id() {
                 //check if public ID does not already exist
-                if self.has(&id.into()) {
+                if self.has(id) {
                     //ok. the already ID exists, now is the existing item exactly the same as the item we're about to insert?
                     //in that case we can discard this error and just return the existing handle without actually inserting a new one
-                    let existing_item = self.get(&id.into()).unwrap();
+                    let existing_item = self.get(id).unwrap();
                     if *existing_item == item {
                         return Ok(existing_item.handle().unwrap());
                     }
@@ -423,31 +421,11 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Returns true if the store has the item
-    fn has<'a, 'b>(&'a self, item: &RequestItem<'b, T>) -> bool {
-        match item {
-            RequestItem::Handle(handle) => self.store().get(handle.unwrap()).is_some(),
-            RequestItem::Id(id) => {
-                if let Some(idmap) = self.idmap() {
-                    idmap.data.contains_key(id)
-                } else {
-                    false
-                }
-            }
-            RequestItem::IdRef(id) => {
-                if let Some(idmap) = self.idmap() {
-                    idmap.data.contains_key(*id)
-                } else {
-                    false
-                }
-            }
-            RequestItem::Ref(instance) => {
-                if let (Some(idmap), Some(id)) = (self.idmap(), instance.id()) {
-                    idmap.data.contains_key(id)
-                } else {
-                    false
-                }
-            }
-            RequestItem::None => false,
+    fn has<'a>(&'a self, item: impl ToHandle<T>) -> bool {
+        if let Some(handle) = item.to_handle(self) {
+            self.store().get(handle.unwrap()).is_some()
+        } else {
+            false
         }
     }
 
@@ -461,7 +439,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a reference to an item from the store
-    fn get<'a, 'b>(&'a self, item: &RequestItem<'b, T>) -> Result<&'a T, StamError> {
+    fn get<'a>(&'a self, item: impl ToHandle<T>) -> Result<&'a T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store().get(handle.unwrap()) {
                 return Ok(item);
@@ -471,7 +449,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a mutable reference to an item from the store by internal ID
-    fn get_mut<'a, 'b>(&mut self, item: &RequestItem<'b, T>) -> Result<&mut T, StamError> {
+    fn get_mut(&mut self, item: impl ToHandle<T>) -> Result<&mut T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
                 return Ok(item);
@@ -935,7 +913,7 @@ where
 #[serde(untagged)]
 /// `RequestItem` offers various ways of referring to a data structure of type `T` in the core STAM model
 /// It abstracts over public IDs (both owned an and borrowed), handles, and references.
-pub enum RequestItem<'a, T>
+pub enum BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -954,7 +932,7 @@ where
     None,
 }
 
-impl<'a, T> Clone for RequestItem<'a, T>
+impl<'a, T> Clone for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -969,7 +947,7 @@ where
     }
 }
 
-impl<'a, T> Default for RequestItem<'a, T>
+impl<'a, T> Default for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -978,7 +956,7 @@ where
     }
 }
 
-impl<'a, T> PartialEq for RequestItem<'a, T>
+impl<'a, T> PartialEq for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -999,7 +977,7 @@ where
     }
 }
 
-impl<'a, T> RequestItem<'a, T>
+impl<'a, T> BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1059,58 +1037,152 @@ where
         }
     }
 
-    pub fn to_handle<S>(&self, store: &S) -> Option<T::HandleType>
-    where
-        S: StoreFor<T>,
-    {
-        match self {
-            RequestItem::Id(id) => store.resolve_id(id.as_str()).ok(),
-            RequestItem::IdRef(id) => store.resolve_id(id).ok(),
-            RequestItem::Handle(handle) => Some(*handle),
-            RequestItem::Ref(instance) => instance.handle(),
-            RequestItem::None => None,
-        }
-    }
-
+    /*
     pub fn to_id<'slf, 'store, S>(&'slf self, store: &'store S) -> Option<&'slf str>
     where
         S: StoreFor<T>,
         'store: 'slf,
     {
         match self {
-            RequestItem::Id(id) => Some(id.as_str()),
-            RequestItem::IdRef(id) => Some(id),
-            RequestItem::Handle(_) => {
+            BuildItem::Id(id) => Some(id.as_str()),
+            BuildItem::IdRef(id) => Some(id),
+            BuildItem::Handle(_) => {
                 if let Some(instance) = self.to_ref(store) {
                     instance.id()
                 } else {
                     None
                 }
             }
-            RequestItem::Ref(instance) => instance.id(),
-            RequestItem::None => None,
+            BuildItem::Ref(instance) => instance.id(),
+            BuildItem::None => None,
         }
     }
+    */
+}
 
-    /// Turns a requested item into a reference
-    pub fn to_ref<'store, 'slf, S>(&'slf self, store: &'store S) -> Option<&'store T>
+pub trait ToHandle<T>
+where
+    T: Storable,
+    Self: Sized,
+{
+    /// Returns the handle for this item, looking it up in the store
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>;
+
+    /// If this type encapsulated an Id, this returns it (borrowed)
+    fn requested_id(&self) -> Option<&str> {
+        None
+    }
+    /// If this type encapsulated an Id, this returns it (oened)
+    fn requested_id_owned(self) -> Option<String> {
+        None
+    }
+    /// If this type encapsulated a handle, this returns it
+    fn requested_handle(&self) -> Option<T::HandleType> {
+        None
+    }
+
+    /*
+    /// Resolves a requested item from a store, producing a ResultItem.
+    fn resolve<'store, S>(self, store: &'store S) -> Option<ResultItem<'store, T>>
     where
         S: StoreFor<T>,
     {
-        store.get(&self).ok()
+        if let Ok(item) = store.get(self) {
+            Some(ResultItem { store, item })
+        } else {
+            None
+        }
     }
+    */
+}
 
-    /// Turns a requested item into a result item
-    /// This is the preferred higher-level construct over to_handle(), to_id() and to_ref()..
-    pub fn resolve<'store>(&'a self, store: &'store T::StoreType) -> Option<ResultItem<'store, T>> {
-        match store.get(&self) {
-            Ok(item) => Some(ResultItem { store, item }),
-            Err(_) => None,
+impl<'a, T> ToHandle<T> for &'a str
+where
+    T: Storable,
+{
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        store.resolve_id(self).ok()
+    }
+    fn requested_id(&self) -> Option<&'a str> {
+        Some(self)
+    }
+    fn requested_id_owned(self) -> Option<String> {
+        Some(self.to_string())
+    }
+}
+
+impl<'a, T> ToHandle<T> for String
+where
+    T: Storable,
+{
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        store.resolve_id(self.as_str()).ok()
+    }
+    fn requested_id(&self) -> Option<&str> {
+        Some(self.as_str())
+    }
+    fn requested_id_owned(self) -> Option<String> {
+        Some(self)
+    }
+}
+
+impl<'a, T> ToHandle<T> for ResultItem<'a, T>
+where
+    T: Storable,
+{
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        Some(self.handle())
+    }
+}
+
+impl<'a, T> ToHandle<T> for BuildItem<'a, T>
+where
+    T: Storable,
+{
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        match self {
+            BuildItem::Id(id) => store.resolve_id(id.as_str()).ok(),
+            BuildItem::IdRef(id) => store.resolve_id(id).ok(),
+            BuildItem::Handle(handle) => Some(*handle),
+            BuildItem::Ref(instance) => instance.handle(),
+            BuildItem::None => None,
         }
     }
 }
 
-impl<'a, T> From<&'a str> for RequestItem<'a, T>
+impl<'a, T> ToHandle<T> for &BuildItem<'a, T>
+where
+    T: Storable,
+{
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        match self {
+            BuildItem::Id(id) => store.resolve_id(id.as_str()).ok(),
+            BuildItem::IdRef(id) => store.resolve_id(id).ok(),
+            BuildItem::Handle(handle) => Some(*handle),
+            BuildItem::Ref(instance) => instance.handle(),
+            BuildItem::None => None,
+        }
+    }
+}
+
+impl<'a, T> From<&'a str> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1122,7 +1194,7 @@ where
         }
     }
 }
-impl<'a, T> From<Option<&'a str>> for RequestItem<'a, T>
+impl<'a, T> From<Option<&'a str>> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1139,7 +1211,7 @@ where
     }
 }
 
-impl<'a, T> From<String> for RequestItem<'a, T>
+impl<'a, T> From<String> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1152,7 +1224,7 @@ where
     }
 }
 
-impl<'a, T> From<&'a String> for RequestItem<'a, T>
+impl<'a, T> From<&'a String> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1165,7 +1237,7 @@ where
     }
 }
 
-impl<'a, T> From<Option<String>> for RequestItem<'a, T>
+impl<'a, T> From<Option<String>> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1182,7 +1254,7 @@ where
     }
 }
 
-impl<'a, T> From<&'a T> for RequestItem<'a, T>
+impl<'a, T> From<&'a T> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1191,31 +1263,7 @@ where
     }
 }
 
-/* //this doesn't work:
-        conflicting implementation in crate `core`:
-                    - impl<T> From<T> for T;
-
-impl<'a, T> From<<T as Storable>::HandleType> for Item<'a, T>
-where
-    T: Storable,
-{
-    fn from(handle: <T as Storable>::HandleType) -> Self {
-        Self::Handle(handle)
-    }
-}
-
-//this works but not if made generic over the handle
-impl<'a, T> From<&AnnotationHandle> for Item<'a, T>
-where
-    T: Storable<HandleType = AnnotationHandle>,
-{
-    fn from(handle: &H) -> Self {
-        Self::Handle(handle)
-    }
-}
-*/
-
-impl<'a, T> From<usize> for RequestItem<'a, T>
+impl<'a, T> From<usize> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1224,7 +1272,7 @@ where
     }
 }
 
-impl<'a, T> From<Option<usize>> for RequestItem<'a, T>
+impl<'a, T> From<Option<usize>> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1237,76 +1285,7 @@ where
     }
 }
 
-impl<'a, T> RequestItem<'a, T> where T: Storable {}
-
-/*
-impl<'a, T> From<Option<T::HandleType>> for Any<'a, T>
-where
-    T: Storable,
-{
-    fn from(handle: Option<HandleType>) -> Self {
-        if let Some(handle) = handle {
-            Self::Handle(handle)
-        } else {
-            Self::None
-        }
-    }
-}
-
-impl<HandleType> From<Option<&str>> for Any<HandleType>
-where
-    HandleType: Handle,
-{
-    fn from(id: Option<&str>) -> Self {
-        if let Some(id) = id {
-            if id.is_empty() {
-                Self::None
-            } else {
-                Self::Id(id.to_string())
-            }
-        } else {
-            Self::None
-        }
-    }
-}
-
-impl<HandleType> From<Option<String>> for Any<HandleType>
-where
-    HandleType: Handle,
-{
-    fn from(id: Option<String>) -> Self {
-        if let Some(id) = id {
-            if id.is_empty() {
-                Self::None
-            } else {
-                Self::Id(id)
-            }
-        } else {
-            Self::None
-        }
-    }
-}
-*/
-
-/// This allows us to pass a reference to any stored item and get back the best AnyId for it
-/// Will panic on totally unbounded that also don't have a public ID
-
-/*impl<HandleType> From<&dyn Storable<HandleType = HandleType>> for AnyId<HandleType>
-where
-    HandleType: Handle,
-{
-    fn from(item: &dyn Storable<HandleType = HandleType>) -> Self {
-        if let Some(handle) = item.handle() {
-            Self::Handle(handle)
-        } else if let Some(id) = item.id() {
-            Self::Id(id.into())
-        } else {
-            panic!("Passed a reference to an unbound item without a public ID! Unable to convert to AnyId");
-        }
-    }
-}*/
-
-impl<'a, T> PartialEq<&str> for RequestItem<'a, T>
+impl<'a, T> PartialEq<&str> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1318,7 +1297,7 @@ where
     }
 }
 
-impl<'a, T> PartialEq<str> for RequestItem<'a, T>
+impl<'a, T> PartialEq<str> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1332,7 +1311,7 @@ where
     }
 }
 
-impl<'a, T> PartialEq<String> for RequestItem<'a, T>
+impl<'a, T> PartialEq<String> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1343,16 +1322,6 @@ where
             Self::Ref(r) => r.id() == Some(other),
             _ => false,
         }
-    }
-}
-
-impl<'store, T> PartialEq<&T> for ResultItem<'store, T>
-where
-    T: Storable,
-{
-    fn eq(&self, other: &&T) -> bool {
-        let handle = self.as_ref().handle();
-        handle.is_some() && (handle == other.handle())
     }
 }
 
@@ -1369,7 +1338,7 @@ pub struct RequestItemSet<'a, T>
 where
     T: Storable,
 {
-    items: SmallVec<[RequestItem<'a, T>; 1]>,
+    items: SmallVec<[BuildItem<'a, T>; 1]>,
 }
 
 impl<'a, T> RequestItemSet<'a, T>
@@ -1380,20 +1349,21 @@ where
         RequestItemSet { items: smallvec!() }
     }
 
-    pub fn new(item: RequestItem<'a, T>) -> Self {
+    pub fn new(item: BuildItem<'a, T>) -> Self {
         RequestItemSet {
             items: smallvec!(item),
         }
     }
 
-    pub fn add(&mut self, item: RequestItem<'a, T>) {
+    pub fn add(&mut self, item: BuildItem<'a, T>) {
         self.items.push(item)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &RequestItem<'a, T>> {
+    pub fn iter(&self) -> impl Iterator<Item = &BuildItem<'a, T>> {
         self.items.iter()
     }
 
+    /*
     /// Turns a requested item into a result item
     /// This is the preferred higher-level construct over to_handle(), to_id() and to_ref()..
     pub fn resolve(&self, store: &'a T::StoreType) -> Option<ResultItemSet<'a, T>> {
@@ -1412,39 +1382,40 @@ where
         }
         Some(ResultItemSet { items, store })
     }
+    */
 }
 
 impl<'a, T> IntoIterator for RequestItemSet<'a, T>
 where
     T: Storable,
 {
-    type Item = RequestItem<'a, T>;
-    type IntoIter = <SmallVec<[RequestItem<'a, T>; 1]> as IntoIterator>::IntoIter;
+    type Item = BuildItem<'a, T>;
+    type IntoIter = <SmallVec<[BuildItem<'a, T>; 1]> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.items.into_iter()
     }
 }
 
-impl<'store, T> From<RequestItem<'store, T>> for RequestItemSet<'store, T>
+impl<'store, T> From<BuildItem<'store, T>> for RequestItemSet<'store, T>
 where
     T: Storable,
 {
-    fn from(item: RequestItem<'store, T>) -> Self {
+    fn from(item: BuildItem<'store, T>) -> Self {
         RequestItemSet {
             items: smallvec!(item),
         }
     }
 }
 
-impl<'store, T> FromIterator<RequestItem<'store, T>> for RequestItemSet<'store, T>
+impl<'store, T> FromIterator<BuildItem<'store, T>> for RequestItemSet<'store, T>
 where
     T: Storable,
 {
     fn from_iter<I>(iter: I) -> Self
     where
         T: Storable,
-        I: IntoIterator<Item = RequestItem<'store, T>>,
+        I: IntoIterator<Item = BuildItem<'store, T>>,
     {
         let mut itemset = RequestItemSet { items: smallvec!() };
         for item in iter {

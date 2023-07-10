@@ -19,6 +19,7 @@ use crate::json::{FromJson, ToJson};
 use crate::selector::{Selector, SelfSelector};
 use crate::store::*;
 use crate::types::*;
+use std::fmt::Debug;
 
 /// An `AnnotationDataSet` stores the keys [`DataKey`] and values
 /// [`AnnotationData`] (which in turn encapsulates [`DataValue`]) that are used by annotations.
@@ -137,33 +138,12 @@ impl Handle for AnnotationDataSetHandle {
     }
 }
 
-// I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&AnnotationDataSetHandle> for RequestItem<'a, AnnotationDataSet> {
-    fn from(handle: &AnnotationDataSetHandle) -> Self {
-        RequestItem::Handle(*handle)
-    }
-}
-impl<'a> From<Option<&AnnotationDataSetHandle>> for RequestItem<'a, AnnotationDataSet> {
-    fn from(handle: Option<&AnnotationDataSetHandle>) -> Self {
-        if let Some(handle) = handle {
-            RequestItem::Handle(*handle)
-        } else {
-            RequestItem::None
-        }
-    }
-}
-impl<'a> From<AnnotationDataSetHandle> for RequestItem<'a, AnnotationDataSet> {
-    fn from(handle: AnnotationDataSetHandle) -> Self {
-        RequestItem::Handle(handle)
-    }
-}
-impl<'a> From<Option<AnnotationDataSetHandle>> for RequestItem<'a, AnnotationDataSet> {
-    fn from(handle: Option<AnnotationDataSetHandle>) -> Self {
-        if let Some(handle) = handle {
-            RequestItem::Handle(handle)
-        } else {
-            RequestItem::None
-        }
+impl<'a> ToHandle<AnnotationDataSet> for AnnotationDataSetHandle {
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<AnnotationDataSetHandle>
+    where
+        S: StoreFor<AnnotationDataSet>,
+    {
+        Some(*self)
     }
 }
 
@@ -333,9 +313,8 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     fn inserted(&mut self, handle: AnnotationDataHandle) -> Result<(), StamError> {
         // called after the item is inserted in the store
         // update the relation map
-        let annotationdata: &AnnotationData = self
-            .get(&handle.into())
-            .expect("item must exist after insertion");
+        let annotationdata: &AnnotationData =
+            self.get(handle).expect("item must exist after insertion");
 
         self.key_data_map.insert(annotationdata.key, handle);
         self.mark_changed();
@@ -345,7 +324,7 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationDataHandle) -> Result<(), StamError> {
-        let data: &AnnotationData = self.get(&handle.into())?;
+        let data: &AnnotationData = self.get(handle)?;
         if self.handle().is_some() {
             return Err(StamError::InUse("Refusing to remove annotationdata because AnnotationDataSet is bound and we can't guarantee it's not used"));
         }
@@ -665,8 +644,8 @@ impl AnnotationDataSet {
     /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
     pub fn with_data(
         mut self,
-        id: RequestItem<AnnotationData>,
-        key: RequestItem<DataKey>,
+        id: BuildItem<AnnotationData>,
+        key: BuildItem<DataKey>,
         value: DataValue,
     ) -> Result<Self, StamError> {
         debug(self.config(), || format!("AnnotationDataSet.with_data"));
@@ -678,30 +657,25 @@ impl AnnotationDataSet {
     /// This is a low level method, use the similar [`WrappedItem<AnnotationDataSet>.find_data()`] for a higher level version.
     pub fn data_by_value(
         &self,
-        key: RequestItem<DataKey>,
+        key: impl ToHandle<DataKey>,
         value: &DataValue,
     ) -> Option<&AnnotationData> {
-        if key.is_none() {
-            None
-        } else {
-            let datakey: Option<&DataKey> = self.key(&key).map(|key| key.as_ref());
-            if let Some(datakey) = datakey {
-                let datakey_handle = datakey.handle().expect("key must be bound at this point");
-                if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
-                    for datahandle in dataitems.iter() {
-                        //MAYBE TODO: this may get slow if there is a key with a lot of data values
-                        let data: &AnnotationData =
-                            self.get(&datahandle.into()).expect("getting item");
-                        if data.value() == value {
-                            // Data with this exact key and value already exists, return it:
-                            return Some(data);
-                        }
+        let datakey: Option<&DataKey> = self.key(key).map(|key| key.as_ref());
+        if let Some(datakey) = datakey {
+            let datakey_handle = datakey.handle().expect("key must be bound at this point");
+            if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
+                for datahandle in dataitems.iter() {
+                    //MAYBE TODO: this may get slow if there is a key with a lot of data values
+                    let data: &AnnotationData = self.get(*datahandle).expect("getting item");
+                    if data.value() == value {
+                        // Data with this exact key and value already exists, return it:
+                        return Some(data);
                     }
                 }
-                None
-            } else {
-                None
             }
+            None
+        } else {
+            None
         }
     }
 
@@ -712,9 +686,9 @@ impl AnnotationDataSet {
     /// Note: if you don't want to set an ID (first argument), you can just pass AnyId::None or "".into()
     pub fn insert_data<'a>(
         &mut self,
-        id: RequestItem<'a, AnnotationData>,
-        key: RequestItem<'a, DataKey>,
-        value: DataValue,
+        id: BuildItem<'a, AnnotationData>,
+        key: BuildItem<'a, DataKey>,
+        value: impl Into<DataValue> + std::fmt::Debug,
         safety: bool,
     ) -> Result<AnnotationDataHandle, StamError> {
         debug(self.config(), || {
@@ -732,9 +706,9 @@ impl AnnotationDataSet {
                 .expect("item must have intid when in store"));
         }
         if key.is_none() {
-            if id.is_handle() {
+            if id.is_none() {
                 return Err(StamError::HandleError(
-                    "AnnotationData Handle supplied to AnnotationDataSet.insert_data() (often via with_data()) was not found in this set",
+                    "AnnotationData Hsupplied to AnnotationDataSet.insert_data() (often via with_data()) was not found in this set",
                 ));
             } else {
                 return Err(StamError::IncompleteError(
@@ -762,9 +736,11 @@ impl AnnotationDataSet {
             return Err(key.error("Datakey not found by AnnotationDataSet.insert_data()"));
         };
 
+        let value = value.into();
+
         if !newkey && id.is_none() && safety {
             // there is a chance that this key and value combination already occurs, check it
-            if let Some(data) = self.data_by_value(RequestItem::from(datakey_handle), &value) {
+            if let Some(data) = self.data_by_value(datakey_handle, &value) {
                 return Ok(data.handle().expect("item must have intid if in store"));
             }
         }
@@ -798,7 +774,7 @@ impl AnnotationDataSet {
     }
 
     /// Retrieve a key in this set
-    pub fn key(&self, key: &RequestItem<DataKey>) -> Option<ResultItem<DataKey>> {
+    pub fn key(&self, key: impl ToHandle<DataKey>) -> Option<ResultItem<DataKey>> {
         self.get(key)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
             .ok()
@@ -812,7 +788,7 @@ impl AnnotationDataSet {
     /// performant low-level method, use `StoreFor<T>::get()` instead.
     pub fn annotationdata<'a>(
         &'a self,
-        annotationdata: &RequestItem<AnnotationData>,
+        annotationdata: impl ToHandle<AnnotationData>,
     ) -> Option<ResultItem<'a, AnnotationData>> {
         self.get(annotationdata)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
@@ -821,7 +797,7 @@ impl AnnotationDataSet {
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
     /// This is a low-level method. use [`WrappedItem<DataKey>.data()`] instead.
-    pub fn data_by_key(&self, key: &RequestItem<DataKey>) -> Option<&Vec<AnnotationDataHandle>> {
+    pub fn data_by_key(&self, key: impl ToHandle<DataKey>) -> Option<&Vec<AnnotationDataHandle>> {
         if let Some(key_handle) = key.to_handle(self) {
             self.key_data_map.get(key_handle)
         } else {
@@ -851,7 +827,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     /// Returns a single match, use `Self::find_data()` for a more extensive search.
     pub fn data_by_value(
         &self,
-        key: RequestItem<DataKey>,
+        key: impl ToHandle<DataKey>,
         value: &DataValue,
     ) -> Option<ResultItem<'store, AnnotationData>> {
         self.as_ref()
@@ -866,7 +842,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
         &'slf self,
-        key: Option<RequestItem<DataKey>>,
+        key: Option<impl ToHandle<DataKey>>,
         value: DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
     where
@@ -900,7 +876,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn test_data<'a>(
         &'slf self,
-        key: Option<RequestItem<DataKey>>,
+        key: Option<impl ToHandle<DataKey>>,
         value: DataOperator<'a>,
     ) -> bool {
         match self.find_data(key, value) {
@@ -916,16 +892,14 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
         &'slf self,
     ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
         if let Some(iter) = self.store().annotations_by_annotationset(self.handle()) {
-            Some(
-                iter.filter_map(|a_handle| self.store().annotation(&RequestItem::Handle(a_handle))),
-            )
+            Some(iter.filter_map(|a_handle| self.store().annotation(a_handle)))
         } else {
             None
         }
     }
 
     /// Tests whether two AnnotationDataSets are the same
-    pub fn test(&'slf self, other: &RequestItem<AnnotationDataSet>) -> bool {
+    pub fn test(&'slf self, other: impl ToHandle<AnnotationDataSet>) -> bool {
         Some(self.handle()) == other.to_handle(self.store())
     }
 
@@ -939,9 +913,8 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
             .annotations_by_annotationset_metadata(self.handle())
         {
             Some(
-                vec.iter().filter_map(|a_handle| {
-                    self.store().annotation(&RequestItem::Handle(*a_handle))
-                }),
+                vec.iter()
+                    .filter_map(|a_handle| self.store().annotation(*a_handle)),
             )
         } else {
             None
