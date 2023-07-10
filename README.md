@@ -54,37 +54,22 @@ various configuration options.
 You can retrieve items by methods that are similarly named to the return type:
 
 ```rust
-let annotation =   store.annotation(&stam::Item::from("my-annotation"));
-let resource = store.resource(&stam::Item::from("my-resource"));
-let annotationset: &stam::AnnotationDataSet = store.annotationset(&stam::Item::from("my-annotationset"));
-let key = annotationset.key(&stam::Item::from("my-key"));
-let data = annotationset.annotationdata(&stam::Item::from("my-data"));
+let annotation =   store.annotation("my-annotation");
+let resource = store.resource("my-resource");
+let annotationset: &stam::AnnotationDataSet = store.annotationset("my-annotationset");
+let key = annotationset.key("my-key");
+let data = annotationset.annotationdata("my-data");
 ```
 
-In our request to various methods in the STAM model, we use the `stam::Item<T>`
-type. It abstracts over various ways by which an item can be requested, such as
-by ID (either owned or borrowed), by handle, or by reference. The following are
-all equivalent:
 
-```rust
-let annotation = store.annotation(&Item::from("my-annotation"));
-let annotation = store.annotation(&"my-annotation".into());
-let annotation = store.annotation(&Item::IdRef("my-annotation"));
-```
-
-All of these methods return an `Option<WrappedItem<T>>`, where `T` is a STAM
+All of these methods return an `Option<ResultItem<T>>`, where `T` is a STAM
 type like `Annotation`, `TextResource`,`AnnotationDataSet`, `DataKey` or
 `TextSelection`. If the item was not found, due to an invalid ID for instance,
 the `Option<>` has the value `None`.
 
-Whereas we use `Item<T>` to *supply parameters*, `WrappedItem<T>` is a *return
-type*. It is never the other way around. The latter holds, in most cases, *a reference* to T,
+The `ResultItem<T>` type holds *a reference* to T,
 with a lifetime equal to the store, it also holds a reference to the store
-itself.
-
-**Advanced:** *You can call `unwrap()` on almost all `WrappedItem<T>` instances you obtain to return
-a direct reference with a lifetime equal to the store. WrappedItem also implements `Deref` so you
-can transparently access the underlying reference (albeit with a more limited lifetime!).*
+itself. You can call `as_ref()` on all `ResultItem<T>` instances to a direct reference with a lifetime equal to the store.
 
 #### Retrieving items (advanced, low-level)
 
@@ -95,15 +80,15 @@ any item in the STAM model from the store, such as by public ID. It will return
 a directly return a reference.
 
 ```rust
-let annotation: &stam::Annotation = store.get(&stam::Item::from("my-annotation"))?;
-let resource: &stam::TextResource = store.get(&stam::Item::from("my-resource"))?;
-let annotationset: &stam::AnnotationDataSet = store.get(&stam::Item::from("my-annotationset"))?;
-let key: &stam::DataKey = annotationset.get(&stam::Item::from("my-key"))?;
-let data: &stam::AnnotationData = annotationset.get(&stam::Item::from("my-data"))?;
+let annotation: &stam::Annotation = store.get("my-annotation")?;
+let resource: &stam::TextResource = store.get("my-resource")?;
+let annotationset: &stam::AnnotationDataSet = store.get("my-annotationset")?;
+let key: &stam::DataKey = annotationset.get("my-key")?;
+let data: &stam::AnnotationData = annotationset.get("my-data")?;
 ```
 
-The directly returned reference is not as potent as `WrappedItem<T>`, as the
-latter implements more higher-level methods. You can turn a reference `&T` to a `WrappedItem<T>` yourself though:
+The directly returned reference is not as potent as `ResultItem<T>`, as the
+latter implements more higher-level methods. You can turn a reference `&T` to a `ResultItem<T>` yourself though:
 
 ```rust
 let annotation = store.wrap(annotation);
@@ -114,14 +99,10 @@ let data = annotationset.wrap(data);
 ```
 
 Low-level methods often return a so called *handle* instead of a reference. You
-can use this handle to obtain a reference as shown in the next example, in
-which we obtain a reference to the resource we just inserted. The following are
-all equivalent:
+can use this handle to obtain a reference as shown in the next example:
 
 ```rust
-let annotation: &stam::Annotation = store.get(&Item::from(handle))?;
-let annotation: &stam::Annotation = store.get(&handle.into())?;
-let annotation: &stam::Annotation = store.get(&Item::Handle(handle))?;
+let annotation: &stam::Annotation = store.get(handle)?;
 ```
 
 Retrieving items by handle is much faster than retrieval by public ID, as
@@ -153,19 +134,14 @@ instantiated directly. We use `annotate()` rather than `add()` to add annotation
 
 ```rust
 let annotation_handle = store.annotate( stam::AnnotationBuilder::new()
-           .with_target( SelectorBuilder::TextSelector("testres".into(), stam::Offset::simple(6,11))) 
-           .with_data("testdataset".into(), "pos".into(), stam::DataValue::String("noun".to_string())) 
+           .with_target( SelectorBuilder::TextSelector("testres", stam::Offset::simple(6,11))) 
+           .with_data("testdataset", "pos", "noun") 
 )?;
 ```
 
 *Here we see a `Builder` type that uses a builder pattern to construct
 instances of their associated types. The actual instances will be built by the
-underlying store. You can note the heavy use of `into()` to coerce the
-parameters to the right type (via `Item<T>`, which you already encountered in
-an earlier section). Rather than pass string parameters referring to public
-IDs, you may just as well pass and coerce (again with `into()`) references like
-`&Annotation`, `&AnnotationDataSet`, `&DataKey` or handles.*
-
+underlying store.
 
 Structures like `AnnotationDataSets` and `TextResource` also have builders, you
 can use them with `add()` by invoking the `build()` method on the builder to
@@ -174,8 +150,7 @@ produce the final type:
 ```rust
 let annotationset_handle = store.add(
                    stam::AnnotationDataSetBuilder::new().with_id("testdataset"))
-                                                 .with_key( stam::DataKey::new("pos"))?
-                                                 .with_data("D1".into(), "pos".into() , "noun".into()).build()?)?;
+                                                 .with_data_with_id("pos", "noun", "D1").build()?)?;
 ```
 
 Let's now create a store and annotations from scratch, with an explicitly filled `AnnotationDataSet`:
@@ -187,12 +162,12 @@ let store = stam::AnnotationStore::new()
     .add( stam::TextResource::from_string("testres", "Hello world"))?
     .add( stam::AnnotationDataSet::new().with_id("testdataset")
            .add( stam::DataKey::new("pos"))?
-           .with_data("D1".into(), "pos".into() , "noun".into())?
+           .with_data_with_id("pos", "noun", "D1")?
     )?
     .with_annotation( stam::Annotation::builder() 
             .with_id("A1")
-            .target_text( "testres".into(), stam::Offset::simple(6,11)) 
-            .with_data_by_id("testdataset".into(), "D1".into()) )?;
+            .with_target( stam::SelectorBuilder::textselector("testres", stam::Offset::simple(6,11))) 
+            .with_existing_data("testdataset", "D1") )?;
 ```
 
 And here is the very same thing but the `AnnotationDataSet` is filled implicitly here:
@@ -203,8 +178,8 @@ let store = stam::AnnotationStore::new().with_id("test")
     .add( stam::AnnotationDataSet::new().with_id("testdataset"))?
     .with_annotation( stam::AnnotationBuilder::new()
             .with_id("A1")
-            .target_text( "testres".into(), stam::Offset::simple(6,11)) 
-            .with_data_with_id("testdataset".into(),"pos".into(),"noun".into(),"D1".into())
+            .with_target( stam::SelectorBuilder::textselector("testres", stam::Offset::simple(6,11))) 
+            .with_data_with_id("testdataset","pos","noun","D1")
     )?;
 ```
 
