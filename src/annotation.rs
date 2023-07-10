@@ -225,14 +225,14 @@ impl<'a> AnnotationBuilder<'a> {
     /// use multiple annotations instead if each it interpretable independent of the others.
     pub fn with_data(
         self,
-        annotationset: BuildItem<'a, AnnotationDataSet>,
-        key: BuildItem<'a, DataKey>,
-        value: DataValue,
+        annotationset: impl Into<BuildItem<'a, AnnotationDataSet>>,
+        key: impl Into<BuildItem<'a, DataKey>>,
+        value: impl Into<DataValue>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
-            annotationset,
-            key,
-            value,
+            annotationset: annotationset.into(),
+            key: key.into(),
+            value: value.into(),
             ..Default::default()
         })
     }
@@ -240,29 +240,29 @@ impl<'a> AnnotationBuilder<'a> {
     /// Use this method instead of [`Self::with_data()`]  if you want to assign a public identifier (last argument)
     pub fn with_data_with_id(
         self,
-        dataset: BuildItem<'a, AnnotationDataSet>,
-        key: BuildItem<'a, DataKey>,
-        value: DataValue,
-        id: BuildItem<'a, AnnotationData>,
+        dataset: impl Into<BuildItem<'a, AnnotationDataSet>>,
+        key: impl Into<BuildItem<'a, DataKey>>,
+        value: impl Into<DataValue>,
+        id: impl Into<BuildItem<'a, AnnotationData>>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
-            id,
-            annotationset: dataset,
-            key,
-            value,
+            id: id.into(),
+            annotationset: dataset.into(),
+            key: key.into(),
+            value: value.into(),
         })
     }
 
     /// This references existing [`AnnotationData`], in a particular [`AnnotationDataSet'], by Id.
     /// Useful if you have an Id or reference instance already.
-    pub fn with_data_by_id(
+    pub fn with_existing_data(
         self,
-        dataset: BuildItem<'a, AnnotationDataSet>,
-        id: BuildItem<'a, AnnotationData>,
+        dataset: impl Into<BuildItem<'a, AnnotationDataSet>>,
+        annotationdata: impl Into<BuildItem<'a, AnnotationData>>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
-            id,
-            annotationset: dataset,
+            id: annotationdata.into(),
+            annotationset: dataset.into(),
             ..Default::default()
         })
     }

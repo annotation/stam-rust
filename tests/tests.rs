@@ -66,7 +66,7 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
             AnnotationDataSet::new(Config::default())
                 .with_id("testdataset")
                 .add(DataKey::new("pos"))?
-                .with_data("D1".into(), "pos".into(), "noun".into())?,
+                .with_data_with_id("pos", "noun", "D1")?,
         )?
         .with_annotation(
             Annotation::builder()
@@ -75,7 +75,7 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
                     "testres".into(),
                     Offset::simple(6, 11),
                 ))
-                .with_data_by_id("testdataset".into(), "D1".into()),
+                .with_existing_data("testdataset", "D1"),
         )?;
     Ok(store)
 }
@@ -97,12 +97,7 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
                     "testres".into(),
                     Offset::simple(6, 11),
                 ))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "pos".into(),
-                    "noun".into(),
-                    "D1".into(),
-                ),
+                .with_data_with_id("testdataset", "pos", "noun", "D1"),
         )?;
     Ok(store)
 }
@@ -124,12 +119,7 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
                     "testres".into(),
                     Offset::simple(6, 11),
                 ))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "pos".into(),
-                    "noun".into(),
-                    "D1".into(),
-                ),
+                .with_data_with_id("testdataset", "pos", "noun", "D1"),
         )?
         .with_annotation(
             Annotation::builder()
@@ -138,12 +128,7 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
                     "testres".into(),
                     Offset::simple(0, 5),
                 ))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "pos".into(),
-                    "interjection".into(),
-                    "D2".into(),
-                ),
+                .with_data_with_id("testdataset", "pos", "interjection", "D2"),
         )?;
     Ok(store)
 }
@@ -165,7 +150,7 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
                     "testres".into(),
                     Offset::simple(26, 57),
                 ))
-                .with_data("testdataset".into(), "type".into(), "sentence".into()),
+                .with_data("testdataset", "type", "sentence"),
         )?
         .with_annotation(
             Annotation::builder()
@@ -174,7 +159,7 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
                     "sentence2".into(),
                     Some(Offset::simple(2, 4)),
                 ))
-                .with_data("testdataset".into(), "type".into(), "word".into()),
+                .with_data("testdataset", "type", "word"),
         )?;
     Ok(store)
 }
@@ -343,7 +328,7 @@ fn annotate() -> Result<(), StamError> {
                 "testres".into(),
                 Offset::simple(0, 5),
             ))
-            .with_data("tokenset".into(), "word".into(), DataValue::Null),
+            .with_data("tokenset", "word", DataValue::Null),
     )?;
     store.annotate(
         AnnotationBuilder::new()
@@ -351,7 +336,7 @@ fn annotate() -> Result<(), StamError> {
                 "testres".into(),
                 Offset::simple(6, 11),
             ))
-            .with_data("tokenset".into(), "word".into(), DataValue::Null),
+            .with_data("tokenset", "word", DataValue::Null),
     )?;
     Ok(())
 }
@@ -365,7 +350,7 @@ fn annotate_existing_data() -> Result<(), StamError> {
                 "testres".into(),
                 Offset::simple(0, 5),
             ))
-            .with_data("testdataset".into(), "pos".into(), "noun".into()), //this one already exists so should not be recreated but found and referenced intead
+            .with_data("testdataset", "pos", "noun"), //this one already exists so should not be recreated but found and referenced intead
     )?;
 
     //check if the dataset still contains only one key
@@ -391,7 +376,7 @@ fn add_after_borrow() -> Result<(), StamError> {
                 "testres".into(),
                 Offset::simple(6, 11),
             ))
-            .with_data("tokenset".into(), "word".into(), DataValue::Null),
+            .with_data("tokenset", "word", DataValue::Null),
     )?;
     Ok(())
 }
@@ -408,7 +393,7 @@ fn add_during_borrowproblem() -> Result<(), StamError> {
                     "testres".into(),
                     Offset::simple(6, 11),
                 ))
-                .with_data_by_id(BuildItem::Handle(*dataset), BuildItem::Handle(*data)),
+                .with_existing_data(dataset, data),
         )?;
     }
     Ok(())
@@ -831,7 +816,7 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
                 "sentence2".into(),
                 Some(Offset::new(Cursor::EndAligned(-8), Cursor::EndAligned(-1))),
             ))
-            .with_data("testdataset".into(), "type".into(), "word".into()),
+            .with_data("testdataset", "type", "word"),
     )?;
     let word = store.annotation("sentence2lastword").unwrap();
     for textselection in word.textselections() {
@@ -1072,12 +1057,7 @@ pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
                 ]))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "type".into(),
-                    "word".into(),
-                    "WordAnnotationData".into(),
-                ),
+                .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
         )?;
     Ok(store)
 }
@@ -1114,12 +1094,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                     "testres".into(),
                     Offset::simple(6, 11),
                 ))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "pos".into(),
-                    "noun".into(),
-                    "D1".into(),
-                ),
+                .with_data_with_id("testdataset", "pos", "noun", "D1"),
         )?
         .with_annotation(
             Annotation::builder()
@@ -1128,12 +1103,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                     "testres".into(),
                     Offset::simple(0, 5),
                 ))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "pos".into(),
-                    "interjection".into(),
-                    "D2".into(),
-                ),
+                .with_data_with_id("testdataset", "pos", "interjection", "D2"),
         )?
         .with_annotation(
             Annotation::builder()
@@ -1142,12 +1112,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(0, 5)),
                     SelectorBuilder::TextSelector("testres".into(), Offset::simple(6, 11)),
                 ]))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "type".into(),
-                    "word".into(),
-                    "WordAnnotationData".into(),
-                ),
+                .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
         )?
         .with_annotation(
             Annotation::builder()
@@ -1156,12 +1121,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                     SelectorBuilder::AnnotationSelector("A1".into(), Some(Offset::whole())),
                     SelectorBuilder::AnnotationSelector("A2".into(), Some(Offset::whole())),
                 ]))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "hastype".into(),
-                    "pos".into(),
-                    "AllPosAnnotationData".into(),
-                ),
+                .with_data_with_id("testdataset", "hastype", "pos", "AllPosAnnotationData"),
         )?;
     Ok(store)
 }
@@ -1178,8 +1138,8 @@ fn test_multiselector2_creation_and_sanity() -> Result<(), StamError> {
                 Offset::simple(0, 5),
             ))
             .with_data(
-                "testdataset".into(),
-                "pos".into(),
+                "testdataset",
+                "pos",
                 DataValue::String("greeting".to_string()),
             ),
     )?;
@@ -1613,7 +1573,7 @@ pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
                         resource.handle().into(),
                         offset,
                     ))
-                    .with_data("myset".into(), "type".into(), "header".into())
+                    .with_data("myset", "type", "header")
             })
             .collect(),
     )?;
@@ -2005,11 +1965,9 @@ pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle)
     let resource_handle =
         store.insert(TextResource::new("dummy", Config::default()).with_string(text))?;
 
-    let dataset_handle = store.insert(AnnotationDataSet::new(Config::default()).with_data(
-        "D1".into(),
-        "type".into(),
-        "bigram".into(),
-    )?)?;
+    let dataset_handle = store.insert(
+        AnnotationDataSet::new(Config::default()).with_data_with_id("type", "bigram", "D1")?,
+    )?;
 
     for x in 0..n - 2 {
         store.annotate(
@@ -2018,7 +1976,7 @@ pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle)
                     resource_handle.into(),
                     Offset::simple(x, x + 2),
                 ))
-                .with_data_by_id(BuildItem::Handle(dataset_handle), "D1".into()),
+                .with_existing_data(BuildItem::Handle(dataset_handle), "D1"),
         )?;
     }
     Ok((store, resource_handle))
