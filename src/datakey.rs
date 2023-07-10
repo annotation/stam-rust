@@ -56,31 +56,40 @@ impl Handle for DataKeyHandle {
     }
 }
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&DataKeyHandle> for RequestItem<'a, DataKey> {
-    fn from(handle: &DataKeyHandle) -> Self {
-        RequestItem::Handle(*handle)
+impl<'a> ToHandle<DataKey> for DataKeyHandle {
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<DataKeyHandle>
+    where
+        S: StoreFor<DataKey>,
+    {
+        Some(*self)
     }
 }
-impl<'a> From<Option<&DataKeyHandle>> for RequestItem<'a, DataKey> {
+
+impl<'a> From<&DataKeyHandle> for BuildItem<'a, DataKey> {
+    fn from(handle: &DataKeyHandle) -> Self {
+        BuildItem::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&DataKeyHandle>> for BuildItem<'a, DataKey> {
     fn from(handle: Option<&DataKeyHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(*handle)
+            BuildItem::Handle(*handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
-impl<'a> From<DataKeyHandle> for RequestItem<'a, DataKey> {
+impl<'a> From<DataKeyHandle> for BuildItem<'a, DataKey> {
     fn from(handle: DataKeyHandle) -> Self {
-        RequestItem::Handle(handle)
+        BuildItem::Handle(handle)
     }
 }
-impl<'a> From<Option<DataKeyHandle>> for RequestItem<'a, DataKey> {
+impl<'a> From<Option<DataKeyHandle>> for BuildItem<'a, DataKey> {
     fn from(handle: Option<DataKeyHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(handle)
+            BuildItem::Handle(handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
@@ -193,11 +202,11 @@ impl<'store, 'slf> ResultItem<'store, DataKey> {
     pub fn data(
         &'slf self,
     ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf> {
-        if let Some(vec) = self.store().data_by_key(&self.handle().into()) {
-            Some(vec.iter().filter_map(|data_handle| {
-                self.store()
-                    .annotationdata(&RequestItem::Handle(*data_handle))
-            }))
+        if let Some(vec) = self.store().data_by_key(self.handle()) {
+            Some(
+                vec.iter()
+                    .filter_map(|data_handle| self.store().annotationdata(*data_handle)),
+            )
         } else {
             None
         }
@@ -214,11 +223,7 @@ impl<'store, 'slf> ResultItem<'store, DataKey> {
             self.set().handle().expect("set must have handle"),
             self.handle(),
         ) {
-            Some(
-                iter.filter_map(|a_handle| {
-                    annotationstore.annotation(&RequestItem::Handle(a_handle))
-                }),
-            )
+            Some(iter.filter_map(|a_handle| annotationstore.annotation(a_handle)))
         } else {
             None
         }
@@ -238,7 +243,7 @@ impl<'store, 'slf> ResultItem<'store, DataKey> {
     }
 
     /// Tests whether two DataKeys are the same
-    pub fn test(&'slf self, other: &RequestItem<DataKey>) -> bool {
+    pub fn test(&'slf self, other: &BuildItem<DataKey>) -> bool {
         Some(self.handle()) == other.to_handle(self.store())
     }
 }

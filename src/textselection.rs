@@ -41,31 +41,40 @@ pub struct TextSelection {
 pub struct TextSelectionHandle(u32);
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&TextSelectionHandle> for RequestItem<'a, TextSelection> {
-    fn from(handle: &TextSelectionHandle) -> Self {
-        RequestItem::Handle(*handle)
+impl<'a> ToHandle<TextSelection> for TextSelectionHandle {
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<TextSelectionHandle>
+    where
+        S: StoreFor<TextSelection>,
+    {
+        Some(*self)
     }
 }
-impl<'a> From<Option<&TextSelectionHandle>> for RequestItem<'a, TextSelection> {
+
+impl<'a> From<&TextSelectionHandle> for BuildItem<'a, TextSelection> {
+    fn from(handle: &TextSelectionHandle) -> Self {
+        BuildItem::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&TextSelectionHandle>> for BuildItem<'a, TextSelection> {
     fn from(handle: Option<&TextSelectionHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(*handle)
+            BuildItem::Handle(*handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
-impl<'a> From<TextSelectionHandle> for RequestItem<'a, TextSelection> {
+impl<'a> From<TextSelectionHandle> for BuildItem<'a, TextSelection> {
     fn from(handle: TextSelectionHandle) -> Self {
-        RequestItem::Handle(handle)
+        BuildItem::Handle(handle)
     }
 }
-impl<'a> From<Option<TextSelectionHandle>> for RequestItem<'a, TextSelection> {
+impl<'a> From<Option<TextSelectionHandle>> for BuildItem<'a, TextSelection> {
     fn from(handle: Option<TextSelectionHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(handle)
+            BuildItem::Handle(handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
@@ -410,11 +419,10 @@ impl<'store, 'slf> ResultItem<'store, TextSelection> {
         if let Some(vec) = annotationstore
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
         {
-            Some(vec.iter().map(|a_handle| {
-                annotationstore
-                    .annotation(&RequestItem::Handle(*a_handle))
-                    .unwrap()
-            }))
+            Some(
+                vec.iter()
+                    .map(|a_handle| annotationstore.annotation(*a_handle).unwrap()),
+            )
         } else {
             None
         }
@@ -661,7 +669,7 @@ impl<'store, 'slf> TextSelectionSet {
         operator: TextSelectionOperator,
         annotationstore: &'store AnnotationStore,
     ) -> Option<impl Iterator<Item = ResultItem<'store, TextSelection>>> {
-        if let Some(resource) = annotationstore.resource(&self.resource().into()) {
+        if let Some(resource) = annotationstore.resource(self.resource()) {
             Some(
                 resource
                     .as_ref()
@@ -669,7 +677,7 @@ impl<'store, 'slf> TextSelectionSet {
                     .map(move |ts_handle| {
                         let textselection: &'store TextSelection = resource
                             .as_ref()
-                            .get(&RequestItem::Handle(ts_handle))
+                            .get(ts_handle)
                             .expect("textselection handle must be valid");
                         textselection
                             .wrap_in(resource.as_ref())
@@ -694,7 +702,7 @@ impl<'store, 'slf> TextSelectionSet {
     where
         'store: 'slf,
     {
-        if let Some(resource) = annotationstore.resource(&self.resource().into()) {
+        if let Some(resource) = annotationstore.resource(self.resource()) {
             Some(
                 resource
                     .as_ref()
@@ -702,7 +710,7 @@ impl<'store, 'slf> TextSelectionSet {
                     .map(move |ts_handle| {
                         let textselection: &'store TextSelection = resource
                             .as_ref()
-                            .get(&RequestItem::Handle(ts_handle))
+                            .get(ts_handle)
                             .expect("textselection handle must be valid");
                         textselection
                             .wrap_in(resource.as_ref())
@@ -1834,7 +1842,7 @@ impl TextResource {
         self.textselections_by_operator_ref(operator, refset)
             .map(|ts_handle| {
                 let textselection: &'store TextSelection = self
-                    .get(&RequestItem::Handle(ts_handle))
+                    .get(ts_handle)
                     .expect("textselection handle must be valid");
                 textselection.wrap_in(self).expect("wrap must succeed")
             })
@@ -1851,7 +1859,7 @@ impl TextResource {
         self.textselections_by_operator(operator, refset)
             .map(|ts_handle| {
                 let textselection: &'store TextSelection = self
-                    .get(&RequestItem::Handle(ts_handle))
+                    .get(ts_handle)
                     .expect("textselection handle must be valid");
                 textselection.wrap_in(self).expect("wrap must succeed")
             })
@@ -2135,13 +2143,10 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
                         resource,
                         textselection,
                     } => {
-                        let resource: &TextResource = self
-                            .iter
-                            .store
-                            .get(&resource.into())
-                            .expect("Resource must exist");
+                        let resource: &TextResource =
+                            self.iter.store.get(*resource).expect("Resource must exist");
                         let textselection: &TextSelection = resource
-                            .get(&textselection.into())
+                            .get(*textselection)
                             .expect("TextSelection must exist");
                         return Some(TargetIterItem {
                             item: textselection.wrap_in(resource).expect("wrap must succeed"),

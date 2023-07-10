@@ -334,10 +334,10 @@ impl<'a> From<&SelectorBuilder<'a>> for SelectorKind {
 #[derive(Debug, Deserialize)]
 #[serde(from = "SelectorJson")]
 pub enum SelectorBuilder<'a> {
-    ResourceSelector(RequestItem<'a,TextResource>),
-    AnnotationSelector(RequestItem<'a,Annotation>, Option<Offset>),
-    TextSelector(RequestItem<'a,TextResource>, Offset),
-    DataSetSelector(RequestItem<'a,AnnotationDataSet>),
+    ResourceSelector(BuildItem<'a,TextResource>),
+    AnnotationSelector(BuildItem<'a,Annotation>, Option<Offset>),
+    TextSelector(BuildItem<'a,TextResource>, Offset),
+    DataSetSelector(BuildItem<'a,AnnotationDataSet>),
     MultiSelector(Vec<SelectorBuilder<'a>>),
     CompositeSelector(Vec<SelectorBuilder<'a>>),
     DirectionalSelector(Vec<SelectorBuilder<'a>>),
@@ -477,7 +477,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
     {
         match self.selector {
             Selector::ResourceSelector(res_handle) => {
-                let textresource: Result<&TextResource, _> = self.store().get(&res_handle.into());
+                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 2)?;
                 state.serialize_field("@type", "ResourceSelector")?;
@@ -490,7 +490,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 state.end()
             }
             Selector::TextSelector(res_handle, offset) => {
-                let textresource: Result<&TextResource, _> = self.store().get(&res_handle.into());
+                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "TextSelector")?;
@@ -505,7 +505,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
             }
             Selector::DataSetSelector(dataset_handle) => {
                 let annotationset: Result<&AnnotationDataSet, _> =
-                    self.store().get(&dataset_handle.into());
+                    self.store().get(*dataset_handle);
                 let annotationset = annotationset.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 2)?;
                 state.serialize_field("@type", "DataSetSelector")?;
@@ -518,7 +518,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 state.end()
             }
             Selector::AnnotationSelector(annotation_handle, offset) => {
-                let annotation: Result<&Annotation, _> = self.store().get(&annotation_handle.into());
+                let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
                 let annotation = annotation.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "AnnotationSelector")?;
@@ -538,7 +538,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 resource: _res_handle,
                 textselection: _textselection_handle,
             } => {
-                let annotation: Result<&Annotation, _> = self.store().get(&annotation_handle.into());
+                let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
                 let annotation = annotation.map_err(serde::ser::Error::custom)?;
 
                 let mut state = serializer.serialize_struct("Selector", 3)?;
@@ -556,10 +556,10 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 resource: res_handle,
                 textselection: textselection_handle,
             } => {
-                let textresource: Result<&TextResource, _> = self.store().get(&res_handle.into());
+                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let textselection: &TextSelection = textresource
-                    .get(&textselection_handle.into())
+                    .get(*textselection_handle)
                     .map_err(serde::ser::Error::custom)?;
 
                 let mut state = serializer.serialize_struct("Selector", 3)?;
@@ -729,7 +729,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 leaf = false;
                                 let annotation: &Annotation = self
                                     .store
-                                    .get(&a_handle.into())
+                                    .get(*a_handle)
                                     .expect("referenced annotation must exist");
                                 self.subiterstack.push(SelectorIter {
                                     selector: annotation.target(),

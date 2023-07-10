@@ -139,10 +139,10 @@ impl<'a> TryFrom<AnnotationStoreBuilder<'a>> for AnnotationStore {
                         id
                     )
                 });
-                if id.is_some() {
+                if let Some(id) = id {
                     //create and override with the ID we already had
-                    annotationset = AnnotationDataSet::from_file(&filename, store.config.clone())?
-                        .with_id(id.unwrap());
+                    annotationset =
+                        AnnotationDataSet::from_file(&filename, store.config.clone())?.with_id(id);
                 } else {
                     annotationset = AnnotationDataSet::from_file(&filename, store.config.clone())?;
                 }
@@ -168,10 +168,10 @@ impl<'a> TryFrom<AnnotationStoreBuilder<'a>> for AnnotationStore {
                         id
                     )
                 });
-                if id.is_some() {
+                if let Some(id) = id {
                     //create and override with the ID we already had
-                    resource = TextResource::from_file(&filename, store.config.clone())?
-                        .with_id(id.unwrap());
+                    resource =
+                        TextResource::from_file(&filename, store.config.clone())?.with_id(id);
                 } else {
                     resource = TextResource::from_file(&filename, store.config.clone())?;
                 }
@@ -453,7 +453,7 @@ impl StoreFor<Annotation> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationHandle) -> Result<(), StamError> {
-        let annotation: &Annotation = self.get(&handle.into())?;
+        let annotation: &Annotation = self.get(handle)?;
         let resource_handle: Option<TextResourceHandle> = match annotation.target() {
             Selector::ResourceSelector(res_handle) => Some(*res_handle),
             _ => None,
@@ -940,7 +940,7 @@ impl AnnotationStore {
             if let Some(dataset_id) = dataset.id.as_ref() {
                 if let Ok(basedataset) = <AnnotationStore as StoreFor<AnnotationDataSet>>::get_mut(
                     self,
-                    &dataset_id.into(),
+                    dataset_id.as_str(),
                 ) {
                     basedataset.merge_from_builder(dataset)?;
                     //done, skip the rest
@@ -1153,7 +1153,7 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
-        if let Some(resource) = self.resource(&RequestItem::from(resource_handle)) {
+        if let Some(resource) = self.resource(resource_handle) {
             if let Ok(textselection) = resource.as_ref().textselection(&offset) {
                 if let Some(textselection_handle) = textselection.handle() {
                     return self
@@ -1245,9 +1245,9 @@ impl AnnotationStore {
         annotationset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
     ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
-        let dataset: Option<&AnnotationDataSet> = self.get(&annotationset_handle.into()).ok();
+        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
         if let Some(dataset) = dataset {
-            if let Some(data) = dataset.data_by_key(&datakey_handle.into()) {
+            if let Some(data) = dataset.data_by_key(datakey_handle) {
                 Some(
                     data.iter()
                         .filter_map(move |dataitem| {
@@ -1277,7 +1277,7 @@ impl AnnotationStore {
     ) -> Result<ResultTextSelection, StamError> {
         match selector {
             Selector::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(&res_id.into())?;
+                let resource: &TextResource = self.get(*res_id)?;
                 let mut textselection = resource.textselection(offset)?;
                 if let Some(subselectors) = subselectors {
                     for selector in subselectors {
@@ -1299,22 +1299,22 @@ impl AnnotationStore {
     pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
         match item {
             SelectorBuilder::ResourceSelector(id) => {
-                let resource: &TextResource = self.get(&id.into())?;
+                let resource: &TextResource = self.get(id)?;
                 Ok(Selector::ResourceSelector(resource.handle_or_err()?))
             }
             SelectorBuilder::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(&res_id.into())?;
+                let resource: &TextResource = self.get(res_id)?;
                 Ok(Selector::TextSelector(resource.handle_or_err()?, offset))
             }
             SelectorBuilder::AnnotationSelector(a_id, offset) => {
-                let annotation: &Annotation = self.get(&a_id.into())?;
+                let annotation: &Annotation = self.get(a_id)?;
                 Ok(Selector::AnnotationSelector(
                     annotation.handle_or_err()?,
                     offset,
                 ))
             }
             SelectorBuilder::DataSetSelector(id) => {
-                let resource: &AnnotationDataSet = self.get(&id.into())?;
+                let resource: &AnnotationDataSet = self.get(id)?;
                 Ok(Selector::DataSetSelector(resource.handle_or_err()?))
             }
             SelectorBuilder::MultiSelector(v) => {
@@ -1363,7 +1363,7 @@ impl AnnotationStore {
     /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
     pub fn annotation(
         &self,
-        annotation: &RequestItem<Annotation>,
+        annotation: impl ToHandle<Annotation>,
     ) -> Option<ResultItem<Annotation>> {
         self.get(annotation)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
@@ -1374,7 +1374,7 @@ impl AnnotationStore {
     /// Returns `None` if it does not exist.
     pub fn annotationset(
         &self,
-        annotationset: &RequestItem<AnnotationDataSet>,
+        annotationset: impl ToHandle<AnnotationDataSet>,
     ) -> Option<ResultItem<AnnotationDataSet>> {
         self.get(annotationset)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
@@ -1385,7 +1385,7 @@ impl AnnotationStore {
     /// Returns `None` if it does not exist.
     pub fn resource(
         &self,
-        resource: &RequestItem<TextResource>,
+        resource: impl ToHandle<TextResource>,
     ) -> Option<ResultItem<TextResource>> {
         self.get(resource)
             .map(|x| x.wrap_in(self).expect("wrap must succeed"))
@@ -1415,12 +1415,12 @@ impl AnnotationStore {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
         &'a self,
-        set: RequestItem<AnnotationDataSet>,
-        key: Option<RequestItem<DataKey>>,
+        set: impl ToHandle<AnnotationDataSet>,
+        key: Option<impl ToHandle<DataKey>>,
         value: DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'a, AnnotationData>>> {
         //if let Some(set) = set {
-        if let Some(annotationset) = self.annotationset(&set) {
+        if let Some(annotationset) = self.annotationset(set) {
             return annotationset.find_data(key, value);
         }
         /*} else {
@@ -1441,8 +1441,8 @@ impl AnnotationStore {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn test_data<'a>(
         &'a self,
-        set: RequestItem<AnnotationDataSet>,
-        key: Option<RequestItem<DataKey>>,
+        set: impl ToHandle<AnnotationDataSet>,
+        key: Option<impl ToHandle<DataKey>>,
         value: DataOperator<'a>,
     ) -> bool {
         match self.find_data(set, key, value) {

@@ -49,14 +49,14 @@ pub enum ResultType {
 
 pub enum Constraint<'q> {
     AnnotationData {
-        set: RequestItem<'q, AnnotationDataSet>,
-        key: RequestItem<'q, DataKey>,
+        set: BuildItem<'q, AnnotationDataSet>,
+        key: BuildItem<'q, DataKey>,
         value: DataOperator<'q>,
     },
-    TextResource(RequestItemSet<'q, TextResource>),
+    TextResource(ResultItemSet<'q, TextResource>),
     TextResourceVariable(Variable),
 
-    TextRelation(RequestItemSet<'q, TextSelection>, TextSelectionOperator),
+    TextRelation(ResultItemSet<'q, TextSelection>, TextSelectionOperator),
     TextRelationVariable(Variable, TextSelectionOperator),
 }
 
@@ -245,14 +245,10 @@ impl<'store> QueryIter<'store> {
                 }
                 Some((Constraint::TextResource(itemset), _qualifier)) => {
                     //Get resources directly
-                    if let Some(itemset) = itemset.resolve(store) {
-                        Some(QueryState {
-                            iterator: SubIter::Singleton, //no real iterator, but indicates we already prepared a single result, namely:
-                            result: QueryResultItem::TextResource(itemset),
-                        })
-                    } else {
-                        None
-                    }
+                    Some(QueryState {
+                        iterator: SubIter::Singleton, //no real iterator, but indicates we already prepared a single result, namely:
+                        result: QueryResultItem::TextResource(itemset.clone()),
+                    })
                 }
                 Some((Constraint::TextResourceVariable(var), _qualifier)) => {
                     //Get resources via variable (a bit non-sensical since that implies we already have it earlier in another stack)
@@ -297,20 +293,17 @@ impl<'store> QueryIter<'store> {
                 }
                 Some((Constraint::TextResource(itemset), _qualifier)) => {
                     //Get text selections pertaining to a resource
-                    if let Some(itemset) = itemset.resolve(store) {
-                        Some(QueryState {
-                            iterator: SubIter::TextSelectionIter(Box::new(
-                                itemset
-                                    .into_iter()
-                                    .map(|resource| resource.textselections())
-                                    .flatten()
-                                    .map(|textselection| textselection.into()),
-                            )),
-                            result: QueryResultItem::None,
-                        })
-                    } else {
-                        None
-                    }
+                    Some(QueryState {
+                        iterator: SubIter::TextSelectionIter(Box::new(
+                            itemset
+                                .clone()
+                                .into_iter()
+                                .map(|resource| resource.textselections())
+                                .flatten()
+                                .map(|textselection| textselection.into()),
+                        )),
+                        result: QueryResultItem::None,
+                    })
                 }
                 Some((Constraint::TextResourceVariable(var), _qualifier)) => {
                     //Get resources via variable (a bit non-sensical since that implies we already have it earlier in another stack)
@@ -465,10 +458,8 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Que
                     }
                 }
                 Constraint::TextResource(refitemset) => {
-                    if let Some(refitemset) = refitemset.resolve(store) {
-                        if refitemset.iter().any(|refitem| refitem == item) {
-                            return true;
-                        }
+                    if refitemset.iter().any(|refitem| refitem == item) {
+                        return true;
                     }
                 }
                 Constraint::TextResourceVariable(var) => {

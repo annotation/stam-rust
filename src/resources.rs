@@ -142,31 +142,40 @@ impl Handle for TextResourceHandle {
 }
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> From<&TextResourceHandle> for RequestItem<'a, TextResource> {
-    fn from(handle: &TextResourceHandle) -> Self {
-        RequestItem::Handle(*handle)
+impl<'a> ToHandle<TextResource> for TextResourceHandle {
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<TextResourceHandle>
+    where
+        S: StoreFor<TextResource>,
+    {
+        Some(*self)
     }
 }
-impl<'a> From<Option<&TextResourceHandle>> for RequestItem<'a, TextResource> {
+
+impl<'a> From<&TextResourceHandle> for BuildItem<'a, TextResource> {
+    fn from(handle: &TextResourceHandle) -> Self {
+        BuildItem::Handle(*handle)
+    }
+}
+impl<'a> From<Option<&TextResourceHandle>> for BuildItem<'a, TextResource> {
     fn from(handle: Option<&TextResourceHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(*handle)
+            BuildItem::Handle(*handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
-impl<'a> From<TextResourceHandle> for RequestItem<'a, TextResource> {
+impl<'a> From<TextResourceHandle> for BuildItem<'a, TextResource> {
     fn from(handle: TextResourceHandle) -> Self {
-        RequestItem::Handle(handle)
+        BuildItem::Handle(handle)
     }
 }
-impl<'a> From<Option<TextResourceHandle>> for RequestItem<'a, TextResource> {
+impl<'a> From<Option<TextResourceHandle>> for BuildItem<'a, TextResource> {
     fn from(handle: Option<TextResourceHandle>) -> Self {
         if let Some(handle) = handle {
-            RequestItem::Handle(handle)
+            BuildItem::Handle(handle)
         } else {
-            RequestItem::None
+            BuildItem::None
         }
     }
 }
@@ -630,9 +639,7 @@ impl<'store, 'slf> ResultItem<'store, TextResource> {
         &'slf self,
     ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
         if let Some(iter) = self.store().annotations_by_resource(self.handle()) {
-            Some(
-                iter.filter_map(|a_handle| self.store().annotation(&RequestItem::Handle(a_handle))),
-            )
+            Some(iter.filter_map(|a_handle| self.store().annotation(a_handle)))
         } else {
             None
         }
@@ -645,9 +652,8 @@ impl<'store, 'slf> ResultItem<'store, TextResource> {
     ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
         if let Some(vec) = self.store().annotations_by_resource_metadata(self.handle()) {
             Some(
-                vec.iter().filter_map(|a_handle| {
-                    self.store().annotation(&RequestItem::Handle(*a_handle))
-                }),
+                vec.iter()
+                    .filter_map(|a_handle| self.store().annotation(*a_handle)),
             )
         } else {
             None
@@ -931,7 +937,7 @@ impl<'store> Text<'store, 'store> for TextResource {
         match self.known_textselection(offset) {
             Ok(Some(handle)) => {
                 //existing textselection
-                let textselection: &TextSelection = self.get(&handle.into())?; //shouldn't fail here anymore
+                let textselection: &TextSelection = self.get(handle)?; //shouldn't fail here anymore
                 let wrapped = textselection.wrap_in(self)?;
                 Ok(ResultTextSelection::Bound(wrapped))
             }
@@ -1099,7 +1105,7 @@ impl StoreFor<TextSelection> for TextResource {
     fn inserted(&mut self, handle: TextSelectionHandle) -> Result<(), StamError> {
         //called after a TextSelection gets inserted into this Store
         //update the PositionIndex
-        let textselection: &TextSelection = self.get(&handle.into())?;
+        let textselection: &TextSelection = self.get(handle)?;
         let begin = textselection.begin();
         let end = textselection.end();
         let beginbyte = self.utf8byte(begin)?; //MAYBE TODO: move this inside closure? (not done now because it violates borrow checker)
@@ -1164,10 +1170,8 @@ impl<'a> Iterator for TextSelectionIter<'a> {
         loop {
             if let Some(begin2enditer) = &mut self.begin2enditer {
                 if let Some((_end, handle)) = begin2enditer.next() {
-                    let textselection: &TextSelection = self
-                        .resource
-                        .get(&handle.into())
-                        .expect("handle must exist");
+                    let textselection: &TextSelection =
+                        self.resource.get(*handle).expect("handle must exist");
                     return Some(
                         textselection
                             .wrap_in(self.resource)
@@ -1194,10 +1198,8 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
         loop {
             if let Some(end2beginiter) = &mut self.end2beginiter {
                 if let Some((_begin, handle)) = end2beginiter.next() {
-                    let textselection: &TextSelection = self
-                        .resource
-                        .get(&handle.into())
-                        .expect("handle must exist");
+                    let textselection: &TextSelection =
+                        self.resource.get(*handle).expect("handle must exist");
                     return Some(
                         textselection
                             .wrap_in(self.resource)
