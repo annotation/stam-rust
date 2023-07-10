@@ -138,12 +138,25 @@ impl Handle for AnnotationDataSetHandle {
     }
 }
 
+//these I couldn't solve nicely using generics:
+
 impl<'a> ToHandle<AnnotationDataSet> for AnnotationDataSetHandle {
     fn to_handle<'store, S>(&self, store: &'store S) -> Option<AnnotationDataSetHandle>
     where
         S: StoreFor<AnnotationDataSet>,
     {
         Some(*self)
+    }
+}
+
+impl From<AnnotationDataSetHandle> for BuildItem<'_, AnnotationDataSet> {
+    fn from(handle: AnnotationDataSetHandle) -> Self {
+        Self::Handle(handle)
+    }
+}
+impl From<&AnnotationDataSetHandle> for BuildItem<'_, AnnotationDataSet> {
+    fn from(handle: &AnnotationDataSetHandle) -> Self {
+        Self::Handle(*handle)
     }
 }
 
@@ -641,12 +654,22 @@ impl AnnotationDataSet {
     }
 
     /// Adds new [`AnnotationData`] to the dataset, this should be
-    /// Note: if you don't want to set an ID (first argument), you can just just pass "".into()
-    pub fn with_data(
+    pub fn with_data<'a>(
         mut self,
-        id: BuildItem<AnnotationData>,
-        key: BuildItem<DataKey>,
-        value: DataValue,
+        key: impl Into<BuildItem<'a, DataKey>>,
+        value: impl Into<DataValue> + std::fmt::Debug,
+    ) -> Result<Self, StamError> {
+        debug(self.config(), || format!("AnnotationDataSet.with_data"));
+        self.insert_data(BuildItem::None, key, value, true)?;
+        Ok(self)
+    }
+
+    /// Adds new [`AnnotationData`] to the dataset, this should be
+    pub fn with_data_with_id<'a>(
+        mut self,
+        key: impl Into<BuildItem<'a, DataKey>>,
+        value: impl Into<DataValue> + std::fmt::Debug,
+        id: impl Into<BuildItem<'a, AnnotationData>>,
     ) -> Result<Self, StamError> {
         debug(self.config(), || format!("AnnotationDataSet.with_data"));
         self.insert_data(id, key, value, true)?;
@@ -686,11 +709,14 @@ impl AnnotationDataSet {
     /// Note: if you don't want to set an ID (first argument), you can just pass AnyId::None or "".into()
     pub fn insert_data<'a>(
         &mut self,
-        id: BuildItem<'a, AnnotationData>,
-        key: BuildItem<'a, DataKey>,
+        id: impl Into<BuildItem<'a, AnnotationData>>,
+        key: impl Into<BuildItem<'a, DataKey>>,
         value: impl Into<DataValue> + std::fmt::Debug,
         safety: bool,
     ) -> Result<AnnotationDataHandle, StamError> {
+        let id = id.into();
+        let key = key.into();
+
         debug(self.config(), || {
             format!(
                 "AnnotationDataSet.insert_data: id={:?} key={:?} value={:?}",

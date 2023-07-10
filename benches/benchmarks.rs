@@ -99,12 +99,7 @@ pub fn bench_storefor(c: &mut Criterion) {
                     "testres".into(),
                     Offset::simple(6, 11),
                 ))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "pos".into(),
-                    "noun".into(),
-                    "D1".into(),
-                ),
+                .with_data_with_id("testdataset", "pos", "noun", "D1"),
         )
         .unwrap()
         .with_annotation(
@@ -114,12 +109,7 @@ pub fn bench_storefor(c: &mut Criterion) {
                     "testres".into(),
                     Offset::simple(0, 5),
                 ))
-                .with_data_with_id(
-                    "testdataset".into(),
-                    "pos".into(),
-                    "interjection".into(),
-                    "D2".into(),
-                ),
+                .with_data_with_id("testdataset", "pos", "interjection", "D2"),
         )
         .unwrap();
 

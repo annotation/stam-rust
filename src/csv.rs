@@ -621,7 +621,7 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
             }
             for (i, data_id) in self.data_ids.split(";").enumerate() {
                 let set_id = set_ids.get(i).unwrap_or(set_ids.last().unwrap()).deref();
-                builder = builder.with_data_by_id(
+                builder = builder.with_existing_data(
                     BuildItem::from(set_id.to_owned()), //had to make it owned because of borrow checker, would rather have kept reference
                     BuildItem::from(data_id.to_owned()),
                 );

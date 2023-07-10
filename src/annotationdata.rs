@@ -61,6 +61,16 @@ impl<'a> ToHandle<AnnotationData> for AnnotationDataHandle {
         Some(*self)
     }
 }
+impl From<AnnotationDataHandle> for BuildItem<'_, AnnotationData> {
+    fn from(handle: AnnotationDataHandle) -> Self {
+        Self::Handle(handle)
+    }
+}
+impl From<&AnnotationDataHandle> for BuildItem<'_, AnnotationData> {
+    fn from(handle: &AnnotationDataHandle) -> Self {
+        Self::Handle(*handle)
+    }
+}
 
 #[sealed]
 impl TypeInfo for AnnotationData {
