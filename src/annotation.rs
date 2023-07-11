@@ -64,7 +64,7 @@ impl Handle for AnnotationHandle {
 }
 
 impl<'a> ToHandle<Annotation> for AnnotationHandle {
-    fn to_handle<'store, S>(&self, store: &'store S) -> Option<AnnotationHandle>
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<AnnotationHandle>
     where
         S: StoreFor<Annotation>,
     {
