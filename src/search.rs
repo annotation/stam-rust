@@ -8,7 +8,9 @@ use crate::datavalue::DataOperator;
 use crate::error::StamError;
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::textselection::{TextSelection, TextSelectionOperator, TextSelectionSet};
+use crate::textselection::{
+    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
+};
 use crate::types::*;
 
 type VarHandle = usize;
@@ -17,7 +19,6 @@ pub struct Query<'q> {
     name: Option<String>,
     querytype: QueryType,
     resulttype: Option<ResultType>,
-    handle: Option<VarHandle>,
     constraints: Vec<(Constraint<'q>, Qualifier)>,
 }
 
@@ -56,8 +57,14 @@ pub enum Constraint<'q> {
     TextResource(ResultItemSet<'q, TextResource>),
     TextResourceVariable(Variable),
 
-    TextRelation(ResultItemSet<'q, TextSelection>, TextSelectionOperator),
+    TextRelation(TextSelectionSet, TextSelectionOperator),
     TextRelationVariable(Variable, TextSelectionOperator),
+
+    Annotation(ResultItemSet<'q, Annotation>),
+    AnnotationVariable(Variable),
+
+    Text(TextOperator, String),
+    TextVariable(Variable),
 }
 
 pub struct QueryState<'store> {
@@ -108,7 +115,6 @@ impl<'q> Query<'q> {
             name,
             querytype,
             resulttype,
-            handle: None,
             constraints: Vec::new(),
         }
     }
@@ -261,6 +267,34 @@ impl<'store> QueryIter<'store> {
                         None
                     }
                 }
+                Some((Constraint::Annotation(itemset), _qualifier)) => {
+                    //Get resources by annotation
+                    Some(QueryState {
+                        iterator: SubIter::ResourceIter(Box::new(
+                            itemset.clone().into_iter().filter_map(|annotation| {
+                                ResultItemSet::from_iter(annotation.resources().map(|res| res.item))
+                            }),
+                        )),
+                        result: QueryResultItem::None,
+                    })
+                }
+                Some((Constraint::AnnotationVariable(var), _qualifier)) => {
+                    //Get resources by annotation (variable)
+                    if let QueryResultItem::Annotation(itemset) = self.resolve_variable(var) {
+                        Some(QueryState {
+                            iterator: SubIter::ResourceIter(Box::new(
+                                itemset.clone().into_iter().filter_map(|annotation| {
+                                    ResultItemSet::from_iter(
+                                        annotation.resources().map(|res| res.item),
+                                    )
+                                }),
+                            )),
+                            result: QueryResultItem::None,
+                        })
+                    } else {
+                        None
+                    }
+                }
                 None => {
                     //unconstrained; all resources
                     Some(QueryState {
@@ -311,6 +345,64 @@ impl<'store> QueryIter<'store> {
                         Some(QueryState {
                             iterator: SubIter::Singleton, //no real iterator, but indicates we already prepared a single result, namely:
                             result: QueryResultItem::TextResource(itemset),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some((Constraint::Annotation(itemset), _qualifier)) => {
+                    //Get resources by annotation
+                    Some(QueryState {
+                        iterator: SubIter::TextSelectionIter(Box::new(
+                            itemset.clone().into_iter().map(|annotation| {
+                                let t: TextSelectionSet = annotation.textselections().collect();
+                                t
+                            }),
+                        )),
+                        result: QueryResultItem::None,
+                    })
+                }
+                Some((Constraint::AnnotationVariable(var), _qualifier)) => {
+                    //Get resources by annotation (variable)
+                    if let QueryResultItem::Annotation(itemset) = self.resolve_variable(var) {
+                        Some(QueryState {
+                            iterator: SubIter::TextSelectionIter(Box::new(
+                                itemset.clone().into_iter().map(|annotation| {
+                                    let t: TextSelectionSet = annotation.textselections().collect();
+                                    t
+                                }),
+                            )),
+                            result: QueryResultItem::None,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some((Constraint::TextRelation(itemset, operator), _qualifier)) => {
+                    Some(QueryState {
+                        iterator: SubIter::TextSelectionIter(Box::new(
+                            itemset
+                                .clone()
+                                .find_textselections(operator.clone(), store)
+                                .into_iter()
+                                .flatten()
+                                .map(|textselections| textselections.into()),
+                        )),
+                        result: QueryResultItem::None,
+                    })
+                }
+                Some((Constraint::TextRelationVariable(var, operator), _qualifier)) => {
+                    if let QueryResultItem::TextSelection(itemset) = self.resolve_variable(var) {
+                        Some(QueryState {
+                            iterator: SubIter::TextSelectionIter(Box::new(
+                                itemset
+                                    .clone()
+                                    .find_textselections(operator.clone(), store)
+                                    .into_iter()
+                                    .flatten()
+                                    .map(|textselections| textselections.into()),
+                            )),
+                            result: QueryResultItem::None,
                         })
                     } else {
                         None
@@ -373,6 +465,24 @@ impl<'store> QueryIter<'store> {
                                 }
                                 if constraints_met {
                                     state.result = QueryResultItem::TextResource(result);
+                                    self.statestack.push(state);
+                                    return true;
+                                }
+                            } else {
+                                break; //iterator depleted
+                            }
+                        }
+                        SubIter::TextSelectionIter(iter) => {
+                            if let Some(result) = iter.next() {
+                                let mut constraints_met = true;
+                                for (constraint, _qualifier) in query.iter() {
+                                    if !self.test_constraint(store, constraint, &result) {
+                                        constraints_met = false;
+                                        break;
+                                    }
+                                }
+                                if constraints_met {
+                                    state.result = QueryResultItem::TextSelection(result);
                                     self.statestack.push(state);
                                     return true;
                                 }
@@ -469,6 +579,110 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Que
                         }
                     }
                 }
+                Constraint::Annotation(refitemset) => {
+                    if refitemset.iter().any(|refitem| {
+                        refitem
+                            .resources()
+                            .any(|refresource| refresource.item == item)
+                    }) {
+                        return true;
+                    }
+                }
+                Constraint::AnnotationVariable(var) => {
+                    if let QueryResultItem::Annotation(refitemset) = self.resolve_variable(var) {
+                        if refitemset.iter().any(|refitem| {
+                            refitem
+                                .resources()
+                                .any(|refresource| refresource.item == item)
+                        }) {
+                            return true;
+                        }
+                    }
+                }
+                _ => unimplemented!(), //todo: remove
+            }
+        }
+        false
+    }
+}
+
+impl<'store> TestConstraint<'store, TextSelectionSet> for QueryIter<'store> {
+    fn test_constraint(
+        &self,
+        store: &'store AnnotationStore,
+        constraint: &Constraint<'store>,
+        itemset: &TextSelectionSet,
+    ) -> bool {
+        let resource = store.get(itemset.resource()).expect("resource must exist");
+
+        if let Constraint::TextRelation(tset, operator) = constraint {
+            return itemset.test_set(&operator, &tset);
+        } else if let Constraint::TextRelationVariable(var, operator) = constraint {
+            if let QueryResultItem::TextSelection(tset) = self.resolve_variable(var) {
+                return itemset.test_set(&operator, &tset);
+            }
+        }
+
+        //if a single item in an itemset matches, the itemset as a whole is valid (MAYBE TODO: reconsider?)
+        for item in itemset.iter() {
+            //Get a ResultTextSelection (implements higher level API)
+            let item = if item.handle().is_some() {
+                ResultTextSelection::Bound(resource.wrap(item).expect("wrap must succeed"))
+            } else {
+                ResultTextSelection::Unbound(resource, item.clone())
+            };
+            match constraint {
+                Constraint::AnnotationData { set, key, value } => {
+                    if let Some(iter) = item.annotations(store) {
+                        for annotation in iter {
+                            for data in annotation.data() {
+                                if store.wrap(data.set()).expect("wrap must succeed").test(set)
+                                    && data.test(Some(&key), &value)
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                Constraint::TextResource(refitemset) => {
+                    if refitemset
+                        .iter()
+                        .any(|refitem| refitem.handle() == itemset.resource())
+                    {
+                        return true;
+                    }
+                }
+                Constraint::TextResourceVariable(var) => {
+                    if let QueryResultItem::TextResource(refitemset) = self.resolve_variable(var) {
+                        if refitemset
+                            .iter()
+                            .any(|refitem| refitem.handle() == itemset.resource())
+                        {
+                            return true;
+                        }
+                    }
+                }
+                Constraint::Annotation(refitemset) => {
+                    if refitemset.iter().any(|refitem| {
+                        refitem
+                            .textselections()
+                            .any(|reftextselection| reftextselection == item)
+                    }) {
+                        return true;
+                    }
+                }
+                Constraint::AnnotationVariable(var) => {
+                    if let QueryResultItem::Annotation(refitemset) = self.resolve_variable(var) {
+                        if refitemset.iter().any(|refitem| {
+                            refitem
+                                .textselections()
+                                .any(|reftextselection| reftextselection == item)
+                        }) {
+                            return true;
+                        }
+                    }
+                }
                 _ => unimplemented!(), //todo: remove
             }
         }
@@ -511,4 +725,12 @@ impl<'store> QueryResultItems<'store> {
     pub fn get(&self, index: usize) -> Option<&QueryResultItem<'store>> {
         self.items.get(index)
     }
+}
+
+pub enum TextOperator {
+    Equals,
+    Contains,
+    Regex,
+    GreaterThan,
+    SmallerThan,
 }
