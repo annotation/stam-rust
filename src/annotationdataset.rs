@@ -141,7 +141,7 @@ impl Handle for AnnotationDataSetHandle {
 //these I couldn't solve nicely using generics:
 
 impl<'a> ToHandle<AnnotationDataSet> for AnnotationDataSetHandle {
-    fn to_handle<'store, S>(&self, store: &'store S) -> Option<AnnotationDataSetHandle>
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<AnnotationDataSetHandle>
     where
         S: StoreFor<AnnotationDataSet>,
     {

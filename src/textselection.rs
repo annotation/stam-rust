@@ -42,7 +42,7 @@ pub struct TextSelectionHandle(u32);
 
 // I tried making this generic but failed, so let's spell it out for the handle
 impl<'a> ToHandle<TextSelection> for TextSelectionHandle {
-    fn to_handle<'store, S>(&self, store: &'store S) -> Option<TextSelectionHandle>
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<TextSelectionHandle>
     where
         S: StoreFor<TextSelection>,
     {
