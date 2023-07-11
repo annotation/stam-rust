@@ -381,28 +381,28 @@ fn textselectionoperator_precedes_1vs1() {
         end: 48,
     };
     assert!(a.test(
-        &TextSelectionOperator::Precedes {
+        &TextSelectionOperator::Before {
             all: false,
             negate: false
         },
         &b
     ));
     assert!(!b.test(
-        &TextSelectionOperator::Precedes {
+        &TextSelectionOperator::Before {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(b.test(
-        &TextSelectionOperator::Succeeds {
+        &TextSelectionOperator::After {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(!a.test(
-        &TextSelectionOperator::Succeeds {
+        &TextSelectionOperator::After {
             all: false,
             negate: false
         },
@@ -423,28 +423,28 @@ fn textselectionoperator_precedes2_1vs1() {
         end: 48,
     };
     assert!(a.test(
-        &TextSelectionOperator::Precedes {
+        &TextSelectionOperator::Before {
             all: false,
             negate: false
         },
         &b
     ));
     assert!(!b.test(
-        &TextSelectionOperator::Precedes {
+        &TextSelectionOperator::Before {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(b.test(
-        &TextSelectionOperator::Succeeds {
+        &TextSelectionOperator::After {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(!a.test(
-        &TextSelectionOperator::Succeeds {
+        &TextSelectionOperator::After {
             all: false,
             negate: false
         },
@@ -465,28 +465,28 @@ fn textselectionoperator_adjacent_1vs1() {
         end: 48,
     };
     assert!(a.test(
-        &TextSelectionOperator::LeftAdjacent {
+        &TextSelectionOperator::Precedes {
             all: false,
             negate: false
         },
         &b
     ));
     assert!(!b.test(
-        &TextSelectionOperator::LeftAdjacent {
+        &TextSelectionOperator::Precedes {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(b.test(
-        &TextSelectionOperator::RightAdjacent {
+        &TextSelectionOperator::Succeeds {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(!a.test(
-        &TextSelectionOperator::RightAdjacent {
+        &TextSelectionOperator::Succeeds {
             all: false,
             negate: false
         },
@@ -508,28 +508,28 @@ fn textselectionoperator_adjacent_false_1vs1() {
     };
     //these are all not adjacent
     assert!(!a.test(
-        &TextSelectionOperator::LeftAdjacent {
+        &TextSelectionOperator::Precedes {
             all: false,
             negate: false
         },
         &b
     ));
     assert!(!b.test(
-        &TextSelectionOperator::LeftAdjacent {
+        &TextSelectionOperator::Precedes {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(!b.test(
-        &TextSelectionOperator::RightAdjacent {
+        &TextSelectionOperator::Succeeds {
             all: false,
             negate: false
         },
         &a
     ));
     assert!(!a.test(
-        &TextSelectionOperator::RightAdjacent {
+        &TextSelectionOperator::Succeeds {
             all: false,
             negate: false
         },
