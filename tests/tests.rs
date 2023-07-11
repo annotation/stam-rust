@@ -1895,7 +1895,7 @@ fn test_find_annotations_precedes() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
-        .find_annotations(TextSelectionOperator::Precedes {
+        .find_annotations(TextSelectionOperator::Before {
             all: false,
             negate: false,
         })
@@ -1915,7 +1915,7 @@ fn test_find_annotations_succeeds() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase3").unwrap();
     let annotations: Vec<_> = phrase
-        .find_annotations(TextSelectionOperator::Succeeds {
+        .find_annotations(TextSelectionOperator::After {
             all: false,
             negate: false,
         })

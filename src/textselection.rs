@@ -989,21 +989,21 @@ pub enum TextSelectionOperator {
     /// If modifier `all` is set: All TextSelections in A are embedded by all TextSelection in B (cf. textfabric's `]]`)
     Embedded { all: bool, negate: bool },
 
-    /// Each TextSelections in A precedes (comes before) a textselection in B
+    /// Each TextSelections in A comes before a textselection in B
     /// If modifier `all` is set: All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
-    Precedes { all: bool, negate: bool },
+    Before { all: bool, negate: bool },
 
     /// Each TextSeleciton In A succeeds (comes after) a textselection in B
     /// If modifier `all` is set: All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
-    Succeeds { all: bool, negate: bool },
+    After { all: bool, negate: bool },
 
     /// Each TextSelection in A is ends where at least one TextSelection in B begins.
     /// If modifier `all` is set: The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
-    LeftAdjacent { all: bool, negate: bool },
+    Precedes { all: bool, negate: bool },
 
     /// Each TextSelection in A is begis where at least one TextSelection in A ends.
     /// If modifier `all` is set: The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
-    RightAdjacent { all: bool, negate: bool },
+    Succeeds { all: bool, negate: bool },
 
     /// Each TextSelection in A starts where a TextSelection in B starts
     /// If modifier `all` is set: The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
@@ -1030,10 +1030,10 @@ impl TextSelectionOperator {
             | Self::Overlaps { all, .. }
             | Self::Embeds { all, .. }
             | Self::Embedded { all, .. }
+            | Self::Before { all, .. }
+            | Self::After { all, .. }
             | Self::Precedes { all, .. }
             | Self::Succeeds { all, .. }
-            | Self::LeftAdjacent { all, .. }
-            | Self::RightAdjacent { all, .. }
             | Self::SameBegin { all, .. }
             | Self::SameEnd { all, .. }
             | Self::InSet { all, .. }
@@ -1059,19 +1059,19 @@ impl TextSelectionOperator {
                 all: *all,
                 negate: !negate,
             },
+            Self::Before { all, negate } => Self::Before {
+                all: *all,
+                negate: !negate,
+            },
+            Self::After { all, negate } => Self::After {
+                all: *all,
+                negate: !negate,
+            },
             Self::Precedes { all, negate } => Self::Precedes {
                 all: *all,
                 negate: !negate,
             },
             Self::Succeeds { all, negate } => Self::Succeeds {
-                all: *all,
-                negate: !negate,
-            },
-            Self::LeftAdjacent { all, negate } => Self::LeftAdjacent {
-                all: *all,
-                negate: !negate,
-            },
-            Self::RightAdjacent { all, negate } => Self::RightAdjacent {
                 all: *all,
                 negate: !negate,
             },
@@ -1112,19 +1112,19 @@ impl TextSelectionOperator {
                 all: !all,
                 negate: *negate,
             },
+            Self::Before { all, negate } => Self::Before {
+                all: !all,
+                negate: *negate,
+            },
+            Self::After { all, negate } => Self::After {
+                all: !all,
+                negate: *negate,
+            },
             Self::Precedes { all, negate } => Self::Precedes {
                 all: !all,
                 negate: *negate,
             },
             Self::Succeeds { all, negate } => Self::Succeeds {
-                all: !all,
-                negate: *negate,
-            },
-            Self::LeftAdjacent { all, negate } => Self::LeftAdjacent {
-                all: !all,
-                negate: *negate,
-            },
-            Self::RightAdjacent { all, negate } => Self::RightAdjacent {
                 all: !all,
                 negate: *negate,
             },
@@ -1226,19 +1226,19 @@ impl TextSelectionSet {
                 all: false,
                 negate: false,
             }
+            | TextSelectionOperator::Before {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::After {
+                all: false,
+                negate: false,
+            }
             | TextSelectionOperator::Precedes {
                 all: false,
                 negate: false,
             }
             | TextSelectionOperator::Succeeds {
-                all: false,
-                negate: false,
-            }
-            | TextSelectionOperator::LeftAdjacent {
-                all: false,
-                negate: false,
-            }
-            | TextSelectionOperator::RightAdjacent {
                 all: false,
                 negate: false,
             }
@@ -1284,11 +1284,11 @@ impl TextSelectionSet {
                 true
             }
             //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
-            TextSelectionOperator::LeftAdjacent {
+            TextSelectionOperator::Precedes {
                 all: true,
                 negate: false,
             }
-            | TextSelectionOperator::Precedes {
+            | TextSelectionOperator::Before {
                 all: true,
                 negate: false,
             }
@@ -1296,11 +1296,11 @@ impl TextSelectionSet {
                 all: true,
                 negate: false,
             } => self.rightmost().unwrap().test(operator, reftextsel),
-            TextSelectionOperator::RightAdjacent {
+            TextSelectionOperator::Succeeds {
                 all: true,
                 negate: false,
             }
-            | TextSelectionOperator::Succeeds {
+            | TextSelectionOperator::After {
                 all: true,
                 negate: false,
             }
@@ -1321,10 +1321,10 @@ impl TextSelectionSet {
             | TextSelectionOperator::Overlaps { negate: true, .. }
             | TextSelectionOperator::Embeds { negate: true, .. }
             | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Before { negate: true, .. }
+            | TextSelectionOperator::After { negate: true, .. }
             | TextSelectionOperator::Precedes { negate: true, .. }
             | TextSelectionOperator::Succeeds { negate: true, .. }
-            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
-            | TextSelectionOperator::RightAdjacent { negate: true, .. }
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
@@ -1369,19 +1369,19 @@ impl TextSelectionSet {
                 all: false,
                 negate: false,
             }
+            | TextSelectionOperator::Before {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::After {
+                all: false,
+                negate: false,
+            }
             | TextSelectionOperator::Precedes {
                 all: false,
                 negate: false,
             }
             | TextSelectionOperator::Succeeds {
-                all: false,
-                negate: false,
-            }
-            | TextSelectionOperator::LeftAdjacent {
-                all: false,
-                negate: false,
-            }
-            | TextSelectionOperator::RightAdjacent {
                 all: false,
                 negate: false,
             }
@@ -1427,11 +1427,11 @@ impl TextSelectionSet {
                 true
             }
             //we can unrwap leftmost/rightmost safely because we tested at the start whether the set was empty or not
-            TextSelectionOperator::LeftAdjacent {
+            TextSelectionOperator::Precedes {
                 all: true,
                 negate: false,
             }
-            | TextSelectionOperator::Precedes {
+            | TextSelectionOperator::Before {
                 all: true,
                 negate: false,
             }
@@ -1439,11 +1439,11 @@ impl TextSelectionSet {
                 all: true,
                 negate: false,
             } => self.rightmost().unwrap().test_set(operator, refset),
-            TextSelectionOperator::RightAdjacent {
+            TextSelectionOperator::Succeeds {
                 all: true,
                 negate: false,
             }
-            | TextSelectionOperator::Succeeds {
+            | TextSelectionOperator::After {
                 all: true,
                 negate: false,
             }
@@ -1464,10 +1464,10 @@ impl TextSelectionSet {
             | TextSelectionOperator::Overlaps { negate: true, .. }
             | TextSelectionOperator::Embeds { negate: true, .. }
             | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Before { negate: true, .. }
+            | TextSelectionOperator::After { negate: true, .. }
             | TextSelectionOperator::Precedes { negate: true, .. }
             | TextSelectionOperator::Succeeds { negate: true, .. }
-            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
-            | TextSelectionOperator::RightAdjacent { negate: true, .. }
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
@@ -1582,14 +1582,10 @@ impl TextSelection {
                 // TextSelection is embedded reftextsel
                 self.begin >= reftextsel.begin && self.end <= reftextsel.end
             }
-            TextSelectionOperator::Precedes { negate: false, .. } => self.end <= reftextsel.begin,
-            TextSelectionOperator::Succeeds { negate: false, .. } => self.begin >= reftextsel.end,
-            TextSelectionOperator::LeftAdjacent { negate: false, .. } => {
-                self.end == reftextsel.begin
-            }
-            TextSelectionOperator::RightAdjacent { negate: false, .. } => {
-                reftextsel.end == self.begin
-            }
+            TextSelectionOperator::Before { negate: false, .. } => self.end <= reftextsel.begin,
+            TextSelectionOperator::After { negate: false, .. } => self.begin >= reftextsel.end,
+            TextSelectionOperator::Precedes { negate: false, .. } => self.end == reftextsel.begin,
+            TextSelectionOperator::Succeeds { negate: false, .. } => reftextsel.end == self.begin,
             TextSelectionOperator::SameBegin { negate: false, .. } => {
                 self.begin == reftextsel.begin
             }
@@ -1603,10 +1599,10 @@ impl TextSelection {
             | TextSelectionOperator::Overlaps { negate: true, .. }
             | TextSelectionOperator::Embeds { negate: true, .. }
             | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Before { negate: true, .. }
+            | TextSelectionOperator::After { negate: true, .. }
             | TextSelectionOperator::Precedes { negate: true, .. }
             | TextSelectionOperator::Succeeds { negate: true, .. }
-            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
-            | TextSelectionOperator::RightAdjacent { negate: true, .. }
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
@@ -1637,19 +1633,19 @@ impl TextSelection {
                 all: false,
                 negate: false,
             }
+            | TextSelectionOperator::Before {
+                all: false,
+                negate: false,
+            }
+            | TextSelectionOperator::After {
+                all: false,
+                negate: false,
+            }
             | TextSelectionOperator::Precedes {
                 all: false,
                 negate: false,
             }
             | TextSelectionOperator::Succeeds {
-                all: false,
-                negate: false,
-            }
-            | TextSelectionOperator::LeftAdjacent {
-                all: false,
-                negate: false,
-            }
-            | TextSelectionOperator::RightAdjacent {
                 all: false,
                 negate: false,
             }
@@ -1684,11 +1680,11 @@ impl TextSelection {
                 all: true,
                 negate: false,
             }
-            | TextSelectionOperator::Precedes {
+            | TextSelectionOperator::Before {
                 all: true,
                 negate: false,
             }
-            | TextSelectionOperator::Succeeds {
+            | TextSelectionOperator::After {
                 all: true,
                 negate: false,
             } => {
@@ -1702,7 +1698,7 @@ impl TextSelection {
                 }
                 true
             }
-            TextSelectionOperator::LeftAdjacent {
+            TextSelectionOperator::Precedes {
                 all: true,
                 negate: false,
             } => {
@@ -1717,7 +1713,7 @@ impl TextSelection {
                 }
                 Some(self.end) == leftmost
             }
-            TextSelectionOperator::RightAdjacent {
+            TextSelectionOperator::Succeeds {
                 all: true,
                 negate: false,
             } => {
@@ -1766,10 +1762,10 @@ impl TextSelection {
             | TextSelectionOperator::Overlaps { negate: true, .. }
             | TextSelectionOperator::Embeds { negate: true, .. }
             | TextSelectionOperator::Embedded { negate: true, .. }
+            | TextSelectionOperator::Before { negate: true, .. }
+            | TextSelectionOperator::After { negate: true, .. }
             | TextSelectionOperator::Precedes { negate: true, .. }
             | TextSelectionOperator::Succeeds { negate: true, .. }
-            | TextSelectionOperator::LeftAdjacent { negate: true, .. }
-            | TextSelectionOperator::RightAdjacent { negate: true, .. }
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
@@ -1964,14 +1960,12 @@ trait FindTextSelections<'store> {
             TextSelectionOperator::Embeds { .. } => self
                 .resource()
                 .range(reftextselection.begin(), reftextselection.end()),
-            TextSelectionOperator::Succeeds { .. }
-            | TextSelectionOperator::RightAdjacent { .. } => {
+            TextSelectionOperator::After { .. } | TextSelectionOperator::Succeeds { .. } => {
                 self.resource().range(0, reftextselection.begin())
             }
-            TextSelectionOperator::Precedes { .. } | TextSelectionOperator::LeftAdjacent { .. } => {
-                self.resource()
-                    .range(reftextselection.end(), self.resource().textlen())
-            }
+            TextSelectionOperator::Before { .. } | TextSelectionOperator::Precedes { .. } => self
+                .resource()
+                .range(reftextselection.end(), self.resource().textlen()),
             TextSelectionOperator::Overlaps { .. } | TextSelectionOperator::Embedded { .. } => {
                 //this is more efficient for reference text selections at the beginning of a text than at the end
                 //(we could reverse the iterator to more efficiently find fragments more at the end, but then we have bookkeeping to do to store and finally revert
