@@ -1,3 +1,4 @@
+use datasize::data_size;
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -1392,6 +1393,28 @@ impl AnnotationStore {
             .ok()
     }
 
+    /// Returns length for each of the reverse indices
+    ///  - dataset_data_annotation_map
+    ///  - textrelationmap
+    ///  - resource_annotation_map
+    ///  - dataset_annotation_map
+    ///  - annotation_annotation_map
+    ///  - resource id map
+    ///  - dataset id map
+    ///  - annotation id map
+    pub fn index_len(&self) -> (usize, usize, usize, usize, usize, usize, usize, usize) {
+        (
+            self.dataset_data_annotation_map.len(),
+            self.textrelationmap.len(),
+            self.resource_annotation_map.len(),
+            self.dataset_annotation_map.len(),
+            self.annotation_annotation_map.len(),
+            self.resource_idmap.len(),
+            self.dataset_idmap.len(),
+            self.annotation_idmap.len(),
+        )
+    }
+
     /// Returns total counts for each of the reverse indices
     ///  - dataset_data_annotation_map
     ///  - textrelationmap
@@ -1405,6 +1428,42 @@ impl AnnotationStore {
             self.resource_annotation_map.totalcount(),
             self.dataset_annotation_map.totalcount(),
             self.annotation_annotation_map.totalcount(),
+        )
+    }
+
+    /// Returns estimated lower-bound for memory consumption for each of the reverse indices
+    ///  - dataset_data_annotation_map
+    ///  - textrelationmap
+    ///  - resource_annotation_map
+    ///  - dataset_annotation_map
+    ///  - annotation_annotation_map
+    ///  - resource id map
+    ///  - dataset id map
+    ///  - annotation id map
+    pub fn index_meminfo(&self) -> (usize, usize, usize, usize, usize, usize, usize, usize) {
+        (
+            self.dataset_data_annotation_map.meminfo(),
+            self.textrelationmap.meminfo(),
+            self.resource_annotation_map.meminfo(),
+            self.dataset_annotation_map.meminfo(),
+            self.annotation_annotation_map.meminfo(),
+            self.resource_idmap.meminfo(),
+            self.dataset_idmap.meminfo(),
+            self.annotation_idmap.meminfo(),
+        )
+    }
+
+    pub fn annotations_meminfo(&self) -> usize {
+        data_size(&self.annotations)
+    }
+
+    /// Returns partcial count for each of the triple reverse indices, does not count the deepest layer
+    ///  - dataset_data_annotation_map
+    ///  - textrelationmap
+    pub fn index_partialcount(&self) -> (usize, usize) {
+        (
+            self.dataset_data_annotation_map.partialcount(),
+            self.textrelationmap.partialcount(),
         )
     }
 

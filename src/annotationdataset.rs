@@ -1,5 +1,6 @@
 use std::sync::{Arc, RwLock};
 
+use datasize::{data_size, DataSize};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -26,7 +27,7 @@ use std::fmt::Debug;
 /// It effectively defines a certain vocabulary, i.e. key/value pairs.
 /// The `AnnotationDataSet` does not store the [`crate::annotation::Annotation`] instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, DataSize)]
 #[serde(try_from = "AnnotationDataSetBuilder")]
 pub struct AnnotationDataSet {
     /// Public Id
@@ -64,6 +65,7 @@ pub struct AnnotationDataSet {
 
     /// Configuration
     #[serde(skip, default = "get_global_config")]
+    #[data_size(skip)]
     config: Config,
 }
 
@@ -126,7 +128,7 @@ impl<'a> TryFrom<AnnotationDataSetBuilder<'a>> for AnnotationDataSet {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, DataSize)]
 pub struct AnnotationDataSetHandle(u16);
 #[sealed]
 impl Handle for AnnotationDataSetHandle {
@@ -171,6 +173,12 @@ impl TypeInfo for AnnotationDataSet {
 impl<'a> TypeInfo for AnnotationDataSetBuilder<'a> {
     fn typeinfo() -> Type {
         Type::AnnotationDataSet
+    }
+}
+
+impl AnnotationDataSet {
+    pub fn meminfo(&self) -> usize {
+        data_size(self)
     }
 }
 

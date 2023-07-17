@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 use std::hash::{Hash, Hasher};
 use std::slice::Iter;
 
+use datasize::DataSize;
 use smallvec::SmallVec;
 
 use crate::annotation::{Annotation, TargetIter, TargetIterItem};
@@ -19,7 +20,7 @@ use crate::store::*;
 use crate::text::*;
 use crate::types::*;
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, DataSize)]
 /// Corresponds to a slice of the text. This only contains minimal
 /// information; i.e. the begin offset and end offset.
 ////
@@ -37,7 +38,7 @@ pub struct TextSelection {
     pub(crate) end: usize,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, DataSize)]
 pub struct TextSelectionHandle(u32);
 
 // I tried making this generic but failed, so let's spell it out for the handle
@@ -755,7 +756,7 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, DataSize)]
 pub(crate) struct PositionIndex(pub(crate) BTreeMap<usize, PositionIndexItem>);
 
 impl Default for PositionIndex {
@@ -774,7 +775,7 @@ impl PositionIndex {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, DataSize)]
 pub struct PositionIndexItem {
     /// Position in bytes (UTF-8 encoded)
     pub(crate) bytepos: usize,

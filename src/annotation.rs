@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::slice::Iter;
 
+use datasize::DataSize;
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -35,7 +36,7 @@ use crate::types::*;
 /// Moreover, an `Annotation` can have multiple annotation data associated.
 /// The result is that multiple annotations with the exact same content require less storage
 /// space, and searching and indexing is facilitated.  
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, DataSize)]
 pub struct Annotation {
     /// Public identifier for this annotation
     id: Option<String>,
@@ -51,7 +52,7 @@ pub struct Annotation {
     intid: Option<AnnotationHandle>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
 pub struct AnnotationHandle(u32);
 #[sealed]
 impl Handle for AnnotationHandle {

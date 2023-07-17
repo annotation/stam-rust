@@ -3,6 +3,7 @@ use std::fmt;
 
 use crate::error::StamError;
 use crate::types::*;
+use datasize::{data_size, DataSize};
 use sealed::sealed;
 
 #[sealed]
@@ -28,6 +29,24 @@ pub enum DataValue {
 
     /// Value is an ordered list
     List(Vec<DataValue>),
+}
+
+impl DataSize for DataValue {
+    // `MyType` contains a `Vec` and a `String`, so `IS_DYNAMIC` is set to true.
+    const IS_DYNAMIC: bool = true;
+    const STATIC_HEAP_SIZE: usize = 8; //the descriminator/tag of the enum (worst case estimate)
+
+    #[inline]
+    fn estimate_heap_size(&self) -> usize {
+        match self {
+            Self::Null => 8, //discriminator base size only
+            Self::Bool(v) => 8 + data_size(v),
+            Self::String(v) => 8 + data_size(v),
+            Self::Int(v) => 8 + data_size(v),
+            Self::Float(v) => 8 + data_size(v),
+            Self::List(v) => 8 + data_size(v),
+        }
+    }
 }
 
 #[derive(Clone)]

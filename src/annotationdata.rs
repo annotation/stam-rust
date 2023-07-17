@@ -1,4 +1,5 @@
 //use Chrono::DateTime;
+use datasize::DataSize;
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,7 @@ use crate::types::*;
 ///
 /// Once instantiated, instances of this type are, by design, largely immutable.
 /// The key and value can not be changed. Create a new AnnotationData and new Annotation for edits.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, DataSize)]
 pub struct AnnotationData {
     /// Public identifier
     id: Option<String>,
@@ -40,7 +41,7 @@ pub struct AnnotationData {
     pub(crate) part_of_set: Option<AnnotationDataSetHandle>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
 pub struct AnnotationDataHandle(u32);
 #[sealed]
 impl Handle for AnnotationDataHandle {

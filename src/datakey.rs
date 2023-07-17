@@ -1,3 +1,4 @@
+use datasize::DataSize;
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -15,7 +16,7 @@ use crate::types::*;
 /// The DataKey class defines a vocabulary field, it
 /// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, DataSize)]
 pub struct DataKey {
     /// The Id is the name that identifies this key, it must be unique in the dataset to which it pertains
     #[serde(rename = "@id")]
@@ -43,7 +44,7 @@ impl Serialize for DataKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
 pub struct DataKeyHandle(u16);
 
 #[sealed]

@@ -1,3 +1,4 @@
+use datasize::DataSize;
 use sealed::sealed;
 use std::hash::Hash;
 
@@ -12,7 +13,7 @@ use crate::error::StamError;
 ///
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, DataSize)]
 #[serde(tag = "@type", content = "value")]
 pub enum Cursor {
     /// Cursor relative to the start of a text. Has a value of 0 or higher
@@ -75,7 +76,7 @@ impl std::fmt::Display for Cursor {
 /// This is a sealed trait, not implementable outside this crate.
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait Handle:
-    Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Ord + Hash
+    Clone + Copy + core::fmt::Debug + PartialEq + Eq + PartialOrd + Ord + Hash + DataSize
 {
     /// Create a new handle for an internal ID. You shouldn't need to use this as handles will always be generated for you by higher-level functions.
     fn new(intid: usize) -> Self;

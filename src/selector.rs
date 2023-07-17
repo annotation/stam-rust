@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::borrow::Cow;
 use smallvec::SmallVec;
+use datasize::{DataSize,data_size};
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
@@ -15,7 +16,7 @@ use crate::store::*;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, DataSize)]
 pub struct Offset {
     pub begin: Cursor,
     pub end: Cursor,
@@ -221,6 +222,26 @@ impl Selector {
             _ => None,
         }
     }   
+}
+
+impl DataSize for Selector {
+    // `MyType` contains a `Vec` and a `String`, so `IS_DYNAMIC` is set to true.
+    const IS_DYNAMIC: bool = true;
+    const STATIC_HEAP_SIZE: usize = 8; //the descriminator/tag of the enum (worst case estimate)
+
+    #[inline]
+    fn estimate_heap_size(&self) -> usize {
+        match self {
+            Self::TextSelector(handle, offset) => 8 + data_size(handle) + data_size(offset),
+            Self::AnnotationSelector(handle, offset) => 8 + data_size(handle) + data_size(offset),
+            Self::ResourceSelector(handle) => 8 + data_size(handle),
+            Self::DataSetSelector(handle) => 8 + data_size(handle),
+            Self::MultiSelector(v) => 8 + data_size(v),
+            Self::CompositeSelector(v) => 8 + data_size(v),
+            Self::DirectionalSelector(v) => 8 + data_size(v),
+            _ => unimplemented!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize,Deserialize)]

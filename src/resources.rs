@@ -5,6 +5,7 @@ use std::ops::Bound::{Excluded, Included};
 use std::slice::Iter;
 use std::sync::{Arc, RwLock};
 
+use datasize::{data_size, DataSize};
 use regex::{Regex, RegexSet};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
@@ -31,7 +32,7 @@ use crate::types::*;
 /// The text *SHOULD* be in
 /// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
 /// *MAY* be in another unicode normalization forms.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, DataSize)]
 #[serde(try_from = "TextResourceBuilder")]
 pub struct TextResource {
     /// Public identifier for the text resource (often the filename/URL)
@@ -67,6 +68,7 @@ pub struct TextResource {
     byte2charmap: BTreeMap<usize, usize>,
 
     #[serde(skip, default = "get_global_config")]
+    #[data_size(skip)]
     config: Config,
 }
 
@@ -129,7 +131,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
 pub struct TextResourceHandle(u32);
 #[sealed]
 impl Handle for TextResourceHandle {
@@ -628,6 +630,11 @@ impl TextResource {
                 "End must be greater than begin",
             ))
         }
+    }
+
+    /// Returns a lower-bound estimate of memory usage in bytes
+    pub fn meminfo(&self) -> usize {
+        return data_size(self);
     }
 }
 

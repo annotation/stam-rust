@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::slice::{Iter, IterMut};
 
+use datasize::{data_size, DataSize};
 use nanoid::nanoid;
 use smallvec::{smallvec, SmallVec};
 
@@ -18,7 +19,7 @@ pub type Store<T> = Vec<Option<T>>;
 
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
 /// Used to resolve public IDs to internal ones.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, DataSize)]
 pub struct IdMap<HandleType> {
     /// The actual map
     data: HashMap<String, HandleType>,
@@ -54,10 +55,18 @@ where
     pub fn set_autoprefix(&mut self, autoprefix: String) {
         self.autoprefix = autoprefix;
     }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn meminfo(&self) -> usize {
+        data_size(self)
+    }
 }
 
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, DataSize)]
 pub struct RelationMap<A, B> {
     /// The actual map
     pub(crate) data: Vec<Vec<B>>,
@@ -116,8 +125,28 @@ where
         total
     }
 
+    /// Returns count info on the map, returns a 3-tuple:
+    ///     * the length of the map (len())
+    ///     * the total count of all items  (totalcount())
+    pub fn countinfo(&self) -> (usize, usize) {
+        let mut total = 0;
+        for v in self.data.iter() {
+            total += v.len();
+        }
+        (self.len(), total)
+    }
+
+    /// Like countinfo(), but returns an extra value at the end of the tuple with the lower-bound estimated memory consumption in bytes.
+    pub fn meminfo(&self) -> usize {
+        data_size(self)
+    }
+
     pub fn count(&self, x: A) -> usize {
         self.data.get(x.unwrap()).map(|v| v.len()).unwrap_or(0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -136,7 +165,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, DataSize)]
 pub struct TripleRelationMap<A, B, C> {
     /// The actual map
     pub(crate) data: Vec<RelationMap<B, C>>,
@@ -186,12 +215,44 @@ where
         total
     }
 
+    /// Returns partcial count, does not count the deepest layer
+    pub fn partialcount(&self) -> usize {
+        let mut total = 0;
+        for v in self.data.iter() {
+            total += v.len();
+        }
+        total
+    }
+
+    /// Returns count info on the map, returns a 3-tuple:
+    ///     * the length of the map (len())
+    ///     * the aggregate length of the inner map (partialcount())
+    ///     * the total count of all items  (totalcount())
+    pub fn countinfo(&self) -> (usize, usize, usize) {
+        let mut total = 0;
+        let mut inner = 0;
+        for v in self.data.iter() {
+            inner += v.len();
+            total += v.totalcount();
+        }
+        (self.len(), inner, total)
+    }
+
+    /// Like countinfo(), but returns an extra value at the end of the tuple with the lower-estimate  memory consumption in bytes.
+    pub fn meminfo(&self) -> usize {
+        data_size(self)
+    }
+
     pub fn count(&self, x: A, y: B) -> usize {
         if let Some(v) = self.data.get(x.unwrap()) {
             v.get(y).map(|v| v.len()).unwrap_or(0)
         } else {
             0
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
 }
 
