@@ -1,5 +1,6 @@
 use datasize::data_size;
 use sealed::sealed;
+use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -9,6 +10,7 @@ use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, Annotat
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
+    DeserializeAnnotationDataSet,
 };
 use crate::config::{get_global_config, set_global_config, Config, Configurable};
 #[cfg(feature = "csv")]
@@ -18,7 +20,9 @@ use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
-use crate::resources::{TextResource, TextResourceBuilder, TextResourceHandle};
+use crate::resources::{
+    DeserializeTextResource, TextResource, TextResourceBuilder, TextResourceHandle,
+};
 use crate::selector::{Offset, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::text::*;
@@ -28,8 +32,7 @@ use crate::types::*;
 /// An Annotation Store is an unordered collection of annotations, resources and
 /// annotation data sets. It can be seen as the *root* of the *graph model* and the glue
 /// that holds everything together. It is the entry point for any stam model.
-#[derive(Deserialize, Debug)]
-#[serde(try_from = "AnnotationStoreBuilder")]
+#[derive(Debug)]
 pub struct AnnotationStore {
     pub(crate) id: Option<String>,
 
@@ -588,6 +591,44 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
         seq.end()
     }
 }
+impl AnnotationStore {
+    /// Loads an AnnotationStore from a STAM JSON file
+    /// The file must contain a single object which has "@type": "AnnotationStore"
+    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!("AnnotationStore::from_json_file: filename={:?}", filename)
+        });
+        let reader = open_file_reader(filename, &config)?;
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+
+        let mut store: AnnotationStore = AnnotationStore::new()
+            .with_config(config)
+            .with_filename(filename);
+
+        DeserializeAnnotationStore::new(&mut store)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(store)
+    }
+
+    /// Loads an AnnotationStore from a STAM JSON string
+    /// The string must contain a single object which has "@type": "AnnotationStore"
+    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!("AnnotationStore::from_json_str: string={:?}", string)
+        });
+        let deserializer = &mut serde_json::Deserializer::from_str(string);
+
+        let mut store: AnnotationStore = AnnotationStore::new().with_config(config);
+
+        DeserializeAnnotationStore::new(&mut store)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(store)
+    }
+}
 
 impl<'j, 'a> FromJson<'j> for AnnotationStoreBuilder<'a> {
     /// Loads an AnnotationStore from a STAM JSON file
@@ -738,7 +779,6 @@ impl AnnotationStore {
                 filename, config
             )
         });
-        set_global_config(config.clone());
         //extract work directory add add it to the config (if it does not already specify a working directory)
         if config.workdir().is_none() {
             let mut workdir: PathBuf = filename.into();
@@ -753,11 +793,12 @@ impl AnnotationStore {
 
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
+            set_global_config(config.clone());
             config.dataformat = DataFormat::Csv;
             return AnnotationStoreBuilder::from_csv_file(filename, config)?.build();
         }
 
-        AnnotationStoreBuilder::from_json_file(filename, config)?.build()
+        AnnotationStore::from_json_file(filename, config)
     }
 
     /// Loads an AnnotationStore from a STAM JSON string
@@ -769,8 +810,7 @@ impl AnnotationStore {
                 string, config
             )
         });
-        set_global_config(config.clone());
-        AnnotationStoreBuilder::from_json_str(string, config)?.build()
+        AnnotationStore::from_json_str(string, config)
     }
 
     /// Merge another annotation store STAM JSON file into this one
@@ -782,9 +822,7 @@ impl AnnotationStore {
             return AnnotationStoreBuilder::from_csv_file(filename, config)?.build();
         }
 
-        let builder = AnnotationStoreBuilder::from_json_file(filename, self.config.clone())?;
-        self.merge_from_builder(builder)?;
-        Ok(self)
+        AnnotationStore::from_json_file(filename, self.config.clone())
     }
 
     /// Returns the filename associated with this annotation store for storage of annotations
@@ -1575,5 +1613,232 @@ impl AssociatedFile for AnnotationStore {
         self.filename
             .as_ref()
             .map(|x| x.to_str().expect("valid utf-8"))
+    }
+}
+
+///////////////////////////////////////////////// Custom deserialisation with serde
+
+#[derive(Debug)]
+struct DeserializeAnnotationStore<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'a> DeserializeAnnotationStore<'a> {
+    pub fn new(store: &'a mut AnnotationStore) -> Self {
+        Self { store }
+    }
+}
+
+/// Top-level seeded deserializer that serializes into the state (the store)
+impl<'de> DeserializeSeed<'de> for DeserializeAnnotationStore<'_> {
+    // This implementation adds onto the AnnotationStore passed as state, it does not return any data of itself
+    type Value = ();
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = AnnotationStoreVisitor {
+            store: &mut self.store,
+        };
+        deserializer.deserialize_map(visitor)?;
+        Ok(())
+    }
+}
+
+struct AnnotationStoreVisitor<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
+    // This implementation adds onto the AnnotationStore passed as state, it does not return any data of itself
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a map")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "@id" => {
+                    if self.store.id.is_none() {
+                        self.store.id = map.next_value()?;
+                    }
+                }
+                "@type" => {
+                    let tp: String = map.next_value()?;
+                    if tp != "AnnotationStore" {
+                        return Err(<A::Error as serde::de::Error>::custom(format!(
+                            "Expected type AnnotationStore, got {tp}"
+                        )));
+                    }
+                }
+                "annotations" => {
+                    // handle the next value in a streaming manner
+                    map.next_value_seed(DeserializeAnnotations { store: self.store })?;
+                }
+                "resources" => {
+                    // handle the next value in a streaming manner
+                    map.next_value_seed(DeserializeResources { store: self.store })?;
+                }
+                "annotationsets" => {
+                    // handle the next value in a streaming manner
+                    map.next_value_seed(DeserializeAnnotationDataSets { store: self.store })?;
+                }
+                _ => {
+                    eprintln!("Notice: Ignoring unknown key '{key}' whilst parsing AnnotationStore")
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct DeserializeAnnotations<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'de> DeserializeSeed<'de> for DeserializeAnnotations<'_> {
+    type Value = ();
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = AnnotationsVisitor { store: self.store };
+        deserializer.deserialize_seq(visitor)?;
+        Ok(())
+    }
+}
+
+struct AnnotationsVisitor<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'de> serde::de::Visitor<'de> for AnnotationsVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a list of annotations")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        loop {
+            let annotationbuilder: Option<AnnotationBuilder> = seq.next_element()?;
+            if let Some(annotationbuilder) = annotationbuilder {
+                self.store
+                    .annotate(annotationbuilder)
+                    .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
+
+struct DeserializeResources<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'de> DeserializeSeed<'de> for DeserializeResources<'_> {
+    type Value = ();
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = ResourcesVisitor { store: self.store };
+        deserializer.deserialize_seq(visitor)?;
+        Ok(())
+    }
+}
+
+struct ResourcesVisitor<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'de> serde::de::Visitor<'de> for ResourcesVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a list of resources")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        loop {
+            if let Some(resource) =
+                seq.next_element_seed(DeserializeTextResource::new(&self.store.config))?
+            {
+                self.store
+                    .insert(resource)
+                    .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
+
+struct DeserializeAnnotationDataSets<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'de> DeserializeSeed<'de> for DeserializeAnnotationDataSets<'_> {
+    type Value = ();
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = AnnotationDataSetsVisitor { store: self.store };
+        deserializer.deserialize_seq(visitor)?;
+        Ok(())
+    }
+}
+
+struct AnnotationDataSetsVisitor<'a> {
+    store: &'a mut AnnotationStore,
+}
+
+impl<'de> serde::de::Visitor<'de> for AnnotationDataSetsVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a list of datasets")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        loop {
+            let mut annotationset: AnnotationDataSet =
+                AnnotationDataSet::new(self.store.config.clone());
+            if seq
+                .next_element_seed(DeserializeAnnotationDataSet::new(&mut annotationset))?
+                .is_some()
+            {
+                self.store
+                    .insert(annotationset)
+                    .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+            //TODO: map_err
+            } else {
+                break;
+            }
+        }
+        Ok(())
     }
 }

@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use datasize::{data_size, DataSize};
 use sealed::sealed;
+use serde::de::DeserializeSeed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 //use serde_json::Result;
@@ -714,6 +715,9 @@ impl AnnotationDataSet {
     /// If the data already exists, this returns a handle to the existing data and inserts nothing new.
     /// If the data is new, it returns a handle to the new data.
     ///
+    /// The `safety` parameter should be set to `true` in normal circumstances, it will check if the data already exists
+    /// if it has no ID, and reuse that. If set to `false`, data will be inserted as a duplicate.
+    ///
     /// Note: if you don't want to set an ID (first argument), you can just pass AnyId::None or "".into()
     pub fn insert_data<'a>(
         &mut self,
@@ -953,5 +957,178 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
         } else {
             None
         }
+    }
+}
+
+////////////////////// Deserialisation
+
+#[derive(Debug)]
+pub(crate) struct DeserializeAnnotationDataSet<'a> {
+    store: &'a mut AnnotationDataSet,
+}
+
+impl<'a> DeserializeAnnotationDataSet<'a> {
+    pub fn new(store: &'a mut AnnotationDataSet) -> Self {
+        Self { store }
+    }
+}
+
+/// Top-level seeded deserializer that serializes into the state (the store)
+impl<'de> DeserializeSeed<'de> for DeserializeAnnotationDataSet<'_> {
+    // This implementation adds onto the AnnotationDataSet passed as state, it does not return any data of itself
+    type Value = ();
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = AnnotationDataSetVisitor {
+            store: &mut self.store,
+        };
+        deserializer.deserialize_map(visitor)?;
+        Ok(())
+    }
+}
+
+struct AnnotationDataSetVisitor<'a> {
+    store: &'a mut AnnotationDataSet,
+}
+
+impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
+    // This implementation adds onto the AnnotationDataSet passed as state, it does not return any data of itself
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a map for AnnotationDataSet")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "@id" => {
+                    if self.store.id.is_none() {
+                        self.store.id = map.next_value()?;
+                    }
+                }
+                "@type" => {
+                    let tp: String = map.next_value()?;
+                    if tp != "AnnotationDataSet" {
+                        return Err(<A::Error as serde::de::Error>::custom(format!(
+                            "Expected type AnnotationDataSet, got {tp}"
+                        )));
+                    }
+                }
+                "keys" => {
+                    // handle the next value in a streaming manner
+                    map.next_value_seed(DeserializeKeys { store: self.store })?;
+                }
+                "data" => {
+                    // handle the next value in a streaming manner
+                    map.next_value_seed(DeserializeData { store: self.store })?;
+                }
+                _ => {
+                    eprintln!(
+                        "Notice: Ignoring unknown key '{key}' whilst parsing AnnotationDataSet"
+                    )
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct DeserializeKeys<'a> {
+    store: &'a mut AnnotationDataSet,
+}
+
+impl<'de> DeserializeSeed<'de> for DeserializeKeys<'_> {
+    type Value = ();
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = KeysVisitor { store: self.store };
+        deserializer.deserialize_seq(visitor)?;
+        Ok(())
+    }
+}
+
+struct KeysVisitor<'a> {
+    store: &'a mut AnnotationDataSet,
+}
+
+impl<'de> serde::de::Visitor<'de> for KeysVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a list of annotations")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        loop {
+            let key: Option<DataKey> = seq.next_element()?;
+            if let Some(key) = key {
+                self.store
+                    .insert(key)
+                    .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
+
+struct DeserializeData<'a> {
+    store: &'a mut AnnotationDataSet,
+}
+
+impl<'de> DeserializeSeed<'de> for DeserializeData<'_> {
+    type Value = ();
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = DataVisitor { store: self.store };
+        deserializer.deserialize_seq(visitor)?;
+        Ok(())
+    }
+}
+
+struct DataVisitor<'a> {
+    store: &'a mut AnnotationDataSet,
+}
+
+impl<'de> serde::de::Visitor<'de> for DataVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a list of annotationdata")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        loop {
+            let databuilder: Option<AnnotationDataBuilder> = seq.next_element()?;
+            if let Some(databuilder) = databuilder {
+                self.store
+                    .build_insert_data(databuilder, false) //safety disabled, data duplicates allowed at this stage (=faster)
+                    .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+            } else {
+                break;
+            }
+        }
+        Ok(())
     }
 }

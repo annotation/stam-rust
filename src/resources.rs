@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 use datasize::{data_size, DataSize};
 use regex::{Regex, RegexSet};
 use sealed::sealed;
+use serde::de::DeserializeSeed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
@@ -1225,5 +1226,32 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
             //final clause
             self.end2beginiter = None;
         }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct DeserializeTextResource<'a> {
+    config: &'a Config,
+}
+
+impl<'a> DeserializeTextResource<'a> {
+    pub fn new(config: &'a Config) -> Self {
+        Self { config }
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for DeserializeTextResource<'_> {
+    type Value = TextResource;
+
+    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut builder: TextResourceBuilder = Deserialize::deserialize(deserializer)?;
+        //inject the config
+        builder.config = self.config.clone();
+        builder
+            .build()
+            .map_err(|e| -> D::Error { serde::de::Error::custom(e) })
     }
 }

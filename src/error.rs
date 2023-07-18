@@ -56,6 +56,7 @@ pub enum StamError {
     RegexError(regex::Error, &'static str),
 
     SerializationError(String),
+    DeserializationError(String),
 
     /// This error is raised when you ask a selector to do something it is not capable of because it is the wrong type of selector
     WrongSelectorType(&'static str),
@@ -141,6 +142,9 @@ impl From<&StamError> for String {
             StamError::SerializationError(err) => {
                 format!("SerializationError: Serialization failed: {}", err)
             }
+            StamError::DeserializationError(err) => {
+                format!("DeserializationError: Serialization failed: {}", err)
+            }
             StamError::BuildError(err, contextmsg) => {
                 format!("BuildError: Error during build: {} ({})", err, contextmsg)
             }
@@ -213,5 +217,14 @@ impl serde::ser::Error for StamError {
         T: fmt::Display,
     {
         StamError::SerializationError(format!("{}", msg))
+    }
+}
+
+impl serde::de::Error for StamError {
+    fn custom<T>(msg: T) -> Self
+    where
+        T: fmt::Display,
+    {
+        StamError::DeserializationError(format!("{}", msg))
     }
 }
