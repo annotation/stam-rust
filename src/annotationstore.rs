@@ -1316,6 +1316,31 @@ impl AnnotationStore {
             None => false,
         }
     }
+
+    /// Re-allocates data structures to minimize memory consumption
+    pub fn shrink_to_fit(&mut self, recursive: bool) {
+        if recursive {
+            for resource in self.resources.iter_mut() {
+                if let Some(resource) = resource {
+                    resource.shrink_to_fit();
+                }
+            }
+            for annotationset in self.annotationsets.iter_mut() {
+                if let Some(annotationset) = annotationset {
+                    annotationset.shrink_to_fit();
+                }
+            }
+        }
+        self.annotationsets.shrink_to_fit();
+        self.resources.shrink_to_fit();
+        self.annotations.shrink_to_fit();
+        self.annotation_annotation_map.shrink_to_fit(true);
+        self.dataset_annotation_map.shrink_to_fit(true);
+        self.resource_annotation_map.shrink_to_fit(true);
+        self.dataset_idmap.shrink_to_fit();
+        self.annotation_idmap.shrink_to_fit();
+        self.resource_idmap.shrink_to_fit();
+    }
 }
 
 #[sealed]
@@ -1461,6 +1486,10 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                     map.next_value()?; //read and discard the value
                 }
             }
+        }
+
+        if self.store.config.shrink_to_fit {
+            self.store.shrink_to_fit(true);
         }
 
         Ok(())

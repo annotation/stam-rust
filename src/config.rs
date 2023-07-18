@@ -56,6 +56,9 @@ pub struct Config {
     ///generate ids when missing
     pub(crate) generate_ids: bool,
 
+    /// shrink data structures to optimize memory (at the cost of longer deserialisation times)
+    pub(crate) shrink_to_fit: bool,
+
     ///use the `@include` mechanism to point to external files, if unset, all data will be kept in a single STAM JSON file.
     pub(crate) use_include: bool,
 
@@ -85,6 +88,7 @@ impl Default for Config {
             dataset_annotation_map: true,
             annotation_annotation_map: true,
             generate_ids: true,
+            shrink_to_fit: true,
             use_include: true,
             dataformat: DataFormat::Json { compact: false },
             milestone_interval: 100,
@@ -169,6 +173,11 @@ impl Config {
     /// Is generation of public IDs when missing enabled or not?
     pub fn generate_ids(&self) -> bool {
         self.generate_ids
+    }
+
+    /// Shrink data structures for minimal memory footprint?
+    pub fn shrink_to_fit(&self) -> bool {
+        self.shrink_to_fit
     }
 
     /// Use @include mechanism for STAM JSON, or output all to a single file?

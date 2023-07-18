@@ -102,12 +102,6 @@ impl TypeInfo for AnnotationDataSet {
     }
 }
 
-impl AnnotationDataSet {
-    pub fn meminfo(&self) -> usize {
-        data_size(self)
-    }
-}
-
 #[sealed]
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
@@ -668,6 +662,15 @@ impl AnnotationDataSet {
     //Returns the number of data items in the store (deletions are not substracted)
     pub fn data_len(&self) -> usize {
         self.data.len()
+    }
+
+    pub fn meminfo(&self) -> usize {
+        data_size(self)
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.keys.shrink_to_fit();
+        self.data.shrink_to_fit();
     }
 }
 

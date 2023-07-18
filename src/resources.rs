@@ -656,6 +656,10 @@ impl TextResource {
     pub fn meminfo(&self) -> usize {
         return data_size(self);
     }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.textselections.shrink_to_fit();
+    }
 }
 
 impl<'store, 'slf> ResultItem<'store, TextResource> {

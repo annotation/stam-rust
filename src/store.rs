@@ -44,6 +44,15 @@ impl<HandleType> IdMap<HandleType>
 where
     HandleType: Handle,
 {
+    pub fn shrink_to_fit(&mut self) {
+        self.data.shrink_to_fit();
+    }
+}
+
+impl<HandleType> IdMap<HandleType>
+where
+    HandleType: Handle,
+{
     pub fn new(autoprefix: String) -> Self {
         Self {
             autoprefix,
@@ -147,6 +156,15 @@ where
 
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    pub fn shrink_to_fit(&mut self, recursive: bool) {
+        if recursive {
+            for element in self.data.iter_mut() {
+                element.shrink_to_fit();
+            }
+        }
+        self.data.shrink_to_fit();
     }
 }
 
@@ -253,6 +271,15 @@ where
 
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    pub fn shrink_to_fit(&mut self, recursive: bool) {
+        if recursive {
+            for element in self.data.iter_mut() {
+                element.shrink_to_fit(recursive);
+            }
+        }
+        self.data.shrink_to_fit();
     }
 }
 
