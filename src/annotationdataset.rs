@@ -437,7 +437,7 @@ impl PartialEq<AnnotationDataSet> for AnnotationDataSet {
     }
 }
 
-impl<'j, 'a> FromJson<'j> for AnnotationDataSetBuilder<'a> {
+impl FromJson for AnnotationDataSet {
     /// Loads an AnnotationDataSet from a STAM JSON file, as a builder
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
@@ -451,61 +451,60 @@ impl<'j, 'a> FromJson<'j> for AnnotationDataSetBuilder<'a> {
         });
         let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-        let mut result: Result<AnnotationDataSetBuilder<'a>, _> =
-            serde_path_to_error::deserialize(deserializer);
-        if result.is_ok() {
-            let builder = result.as_mut().unwrap();
-            builder.filename = Some(filename.to_string()); //we use the original filename, not the one we found
-            builder.mode = SerializeMode::NoInclude;
-            builder.config = config;
-        }
-        result.map_err(|e| {
-            StamError::JsonError(
-                e,
-                filename.to_string(),
-                "Reading AnnotationDataSet from file",
-            )
-        })
+
+        let mut annotationset: AnnotationDataSet =
+            AnnotationDataSet::new(config).with_filename(filename); //we use the original filename, not the one we found
+
+        DeserializeAnnotationDataSet::new(&mut annotationset)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(annotationset)
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON string
     /// The string must contain a single object which has "@type": "AnnotationDataSet"
     fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
-        let mut result: Result<AnnotationDataSetBuilder<'a>, _> =
-            serde_path_to_error::deserialize(deserializer);
-        if result.is_ok() {
-            let builder = result.as_mut().unwrap();
-            builder.config = config;
-        }
-        result.map_err(|e| {
-            StamError::JsonError(
-                e,
-                string.to_string(),
-                "Reading AnnotationDataSet from string",
-            )
-        })
-    }
-}
 
-impl<'j> FromJson<'j> for AnnotationDataSet {
-    /// Loads an AnnotationDataSet from a STAM JSON file
+        let mut annotationset: AnnotationDataSet = AnnotationDataSet::new(config);
+
+        DeserializeAnnotationDataSet::new(&mut annotationset)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(annotationset)
+    }
+
+    /// Merges an AnnotationDataSet from a STAM JSON file into the current one
     /// The file must contain a single object which has "@type": "AnnotationDataSet"
-    /// If `workdir` is set, the file will be searched for in the workdir if needed
-    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        debug(&config, || {
-            format!(
-                "AnnotationDataSet::from_json_file: filename={:?} config={:?}",
-                filename, config
-            )
+    fn merge_json_file(&mut self, filename: &str) -> Result<(), StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore::from_json_file: filename={:?}", filename)
         });
-        AnnotationDataSetBuilder::from_json_file(filename, config)?.build()
+        let reader = open_file_reader(filename, self.config())?;
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+
+        DeserializeAnnotationDataSet::new(self)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(())
     }
 
-    /// Loads an AnnotationDataSet from a STAM JSON string
+    /// Merges an AnnotationDataSet from a STAM JSON string into the current one
     /// The string must contain a single object which has "@type": "AnnotationDataSet"
-    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
-        AnnotationDataSetBuilder::from_json_str(string, config)?.build()
+    fn merge_json_str(&mut self, string: &str) -> Result<(), StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore::from_json_str: string={:?}", string)
+        });
+        let deserializer = &mut serde_json::Deserializer::from_str(string);
+
+        DeserializeAnnotationDataSet::new(self)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(())
     }
 }
 
@@ -513,18 +512,6 @@ impl<'a> AnnotationDataSetBuilder<'a> {
     /// Start a new builder to build an [`AnnotationDataSet`]. You can chain various with_* methods and subsequently call `build()` to produce the actual [`AnnotationDataSet`].
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Loads an AnnotationDataSetBuilder from file (STAM JSON or other supported format).
-    /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
-        #[cfg(feature = "csv")]
-        if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
-            config.dataformat = DataFormat::Csv;
-            return AnnotationDataSetBuilder::from_csv_file(filename, config);
-        }
-
-        AnnotationDataSetBuilder::from_json_file(filename, config)
     }
 
     /// Set the public ID for the [`AnnotationDataSet`] that will be built.
@@ -593,15 +580,9 @@ impl AnnotationDataSet {
         }
     }
 
-    /// Returns an Annotation dataset builder to build new annotation datasets
-    pub fn builder<'a>() -> AnnotationDataSetBuilder<'a> {
-        AnnotationDataSetBuilder::default()
-    }
-
-    /// Loads an AnnotationDataSet from file (STAM JSON or other supported format) and merges it into the current one.
+    /// Loads an AnnotationDataSet from file (STAM JSON or other supported format).
     /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
-    /// The ID will be ignored (existing one takes precendence).
-    pub fn with_file(mut self, filename: &str, mut config: Config) -> Result<Self, StamError> {
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!(
                 "AnnotationDataSet.with_file: filename={:?} config={:?}",
@@ -611,54 +592,22 @@ impl AnnotationDataSet {
 
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") {
-            config.dataformat = DataFormat::Csv;
-            let builder = AnnotationDataSetBuilder::from_csv_file(filename, config)?;
-            self.merge_from_builder(builder)?;
-            return Ok(self);
+            todo!("Re-implement CSV loading for AnnotationDataSet"); //TODO
         }
-
-        let builder = AnnotationDataSetBuilder::from_json_file(filename, config)?;
-        self.merge_from_builder(builder)?;
-        Ok(self)
+        Self::from_json_file(filename, config)
     }
 
-    /// Loads an AnnotationDataSet from file (STAM JSON or other supported format).
-    /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        debug(&config, || {
-            format!(
-                "AnnotationDataSet.from_file: filename={:?} config={:?}",
-                filename, config
-            )
-        });
-        AnnotationDataSetBuilder::from_file(filename, config)?.build()
-    }
+    /// Merge another AnnotationDataSet from file (STAM JSON or other supported format).
+    /// Note: The ID and filename of the set will not be overwritten if already set,
+    ///       reserialising the store will produce a single new set.
+    pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
+        #[cfg(feature = "csv")]
+        if filename.ends_with("csv") || self.config().dataformat == DataFormat::Csv {
+            todo!("Re-implement CSV merging for AnnotationDataSet"); //TODO
+        }
 
-    /// Merge another AnnotationDataSet, represented by an AnnotationDataSetBuilder, into this one.
-    /// It's a fairly low-level function which you often don't need directly, use `AnnotationDataSet.with_file()` instead.
-    pub fn merge_from_builder(
-        &mut self,
-        builder: AnnotationDataSetBuilder,
-    ) -> Result<&mut Self, StamError> {
-        //this function is very much like TryFrom<AnnotationDataSetBuilder> for AnnotationDataSet
-        debug(self.config(), || {
-            format!("AnnotationDataSet.merge_from_builder")
-        });
+        self.merge_json_file(filename)?;
 
-        //only override ID if we had none yet
-        if self.id.is_none() && builder.id.is_some() {
-            self.id = builder.id;
-        }
-        if builder.keys.is_some() {
-            for key in builder.keys.unwrap() {
-                self.insert(key)?;
-            }
-        }
-        if builder.data.is_some() {
-            for dataitem in builder.data.unwrap() {
-                self.build_insert_data(dataitem, true)?;
-            }
-        }
         Ok(self)
     }
 
@@ -1009,8 +958,9 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
         while let Some(key) = map.next_key::<String>()? {
             match key.as_str() {
                 "@id" => {
+                    let id: String = map.next_value()?;
                     if self.store.id.is_none() {
-                        self.store.id = map.next_value()?;
+                        self.store.id = Some(id);
                     }
                 }
                 "@type" => {
@@ -1019,6 +969,15 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
                         return Err(<A::Error as serde::de::Error>::custom(format!(
                             "Expected type AnnotationDataSet, got {tp}"
                         )));
+                    }
+                }
+                "@include" => {
+                    let filename: String = map.next_value()?;
+                    self.store
+                        .merge_json_file(filename.as_str())
+                        .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+                    if self.store.filename.is_none() {
+                        self.store.filename = Some(filename);
                     }
                 }
                 "keys" => {
@@ -1032,7 +991,8 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
                 _ => {
                     eprintln!(
                         "Notice: Ignoring unknown key '{key}' whilst parsing AnnotationDataSet"
-                    )
+                    );
+                    map.next_value()?; //read and discard the value
                 }
             }
         }

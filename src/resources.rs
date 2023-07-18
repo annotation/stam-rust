@@ -33,8 +33,7 @@ use crate::types::*;
 /// The text *SHOULD* be in
 /// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
 /// *MAY* be in another unicode normalization forms.
-#[derive(Deserialize, Debug, Clone, DataSize)]
-#[serde(try_from = "TextResourceBuilder")]
+#[derive(Debug, Clone, DataSize)]
 pub struct TextResource {
     /// Public identifier for the text resource (often the filename/URL)
     id: String,
@@ -46,29 +45,22 @@ pub struct TextResource {
     intid: Option<TextResourceHandle>,
 
     /// Is this resource stored stand-off in an external file via @include? This holds the filename.
-    #[serde(skip)]
     filename: Option<String>,
 
     /// Flags if the text contents have changed, if so, they need to be reserialised if stored via the include mechanism
-    #[serde(skip)]
     changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
     /// Length of the text in unicode points
-    #[serde(skip)]
     textlen: usize,
 
-    #[serde(skip)]
     textselections: Store<TextSelection>,
 
     /// Maps character positions to utf8 bytes and to text selections
-    #[serde(skip)]
     positionindex: PositionIndex,
 
     /// Reverse position index, maps utf8 bytes to character positions (and nothing more)
-    #[serde(skip)]
     byte2charmap: BTreeMap<usize, usize>,
 
-    #[serde(skip, default = "get_global_config")]
     #[data_size(skip)]
     config: Config,
 }
@@ -81,15 +73,11 @@ pub struct TextResourceBuilder {
     text: Option<String>,
 
     /// Associates an external resource with the text resource.
-    /// `mode` determines whether it is still to be parsed.
+    /// if we have a filename but no text, the include is still to be parsed.
     #[serde(rename = "@include")]
     filename: Option<String>,
 
-    /// Sets mode for deserialisation (whether to follow @include statements)
     #[serde(skip)]
-    mode: SerializeMode,
-
-    #[serde(skip, default = "get_global_config")]
     config: Config,
 }
 
@@ -100,8 +88,29 @@ impl TryFrom<TextResourceBuilder> for TextResource {
         debug(&builder.config, || {
             format!("TryFrom<TextResourceBuilder for TextResource>: Creation of TextResource from builder (done)")
         });
+
+        //do we need to resolve an @include?
+        let mut includebuilder: Option<TextResourceBuilder> = None;
+        if builder.text.is_none() {
+            if let Some(filename) = &builder.filename {
+                // we have a filename but no text, that means the include has to be resolved still
+                // we load the resource from the external file into a new builder and
+                // merge it with this one at the end of this function
+                includebuilder = Some(TextResourceBuilder::from_file(
+                    filename.as_str(),
+                    builder.config.clone(),
+                )?);
+            }
+        }
+
         let textlen = if let Some(text) = &builder.text {
             text.chars().count()
+        } else if let Some(includebuilder) = includebuilder.as_ref() {
+            includebuilder
+                .text
+                .as_ref()
+                .map(|s| s.chars().count())
+                .unwrap_or(0)
         } else {
             0
         };
@@ -109,6 +118,8 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             intid: None,
             id: if let Some(id) = builder.id {
                 id
+            } else if includebuilder.is_some() && includebuilder.as_ref().unwrap().id.is_some() {
+                includebuilder.as_ref().unwrap().id.clone().unwrap()
             } else if let Some(filename) = builder.filename.as_ref() {
                 filename.clone()
             } else {
@@ -116,6 +127,11 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             },
             text: if let Some(text) = builder.text {
                 text
+            } else if let Some(includebuilder) = includebuilder {
+                //this consumes the includebuilder
+                includebuilder
+                    .text
+                    .ok_or_else(|| StamError::NoText("Included resource has no text"))?
             } else {
                 String::new()
             },
@@ -124,9 +140,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             byte2charmap: BTreeMap::default(),
             textselections: Store::default(),
             config: builder.config,
-            //note: includes have to be resolved in a later stage via [`AnnotationStore.process_includes()`]
-            //      we don't do it here as we don't have state information from the deserializer (believe me, I tried)
-            filename: builder.filename.clone(),
+            filename: builder.filename,
             changed: Arc::new(RwLock::new(false)),
         })
     }
@@ -269,7 +283,7 @@ impl PartialEq<TextResource> for TextResource {
     }
 }
 
-impl<'a> FromJson<'a> for TextResourceBuilder {
+impl FromJson for TextResourceBuilder {
     /// Loads a Text Resource from a STAM JSON  or plain text file file.
     /// If the file is JSON, it file must contain a single object which has "@type": "TextResource"
     /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
@@ -281,7 +295,6 @@ impl<'a> FromJson<'a> for TextResourceBuilder {
         if result.is_ok() && config.use_include {
             let result = result.as_mut().unwrap();
             result.filename = Some(filename.to_string()); //always uses the original filename (not the found one)
-            result.mode = SerializeMode::NoInclude;
             result.config = config;
         }
         result.map_err(|e| {
@@ -310,12 +323,8 @@ impl TextResourceBuilder {
         TextResourceBuilder::default()
     }
 
-    pub fn from_txt_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        //plain text
-        debug(&config, || {
-            format!("TextResourceBuilder::from_txt_file: filename={}", filename)
-        });
-        let mut f = open_file(filename, &config)?;
+    fn text_from_file(filename: &str, config: &Config) -> Result<String, StamError> {
+        let mut f = open_file(filename, config)?;
         let mut text: String = String::new();
         if let Err(err) = f.read_to_string(&mut text) {
             return Err(StamError::IOError(
@@ -324,11 +333,20 @@ impl TextResourceBuilder {
                 "TextResourceBuilder::from_txt_file",
             ));
         }
+        Ok(text)
+    }
+
+    /// Loads a resource from text file
+    pub fn from_txt_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        //plain text
+        debug(&config, || {
+            format!("TextResourceBuilder::from_txt_file: filename={}", filename)
+        });
+        let text = Self::text_from_file(filename, &config)?;
         Ok(Self {
             id: Some(filename.to_string()),
             text: Some(text),
             filename: Some(filename.to_string()),
-            mode: SerializeMode::NoInclude, //we just processed the include, this instructs the JSON deserialiser not to do it again
             config,
         })
     }
@@ -1250,6 +1268,9 @@ impl<'de> DeserializeSeed<'de> for DeserializeTextResource<'_> {
         let mut builder: TextResourceBuilder = Deserialize::deserialize(deserializer)?;
         //inject the config
         builder.config = self.config.clone();
+        if let Some(filename) = &builder.filename {
+            //The builder has a filename already, that means @include was set
+        }
         builder
             .build()
             .map_err(|e| -> D::Error { serde::de::Error::custom(e) })

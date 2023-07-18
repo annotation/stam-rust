@@ -79,6 +79,7 @@ pub struct AnnotationStore {
     pub(crate) annotations_filename: Option<PathBuf>,
 }
 
+//TODO: Obsolete? remove!
 #[derive(Deserialize, Default)]
 pub struct AnnotationStoreBuilder<'a> {
     #[serde(rename = "@id")]
@@ -591,7 +592,8 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
         seq.end()
     }
 }
-impl AnnotationStore {
+
+impl FromJson for AnnotationStore {
     /// Loads an AnnotationStore from a STAM JSON file
     /// The file must contain a single object which has "@type": "AnnotationStore"
     fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
@@ -628,47 +630,36 @@ impl AnnotationStore {
 
         Ok(store)
     }
-}
 
-impl<'j, 'a> FromJson<'j> for AnnotationStoreBuilder<'a> {
-    /// Loads an AnnotationStore from a STAM JSON file
+    /// Merges an AnnotationStore from a STAM JSON file into the current one
     /// The file must contain a single object which has "@type": "AnnotationStore"
-    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        debug(&config, || {
-            format!("AnnotationStoreBuilder::from_file: filename={:?}", filename)
+    fn merge_json_file(&mut self, filename: &str) -> Result<(), StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore::from_json_file: filename={:?}", filename)
         });
-        set_global_config(config.clone()); //we need this trick to inject state into serde's deserializer
-        let reader = open_file_reader(filename, &config)?;
+        let reader = open_file_reader(filename, self.config())?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-        let mut result: Result<AnnotationStoreBuilder, _> =
-            serde_path_to_error::deserialize(deserializer);
-        if result.is_ok() {
-            //keep track of the filename we loaded (its directory is searched for @include files when applicable)
-            let builder = result.as_mut().unwrap();
-            builder.filename = Some(filename.into());
-            builder.config = config;
-        }
-        result.map_err(|e| {
-            StamError::JsonError(e, filename.to_string(), "Reading annotationstore from file")
-        })
+
+        DeserializeAnnotationStore::new(self)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(())
     }
 
-    /// Loads an AnnotationStore from a STAM JSON string
+    /// Merges an AnnotationStore from a STAM JSON string into the current one
     /// The string must contain a single object which has "@type": "AnnotationStore"
-    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
-        debug(&config, || {
-            format!("AnnotationStoreBuilder::from_json: string={:?}", string)
+    fn merge_json_str(&mut self, string: &str) -> Result<(), StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore::from_json_str: string={:?}", string)
         });
         let deserializer = &mut serde_json::Deserializer::from_str(string);
-        let mut result: Result<AnnotationStoreBuilder, _> =
-            serde_path_to_error::deserialize(deserializer);
-        if result.is_ok() {
-            let builder = result.as_mut().unwrap();
-            builder.config = config;
-        }
-        result.map_err(|e| {
-            StamError::JsonError(e, string.to_string(), "Reading annotationstore from string")
-        })
+
+        DeserializeAnnotationStore::new(self)
+            .deserialize(deserializer)
+            .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        Ok(())
     }
 }
 
@@ -814,6 +805,8 @@ impl AnnotationStore {
     }
 
     /// Merge another annotation store STAM JSON file into this one
+    /// Note: The ID and filename of the store will not be overwritten if already set,
+    ///       reserialising the store will produce a single new store.
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") || self.config().dataformat == DataFormat::Csv {
@@ -822,7 +815,9 @@ impl AnnotationStore {
             return AnnotationStoreBuilder::from_csv_file(filename, config)?.build();
         }
 
-        AnnotationStore::from_json_file(filename, self.config.clone())
+        self.merge_json_file(filename)?;
+
+        Ok(self)
     }
 
     /// Returns the filename associated with this annotation store for storage of annotations
@@ -965,44 +960,11 @@ impl AnnotationStore {
         Ok(())
     }
 
-    /// Merge another annotation store, represented by a builder, into this one
-    /// It's a fairly low-level function which you often don't need directly, use `AnnotationStore.with_file()` instead.
-    pub fn merge_from_builder(
-        &mut self,
-        builder: AnnotationStoreBuilder,
-    ) -> Result<&mut Self, StamError> {
-        debug(self.config(), || {
-            format!("AnnotationStore.merge_from_builder")
-        });
-        //this is very much like TryFrom<AnnotationStoreBuilder> for AnnotationStore
-        for dataset in builder.annotationsets {
-            if let Some(dataset_id) = dataset.id.as_ref() {
-                if let Ok(basedataset) = <AnnotationStore as StoreFor<AnnotationDataSet>>::get_mut(
-                    self,
-                    dataset_id.as_str(),
-                ) {
-                    basedataset.merge_from_builder(dataset)?;
-                    //done, skip the rest
-                    continue;
-                }
-            }
-            //otherwise
-            let dataset: AnnotationDataSet = dataset.try_into()?;
-            self.insert(dataset)?;
-        }
-        for resource in builder.resources {
-            let resource: TextResource = resource.try_into()?;
-            self.insert(resource)?;
-        }
-        for annotation in builder.annotations {
-            self.annotate(annotation)?;
-        }
-        Ok(self)
-    }
-
     /// Shortcut to write an AnnotationStore to a STAM JSON file, writes to the same file as was loaded.
     /// Returns an error if no filename was associated yet.
     /// Use [`AnnotationStore.to_file`] instead if you want to write elsewhere.
+    ///
+    /// Note: If multiple stores were loaded and merged, this will write all merged results in place of the first loaded store!
     pub fn save(&self) -> Result<(), StamError> {
         debug(self.config(), || format!("AnnotationStore.save"));
         if self.filename.is_some() {
@@ -1665,8 +1627,9 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
         while let Some(key) = map.next_key::<String>()? {
             match key.as_str() {
                 "@id" => {
+                    let id: String = map.next_value()?;
                     if self.store.id.is_none() {
-                        self.store.id = map.next_value()?;
+                        self.store.id = Some(id);
                     }
                 }
                 "@type" => {
@@ -1690,7 +1653,10 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                     map.next_value_seed(DeserializeAnnotationDataSets { store: self.store })?;
                 }
                 _ => {
-                    eprintln!("Notice: Ignoring unknown key '{key}' whilst parsing AnnotationStore")
+                    eprintln!(
+                        "Notice: Ignoring unknown key '{key}' whilst parsing AnnotationStore"
+                    );
+                    map.next_value()?; //read and discard the value
                 }
             }
         }
@@ -1781,9 +1747,15 @@ impl<'de> serde::de::Visitor<'de> for ResourcesVisitor<'_> {
             if let Some(resource) =
                 seq.next_element_seed(DeserializeTextResource::new(&self.store.config))?
             {
-                self.store
+                let handle = self
+                    .store
                     .insert(resource)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+                {
+                    //DEBUG
+                    let resource = self.store.resource(handle).unwrap();
+                    eprintln!("DEBUG: {}", resource.textlen());
+                }
             } else {
                 break;
             }
@@ -1834,7 +1806,6 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetsVisitor<'_> {
                 self.store
                     .insert(annotationset)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
-            //TODO: map_err
             } else {
                 break;
             }

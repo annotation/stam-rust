@@ -104,11 +104,19 @@ where
     }
 }
 
-pub trait FromJson<'a>
+pub trait FromJson
 where
-    Self: TypeInfo + serde::Deserialize<'a>,
+    Self: TypeInfo + Sized,
 {
     fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError>;
 
     fn from_json_str(string: &str, config: Config) -> Result<Self, StamError>;
+
+    fn merge_json_file(&mut self, filename: &str) -> Result<(), StamError> {
+        unimplemented!("merge_json_file not implemented")
+    }
+
+    fn merge_json_str(&mut self, string: &str) -> Result<(), StamError> {
+        unimplemented!("merge_json_str not implemented")
+    }
 }
