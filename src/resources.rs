@@ -53,6 +53,7 @@ pub struct TextResource {
     /// Length of the text in unicode points
     textlen: usize,
 
+    /// A store of text selections (not in textual order)
     textselections: Store<TextSelection>,
 
     /// Maps character positions to utf8 bytes and to text selections

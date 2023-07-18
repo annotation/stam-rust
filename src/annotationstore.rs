@@ -9,8 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
-    AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle,
-    DeserializeAnnotationDataSet,
+    AnnotationDataSet, AnnotationDataSetHandle, DeserializeAnnotationDataSet,
 };
 use crate::config::{get_global_config, set_global_config, Config, Configurable};
 #[cfg(feature = "csv")]
@@ -79,132 +78,8 @@ pub struct AnnotationStore {
     pub(crate) annotations_filename: Option<PathBuf>,
 }
 
-//TODO: Obsolete? remove!
-#[derive(Deserialize, Default)]
-pub struct AnnotationStoreBuilder<'a> {
-    #[serde(rename = "@id")]
-    pub(crate) id: Option<String>,
-
-    pub(crate) annotationsets: Vec<AnnotationDataSetBuilder<'a>>,
-
-    pub(crate) annotations: Vec<AnnotationBuilder<'a>>,
-
-    pub(crate) resources: Vec<TextResourceBuilder>,
-
-    #[serde(skip, default = "get_global_config")]
-    pub(crate) config: Config,
-
-    #[serde(skip)]
-    pub(crate) filename: Option<PathBuf>,
-
-    #[serde(skip)]
-    pub(crate) annotations_filename: Option<PathBuf>,
-}
-
-impl<'a> TryFrom<AnnotationStoreBuilder<'a>> for AnnotationStore {
-    type Error = StamError;
-
-    fn try_from(builder: AnnotationStoreBuilder) -> Result<Self, StamError> {
-        debug(&builder.config, || {
-            format!("TryFrom<AnnotationStoreBuilder for AnnotationStore>: Creation of AnnotationStore from builder")
-        });
-        let mut store = Self {
-            id: builder.id,
-            annotationsets: Vec::with_capacity(builder.annotationsets.len()),
-            annotations: Vec::with_capacity(builder.annotations.len()),
-            resources: Vec::with_capacity(builder.resources.len()),
-            config: builder.config,
-            ..Default::default()
-        };
-        if let Some(filename) = builder.filename {
-            //also sets working directory
-            store.set_filename(
-                filename
-                    .as_path()
-                    .to_str()
-                    .expect("filename must be valid utf-8"),
-            );
-        }
-        debug(&store.config, || {
-            format!(
-                "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Adding {} annotation sets",
-                builder.annotationsets.len()
-            )
-        });
-        for annotationset in builder.annotationsets {
-            let mut annotationset: AnnotationDataSet = annotationset.try_into()?;
-            if annotationset.filename().is_some() {
-                //we have an @include statement to resolve
-                let filename = annotationset.filename().unwrap().to_owned();
-                let id = annotationset.id().map(|x| x.to_string());
-                debug(&store.config, || {
-                    format!(
-                        "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Resolving @include for AnnotationDataSet: filename={:?} id={:?}",
-                        filename,
-                        id
-                    )
-                });
-                if let Some(id) = id {
-                    //create and override with the ID we already had
-                    annotationset =
-                        AnnotationDataSet::from_file(&filename, store.config.clone())?.with_id(id);
-                } else {
-                    annotationset = AnnotationDataSet::from_file(&filename, store.config.clone())?;
-                }
-            }
-            store.insert(annotationset)?;
-        }
-        debug(&store.config, || {
-            format!(
-                "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Adding {} resources",
-                builder.resources.len()
-            )
-        });
-        for resource in builder.resources {
-            let mut resource: TextResource = resource.try_into()?;
-            if resource.filename().is_some() {
-                //we have an @include statement to resolve
-                let filename = resource.filename().unwrap().to_owned();
-                let id = resource.id().map(|x| x.to_string());
-                debug(&store.config, || {
-                    format!(
-                        "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Resolving @include for TextResource: filename={:?} id={:?}",
-                        filename,
-                        id
-                    )
-                });
-                if let Some(id) = id {
-                    //create and override with the ID we already had
-                    resource =
-                        TextResource::from_file(&filename, store.config.clone())?.with_id(id);
-                } else {
-                    resource = TextResource::from_file(&filename, store.config.clone())?;
-                }
-            }
-            store.insert(resource)?;
-        }
-        debug(&store.config, || {
-            format!(
-                "TryFrom<AnnotationStoreBuilder for AnnotationStore>: Adding {} annotations",
-                builder.annotations.len()
-            )
-        });
-        for annotation in builder.annotations {
-            store.annotate(annotation)?;
-        }
-        Ok(store)
-    }
-}
-
 #[sealed]
 impl TypeInfo for AnnotationStore {
-    fn typeinfo() -> Type {
-        Type::AnnotationStore
-    }
-}
-
-#[sealed]
-impl<'a> TypeInfo for AnnotationStoreBuilder<'a> {
     fn typeinfo() -> Type {
         Type::AnnotationStore
     }
@@ -682,79 +557,6 @@ impl Configurable for AnnotationStore {
     }
 }
 
-impl<'a> AnnotationStoreBuilder<'a> {
-    /// Start a new [`AnnotationStoreBuilder`] to build an [`AnnotationStore`]. Chain various `with_*()` methods and call `build()` in the end fo produce the actual [`AnnotationStore`].
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set the public ID for the [`AnnotationStore`] that will be built.
-    pub fn with_id(mut self, id: impl Into<String>) -> Self {
-        self.id = Some(id.into());
-        self
-    }
-
-    /// Add an [`AnnotationDataSet`] to the store (in the form of a builder). Can be called multiple times.
-    pub fn with_annotationset(mut self, annotationset: AnnotationDataSetBuilder<'a>) -> Self {
-        self.annotationsets.push(annotationset);
-        self
-    }
-
-    /// Adds multiple annotation sets at once, this can only be called once as it will overwrite existing builders.
-    pub fn with_annotationsets(
-        mut self,
-        annotationsets: Vec<AnnotationDataSetBuilder<'a>>,
-    ) -> Self {
-        self.annotationsets = annotationsets;
-        self
-    }
-
-    /// Add an [`TextResource`] to the store (in the form of a builder). Can be called multiple times.
-    pub fn with_resource(mut self, resource: TextResourceBuilder) -> Self {
-        self.resources.push(resource);
-        self
-    }
-
-    /// Adds multiple resource builders at once, this can only be called once as it will overwrite existing builders.
-    pub fn with_resources(mut self, resources: Vec<TextResourceBuilder>) -> Self {
-        self.resources = resources;
-        self
-    }
-
-    /// Adds an annotation builder, can be called multiple times.
-    pub fn with_annotation(mut self, annotation: AnnotationBuilder<'a>) -> Self {
-        self.annotations.push(annotation);
-        self
-    }
-
-    /// Adds multiple annotation builders, this can only be called once as it will overwrite existing annotation builders.
-    pub fn with_annotations(mut self, annotations: Vec<AnnotationBuilder<'a>>) -> Self {
-        self.annotations = annotations;
-        self
-    }
-
-    /// Set the filename for the [`AnnotationStore`] that will be built. This does not load from file. Use [`AnnotationStore::from_file()`] instead of this builder if that's what you want.
-    pub fn with_filename(mut self, filename: &str) -> Self {
-        if filename.is_empty() {
-            self.filename = None
-        } else {
-            self.filename = Some(filename.into());
-        }
-        self
-    }
-
-    pub fn with_config(mut self, config: Config) -> Self {
-        self.config = config;
-        self
-    }
-
-    ///Builds a new annotation store from [`AnnotationStoreBuilder'].
-    pub fn build(self) -> Result<AnnotationStore, StamError> {
-        debug(&self.config, || format!("AnnotationStore::from_builder"));
-        self.try_into()
-    }
-}
-
 impl AnnotationStore {
     ///Creates a new empty annotation store with a default configuraton, add the [`AnnotationStore.with_config()`] to provide a custom one
     pub fn new() -> Self {
@@ -786,7 +588,7 @@ impl AnnotationStore {
         if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
             set_global_config(config.clone());
             config.dataformat = DataFormat::Csv;
-            return AnnotationStoreBuilder::from_csv_file(filename, config)?.build();
+            return AnnotationStore::from_csv_file(filename, config);
         }
 
         AnnotationStore::from_json_file(filename, config)
@@ -812,7 +614,7 @@ impl AnnotationStore {
         if filename.ends_with("csv") || self.config().dataformat == DataFormat::Csv {
             let mut config = self.config.clone();
             config.dataformat = DataFormat::Csv;
-            return AnnotationStoreBuilder::from_csv_file(filename, config)?.build();
+            return AnnotationStore::from_csv_file(filename, config);
         }
 
         self.merge_json_file(filename)?;

@@ -11,10 +11,9 @@ use crate::file::*;
 use crate::store::*;
 use crate::types::*;
 use crate::{
-    Annotation, AnnotationBuilder, AnnotationDataBuilder, AnnotationDataSet,
-    AnnotationDataSetBuilder, AnnotationStore, AnnotationStoreBuilder, Config, Configurable,
-    DataKey, Offset, Selector, SelectorBuilder, SelectorKind, StamError, TextResource,
-    TextResourceBuilder,
+    Annotation, AnnotationBuilder, AnnotationDataBuilder, AnnotationDataSet, AnnotationStore,
+    Config, Configurable, DataKey, Offset, Selector, SelectorBuilder, SelectorKind, StamError,
+    TextResource, TextResourceBuilder,
 };
 
 #[derive(Serialize, Deserialize, Debug)]

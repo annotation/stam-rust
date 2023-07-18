@@ -28,11 +28,9 @@ use std::fmt::Debug;
 /// It effectively defines a certain vocabulary, i.e. key/value pairs.
 /// The `AnnotationDataSet` does not store the [`crate::annotation::Annotation`] instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
-#[derive(Deserialize, Debug, Clone, DataSize)]
-#[serde(try_from = "AnnotationDataSetBuilder")]
+#[derive(Debug, Clone, DataSize)]
 pub struct AnnotationDataSet {
     /// Public Id
-    #[serde(rename = "@id")]
     id: Option<String>,
 
     /// A store for [`DataKey`]
@@ -42,91 +40,25 @@ pub struct AnnotationDataSet {
     data: Store<AnnotationData>,
 
     /// Is this annotation dataset stored stand-off in an external file via @include? This holds the filename
-    #[serde(skip)]
     filename: Option<String>,
 
     /// Flags if set has changed, if so, they need to be reserialised if stored via the include mechanism
-    #[serde(skip)]
     changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership
-    #[serde(skip)]
     intid: Option<AnnotationDataSetHandle>,
 
     /// Maps public IDs to internal IDs for
-    #[serde(skip)]
     key_idmap: IdMap<DataKeyHandle>,
 
     /// Maps public IDs to internal IDs for AnnotationData
-    #[serde(skip)]
     data_idmap: IdMap<AnnotationDataHandle>,
 
-    #[serde(skip)]
     key_data_map: RelationMap<DataKeyHandle, AnnotationDataHandle>,
 
     /// Configuration
-    #[serde(skip, default = "get_global_config")]
     #[data_size(skip)]
     config: Config,
-}
-
-#[derive(Deserialize, Default)]
-pub struct AnnotationDataSetBuilder<'a> {
-    #[serde(rename = "@id")]
-    pub(crate) id: Option<String>,
-    pub(crate) keys: Option<Vec<DataKey>>, //this is an Option because it can be omitted if @include is used
-    pub(crate) data: Option<Vec<AnnotationDataBuilder<'a>>>,
-    #[serde(rename = "@include")]
-    pub(crate) filename: Option<String>,
-
-    #[serde(skip)]
-    pub(crate) mode: SerializeMode,
-
-    /// Configuration
-    #[serde(skip, default = "get_global_config")]
-    pub(crate) config: Config,
-}
-
-impl<'a> TryFrom<AnnotationDataSetBuilder<'a>> for AnnotationDataSet {
-    type Error = StamError;
-
-    fn try_from(builder: AnnotationDataSetBuilder<'a>) -> Result<Self, StamError> {
-        debug(&builder.config, || {
-            format!("TryFrom<AnnotationDataSetBuilder for AnnotationDataSet>: Creation of AnnotationDataSet from builder")
-        });
-        let mut set = Self {
-            id: builder.id,
-            keys: if builder.keys.is_some() {
-                Vec::with_capacity(builder.keys.as_ref().unwrap().len())
-            } else {
-                Vec::new()
-            },
-            data: if builder.data.is_some() {
-                Vec::with_capacity(builder.data.as_ref().unwrap().len())
-            } else {
-                Vec::new()
-            },
-            //note: includes have to be resolved in a later stage via [`AnnotationStore.process_includes()`]
-            //      we don't do it here as we don't have state information from the deserializer (believe me, I tried)
-            filename: builder.filename,
-            config: builder.config,
-            ..Default::default()
-        };
-        if builder.keys.is_some() {
-            for key in builder.keys.unwrap() {
-                set.insert(key)?;
-            }
-        }
-        if builder.data.is_some() {
-            for dataitem in builder.data.unwrap() {
-                set.build_insert_data(dataitem, true)?;
-            }
-        }
-        debug(&set.config, || {
-            format!("TryFrom<AnnotationDataSetBuilder for AnnotationDataSet>: done")
-        });
-        Ok(set)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, DataSize)]
@@ -165,13 +97,6 @@ impl From<&AnnotationDataSetHandle> for BuildItem<'_, AnnotationDataSet> {
 
 #[sealed]
 impl TypeInfo for AnnotationDataSet {
-    fn typeinfo() -> Type {
-        Type::AnnotationDataSet
-    }
-}
-
-#[sealed]
-impl<'a> TypeInfo for AnnotationDataSetBuilder<'a> {
     fn typeinfo() -> Type {
         Type::AnnotationDataSet
     }
@@ -444,10 +369,7 @@ impl FromJson for AnnotationDataSet {
     /// If `workdir` is set, the file will be searched for in the workdir if needed
     fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
-            format!(
-                "AnnotationDataSetBuilder::from_json_file: filename={}",
-                filename
-            )
+            format!("AnnotationDataSet::from_json_file: filename={}", filename)
         });
         let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
@@ -505,70 +427,6 @@ impl FromJson for AnnotationDataSet {
             .map_err(|e| StamError::DeserializationError(e.to_string()))?;
 
         Ok(())
-    }
-}
-
-impl<'a> AnnotationDataSetBuilder<'a> {
-    /// Start a new builder to build an [`AnnotationDataSet`]. You can chain various with_* methods and subsequently call `build()` to produce the actual [`AnnotationDataSet`].
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set the public ID for the [`AnnotationDataSet`] that will be built.
-    pub fn with_id(mut self, id: impl Into<String>) -> Self {
-        self.id = Some(id.into());
-        self
-    }
-
-    /// Adds multiple keys at once. This can only be called once (it will override any prior set keys)
-    pub fn with_keys(mut self, keys: Vec<DataKey>) -> Self {
-        self.keys = Some(keys);
-        self
-    }
-
-    /// Adds a data key. This can be called multiple times.
-    pub fn with_key(mut self, key: DataKey) -> Self {
-        if let Some(keys) = self.keys.as_mut() {
-            keys.push(key);
-        }
-        self
-    }
-
-    /// Adds multiple data builder at once. This can only be called once (it will override any prior set keys)
-    pub fn with_data_builders(mut self, data: Vec<AnnotationDataBuilder<'a>>) -> Self {
-        self.data = Some(data);
-        self
-    }
-
-    /// Adds a data builder. This can be called multiple times.
-    pub fn with_data(mut self, data: AnnotationDataBuilder<'a>) -> Self {
-        if let Some(datavec) = self.data.as_mut() {
-            datavec.push(data);
-        }
-        self
-    }
-
-    /// Set the filename for the [`AnnotationDataSet`] that will be built. This does not load from file. Use [`AnnotationDataSet::from_file()`] instead of this builder if that's what you want.
-    pub fn with_filename(mut self, filename: &str) -> Self {
-        if filename.is_empty() {
-            self.filename = None
-        } else {
-            self.filename = Some(filename.to_string());
-        }
-        self
-    }
-
-    pub fn with_config(mut self, config: Config) -> Self {
-        self.config = config;
-        self
-    }
-
-    /// Final builder method, constructs the ['AnnotationDataSet`], consuming the builder
-    pub fn build(self) -> Result<AnnotationDataSet, StamError> {
-        debug(&self.config, || {
-            format!("AnnotationDataSetBuilder::build()")
-        });
-        self.try_into()
     }
 }
 
