@@ -266,7 +266,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationData> {
 }
 
 /// This is the builder for `AnnotationData`. It contains public IDs or handles that will be resolved.
-/// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] methods.
+/// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] or [`AnnotationDataSet.build_insert_data()`] methods.
 /// It also does not have its own `build()` method but is resolved via the aforementioned methods.
 #[derive(Deserialize, Clone, Debug)]
 #[serde(tag = "AnnotationData")]

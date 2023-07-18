@@ -384,7 +384,7 @@ impl AnnotationStore {
 
     /// Builds and adds multiple annotations
     pub fn with_annotations(mut self, builders: Vec<AnnotationBuilder>) -> Result<Self, StamError> {
-        self.annotate_builders(builders)?;
+        self.annotate_from_iter(builders)?;
         Ok(self)
     }
 
@@ -465,7 +465,10 @@ impl AnnotationStore {
     }
 
     /// Builds and inserts using multiple annotation builders
-    pub fn annotate_builders(&mut self, builders: Vec<AnnotationBuilder>) -> Result<(), StamError> {
+    pub fn annotate_from_iter<'a, I>(&mut self, builders: I) -> Result<(), StamError>
+    where
+        I: IntoIterator<Item = AnnotationBuilder<'a>>,
+    {
         for builder in builders {
             self.annotate(builder)?;
         }

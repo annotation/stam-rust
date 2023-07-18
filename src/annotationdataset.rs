@@ -450,7 +450,7 @@ impl AnnotationDataSet {
 
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") {
-            todo!("Re-implement CSV loading for AnnotationDataSet"); //TODO
+            return Self::from_csv_file(filename, config);
         }
         Self::from_json_file(filename, config)
     }
@@ -461,7 +461,11 @@ impl AnnotationDataSet {
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") || self.config().dataformat == DataFormat::Csv {
-            todo!("Re-implement CSV merging for AnnotationDataSet"); //TODO
+            if self.keys_len() == 0 {
+                return Self::from_csv_file(filename, self.config().clone());
+            }
+            todo!("Merging CSV files for AnnotationDataSet is not supported yet");
+            //TODO
         }
 
         self.merge_json_file(filename)?;

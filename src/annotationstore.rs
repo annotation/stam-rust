@@ -612,9 +612,15 @@ impl AnnotationStore {
     pub fn with_file(mut self, filename: &str) -> Result<Self, StamError> {
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") || self.config().dataformat == DataFormat::Csv {
-            let mut config = self.config.clone();
-            config.dataformat = DataFormat::Csv;
-            return AnnotationStore::from_csv_file(filename, config);
+            if self.annotations.is_empty()
+                && self.resources.is_empty()
+                && self.annotationsets.is_empty()
+            {
+                let mut config = self.config.clone();
+                config.dataformat = DataFormat::Csv;
+                return AnnotationStore::from_csv_file(filename, config);
+            }
+            todo!("Merging CSV files for AnnotationStore is not supported yet");
         }
 
         self.merge_json_file(filename)?;
@@ -629,8 +635,9 @@ impl AnnotationStore {
     }
 
     /// Load a JSON file containing an array of annotations in STAM JSON
+    /// TODO: this is currently not efficient as it holds all annotation builders in memory first
     pub fn annotate_from_file(&mut self, filename: &str) -> Result<&mut Self, StamError> {
-        let reader = open_file_reader(filename, self.config())?; //TODO!
+        let reader = open_file_reader(filename, self.config())?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         let result: Result<AnnotationsJson, _> = serde_path_to_error::deserialize(deserializer);
         let result = result.map_err(|e| {
@@ -1549,15 +1556,9 @@ impl<'de> serde::de::Visitor<'de> for ResourcesVisitor<'_> {
             if let Some(resource) =
                 seq.next_element_seed(DeserializeTextResource::new(&self.store.config))?
             {
-                let handle = self
-                    .store
+                self.store
                     .insert(resource)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
-                {
-                    //DEBUG
-                    let resource = self.store.resource(handle).unwrap();
-                    eprintln!("DEBUG: {}", resource.textlen());
-                }
             } else {
                 break;
             }

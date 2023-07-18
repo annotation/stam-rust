@@ -552,7 +552,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
 }
 
 #[test]
-fn parse_json_annotationset() -> Result<(), std::io::Error> {
+fn parse_json_annotationset() -> Result<(), StamError> {
     let json = r#"{ 
         "@type": "AnnotationDataSet",
         "@id": "https://purl.org/dc",
@@ -583,13 +583,12 @@ fn parse_json_annotationset() -> Result<(), std::io::Error> {
         ]
     }"#;
 
-    let builder: AnnotationDataSetBuilder = serde_json::from_str(json)?;
-    let annotationset: AnnotationDataSet = builder.try_into().expect("conversion to dataset");
+    let annotationset = AnnotationDataSet::from_json_str(json, Config::default())?;
 
-    let mut store = setup_example_2().unwrap();
-    let sethandle = store.insert(annotationset).unwrap();
+    let mut store = setup_example_2()?;
+    let sethandle = store.insert(annotationset)?;
 
-    let annotationset: &AnnotationDataSet = store.get(sethandle).unwrap();
+    let annotationset: &AnnotationDataSet = store.get(sethandle)?;
     assert_eq!(annotationset.id(), Some("https://purl.org/dc"));
 
     let mut count = 0;
@@ -691,9 +690,7 @@ fn example_3_common_tests(store: &AnnotationStore) -> Result<(), StamError> {
 
 #[test]
 fn parse_json_annotationstore() -> Result<(), StamError> {
-    let builder: AnnotationStoreBuilder = serde_json::from_str(EXAMPLE_3).expect("Parsing json");
-
-    let store: AnnotationStore = builder.build().expect("Building store");
+    let store = AnnotationStore::from_json_str(EXAMPLE_3, Config::default())?;
 
     example_3_common_tests(&store)?;
 
@@ -1562,18 +1559,17 @@ pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle,
 
 pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
     let resource = store.resource("humanrights").unwrap();
-    store.annotate_builders(
-        resource
-            .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, true)?
-            .into_iter()
-            .map(|foundmatch| {
-                let offset: Offset = foundmatch.textselections().first().unwrap().deref().into();
-                AnnotationBuilder::new()
-                    .with_target(SelectorBuilder::textselector(resource.handle(), offset))
-                    .with_data("myset", "type", "header")
-            })
-            .collect(),
-    )?;
+    let resources: Vec<_> = resource
+        .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, true)?
+        .into_iter()
+        .map(|foundmatch| {
+            let offset: Offset = foundmatch.textselections().first().unwrap().deref().into();
+            AnnotationBuilder::new()
+                .with_target(SelectorBuilder::textselector(resource.handle(), offset))
+                .with_data("myset", "type", "header")
+        })
+        .collect();
+    store.annotate_from_iter(resources)?;
     Ok(())
 }
 

@@ -579,9 +579,9 @@ impl ToCsv for AnnotationDataSet {
 }
 
 #[sealed] //<-- this ensures nobody outside this crate can implement the trait
-pub trait FromCsv<'c>
+pub trait FromCsv
 where
-    Self: TypeInfo + serde::Deserialize<'c>,
+    Self: TypeInfo + Sized,
 {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
@@ -851,38 +851,38 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
     }
 }
 
-impl<'a> AnnotationStoreBuilder<'a> {
+impl AnnotationStore {
     fn from_csv_annotations_reader(
         &mut self,
         reader: Box<dyn BufRead>,
         config: &Config,
     ) -> Result<(), StamError> {
         debug(&config, || {
-            format!("AnnotationStoreBuilder::from_csv_annotations_reader")
+            format!("AnnotationStore::from_csv_annotations_reader")
         });
         let mut reader = csv::Reader::from_reader(reader);
         for result in reader.deserialize() {
             let record: AnnotationCsv = result
                 .map_err(|e| StamError::CsvError(format!("{}", e), "while parsing Annotation"))?;
-            self.annotations.push(record.try_into()?);
+            self.annotate(record.try_into()?)?;
         }
         Ok(())
     }
 }
 
 #[sealed]
-impl<'c, 'a> FromCsv<'c> for AnnotationStoreBuilder<'a> {
+impl FromCsv for AnnotationStore {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
         filename: Option<&str>,
         config: Config,
     ) -> Result<Self, StamError> {
         debug(&config, || {
-            format!("AnnotationStoreBuilder::from_csv_reader: processing store manifest")
+            format!("AnnotationStore::from_csv_reader: processing store manifest")
         });
         let mut reader = csv::Reader::from_reader(reader);
         let mut first = true;
-        let mut builder = AnnotationStoreBuilder::default();
+        let mut store = AnnotationStore::new();
         for result in reader.deserialize() {
             let record: StoreManifestCsv = result.map_err(|e| {
                 StamError::CsvError(format!("{}", e), "while parsing AnnotationStore manifest")
@@ -894,30 +894,31 @@ impl<'c, 'a> FromCsv<'c> for AnnotationStoreBuilder<'a> {
                         "",
                     ));
                 }
-                builder.id = record.id.map(|x| x.to_string());
-                builder.annotations_filename = Some(PathBuf::from(record.filename.to_string()));
+                store.id = record.id.map(|x| x.to_string());
+                store.annotations_filename = Some(PathBuf::from(record.filename.to_string()));
             } else {
                 match record.tp {
                     Type::AnnotationDataSet => {
                         debug(&config, || {
                             format!(
-                                "AnnotationStoreBuilder::from_csv_reader: processing dataset {}",
+                                "AnnotationStore::from_csv_reader: processing dataset {}",
                                 record.filename
                             )
                         });
-                        let mut setbuilder = AnnotationDataSetBuilder::from_csv_file(
-                            &record.filename,
-                            config.clone(),
-                        )?;
+                        let mut annotationset =
+                            AnnotationDataSet::from_csv_file(&record.filename, config.clone())?;
                         if record.id.is_some() {
-                            setbuilder =
-                                setbuilder.with_id(record.id.map(|x| x.to_string()).unwrap());
+                            annotationset =
+                                annotationset.with_id(record.id.map(|x| x.to_string()).unwrap());
                         }
-                        builder.annotationsets.push(setbuilder);
+                        store.insert(annotationset)?;
                     }
                     Type::TextResource => {
                         debug(&config, || {
-                            format!("AnnotationStoreBuilder::from_csv_reader: processing textresource {}", record.filename)
+                            format!(
+                                "AnnotationStore::from_csv_reader: processing textresource {}",
+                                record.filename
+                            )
                         });
                         let mut resourcebuilder =
                             TextResourceBuilder::from_txt_file(&record.filename, config.clone())?;
@@ -925,7 +926,7 @@ impl<'c, 'a> FromCsv<'c> for AnnotationStoreBuilder<'a> {
                             resourcebuilder =
                                 resourcebuilder.with_id(record.id.map(|x| x.to_string()).unwrap());
                         }
-                        builder.resources.push(resourcebuilder);
+                        store.insert(resourcebuilder.build()?)?;
                     }
                     Type::AnnotationStore => {
                         return Err(StamError::CsvError(
@@ -947,41 +948,41 @@ impl<'c, 'a> FromCsv<'c> for AnnotationStoreBuilder<'a> {
             first = false;
         }
         debug(&config, || {
-            format!("AnnotationStoreBuilder::from_csv_reader: finished processing store manifest")
+            format!("AnnotationStore::from_csv_reader: finished processing store manifest")
         });
-        if builder.annotations_filename.is_some() {
-            let filename = builder.annotations_filename.as_ref().unwrap();
+        if store.annotations_filename.is_some() {
+            let filename = store.annotations_filename.as_ref().unwrap();
             let filename = filename.to_str().expect("valid utf-8");
             debug(&config, || {
                 format!(
-                    "AnnotationStoreBuilder::from_csv_reader: processing annotations {}",
+                    "AnnotationStore::from_csv_reader: processing annotations {}",
                     filename
                 )
             });
             let reader = open_file_reader(filename, &config)?;
-            builder.from_csv_annotations_reader(reader, &config)?;
+            store.from_csv_annotations_reader(reader, &config)?;
         }
         debug(&config, || {
-            format!("AnnotationStoreBuilder::from_csv_reader: finished processing annotations, entire builder ready, returning, ")
+            format!("AnnotationStore::from_csv_reader: finished processing annotations, entire builder ready, returning, ")
         });
         if let Some(filename) = filename {
-            builder.filename = Some(PathBuf::from(filename));
+            store.filename = Some(PathBuf::from(filename));
         }
-        builder.config = config;
-        Ok(builder)
+        store.config = config;
+        Ok(store)
     }
 }
 
 #[sealed]
-impl<'c, 'a> FromCsv<'c> for AnnotationDataSetBuilder<'a> {
+impl FromCsv for AnnotationDataSet {
     fn from_csv_reader(
         reader: Box<dyn BufRead>,
         filename: Option<&str>,
         config: Config,
     ) -> Result<Self, StamError> {
         let mut reader = csv::Reader::from_reader(reader);
-        let mut keys: Vec<DataKey> = Vec::new();
-        let mut databuilders: Vec<AnnotationDataBuilder> = Vec::new();
+        let mut annotationset =
+            AnnotationDataSet::new(config).with_filename(filename.unwrap_or(""));
         for result in reader.deserialize() {
             let record: AnnotationDataCsv = result.map_err(|e| {
                 StamError::CsvError(format!("{}", e), "while parsing AnnotationDataSet")
@@ -990,9 +991,9 @@ impl<'c, 'a> FromCsv<'c> for AnnotationDataSetBuilder<'a> {
                 && !record.key.is_empty()
                 && record.value.is_empty()
             {
-                keys.push(DataKey::new(record.key.to_string()));
+                annotationset.insert(DataKey::new(record.key));
             } else {
-                databuilders.push(AnnotationDataBuilder {
+                let builder = AnnotationDataBuilder {
                     id: if record.id.is_none() || record.id.as_ref().unwrap().is_empty() {
                         BuildItem::None
                     } else {
@@ -1004,15 +1005,12 @@ impl<'c, 'a> FromCsv<'c> for AnnotationDataSetBuilder<'a> {
                         BuildItem::Id(record.key.to_string())
                     },
                     annotationset: BuildItem::None, //we're confined to a single set so don't need this
-                    value: record.value.into(),
-                });
+                    value: record.value.into(), //TODO: does this mean we only deserialize String types??
+                };
+                annotationset.build_insert_data(builder, false); //safety is off for faster parsing (data should not have duplicates)
             }
         }
-        Ok(AnnotationDataSetBuilder::new()
-            .with_keys(keys)
-            .with_data_builders(databuilders)
-            .with_config(config)
-            .with_filename(filename.unwrap_or("")))
         //Note: ID is determined by StoreManifest rather than the set itself and will be associated later
+        Ok(annotationset)
     }
 }
