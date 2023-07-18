@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::config::{get_global_config, Config, Configurable, SerializeMode};
+use crate::config::{Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
@@ -293,7 +293,7 @@ impl Default for AnnotationDataSet {
             key_idmap: IdMap::new("K".to_string()),
             data_idmap: IdMap::new("D".to_string()),
             key_data_map: RelationMap::new(),
-            config: get_global_config(),
+            config: Config::default(),
         }
     }
 }

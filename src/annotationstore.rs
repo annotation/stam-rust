@@ -11,7 +11,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetHandle, DeserializeAnnotationDataSet,
 };
-use crate::config::{get_global_config, set_global_config, Config, Configurable};
+use crate::config::{Config, Configurable};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
@@ -422,7 +422,7 @@ impl Default for AnnotationStore {
             resource_annotation_map: RelationMap::new(),
             annotation_annotation_map: RelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
-            config: get_global_config(),
+            config: Config::default(),
             filename: None,
             annotations_filename: None,
         }
@@ -550,7 +550,6 @@ impl Configurable for AnnotationStore {
 
     /// Sets the configuration, this will also overwrite all underlying configurations for annotation data sets and resources!
     fn set_config(&mut self, config: Config) -> &mut Self {
-        set_global_config(config.clone()); //we need this trick to inject state for serde's deserializer
         self.config = config;
         self.propagate_full_config();
         self
@@ -586,7 +585,6 @@ impl AnnotationStore {
 
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
-            set_global_config(config.clone());
             config.dataformat = DataFormat::Csv;
             return AnnotationStore::from_csv_file(filename, config);
         }
@@ -1338,7 +1336,6 @@ impl AssociatedFile for AnnotationStore {
             )
         });
         self.filename = Some(filename.into());
-        let mut update_global_config = false;
         if let Some(mut workdir) = self.filename.clone() {
             workdir.pop();
             if !workdir.to_str().expect("path to string").is_empty() {
@@ -1347,7 +1344,6 @@ impl AssociatedFile for AnnotationStore {
                 });
                 let workdir = &workdir;
                 self.update_config(|config| config.workdir = Some(workdir.clone()));
-                update_global_config = true;
             }
         }
 
@@ -1372,9 +1368,6 @@ impl AssociatedFile for AnnotationStore {
                     self.set_dataformat(DataFormat::Csv).unwrap_or_default(); //ignores errors!
                 }
             }
-        }
-        if update_global_config {
-            set_global_config(self.config.clone());
         }
         self
     }

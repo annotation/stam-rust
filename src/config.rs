@@ -245,23 +245,3 @@ impl TypeInfo for Config {
 }
 
 impl ToJson for Config {}
-
-// below is a fairly ugly solution needed to get the Config into Builder structure deserialised with Serde,
-// which itself has no means to propagate state.. We abuse a global variable to accomplish
-// We use the serde macro default=get_global_config() on the config field to inject this state (as it is not in the serialisation)
-
-thread_local! {
-    pub(crate) static GLOBAL_CONFIG: RefCell<Config> = RefCell::new(Config::default());
-}
-
-pub(crate) fn set_global_config(config: Config) {
-    debug(&config, || format!("set_global_config: {:?}", &config));
-    GLOBAL_CONFIG.with(|global_config| *global_config.borrow_mut() = config);
-}
-
-pub(crate) fn get_global_config() -> Config {
-    let mut config = Config::default();
-    GLOBAL_CONFIG.with(|global_config| config = global_config.borrow().clone());
-    debug(&config, || format!("get_global_config: {:?}", &config));
-    config
-}

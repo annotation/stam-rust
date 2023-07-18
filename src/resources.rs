@@ -15,7 +15,7 @@ use smallvec::smallvec;
 
 use crate::annotation::Annotation;
 use crate::annotationstore::AnnotationStore;
-use crate::config::{get_global_config, Config, Configurable, SerializeMode};
+use crate::config::{Config, Configurable, SerializeMode};
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
