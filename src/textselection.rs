@@ -80,6 +80,15 @@ impl<'a> From<Option<TextSelectionHandle>> for BuildItem<'a, TextSelection> {
     }
 }
 
+impl From<TextSelection> for Offset {
+    fn from(textselection: TextSelection) -> Offset {
+        Offset {
+            begin: Cursor::BeginAligned(textselection.begin),
+            end: Cursor::BeginAligned(textselection.end),
+        }
+    }
+}
+
 impl From<&TextSelection> for Offset {
     fn from(textselection: &TextSelection) -> Offset {
         Offset {
