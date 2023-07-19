@@ -1346,7 +1346,10 @@ impl AnnotationStore {
 
     /// This reindexes all elements, effectively performing garbage collection
     /// and freeing any deleted items from memory permanently. You can only run
-    /// this on a fully owned AnnotationStore.
+    /// this on a fully owned AnnotationStore. Many data structures will be reallocated
+    /// from scratch so this is a fairly costly operation (and not everywhere as efficient
+    /// as it could be). Fortunately, there is often little reason to call this method,
+    /// serializing (e.g. to STAM JSON) and deserializing the data is usually preferred.
     ///
     /// WARNING: This operation may invalidate any/all outstanding handles!
     ///          Ensure you reobtain any handles anew after this operation.
