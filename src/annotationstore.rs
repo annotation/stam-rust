@@ -1366,6 +1366,13 @@ impl AnnotationStore {
             self.annotation_annotation_map = self
                 .annotation_annotation_map
                 .reindex(&remap_annotations, &remap_annotations);
+            self.annotation_idmap.reindex(&remap_annotations);
+        }
+        if !remap_resources.is_empty() {
+            self.resource_idmap.reindex(&remap_resources);
+        }
+        if !remap_annotationsets.is_empty() {
+            self.dataset_idmap.reindex(&remap_annotationsets);
         }
         if !remap_annotations.is_empty() || !remap_resources.is_empty() {
             self.resource_annotation_map = self

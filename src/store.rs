@@ -47,6 +47,12 @@ where
     pub fn shrink_to_fit(&mut self) {
         self.data.shrink_to_fit();
     }
+
+    pub(crate) fn reindex(&mut self, gaps: &[(HandleType, isize)]) {
+        for handle in self.data.values_mut() {
+            *handle = handle.reindex(gaps);
+        }
+    }
 }
 
 impl<HandleType> IdMap<HandleType>
