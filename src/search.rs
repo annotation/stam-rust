@@ -8,9 +8,7 @@ use crate::datavalue::DataOperator;
 use crate::error::StamError;
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::textselection::{
-    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
-};
+use crate::textselection::*;
 use crate::types::*;
 
 type VarHandle = usize;

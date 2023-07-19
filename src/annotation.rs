@@ -651,8 +651,8 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn find_data<'a>(
         &'slf self,
-        set: Option<BuildItem<AnnotationDataSet>>,
-        key: Option<BuildItem<DataKey>>,
+        set: Option<impl ToHandle<AnnotationDataSet>>,
+        key: Option<impl ToHandle<DataKey>>,
         value: DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf>
     where
@@ -662,7 +662,7 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
         let mut key_handle: Option<DataKeyHandle> = None; //idem
 
         if let Some(set) = set {
-            if let Ok(set) = self.store().get(&set) {
+            if let Ok(set) = self.store().get(set) {
                 set_handle = Some(set.handle().expect("set must have handle"));
                 if let Some(key) = key {
                     key_handle = key.to_handle(set);

@@ -1158,6 +1158,16 @@ impl TextSelectionOperator {
     }
 }
 
+pub trait TestTextSelection {
+    /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two TextSelections.
+    /// A boolean is returned with the test result.
+    fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool;
+
+    /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two TextSelections .
+    /// A boolean is returned with the test result.
+    fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool;
+}
+
 impl TextSelectionSet {
     pub fn new(resource: TextResourceHandle) -> Self {
         Self {
@@ -1205,9 +1215,91 @@ impl TextSelectionSet {
         self.data.is_empty()
     }
 
+    /*
+    /// Intersect this set (A) with another (B). Modifies this set so only the elements
+    /// present in both are left after the operation.
+    pub fn intersect_mut(&mut self, other: &TextSelectionSet) {
+        self.test_intersect_mut(&TextSelectionOperator::InSet(other))
+    }
+
+    /// Intersect this set (A) with another (B) using a specific test operator (which also includes set B). Modifies this set so only the elements
+    /// present in both are left after the operation.
+    pub fn test_intersect_mut(&mut self, operator: &TextSelectionOperator) {
+        self.data.retain(|(item, _, _)| item.test_set(operator, refset));
+    }
+
+    /// Intersect this set (A) with another (B) and returns the new intersection set.
+    pub fn intersect(&mut self, other: &TextSelectionSet) -> Self {
+        self.test_intersect(&TextSelectionOperator::InSet, other)
+    }
+
+    /// Intersect this set (A) with another (B) using a specific operator (which also includes set B) and returns the new intersection set.
+    pub fn test_intersect(&mut self, operator: &TextSelectionOperator) -> Self {
+        let mut intersection = Self {
+            data: smallvec![],
+            sorted: self.sorted,
+        };
+        for (item, resource, annotation) in self.iter() {
+            if item.test(operator) {
+                intersection.insert(*item, *resource, *annotation);
+            }
+        }
+        intersection
+    }
+    */
+
+    /// Returns the left-most TextSelection (the one with the lowest start offset) in the set.
+    pub fn leftmost(&self) -> Option<&TextSelection> {
+        if self.is_empty() {
+            None
+        } else {
+            if self.sorted {
+                self.data.get(0)
+            } else {
+                let mut leftmost: Option<&TextSelection> = None;
+                for item in self.iter() {
+                    if leftmost.is_none() || item.begin < leftmost.unwrap().begin {
+                        leftmost = Some(item);
+                    }
+                }
+                leftmost
+            }
+        }
+    }
+
+    /// Returns the right-most TextSelection (the one with the highest end offset) in the set.
+    pub fn rightmost(&self) -> Option<&TextSelection> {
+        if self.is_empty() {
+            None
+        } else {
+            if self.sorted {
+                self.data.get(self.data.len() - 1)
+            } else {
+                let mut rightmost: Option<&TextSelection> = None;
+                for item in self.iter() {
+                    if rightmost.is_none() || item.end > rightmost.unwrap().end {
+                        rightmost = Some(item);
+                    }
+                }
+                rightmost
+            }
+        }
+    }
+
+    /// Sorts the TextSelections in this set in  canonical text order. This needs to be done only once.
+    /// Once the set is sorted, future inserts will retain the order (and therefore be slower)
+    pub fn sort(&mut self) {
+        if !self.sorted {
+            self.data.sort_unstable();
+            self.sorted = true;
+        }
+    }
+}
+
+impl TestTextSelection for TextSelectionSet {
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
     /// A boolean is returned with the test result.
-    pub fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
+    fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
         if self.is_empty() {
             return false;
         }
@@ -1346,7 +1438,7 @@ impl TextSelectionSet {
 
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
     /// A boolean is returned with the test result.
-    pub fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
+    fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
         if self.is_empty() {
             return false;
         }
@@ -1486,93 +1578,13 @@ impl TextSelectionSet {
             _ => unreachable!("unknown operator+modifier combination"),
         }
     }
-
-    /*
-    /// Intersect this set (A) with another (B). Modifies this set so only the elements
-    /// present in both are left after the operation.
-    pub fn intersect_mut(&mut self, other: &TextSelectionSet) {
-        self.test_intersect_mut(&TextSelectionOperator::InSet(other))
-    }
-
-    /// Intersect this set (A) with another (B) using a specific test operator (which also includes set B). Modifies this set so only the elements
-    /// present in both are left after the operation.
-    pub fn test_intersect_mut(&mut self, operator: &TextSelectionOperator) {
-        self.data.retain(|(item, _, _)| item.test_set(operator, refset));
-    }
-
-    /// Intersect this set (A) with another (B) and returns the new intersection set.
-    pub fn intersect(&mut self, other: &TextSelectionSet) -> Self {
-        self.test_intersect(&TextSelectionOperator::InSet, other)
-    }
-
-    /// Intersect this set (A) with another (B) using a specific operator (which also includes set B) and returns the new intersection set.
-    pub fn test_intersect(&mut self, operator: &TextSelectionOperator) -> Self {
-        let mut intersection = Self {
-            data: smallvec![],
-            sorted: self.sorted,
-        };
-        for (item, resource, annotation) in self.iter() {
-            if item.test(operator) {
-                intersection.insert(*item, *resource, *annotation);
-            }
-        }
-        intersection
-    }
-    */
-
-    /// Returns the left-most TextSelection (the one with the lowest start offset) in the set.
-    pub fn leftmost(&self) -> Option<&TextSelection> {
-        if self.is_empty() {
-            None
-        } else {
-            if self.sorted {
-                self.data.get(0)
-            } else {
-                let mut leftmost: Option<&TextSelection> = None;
-                for item in self.iter() {
-                    if leftmost.is_none() || item.begin < leftmost.unwrap().begin {
-                        leftmost = Some(item);
-                    }
-                }
-                leftmost
-            }
-        }
-    }
-
-    /// Returns the right-most TextSelection (the one with the highest end offset) in the set.
-    pub fn rightmost(&self) -> Option<&TextSelection> {
-        if self.is_empty() {
-            None
-        } else {
-            if self.sorted {
-                self.data.get(self.data.len() - 1)
-            } else {
-                let mut rightmost: Option<&TextSelection> = None;
-                for item in self.iter() {
-                    if rightmost.is_none() || item.end > rightmost.unwrap().end {
-                        rightmost = Some(item);
-                    }
-                }
-                rightmost
-            }
-        }
-    }
-
-    /// Sorts the TextSelections in this set in  canonical text order. This needs to be done only once.
-    /// Once the set is sorted, future inserts will retain the order (and therefore be slower)
-    pub fn sort(&mut self) {
-        if !self.sorted {
-            self.data.sort_unstable();
-            self.sorted = true;
-        }
-    }
 }
 
-impl TextSelection {
+impl TestTextSelection for TextSelection {
     /// This method is called to test whether a specific spatial relation (as expressed by the
     /// passed operator) holds between a [`TextSelection`] and another.
     /// A boolean is returned with the test result.
-    pub fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
+    fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
         //note: at this level we deal with two singletons and there is no different between the *All variants
         match operator {
             TextSelectionOperator::Equals { negate: false, .. }
@@ -1625,7 +1637,7 @@ impl TextSelection {
     /// passed operator) holds between a [`TextSelection`] and another (or multiple)
     /// ([`TextSelectionSet`]). The operator contains the other part of the equation that is tested
     /// against. A boolean is returned with the test result.
-    pub fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
+    fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
         match operator {
             TextSelectionOperator::Equals {
                 all: false,
@@ -1818,6 +1830,8 @@ impl TextResource {
         }
     }
 
+    /// Apply a [`TextSelectionOperator`] to find text selections
+    /// This is a low-level method. Use [`Self::find_textselections()`] instead.
     pub fn textselections_by_operator<'store>(
         &'store self,
         operator: TextSelectionOperator,
@@ -2173,6 +2187,26 @@ pub enum ResultTextSelection<'store> {
 }
 
 impl<'store> ResultTextSelection<'store> {
+    /// Return a reference to the inner textselection.
+    /// This works in all cases but will have a limited lifetime.
+    /// Use [`Self.as_ref()`] instead if you have bound item.
+    pub fn inner(&self) -> &TextSelection {
+        match self {
+            Self::Bound(item) => item.as_ref(),
+            Self::Unbound(_, item) => item,
+        }
+    }
+
+    /// Return a reference to the textselection in the store.
+    /// Only works on bound items.
+    /// Use [`Self.inner()`] instead if
+    pub fn as_ref(&self) -> Option<&'store TextSelection> {
+        match self {
+            Self::Bound(item) => Some(item.as_ref()),
+            Self::Unbound(..) => None,
+        }
+    }
+
     /// Return the begin position (unicode points)
     pub fn begin(&self) -> usize {
         match self {
