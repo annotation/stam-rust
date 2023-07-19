@@ -671,6 +671,7 @@ impl AnnotationDataSet {
     pub fn shrink_to_fit(&mut self) {
         self.keys.shrink_to_fit();
         self.data.shrink_to_fit();
+        self.key_data_map.shrink_to_fit(true);
     }
 }
 
