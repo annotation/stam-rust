@@ -215,6 +215,19 @@ fn store_get_by_id_2() -> Result<(), StamError> {
 }
 
 #[test]
+fn store_temp_id() -> Result<(), StamError> {
+    let store = setup_example_1()?;
+
+    let annotation: &Annotation = store.get("A1")?;
+    assert_eq!(annotation.temp_id().unwrap(), "_A0");
+    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
+    assert_eq!(annotationset.temp_id().unwrap(), "_S0");
+    let key: &DataKey = annotationset.get("pos")?;
+    assert_eq!(key.temp_id().unwrap(), "_K0");
+    Ok(())
+}
+
+#[test]
 fn store_iter_data() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let annotation = store.annotation("A1").unwrap();

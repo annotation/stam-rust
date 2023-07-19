@@ -101,6 +101,20 @@ pub trait Handle:
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait TypeInfo {
     fn typeinfo() -> Type;
+    fn temp_id_prefix() -> &'static str {
+        match Self::typeinfo() {
+            Type::AnnotationStore => "_Z",
+            Type::Annotation => "_A",
+            Type::AnnotationDataSet => "_S",
+            Type::AnnotationData => "_D",
+            Type::DataKey => "_K",
+            Type::DataValue => "_V",
+            Type::TextResource => "_R",
+            Type::TextSelection => "_T",
+            Type::TextSelectionSet => "_X",
+            Type::Config => "_C",
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]

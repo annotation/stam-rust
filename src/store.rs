@@ -478,6 +478,16 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     fn id(&self) -> Option<&str> {
         None
     }
+
+    /// Generate a temporary public ID based on the internal handle.
+    fn temp_id(&self) -> Result<String, StamError> {
+        Ok(format!(
+            "{}{}",
+            Self::temp_id_prefix(),
+            self.handle_or_err()?.as_usize()
+        ))
+    }
+
     /// Like [`Self::id()`] but returns a [`StamError::NoIdError`] error if there is no internal id.
     fn id_or_err(&self) -> Result<&str, StamError> {
         self.id().ok_or(StamError::NoIdError(""))

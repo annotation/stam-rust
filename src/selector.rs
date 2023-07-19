@@ -537,12 +537,11 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 2)?;
                 state.serialize_field("@type", "ResourceSelector")?;
-                if textresource.id().is_none() {
-                    return Err(serde::ser::Error::custom(
-                        "Selector target must have an ID if it is to be serialized",
-                    ));
+                if let Some(id) = textresource.id() {
+                    state.serialize_field("resource", &id)?;
+                } else {
+                    state.serialize_field("resource", &textresource.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                state.serialize_field("resource", &textresource.id())?;
                 state.end()
             }
             Selector::TextSelector(res_handle, offset) => {
@@ -550,12 +549,11 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "TextSelector")?;
-                if textresource.id().is_none() {
-                    return Err(serde::ser::Error::custom(
-                        "Selector target must have an ID if it is to be serialized",
-                    ));
+                if let Some(id) = textresource.id() {
+                    state.serialize_field("resource", &id)?;
+                } else {
+                    state.serialize_field("resource", &textresource.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                state.serialize_field("resource", &textresource.id())?;
                 state.serialize_field("offset", offset)?;
                 state.end()
             }
@@ -565,12 +563,11 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 let annotationset = annotationset.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 2)?;
                 state.serialize_field("@type", "DataSetSelector")?;
-                if annotationset.id().is_none() {
-                    return Err(serde::ser::Error::custom(
-                        "Selector target must have an ID if it is to be serialized",
-                    ));
+                if let Some(id) = annotationset.id() {
+                    state.serialize_field("annotationset", &id)?;
+                } else {
+                    state.serialize_field("annotationset", &annotationset.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                state.serialize_field("resource", &annotationset.id())?;
                 state.end()
             }
             Selector::AnnotationSelector(annotation_handle, offset) => {
@@ -578,12 +575,11 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 let annotation = annotation.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "AnnotationSelector")?;
-                if annotation.id().is_none() {
-                    return Err(serde::ser::Error::custom(
-                        "Selector target must have an ID if it is to be serialized",
-                    ));
+                if let Some(id) = annotation.id() {
+                    state.serialize_field("annotation", &id)?;
+                } else {
+                    state.serialize_field("annotation", &annotation.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                state.serialize_field("annotation", &annotation.id())?;
                 if let Some(offset) = offset {
                     state.serialize_field("offset", offset)?;
                 }
@@ -599,12 +595,11 @@ impl<'a> Serialize for WrappedSelector<'a> {
 
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "AnnotationSelector")?;
-                if annotation.id().is_none() {
-                    return Err(serde::ser::Error::custom(
-                        "Selector target must have an ID if it is to be serialized",
-                    ));
+                if let Some(id) = annotation.id() {
+                    state.serialize_field("annotation", &id)?;
+                } else {
+                    state.serialize_field("annotation", &annotation.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                state.serialize_field("annotation", &annotation.id())?;
                 state.serialize_field("offset", &Offset::whole())?;
                 state.end()
             }
@@ -620,12 +615,11 @@ impl<'a> Serialize for WrappedSelector<'a> {
 
                 let mut state = serializer.serialize_struct("Selector", 3)?;
                 state.serialize_field("@type", "TextSelector")?;
-                if textresource.id().is_none() {
-                    return Err(serde::ser::Error::custom(
-                        "Selector target must have an ID if it is to be serialized",
-                    ));
+                if let Some(id) = textresource.id() {
+                    state.serialize_field("resource", &id)?;
+                } else {
+                    state.serialize_field("resource", &textresource.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                state.serialize_field("resource", &textresource.id())?;
                 let offset: Offset = textselection.into();
                 state.serialize_field("offset", &offset)?;
                 state.end()
