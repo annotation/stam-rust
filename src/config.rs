@@ -53,7 +53,7 @@ pub struct Config {
     /// Enable/disable index for annotations that reference other annotations
     pub(crate) annotation_annotation_map: bool,
 
-    ///generate ids when missing
+    ///generate pseudo-random public identifiers when missing. Each will consist of 21 URL-friendly ASCII symbols after a prefix of A for Annotations, S for DataSets, D for AnnotationData, R for resources
     pub(crate) generate_ids: bool,
 
     /// shrink data structures to optimize memory (at the cost of longer deserialisation times)
@@ -87,7 +87,7 @@ impl Default for Config {
             resource_annotation_map: true,
             dataset_annotation_map: true,
             annotation_annotation_map: true,
-            generate_ids: true,
+            generate_ids: false,
             shrink_to_fit: true,
             use_include: true,
             dataformat: DataFormat::Json { compact: false },
