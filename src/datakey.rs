@@ -26,10 +26,6 @@ pub struct DataKey {
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
     #[serde(skip)]
     intid: Option<DataKeyHandle>,
-
-    ///Refers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey. May be unbound (None) only during creation.
-    #[serde(skip)]
-    pub(crate) part_of_set: Option<AnnotationDataSetHandle>,
 }
 
 impl Serialize for DataKey {
@@ -157,18 +153,12 @@ impl DataKey {
         Self {
             id: id.into(),
             intid: None,
-            part_of_set: None,
         }
     }
 
     /// Returns the global id that identifies the key. This is a bit shorter than using get_id()
     pub fn as_str(&self) -> &str {
         self.id.as_str()
-    }
-
-    /// Returns a handle to the [`AnnotationDataSet`]
-    pub fn annotationset(&self) -> Option<AnnotationDataSetHandle> {
-        self.part_of_set
     }
 
     /// Writes a datakey to a STAM JSON string, with appropriate formatting

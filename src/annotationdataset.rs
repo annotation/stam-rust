@@ -127,25 +127,6 @@ impl Storable for AnnotationDataSet {
     fn set_id(&mut self, id: Option<String>) {
         self.id = id;
     }
-
-    /// Sets the ownership of all items in the store
-    /// This ensure the part_of_set relation (backreference)
-    /// is set right.
-    fn bound(&mut self) {
-        let intid = self.handle().expect("getting internal id");
-        let datastore: &mut Store<AnnotationData> = self.store_mut();
-        for data in datastore.iter_mut() {
-            if let Some(data) = data {
-                data.part_of_set = Some(intid);
-            }
-        }
-        let keystore: &mut Store<DataKey> = self.store_mut();
-        for key in keystore.iter_mut() {
-            if let Some(key) = key {
-                key.part_of_set = Some(intid);
-            }
-        }
-    }
 }
 
 #[sealed]
@@ -161,14 +142,6 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     }
     fn idmap_mut(&mut self) -> Option<&mut IdMap<DataKeyHandle>> {
         Some(&mut self.key_idmap)
-    }
-    fn owns(&self, item: &DataKey) -> Option<bool> {
-        if item.part_of_set.is_none() || self.handle().is_none() {
-            //ownership is unclear because one of both is unbound
-            None
-        } else {
-            Some(item.part_of_set == self.handle())
-        }
     }
 
     fn store_typeinfo() -> &'static str {
@@ -241,14 +214,6 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     }
     fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationDataHandle>> {
         Some(&mut self.data_idmap)
-    }
-    fn owns(&self, item: &AnnotationData) -> Option<bool> {
-        if item.part_of_set.is_none() || self.handle().is_none() {
-            //ownership is unclear because one of both is unbound
-            None
-        } else {
-            Some(item.part_of_set == self.handle())
-        }
     }
     fn store_typeinfo() -> &'static str {
         "AnnotationData in AnnotationDataSet"

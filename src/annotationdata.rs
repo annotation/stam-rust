@@ -37,8 +37,6 @@ pub struct AnnotationData {
 
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership
     intid: Option<AnnotationDataHandle>,
-    ///Referers to internal ID of the AnnotationDataSet (as owned by AnnotationStore) that owns this DataKey
-    pub(crate) part_of_set: Option<AnnotationDataSetHandle>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
@@ -182,7 +180,6 @@ impl AnnotationData {
             key,
             value,
             intid: None,
-            part_of_set: None,
         }
     }
 

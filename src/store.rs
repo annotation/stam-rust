@@ -787,12 +787,6 @@ pub trait StoreFor<T: Storable>: Configurable {
         }
     }
 
-    /// Tests if the item is owner by the store, returns None if ownership is unknown
-    #[allow(unused_variables)]
-    fn owns(&self, item: &T) -> Option<bool> {
-        None
-    }
-
     /// Iterate over the store
     fn iter<'a>(&'a self) -> StoreIter<'a, T>
     where
@@ -1016,10 +1010,6 @@ where
     pub(crate) fn new(item: &'store T, store: &'store T::StoreType) -> Result<Self, StamError> {
         if item.handle().is_none() {
             return Err(StamError::Unbound("can't wrap unbound items"));
-        } else if store.owns(item) == Some(false) {
-            return Err(StamError::Unbound(
-                "Can't wrap an item in a store that doesn't own it!",
-            ));
         }
         Ok(Self { item, store })
     }
