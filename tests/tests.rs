@@ -218,11 +218,23 @@ fn store_temp_id() -> Result<(), StamError> {
     let store = setup_example_1()?;
 
     let annotation: &Annotation = store.get("A1")?;
-    assert_eq!(annotation.temp_id().unwrap(), "_A0");
+    assert_eq!(annotation.temp_id().unwrap(), "!A0");
+
     let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    assert_eq!(annotationset.temp_id().unwrap(), "_S0");
+    assert_eq!(annotationset.temp_id().unwrap(), "!S0");
     let key: &DataKey = annotationset.get("pos")?;
-    assert_eq!(key.temp_id().unwrap(), "_K0");
+    assert_eq!(key.temp_id().unwrap(), "!K0");
+
+    let annotation2 = store
+        .annotation("!A0")
+        .expect("resolving via temporary ID should work too");
+    assert_eq!(annotation2.id().unwrap(), "A1");
+
+    let key2 = annotationset
+        .key("!K0")
+        .expect("resolving via temporary ID should work too");
+    assert_eq!(key2.id().unwrap(), "pos");
+
     Ok(())
 }
 
@@ -679,6 +691,58 @@ const EXAMPLE_3: &'static str = r#"{
         }]
     }"#;
 
+const EXAMPLE_3_TEMP_ID: &'static str = r#"{ 
+        "@type": "AnnotationStore",
+        "annotationsets": [{
+            "@type": "AnnotationDataSet",
+            "@id": "testdataset",
+            "keys": [
+                {
+                  "@type": "DataKey",
+                  "@id": "pos"
+                }
+            ],
+            "data": [
+                {
+                    "@type": "AnnotationData",
+                    "@id": "!D0",
+                    "key": "pos",
+                    "value": {
+                        "@type": "String",
+                        "value": "noun"
+                    }
+                }
+            ]
+        }],
+        "resources": [{
+            "@id": "testres",
+            "text": "Hello world"
+        }],
+        "annotations": [{
+            "@type": "Annotation",
+            "@id": "!A0",
+            "target": {
+                "@type": "TextSelector",
+                "resource": "testres",
+                "offset": {
+                    "begin": {
+                        "@type": "BeginAlignedCursor",
+                        "value": 6
+                    },
+                    "end": {
+                        "@type": "BeginAlignedCursor",
+                        "value": 11
+                    }
+                }
+            },
+            "data": [{
+                "@type": "AnnotationData",
+                "@id": "!D0",
+                "set": "testdataset"
+            }]
+        }]
+    }"#;
+
 fn example_3_common_tests(store: &AnnotationStore) -> Result<(), StamError> {
     //repeat some common tests
     let _resource: &TextResource = store.get("testres")?;
@@ -706,6 +770,31 @@ fn parse_json_annotationstore() -> Result<(), StamError> {
 
     example_3_common_tests(&store)?;
 
+    Ok(())
+}
+
+#[test]
+fn parse_json_annotationstore_temp_id() -> Result<(), StamError> {
+    let store = AnnotationStore::from_json_str(EXAMPLE_3_TEMP_ID, Config::default())?;
+
+    //repeat some common tests
+    let _resource: &TextResource = store.get("testres")?;
+    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
+
+    let _datakey: &DataKey = annotationset.get("pos")?;
+    let _annotationdata: &AnnotationData = annotationset.get("!D0")?;
+    let annotation: &Annotation = store.get("!A0")?;
+    assert_eq!(annotation.id(), None); //we have no public ID
+
+    for key in annotationset.keys() {
+        //there is only one so we can test in loop body
+        assert_eq!(key.id(), Some("pos"));
+    }
+
+    for data in annotationset.data() {
+        //there is only one so we can test in loop body
+        assert_eq!(data.id(), None); //we have no public ID
+    }
     Ok(())
 }
 

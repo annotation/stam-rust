@@ -1612,7 +1612,30 @@ impl<'de> serde::de::Visitor<'de> for AnnotationsVisitor<'_> {
     {
         loop {
             let annotationbuilder: Option<AnnotationBuilder> = seq.next_element()?;
-            if let Some(annotationbuilder) = annotationbuilder {
+            if let Some(mut annotationbuilder) = annotationbuilder {
+                let handle_from_temp_id = if self.store.config().strip_temp_ids() {
+                    if let BuildItem::Id(s) = &annotationbuilder.id {
+                        resolve_temp_id(s.as_str())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                if let Some(handle) = handle_from_temp_id {
+                    //strip the temporary public ID, it maps to a handle directly
+                    annotationbuilder.id = BuildItem::None;
+                    // temporary public IDs are deserialized exactly
+                    // as they were serialized. So if there were any gaps,
+                    // we need to deserialize these too:
+                    if self.store.annotations_len() > handle {
+                        return Err(serde::de::Error::custom("unable to resolve temporary public identifiers, did you start with an empty store? It won't work otherwise."));
+                    } else if handle > self.store.annotations_len() {
+                        // expand the gaps, though this wastes memory if ensures that all references
+                        // are valid without explicitly storing public identifiers.
+                        self.store.annotations.resize_with(handle, Default::default);
+                    }
+                }
                 self.store
                     .annotate(annotationbuilder)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;

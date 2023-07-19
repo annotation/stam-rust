@@ -1766,12 +1766,12 @@ where
 }
 
 /// Test if this is a temporary public identifier,
-/// they have a form like `_A0` . They start with an underscore,
-/// a capital letter indicated the type (A for Annotation), and a number
+/// they have a form like `!A0` . They start with an exclamation mark,
+/// a capital letter indicates the type (A for Annotation), and a number
 /// corresponds to whatever was the internal handle.
 pub(crate) fn resolve_temp_id(id: &str) -> Option<usize> {
     let mut iter = id.chars();
-    if let Some('_') = iter.next() {
+    if let Some('!') = iter.next() {
         if let Some(x) = iter.next() {
             if !x.is_uppercase() {
                 return None;

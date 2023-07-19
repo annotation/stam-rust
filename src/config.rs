@@ -56,7 +56,7 @@ pub struct Config {
     ///generate pseudo-random public identifiers when missing. Each will consist of 21 URL-friendly ASCII symbols after a prefix of A for Annotations, S for DataSets, D for AnnotationData, R for resources
     pub(crate) generate_ids: bool,
 
-    /// Strip temporary IDs during deserialisation. Temporary IDs start with an underscore, a capital ASCII letter denoting the type, and a number
+    /// Strip temporary IDs during deserialisation. Temporary IDs start with an exclamation mark, a capital ASCII letter denoting the type, and a number
     pub(crate) strip_temp_ids: bool,
 
     /// shrink data structures to optimize memory (at the cost of longer deserialisation times)
@@ -191,7 +191,7 @@ impl Config {
         self.generate_ids
     }
 
-    /// Strip temporary publid identifiers when deserialising?
+    /// Strip temporary public identifiers when deserialising?
     pub fn strip_temp_ids(&self) -> bool {
         self.strip_temp_ids
     }

@@ -958,7 +958,30 @@ impl<'de> serde::de::Visitor<'de> for DataVisitor<'_> {
     {
         loop {
             let databuilder: Option<AnnotationDataBuilder> = seq.next_element()?;
-            if let Some(databuilder) = databuilder {
+            if let Some(mut databuilder) = databuilder {
+                let handle_from_temp_id = if self.store.config().strip_temp_ids() {
+                    if let BuildItem::Id(s) = &databuilder.id {
+                        resolve_temp_id(s.as_str())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                if let Some(handle) = handle_from_temp_id {
+                    //strip the temporary public ID, it maps to a handle directly
+                    databuilder.id = BuildItem::None;
+                    // temporary public IDs are deserialized exactly
+                    // as they were serialized. So if there were any gaps,
+                    // we need to deserialize these too:
+                    if self.store.data_len() > handle {
+                        return Err(serde::de::Error::custom("unable to resolve temporary public identifiers, did you start with an empty store? It won't work otherwise."));
+                    } else if handle > self.store.data_len() {
+                        // expand the gaps, though this wastes memory if ensures that all references
+                        // are valid without explicitly storing public identifiers.
+                        self.store.data.resize_with(handle, Default::default);
+                    }
+                }
                 self.store
                     .build_insert_data(databuilder, false) //safety disabled, data duplicates allowed at this stage (=faster)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;

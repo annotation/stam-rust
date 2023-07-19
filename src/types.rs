@@ -103,16 +103,16 @@ pub trait TypeInfo {
     fn typeinfo() -> Type;
     fn temp_id_prefix() -> &'static str {
         match Self::typeinfo() {
-            Type::AnnotationStore => "_Z",
-            Type::Annotation => "_A",
-            Type::AnnotationDataSet => "_S",
-            Type::AnnotationData => "_D",
-            Type::DataKey => "_K",
-            Type::DataValue => "_V",
-            Type::TextResource => "_R",
-            Type::TextSelection => "_T",
-            Type::TextSelectionSet => "_X",
-            Type::Config => "_C",
+            Type::AnnotationStore => "!Z",
+            Type::Annotation => "!A",
+            Type::AnnotationDataSet => "!S",
+            Type::AnnotationData => "!D",
+            Type::DataKey => "!K",
+            Type::DataValue => "!V",
+            Type::TextResource => "!R",
+            Type::TextSelection => "!T",
+            Type::TextSelectionSet => "!X",
+            Type::Config => "!C",
         }
     }
 }
