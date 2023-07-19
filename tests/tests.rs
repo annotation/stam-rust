@@ -9,7 +9,7 @@ const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
 
 #[test]
 fn instantiation_naive() -> Result<(), StamError> {
-    let mut store = AnnotationStore::new().with_id("test");
+    let mut store = AnnotationStore::default().with_id("test");
 
     let _res_intid = store.insert(TextResource::from_string(
         "testres",
@@ -27,7 +27,7 @@ fn instantiation_naive() -> Result<(), StamError> {
 #[test]
 fn sanity_check() -> Result<(), StamError> {
     // Instantiate the store
-    let mut store = AnnotationStore::new().with_id("test");
+    let mut store = AnnotationStore::default().with_id("test");
 
     // Insert a text resource into the store
     let _res_handle = store.insert(TextResource::from_string(
@@ -54,8 +54,7 @@ fn sanity_check() -> Result<(), StamError> {
 
 pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
-    let store = AnnotationStore::new()
-        .with_config(Config::default().with_debug(true))
+    let store = AnnotationStore::new(Config::default().with_debug(true))
         .with_id("test")
         .add(TextResource::from_string(
             "testres",
@@ -82,7 +81,7 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
 
 pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::default()
         .with_id("test")
         .add(TextResource::from_string(
             "testres",
@@ -104,7 +103,7 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
 
 pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::default()
         .with_id("test")
         .add(TextResource::from_string(
             "testres",
@@ -135,7 +134,7 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
 
 pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
     //this example includes a higher-order annotation with relative offset
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::default()
         .with_id("test")
         .add(TextResource::from_string(
             "testres",
@@ -1052,7 +1051,7 @@ fn find_data_all() -> Result<(), StamError> {
 }
 
 pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::default()
         .with_id("test")
         .add(TextResource::from_string(
             "testres",
@@ -1089,7 +1088,7 @@ fn test_multiselector_iter() -> Result<(), StamError> {
 }
 
 pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::default()
         .with_id("test")
         .add(TextResource::from_string(
             "testres",
@@ -1528,7 +1527,7 @@ No one shall be held in slavery or servitude; slavery and the slave trade shall 
 ";
 
 pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::default()
         .with_id("example5")
         .add(TextResource::from_string(
             "humanrights",
@@ -1540,7 +1539,7 @@ pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
 }
 
 pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::default()
         .with_id("example6")
         .add(TextResource::from_string(
             "humanrights",
@@ -1963,7 +1962,7 @@ fn test_textselections_relative_offset() -> Result<(), StamError> {
 }
 
 pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle), StamError> {
-    let mut store = AnnotationStore::new();
+    let mut store = AnnotationStore::default();
     let mut text = String::with_capacity(n);
     for _ in 0..n {
         text.push('x');

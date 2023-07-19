@@ -26,6 +26,9 @@ pub struct IdMap<HandleType> {
 
     /// A prefix that automatically generated IDs will get when added to this map
     autoprefix: String,
+
+    /// Resolve temp IDs
+    resolve_temp_ids: bool,
 }
 
 impl<HandleType> Default for IdMap<HandleType>
@@ -36,21 +39,7 @@ where
         Self {
             data: HashMap::new(),
             autoprefix: "_".to_string(),
-        }
-    }
-}
-
-impl<HandleType> IdMap<HandleType>
-where
-    HandleType: Handle,
-{
-    pub fn shrink_to_fit(&mut self) {
-        self.data.shrink_to_fit();
-    }
-
-    pub(crate) fn reindex(&mut self, gaps: &[(HandleType, isize)]) {
-        for handle in self.data.values_mut() {
-            *handle = handle.reindex(gaps);
+            resolve_temp_ids: true,
         }
     }
 }
@@ -71,12 +60,31 @@ where
         self.autoprefix = autoprefix;
     }
 
+    pub fn with_resolve_temp_ids(mut self, value: bool) -> Self {
+        self.set_resolve_temp_ids(value);
+        self
+    }
+
+    pub fn set_resolve_temp_ids(&mut self, value: bool) {
+        self.resolve_temp_ids = value;
+    }
+
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
     pub fn meminfo(&self) -> usize {
         data_size(self)
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.data.shrink_to_fit();
+    }
+
+    pub(crate) fn reindex(&mut self, gaps: &[(HandleType, isize)]) {
+        for handle in self.data.values_mut() {
+            *handle = handle.reindex(gaps);
+        }
     }
 }
 
@@ -503,6 +511,12 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         self
     }
 
+    /// Sets/resets the identifier for this item
+    /// Be careful as this does *NOT* update any ID maps that may exist!
+    fn set_id(&mut self, id: Option<String>) {
+        //no-op by default
+    }
+
     /// Does this type support an ID?
     fn carries_id() -> bool;
 
@@ -750,10 +764,16 @@ pub trait StoreFor<T: Storable>: Configurable {
         Ok(())
     }
 
-    /// Resolves an ID to a handle
+    /// Resolves an ID to a handle.
+    /// Also works for temporary IDs if enabled.
     /// You usually don't want to call this directly
     fn resolve_id(&self, id: &str) -> Result<T::HandleType, StamError> {
         if let Some(idmap) = self.idmap() {
+            if idmap.resolve_temp_ids {
+                if let Some(handle) = resolve_temp_id(id) {
+                    return Ok(T::HandleType::new(handle));
+                }
+            }
             if let Some(handle) = idmap.data.get(id) {
                 Ok(*handle)
             } else {
@@ -1743,4 +1763,21 @@ where
         }
         itemset
     }
+}
+
+/// Test if this is a temporary public identifier,
+/// they have a form like `_A0` . They start with an underscore,
+/// a capital letter indicated the type (A for Annotation), and a number
+/// corresponds to whatever was the internal handle.
+pub(crate) fn resolve_temp_id(id: &str) -> Option<usize> {
+    let mut iter = id.chars();
+    if let Some('_') = iter.next() {
+        if let Some(x) = iter.next() {
+            if !x.is_uppercase() {
+                return None;
+            }
+            return Some(id[2..].parse().ok()?);
+        }
+    }
+    None
 }

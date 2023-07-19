@@ -56,6 +56,9 @@ pub struct Config {
     ///generate pseudo-random public identifiers when missing. Each will consist of 21 URL-friendly ASCII symbols after a prefix of A for Annotations, S for DataSets, D for AnnotationData, R for resources
     pub(crate) generate_ids: bool,
 
+    /// Strip temporary IDs during deserialisation. Temporary IDs start with an underscore, a capital ASCII letter denoting the type, and a number
+    pub(crate) strip_temp_ids: bool,
+
     /// shrink data structures to optimize memory (at the cost of longer deserialisation times)
     pub(crate) shrink_to_fit: bool,
 
@@ -88,6 +91,7 @@ impl Default for Config {
             dataset_annotation_map: true,
             annotation_annotation_map: true,
             generate_ids: false,
+            strip_temp_ids: true,
             shrink_to_fit: true,
             use_include: true,
             dataformat: DataFormat::Json { compact: false },
@@ -159,12 +163,24 @@ impl Config {
         self
     }
 
+    pub fn with_shrink_to_fit(mut self, value: bool) -> Self {
+        self.shrink_to_fit = value;
+        self
+    }
+
+    /// Strip temporary public identifiers when deserialising?
+    pub fn with_strip_temp_ids(mut self, value: bool) -> Self {
+        self.strip_temp_ids = value;
+        self
+    }
+
     /// Returns the configured dataformat for serialisation.
     pub fn dataformat(&self) -> DataFormat {
         self.dataformat
     }
 
     /// Generate public IDs when missing.
+    /// Each will consist of 21 URL-friendly ASCII symbols after a prefix of A for Annotations, S for DataSets, D for AnnotationData, R for resources
     pub fn with_generate_ids(mut self, value: bool) -> Self {
         self.generate_ids = value;
         self
@@ -173,6 +189,11 @@ impl Config {
     /// Is generation of public IDs when missing enabled or not?
     pub fn generate_ids(&self) -> bool {
         self.generate_ids
+    }
+
+    /// Strip temporary publid identifiers when deserialising?
+    pub fn strip_temp_ids(&self) -> bool {
+        self.strip_temp_ids
     }
 
     /// Shrink data structures for minimal memory footprint?

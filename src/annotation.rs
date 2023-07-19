@@ -133,6 +133,10 @@ impl Storable for Annotation {
     fn carries_id() -> bool {
         true
     }
+
+    fn set_id(&mut self, id: Option<String>) {
+        self.id = id;
+    }
 }
 
 impl PartialEq<Annotation> for Annotation {

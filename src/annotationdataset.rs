@@ -125,6 +125,10 @@ impl Storable for AnnotationDataSet {
         true
     }
 
+    fn set_id(&mut self, id: Option<String>) {
+        self.id = id;
+    }
+
     /// Sets the ownership of all items in the store
     /// This ensure the part_of_set relation (backreference)
     /// is set right.
@@ -275,23 +279,6 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     }
 }
 
-impl Default for AnnotationDataSet {
-    fn default() -> Self {
-        Self {
-            id: None,
-            keys: Store::new(),
-            data: Store::new(),
-            intid: None,
-            filename: None,
-            changed: Arc::new(RwLock::new(false)),
-            key_idmap: IdMap::new("K".to_string()),
-            data_idmap: IdMap::new("D".to_string()),
-            key_data_map: RelationMap::new(),
-            config: Config::default(),
-        }
-    }
-}
-
 impl ToJson for AnnotationDataSet {}
 
 impl Serialize for AnnotationDataSet {
@@ -305,8 +292,10 @@ impl Serialize for AnnotationDataSet {
         //                                      ^-- we need type annotations for the compiler, doesn't really matter which we use
         {
             let filename = self.filename.as_ref().unwrap();
-            if self.id() != Some(&filename) && self.id.is_some() {
-                state.serialize_field("@id", &self.id().unwrap())?;
+            if self.id() != Some(&filename) {
+                if let Some(id) = self.id() {
+                    state.serialize_field("@id", id)?;
+                }
             }
             state.serialize_field("@include", &filename)?;
 
@@ -318,8 +307,10 @@ impl Serialize for AnnotationDataSet {
                 self.mark_unchanged();
             }
         } else {
-            if self.id().is_some() {
-                state.serialize_field("@id", &self.id().unwrap())?;
+            if let Some(id) = self.id() {
+                state.serialize_field("@id", id)?;
+            } else if let Ok(id) = self.temp_id() {
+                state.serialize_field("@id", id.as_str())?;
             }
             state.serialize_field("keys", &self.keys)?;
             let wrappedstore: WrappedStore<AnnotationData, Self> = self.wrap_store();
@@ -426,9 +417,17 @@ impl FromJson for AnnotationDataSet {
 
 impl AnnotationDataSet {
     pub fn new(config: Config) -> Self {
-        AnnotationDataSet {
+        Self {
+            id: None,
+            keys: Store::new(),
+            data: Store::new(),
+            intid: None,
+            filename: None,
+            changed: Arc::new(RwLock::new(false)),
+            key_idmap: IdMap::new("K".to_string()).with_resolve_temp_ids(config.strip_temp_ids()),
+            data_idmap: IdMap::new("D".to_string()).with_resolve_temp_ids(config.strip_temp_ids()),
+            key_data_map: RelationMap::new(),
             config,
-            ..Self::default()
         }
     }
 
@@ -672,6 +671,18 @@ impl AnnotationDataSet {
         self.keys.shrink_to_fit();
         self.data.shrink_to_fit();
         self.key_data_map.shrink_to_fit(true);
+    }
+
+    /// Strip public identifiers from annotation data
+    /// This will not affect any internal references but will render any references from external sources impossible.
+    pub fn strip_data_ids(&mut self) {
+        for data in self.data.iter_mut() {
+            if let Some(data) = data {
+                data.set_id(None);
+            }
+        }
+        self.data_idmap =
+            IdMap::new("D".to_string()).with_resolve_temp_ids(self.config().strip_temp_ids());
     }
 }
 

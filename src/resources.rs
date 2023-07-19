@@ -236,6 +236,9 @@ impl Storable for TextResource {
     fn carries_id() -> bool {
         true
     }
+    fn set_id(&mut self, id: Option<String>) {
+        self.id = id.expect("can't reset ID for resources, they must always have a public ID");
+    }
 }
 
 impl Serialize for TextResource {

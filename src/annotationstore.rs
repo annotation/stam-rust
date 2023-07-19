@@ -408,28 +408,6 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
 
 //impl<'a> Add<NewAnnotation<'a>,Annotation> for AnnotationStore
 
-impl Default for AnnotationStore {
-    fn default() -> Self {
-        AnnotationStore {
-            id: None,
-            annotations: Vec::new(),
-            annotationsets: Vec::new(),
-            resources: Vec::new(),
-            annotation_idmap: IdMap::new("A".to_string()),
-            resource_idmap: IdMap::new("R".to_string()),
-            dataset_idmap: IdMap::new("S".to_string()),
-            dataset_data_annotation_map: TripleRelationMap::new(),
-            dataset_annotation_map: RelationMap::new(),
-            resource_annotation_map: RelationMap::new(),
-            annotation_annotation_map: RelationBTreeMap::new(),
-            textrelationmap: TripleRelationMap::new(),
-            config: Config::default(),
-            filename: None,
-            annotations_filename: None,
-        }
-    }
-}
-
 impl Serialize for AnnotationStore {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -479,9 +457,7 @@ impl FromJson for AnnotationStore {
         let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
 
-        let mut store: AnnotationStore = AnnotationStore::new()
-            .with_config(config)
-            .with_filename(filename);
+        let mut store: AnnotationStore = AnnotationStore::new(config).with_filename(filename);
 
         DeserializeAnnotationStore::new(&mut store)
             .deserialize(deserializer)
@@ -498,7 +474,7 @@ impl FromJson for AnnotationStore {
         });
         let deserializer = &mut serde_json::Deserializer::from_str(string);
 
-        let mut store: AnnotationStore = AnnotationStore::new().with_config(config);
+        let mut store: AnnotationStore = AnnotationStore::new(config);
 
         DeserializeAnnotationStore::new(&mut store)
             .deserialize(deserializer)
@@ -557,10 +533,35 @@ impl Configurable for AnnotationStore {
     }
 }
 
+impl Default for AnnotationStore {
+    fn default() -> Self {
+        Self::new(Config::default())
+    }
+}
+
 impl AnnotationStore {
     ///Creates a new empty annotation store with a default configuraton, add the [`AnnotationStore.with_config()`] to provide a custom one
-    pub fn new() -> Self {
-        AnnotationStore::default()
+    pub fn new(config: Config) -> Self {
+        AnnotationStore {
+            id: None,
+            annotations: Vec::new(),
+            annotationsets: Vec::new(),
+            resources: Vec::new(),
+            annotation_idmap: IdMap::new("A".to_string())
+                .with_resolve_temp_ids(config.strip_temp_ids()),
+            resource_idmap: IdMap::new("R".to_string())
+                .with_resolve_temp_ids(config.strip_temp_ids()),
+            dataset_idmap: IdMap::new("S".to_string())
+                .with_resolve_temp_ids(config.strip_temp_ids()),
+            dataset_data_annotation_map: TripleRelationMap::new(),
+            dataset_annotation_map: RelationMap::new(),
+            resource_annotation_map: RelationMap::new(),
+            annotation_annotation_map: RelationBTreeMap::new(),
+            textrelationmap: TripleRelationMap::new(),
+            config,
+            filename: None,
+            annotations_filename: None,
+        }
     }
 
     /// Loads an AnnotationStore from a file (STAM JSON or another supported format)
@@ -805,6 +806,12 @@ impl AnnotationStore {
                 }
             }
         }
+        self.annotation_idmap
+            .set_resolve_temp_ids(self.config().strip_temp_ids());
+        self.resource_idmap
+            .set_resolve_temp_ids(self.config().strip_temp_ids());
+        self.dataset_idmap
+            .set_resolve_temp_ids(self.config().strip_temp_ids());
     }
 
     /// Recursively update the configurate for self and all children, the actual update is in a closure
@@ -1393,6 +1400,28 @@ impl AnnotationStore {
         //TODO: TextSelections (inside resources) are currently not reindexed yet
         //TODO: Keys and Annotationdata (inside annotationsets) are currently not reindexed yet
         self
+    }
+
+    /// Strip public identifiers from annotations.
+    /// This will not affect any internal references but will render any references from external sources impossible.
+    pub fn strip_annotation_ids(&mut self) {
+        for annotation in self.annotations.iter_mut() {
+            if let Some(annotation) = annotation {
+                annotation.set_id(None);
+            }
+        }
+        self.annotation_idmap =
+            IdMap::new("A".to_string()).with_resolve_temp_ids(self.config().strip_temp_ids())
+    }
+
+    /// Strip public identifiers from annotation data.
+    /// This will not affect any internal references but will render any references from external sources impossible.
+    pub fn strip_data_ids(&mut self) {
+        for annotationset in self.annotationsets.iter_mut() {
+            if let Some(annotationset) = annotationset {
+                annotationset.strip_data_ids();
+            }
+        }
     }
 }
 

@@ -156,8 +156,7 @@ let annotationset_handle = store.add(
 Let's now create a store and annotations from scratch, with an explicitly filled `AnnotationDataSet`:
 
 ```rust
-let store = stam::AnnotationStore::new()
-    .with_config(stam::Config::default())
+let store = stam::AnnotationStore::new(stam::Config::default())
     .with_id("test")
     .add( stam::TextResource::from_string("testres", "Hello world"))?
     .add( stam::AnnotationDataSet::new().with_id("testdataset")
@@ -173,7 +172,7 @@ let store = stam::AnnotationStore::new()
 And here is the very same thing but the `AnnotationDataSet` is filled implicitly here:
 
 ```rust
-let store = stam::AnnotationStore::new().with_id("test")
+let store = stam::AnnotationStore::default().with_id("test")
     .add( stam::TextResource::from_string("testres".to_string(),"Hello world"))?
     .add( stam::AnnotationDataSet::new().with_id("testdataset"))?
     .with_annotation( stam::AnnotationBuilder::new()

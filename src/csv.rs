@@ -852,12 +852,8 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
 }
 
 impl AnnotationStore {
-    fn from_csv_annotations_reader(
-        &mut self,
-        reader: Box<dyn BufRead>,
-        config: &Config,
-    ) -> Result<(), StamError> {
-        debug(&config, || {
+    fn from_csv_annotations_reader(&mut self, reader: Box<dyn BufRead>) -> Result<(), StamError> {
+        debug(self.config(), || {
             format!("AnnotationStore::from_csv_annotations_reader")
         });
         let mut reader = csv::Reader::from_reader(reader);
@@ -882,7 +878,7 @@ impl FromCsv for AnnotationStore {
         });
         let mut reader = csv::Reader::from_reader(reader);
         let mut first = true;
-        let mut store = AnnotationStore::new();
+        let mut store = AnnotationStore::new(config);
         for result in reader.deserialize() {
             let record: StoreManifestCsv = result.map_err(|e| {
                 StamError::CsvError(format!("{}", e), "while parsing AnnotationStore manifest")
@@ -899,14 +895,16 @@ impl FromCsv for AnnotationStore {
             } else {
                 match record.tp {
                     Type::AnnotationDataSet => {
-                        debug(&config, || {
+                        debug(store.config(), || {
                             format!(
                                 "AnnotationStore::from_csv_reader: processing dataset {}",
                                 record.filename
                             )
                         });
-                        let mut annotationset =
-                            AnnotationDataSet::from_csv_file(&record.filename, config.clone())?;
+                        let mut annotationset = AnnotationDataSet::from_csv_file(
+                            &record.filename,
+                            store.config().clone(),
+                        )?;
                         if record.id.is_some() {
                             annotationset =
                                 annotationset.with_id(record.id.map(|x| x.to_string()).unwrap());
@@ -914,14 +912,16 @@ impl FromCsv for AnnotationStore {
                         store.insert(annotationset)?;
                     }
                     Type::TextResource => {
-                        debug(&config, || {
+                        debug(store.config(), || {
                             format!(
                                 "AnnotationStore::from_csv_reader: processing textresource {}",
                                 record.filename
                             )
                         });
-                        let mut resourcebuilder =
-                            TextResourceBuilder::from_txt_file(&record.filename, config.clone())?;
+                        let mut resourcebuilder = TextResourceBuilder::from_txt_file(
+                            &record.filename,
+                            store.config.clone(),
+                        )?;
                         if record.id.is_some() {
                             resourcebuilder =
                                 resourcebuilder.with_id(record.id.map(|x| x.to_string()).unwrap());
@@ -947,29 +947,28 @@ impl FromCsv for AnnotationStore {
             }
             first = false;
         }
-        debug(&config, || {
+        debug(store.config(), || {
             format!("AnnotationStore::from_csv_reader: finished processing store manifest")
         });
         if store.annotations_filename.is_some() {
             let filename = store.annotations_filename.as_ref().unwrap();
             let filename = filename.to_str().expect("valid utf-8");
-            debug(&config, || {
+            debug(store.config(), || {
                 format!(
                     "AnnotationStore::from_csv_reader: processing annotations {}",
                     filename
                 )
             });
-            let reader = open_file_reader(filename, &config)?;
-            store.from_csv_annotations_reader(reader, &config)?;
+            let reader = open_file_reader(filename, store.config())?;
+            store.from_csv_annotations_reader(reader)?;
         }
-        debug(&config, || {
+        debug(store.config(), || {
             format!("AnnotationStore::from_csv_reader: finished processing annotations, entire builder ready, returning, ")
         });
         if let Some(filename) = filename {
             store.filename = Some(PathBuf::from(filename));
         }
-        store.config = config;
-        if store.config.shrink_to_fit {
+        if store.config().shrink_to_fit {
             store.shrink_to_fit(true);
         }
         Ok(store)
