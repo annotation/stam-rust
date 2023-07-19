@@ -4,6 +4,7 @@ use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -68,7 +69,7 @@ pub struct AnnotationStore {
     pub(crate) dataset_annotation_map: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
 
     /// Reverse index for annotations that reference other annotations
-    pub(crate) annotation_annotation_map: RelationMap<AnnotationHandle, AnnotationHandle>,
+    pub(crate) annotation_annotation_map: RelationBTreeMap<AnnotationHandle, AnnotationHandle>,
 
     /// path associated with this store
     pub(crate) filename: Option<PathBuf>,
@@ -420,7 +421,7 @@ impl Default for AnnotationStore {
             dataset_data_annotation_map: TripleRelationMap::new(),
             dataset_annotation_map: RelationMap::new(),
             resource_annotation_map: RelationMap::new(),
-            annotation_annotation_map: RelationMap::new(),
+            annotation_annotation_map: RelationBTreeMap::new(),
             textrelationmap: TripleRelationMap::new(),
             config: Config::default(),
             filename: None,

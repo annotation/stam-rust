@@ -1,6 +1,6 @@
 use sealed::sealed;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -169,6 +169,112 @@ where
 }
 
 impl<A, B> Extend<(A, B)> for RelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    fn extend<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<Item = (A, B)>,
+    {
+        for (x, y) in iter {
+            self.insert(x, y);
+        }
+    }
+}
+
+/// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
+#[derive(Debug, Clone, DataSize)]
+pub struct RelationBTreeMap<A, B> {
+    /// The actual map
+    pub(crate) data: BTreeMap<A, Vec<B>>,
+}
+
+impl<A, B> Default for RelationBTreeMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    fn default() -> Self {
+        Self {
+            data: BTreeMap::new(),
+        }
+    }
+}
+
+impl<A, B> RelationBTreeMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Insert a relation into the map
+    pub fn insert(&mut self, x: A, y: B) {
+        if self.data.contains_key(&x) {
+            self.data.get_mut(&x).unwrap().push(y);
+        } else {
+            self.data.insert(x, vec![y]);
+        }
+    }
+
+    /// Remove a relation from the map
+    pub fn remove(&mut self, x: A, y: B) {
+        if let Some(values) = self.data.get_mut(&x) {
+            if let Some(pos) = values.iter().position(|z| *z == y) {
+                values.remove(pos); //note: this shifts the array and may take O(n)
+            }
+        }
+    }
+
+    pub fn get(&self, x: A) -> Option<&Vec<B>> {
+        self.data.get(&x)
+    }
+
+    pub fn totalcount(&self) -> usize {
+        let mut total = 0;
+        for v in self.data.values() {
+            total += v.len();
+        }
+        total
+    }
+
+    /// Returns count info on the map, returns a 3-tuple:
+    ///     * the length of the map (len())
+    ///     * the total count of all items  (totalcount())
+    pub fn countinfo(&self) -> (usize, usize) {
+        let mut total = 0;
+        for v in self.data.values() {
+            total += v.len();
+        }
+        (self.len(), total)
+    }
+
+    /// Like countinfo(), but returns an extra value at the end of the tuple with the lower-bound estimated memory consumption in bytes.
+    pub fn meminfo(&self) -> usize {
+        data_size(self)
+    }
+
+    pub fn count(&self, x: A) -> usize {
+        self.data.get(&x).map(|v| v.len()).unwrap_or(0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn shrink_to_fit(&mut self, recursive: bool) {
+        if recursive {
+            for element in self.data.values_mut() {
+                element.shrink_to_fit();
+            }
+        }
+    }
+}
+
+impl<A, B> Extend<(A, B)> for RelationBTreeMap<A, B>
 where
     A: Handle,
     B: Handle,
