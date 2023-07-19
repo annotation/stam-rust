@@ -4,8 +4,7 @@ use datasize::{data_size, DataSize};
 use sealed::sealed;
 use serde::de::DeserializeSeed;
 use serde::ser::{SerializeStruct, Serializer};
-use serde::{Deserialize, Serialize};
-//use serde_json::Result;
+use serde::Serialize;
 
 use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
@@ -885,7 +884,7 @@ struct DeserializeKeys<'a> {
 impl<'de> DeserializeSeed<'de> for DeserializeKeys<'_> {
     type Value = ();
 
-    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -931,7 +930,7 @@ struct DeserializeData<'a> {
 impl<'de> DeserializeSeed<'de> for DeserializeData<'_> {
     type Value = ();
 
-    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {

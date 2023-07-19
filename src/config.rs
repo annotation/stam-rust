@@ -1,6 +1,5 @@
 use sealed::sealed;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 

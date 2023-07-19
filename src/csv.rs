@@ -619,6 +619,8 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                 ));
             }
             for (i, data_id) in self.data_ids.split(";").enumerate() {
+                //MAYBE TODO: fix the warnings that arise more elegantly
+                #[allow(suspicious_double_ref_op)]
                 let set_id = set_ids.get(i).unwrap_or(set_ids.last().unwrap()).deref();
                 builder = builder.with_existing_data(
                     BuildItem::from(set_id.to_owned()), //had to make it owned because of borrow checker, would rather have kept reference
@@ -740,6 +742,8 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                     maxlen = endoffsets.len()
                 };
                 let mut subselectors = Vec::new();
+                //MAYBE TODO: fix the warnings that arise more elegantly
+                #[allow(suspicious_double_ref_op)]
                 for i in 1..maxlen {
                     //first one can be skipped because it's the complex selector
                     subselectors.push(match selectortypes.get(i).unwrap_or(selectortypes.last().unwrap()) {
@@ -993,7 +997,7 @@ impl FromCsv for AnnotationDataSet {
                 && !record.key.is_empty()
                 && record.value.is_empty()
             {
-                annotationset.insert(DataKey::new(record.key));
+                annotationset.insert(DataKey::new(record.key))?;
             } else {
                 let builder = AnnotationDataBuilder {
                     id: if record.id.is_none() || record.id.as_ref().unwrap().is_empty() {
@@ -1009,7 +1013,7 @@ impl FromCsv for AnnotationDataSet {
                     annotationset: BuildItem::None, //we're confined to a single set so don't need this
                     value: record.value.into(), //TODO: does this mean we only deserialize String types??
                 };
-                annotationset.build_insert_data(builder, false); //safety is off for faster parsing (data should not have duplicates)
+                annotationset.build_insert_data(builder, false)?; //safety is off for faster parsing (data should not have duplicates)
             }
         }
         //Note: ID is determined by StoreManifest rather than the set itself and will be associated later

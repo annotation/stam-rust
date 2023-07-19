@@ -43,7 +43,7 @@ pub use selector::{
 pub use store::*;
 pub use text::{FindRegexIter, FindRegexMatch, Text};
 pub use textselection::{
-    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
+    ResultTextSelection, TestTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
 };
 pub use types::*;
 

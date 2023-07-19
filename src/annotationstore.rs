@@ -2,9 +2,8 @@ use datasize::data_size;
 use sealed::sealed;
 use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use smallvec::SmallVec;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -20,9 +19,7 @@ use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
-use crate::resources::{
-    DeserializeTextResource, TextResource, TextResourceBuilder, TextResourceHandle,
-};
+use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::text::*;
@@ -1585,7 +1582,7 @@ struct DeserializeAnnotations<'a> {
 impl<'de> DeserializeSeed<'de> for DeserializeAnnotations<'_> {
     type Value = ();
 
-    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -1654,7 +1651,7 @@ struct DeserializeResources<'a> {
 impl<'de> DeserializeSeed<'de> for DeserializeResources<'_> {
     type Value = ();
 
-    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -1701,7 +1698,7 @@ struct DeserializeAnnotationDataSets<'a> {
 impl<'de> DeserializeSeed<'de> for DeserializeAnnotationDataSets<'_> {
     type Value = ();
 
-    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {

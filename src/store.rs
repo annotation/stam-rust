@@ -513,7 +513,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
 
     /// Sets/resets the identifier for this item
     /// Be careful as this does *NOT* update any ID maps that may exist!
-    fn set_id(&mut self, id: Option<String>) {
+    fn set_id(&mut self, _id: Option<String>) {
         //no-op by default
     }
 
@@ -904,11 +904,8 @@ where
             for item in self {
                 if let Some(mut item) = item {
                     let handle = item.handle().expect("handle must exist");
-                    let mut delta: isize = 0;
-                    if delta != 0 {
-                        let newhandle = handle.reindex(gaps); //this does iterate over all gaps every time, not very efficient if there are many
-                        item.set_handle(newhandle);
-                    }
+                    let newhandle = handle.reindex(gaps); //this does iterate over all gaps every time, not very efficient if there are many
+                    item.set_handle(newhandle);
                     newstore.push(Some(item));
                 }
             }
@@ -1469,7 +1466,7 @@ impl<'a, T> ToHandle<T> for ResultItem<'a, T>
 where
     T: Storable,
 {
-    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<T::HandleType>
     where
         S: StoreFor<T>,
     {

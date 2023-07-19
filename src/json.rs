@@ -112,11 +112,11 @@ where
 
     fn from_json_str(string: &str, config: Config) -> Result<Self, StamError>;
 
-    fn merge_json_file(&mut self, filename: &str) -> Result<(), StamError> {
+    fn merge_json_file(&mut self, _filename: &str) -> Result<(), StamError> {
         unimplemented!("merge_json_file not implemented")
     }
 
-    fn merge_json_str(&mut self, string: &str) -> Result<(), StamError> {
+    fn merge_json_str(&mut self, _string: &str) -> Result<(), StamError> {
         unimplemented!("merge_json_str not implemented")
     }
 }

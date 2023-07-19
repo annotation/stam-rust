@@ -161,7 +161,7 @@ impl Handle for TextResourceHandle {
 
 // I tried making this generic but failed, so let's spell it out for the handle
 impl<'a> ToHandle<TextResource> for TextResourceHandle {
-    fn to_handle<'store, S>(&self, store: &'store S) -> Option<TextResourceHandle>
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<TextResourceHandle>
     where
         S: StoreFor<TextResource>,
     {
@@ -1269,16 +1269,13 @@ impl<'a> DeserializeTextResource<'a> {
 impl<'de> DeserializeSeed<'de> for DeserializeTextResource<'_> {
     type Value = TextResource;
 
-    fn deserialize<D>(mut self, deserializer: D) -> Result<Self::Value, D::Error>
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let mut builder: TextResourceBuilder = Deserialize::deserialize(deserializer)?;
         //inject the config
         builder.config = self.config.clone();
-        if let Some(filename) = &builder.filename {
-            //The builder has a filename already, that means @include was set
-        }
         builder
             .build()
             .map_err(|e| -> D::Error { serde::de::Error::custom(e) })
