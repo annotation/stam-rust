@@ -154,7 +154,7 @@ impl Handle for TextResourceHandle {
     fn new(intid: usize) -> Self {
         Self(intid as u32)
     }
-    fn unwrap(&self) -> usize {
+    fn as_usize(&self) -> usize {
         self.0 as usize
     }
 }

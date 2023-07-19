@@ -68,7 +68,7 @@ impl Handle for AnnotationDataSetHandle {
     fn new(intid: usize) -> Self {
         Self(intid as u16)
     }
-    fn unwrap(&self) -> usize {
+    fn as_usize(&self) -> usize {
         self.0 as usize
     }
 }
@@ -185,12 +185,12 @@ impl StoreFor<DataKey> for AnnotationDataSet {
         if self.handle().is_some() {
             return Err(StamError::InUse("Refusing to remove datakey because its AnnotationDataSet is bound and we can't guarantee it's not used"));
         }
-        if let Some(datavec) = self.key_data_map.data.get(handle.unwrap()) {
+        if let Some(datavec) = self.key_data_map.data.get(handle.as_usize()) {
             if datavec.is_empty() {
                 return Err(StamError::InUse("DataKey"));
             }
         }
-        self.key_data_map.data.remove(handle.unwrap());
+        self.key_data_map.data.remove(handle.as_usize());
         self.mark_changed();
         Ok(())
     }
@@ -500,7 +500,7 @@ impl AnnotationDataSet {
         let datakey: Option<&DataKey> = self.key(key).map(|key| key.as_ref());
         if let Some(datakey) = datakey {
             let datakey_handle = datakey.handle().expect("key must be bound at this point");
-            if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.unwrap()) {
+            if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.as_usize()) {
                 for datahandle in dataitems.iter() {
                     //MAYBE TODO: this may get slow if there is a key with a lot of data values
                     let data: &AnnotationData = self.get(*datahandle).expect("getting item");

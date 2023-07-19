@@ -122,12 +122,12 @@ impl StoreFor<TextResource> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: TextResourceHandle) -> Result<(), StamError> {
-        if let Some(annotations) = self.resource_annotation_map.data.get(handle.unwrap()) {
+        if let Some(annotations) = self.resource_annotation_map.data.get(handle.as_usize()) {
             if !annotations.is_empty() {
                 return Err(StamError::InUse("TextResource"));
             }
         }
-        self.resource_annotation_map.data.remove(handle.unwrap());
+        self.resource_annotation_map.data.remove(handle.as_usize());
         Ok(())
     }
 }
@@ -163,7 +163,7 @@ impl StoreFor<Annotation> for AnnotationStore {
         //       the other option would be to dp annotation.clone(), at a slightly higher cost which we don't want here
         let annotation = self
             .annotations
-            .get(handle.unwrap())
+            .get(handle.as_usize())
             .unwrap()
             .as_ref()
             .unwrap();
@@ -205,7 +205,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                     //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
                     let resource: &mut TextResource = self
                         .resources
-                        .get_mut(res_handle.unwrap())
+                        .get_mut(res_handle.as_usize())
                         .unwrap()
                         .as_mut()
                         .unwrap();
@@ -296,7 +296,7 @@ impl StoreFor<Annotation> for AnnotationStore {
                         .map(|(res_handle, textselection, handle)| {
                             let resource: &mut TextResource = self
                                 .resources
-                                .get_mut(res_handle.unwrap())
+                                .get_mut(res_handle.as_usize())
                                 .unwrap()
                                 .as_mut()
                                 .unwrap();
@@ -396,12 +396,12 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationDataSetHandle) -> Result<(), StamError> {
-        if let Some(annotations) = self.dataset_annotation_map.data.get(handle.unwrap()) {
+        if let Some(annotations) = self.dataset_annotation_map.data.get(handle.as_usize()) {
             if !annotations.is_empty() {
                 return Err(StamError::InUse("AnnotationDataSet"));
             }
         }
-        self.dataset_annotation_map.data.remove(handle.unwrap());
+        self.dataset_annotation_map.data.remove(handle.as_usize());
         Ok(())
     }
 }
@@ -903,7 +903,7 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
     ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
         if let Some(textselection_annotationmap) =
-            self.textrelationmap.data.get(resource_handle.unwrap())
+            self.textrelationmap.data.get(resource_handle.as_usize())
         {
             Some(
                 textselection_annotationmap
@@ -1013,7 +1013,7 @@ impl AnnotationStore {
         if let Some(data_annotationmap) = self
             .dataset_data_annotation_map
             .data
-            .get(annotationset_handle.unwrap())
+            .get(annotationset_handle.as_usize())
         {
             Some(
                 data_annotationmap
@@ -1341,6 +1341,48 @@ impl AnnotationStore {
         self.dataset_idmap.shrink_to_fit();
         self.annotation_idmap.shrink_to_fit();
         self.resource_idmap.shrink_to_fit();
+        self.textrelationmap.shrink_to_fit(true);
+    }
+
+    /// This reindexes all elements, effectively performing garbage collection
+    /// and freeing any deleted items from memory permanently. You can only run
+    /// this on a fully owned AnnotationStore.
+    ///
+    /// WARNING: This operation may invalidate any/all outstanding handles!
+    ///          Ensure you reobtain any handles anew after this operation.
+    ///
+    /// Although Rust's borrowing rules ensure there can be no external references alive
+    /// during reindexing, this does not apply to the various handles that this library
+    /// publishes.
+    pub fn reindex(mut self) -> Self {
+        let remap_annotations: Vec<(AnnotationHandle, isize)> = self.annotations.gaps();
+        self.annotations = self.annotations.reindex(&remap_annotations);
+        let remap_resources: Vec<(TextResourceHandle, isize)> = self.resources.gaps();
+        self.resources = self.resources.reindex(&remap_resources);
+        let remap_annotationsets: Vec<(AnnotationDataSetHandle, isize)> =
+            self.annotationsets.gaps();
+        self.annotationsets = self.annotationsets.reindex(&remap_annotationsets);
+        if !remap_annotations.is_empty() {
+            self.annotation_annotation_map = self
+                .annotation_annotation_map
+                .reindex(&remap_annotations, &remap_annotations);
+        }
+        if !remap_annotations.is_empty() || !remap_resources.is_empty() {
+            self.resource_annotation_map = self
+                .resource_annotation_map
+                .reindex(&remap_resources, &remap_annotations);
+            self.textrelationmap =
+                self.textrelationmap
+                    .reindex(&remap_resources, &Vec::new(), &remap_annotations);
+        }
+        if !remap_annotations.is_empty() || !remap_annotationsets.is_empty() {
+            self.dataset_annotation_map = self
+                .dataset_annotation_map
+                .reindex(&remap_annotationsets, &remap_annotations);
+        }
+        //TODO: TextSelections (inside resources) are currently not reindexed yet
+        //TODO: Keys and Annotationdata (inside annotationsets) are currently not reindexed yet
+        self
     }
 }
 

@@ -80,8 +80,22 @@ pub trait Handle:
 {
     /// Create a new handle for an internal ID. You shouldn't need to use this as handles will always be generated for you by higher-level functions.
     fn new(intid: usize) -> Self;
-    /// Returns the internal index for this handle
-    fn unwrap(&self) -> usize;
+
+    /// Returns the internal index for this handle.
+    fn as_usize(&self) -> usize;
+
+    /// Low-level method to compute a new handle based on a list of gaps, used by reindexers. There is usually no reason to call this yourself.
+    fn reindex(&self, gaps: &[(Self, isize)]) -> Self {
+        let mut delta = 0;
+        for (gaphandle, gapdelta) in gaps.iter() {
+            if gaphandle.as_usize() < self.as_usize() {
+                delta += gapdelta;
+            } else {
+                break;
+            }
+        }
+        Self::new((self.as_usize() as isize + delta) as usize)
+    }
 }
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait

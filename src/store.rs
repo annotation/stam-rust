@@ -106,16 +106,16 @@ where
 
     /// Insert a relation into the map
     pub fn insert(&mut self, x: A, y: B) {
-        if x.unwrap() >= self.data.len() {
+        if x.as_usize() >= self.data.len() {
             //expand the map
-            self.data.resize_with(x.unwrap() + 1, Default::default);
+            self.data.resize_with(x.as_usize() + 1, Default::default);
         }
-        self.data[x.unwrap()].push(y);
+        self.data[x.as_usize()].push(y);
     }
 
     /// Remove a relation from the map
     pub fn remove(&mut self, x: A, y: B) {
-        if let Some(values) = self.data.get_mut(x.unwrap()) {
+        if let Some(values) = self.data.get_mut(x.as_usize()) {
             if let Some(pos) = values.iter().position(|z| *z == y) {
                 values.remove(pos); //note: this shifts the array and may take O(n)
             }
@@ -123,7 +123,7 @@ where
     }
 
     pub fn get(&self, x: A) -> Option<&Vec<B>> {
-        self.data.get(x.unwrap())
+        self.data.get(x.as_usize())
     }
 
     pub fn totalcount(&self) -> usize {
@@ -151,7 +151,7 @@ where
     }
 
     pub fn count(&self, x: A) -> usize {
-        self.data.get(x.unwrap()).map(|v| v.len()).unwrap_or(0)
+        self.data.get(x.as_usize()).map(|v| v.len()).unwrap_or(0)
     }
 
     pub fn len(&self) -> usize {
@@ -165,6 +165,19 @@ where
             }
         }
         self.data.shrink_to_fit();
+    }
+
+    /// Returns a new reindexed map, copies all contents, not the most efficient
+    pub(crate) fn reindex(&self, gaps_a: &[(A, isize)], gaps_b: &[(B, isize)]) -> Self {
+        let mut newmap = Self::new();
+        for (handle_a, item) in self.data.iter().enumerate() {
+            let handle_a = A::new(handle_a).reindex(gaps_a);
+            for handle_b in item {
+                let handle_b = handle_b.reindex(gaps_b);
+                newmap.insert(handle_a, handle_b);
+            }
+        }
+        newmap
     }
 }
 
@@ -272,6 +285,19 @@ where
             }
         }
     }
+
+    /// Returns a new reindexed map, copies all contents, not the most efficient
+    pub(crate) fn reindex(&self, gaps_a: &[(A, isize)], gaps_b: &[(B, isize)]) -> Self {
+        let mut newmap = Self::new();
+        for (handle_a, item) in self.data.iter() {
+            let handle_a = handle_a.reindex(gaps_a);
+            for handle_b in item {
+                let handle_b = handle_b.reindex(gaps_b);
+                newmap.insert(handle_a, handle_b);
+            }
+        }
+        newmap
+    }
 }
 
 impl<A, B> Extend<(A, B)> for RelationBTreeMap<A, B>
@@ -316,15 +342,15 @@ where
     }
 
     pub fn insert(&mut self, x: A, y: B, z: C) {
-        if x.unwrap() >= self.data.len() {
+        if x.as_usize() >= self.data.len() {
             //expand the map
-            self.data.resize_with(x.unwrap() + 1, Default::default);
+            self.data.resize_with(x.as_usize() + 1, Default::default);
         }
-        self.data[x.unwrap()].insert(y, z);
+        self.data[x.as_usize()].insert(y, z);
     }
 
     pub fn get(&self, x: A, y: B) -> Option<&Vec<C>> {
-        if let Some(v) = self.data.get(x.unwrap()) {
+        if let Some(v) = self.data.get(x.as_usize()) {
             v.get(y)
         } else {
             None
@@ -368,7 +394,7 @@ where
     }
 
     pub fn count(&self, x: A, y: B) -> usize {
-        if let Some(v) = self.data.get(x.unwrap()) {
+        if let Some(v) = self.data.get(x.as_usize()) {
             v.get(y).map(|v| v.len()).unwrap_or(0)
         } else {
             0
@@ -386,6 +412,27 @@ where
             }
         }
         self.data.shrink_to_fit();
+    }
+
+    /// Returns a new reindexed map, copies all contents, not the most efficient
+    pub(crate) fn reindex(
+        &self,
+        gaps_a: &[(A, isize)],
+        gaps_b: &[(B, isize)],
+        gaps_c: &[(C, isize)],
+    ) -> Self {
+        let mut newmap = Self::new();
+        for (handle_a, inner) in self.data.iter().enumerate() {
+            let handle_a = A::new(handle_a).reindex(gaps_a);
+            for (handle_b, item) in inner.data.iter().enumerate() {
+                let handle_b = B::new(handle_b).reindex(gaps_b);
+                for handle_c in item {
+                    let handle_c = handle_c.reindex(gaps_c);
+                    newmap.insert(handle_a, handle_b, handle_c);
+                }
+            }
+        }
+        newmap
     }
 }
 
@@ -617,7 +664,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// Returns true if the store has the item
     fn has<'a>(&'a self, item: impl ToHandle<T>) -> bool {
         if let Some(handle) = item.to_handle(self) {
-            self.store().get(handle.unwrap()).is_some()
+            self.store().get(handle.as_usize()).is_some()
         } else {
             false
         }
@@ -629,13 +676,13 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// Calling this method with an out-of-bounds index is [undefined behavior](https://doc.rust-lang.org/reference/behavior-considered-undefined.html)  │       
     /// even if the resulting reference is not used.                                                                                                     │       
     unsafe fn get_unchecked(&self, handle: T::HandleType) -> Option<&T> {
-        self.store().get_unchecked(handle.unwrap()).as_ref()
+        self.store().get_unchecked(handle.as_usize()).as_ref()
     }
 
     /// Get a reference to an item from the store
     fn get<'a>(&'a self, item: impl ToHandle<T>) -> Result<&'a T, StamError> {
         if let Some(handle) = item.to_handle(self) {
-            if let Some(Some(item)) = self.store().get(handle.unwrap()) {
+            if let Some(Some(item)) = self.store().get(handle.as_usize()) {
                 return Ok(item);
             }
         }
@@ -645,7 +692,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// Get a mutable reference to an item from the store by internal ID
     fn get_mut(&mut self, item: impl ToHandle<T>) -> Result<&mut T, StamError> {
         if let Some(handle) = item.to_handle(self) {
-            if let Some(Some(item)) = self.store_mut().get_mut(handle.unwrap()) {
+            if let Some(Some(item)) = self.store_mut().get_mut(handle.as_usize()) {
                 return Ok(item);
             }
         }
@@ -658,7 +705,7 @@ pub trait StoreFor<T: Storable>: Configurable {
         self.preremove(handle)?;
 
         //remove item from idmap
-        if let Some(Some(item)) = self.store().get(handle.unwrap()) {
+        if let Some(Some(item)) = self.store().get(handle.as_usize()) {
             let id: Option<String> = item.id().map(|x| x.to_string());
             if let Some(id) = id {
                 if let Some(idmap) = self.idmap_mut() {
@@ -673,7 +720,7 @@ pub trait StoreFor<T: Storable>: Configurable {
 
         //now remove the actual item, removing means just setting its previously occupied index to None
         //(and the actual item is owned so will be deallocated)
-        let item = self.store_mut().get_mut(handle.unwrap()).unwrap();
+        let item = self.store_mut().get_mut(handle.as_usize()).unwrap();
         *item = None;
         Ok(())
     }
@@ -778,6 +825,60 @@ pub trait StoreFor<T: Storable>: Configurable {
             store: self.store(),
             parent: self,
         }
+    }
+}
+
+pub(crate) trait ReindexStore<T>
+where
+    T: Storable,
+{
+    fn gaps(&self) -> Vec<(T::HandleType, isize)>;
+    fn reindex(self, gaps: &[(T::HandleType, isize)]) -> Self;
+}
+
+impl<T> ReindexStore<T> for Vec<Option<T>>
+where
+    T: Storable,
+{
+    /// Low-level method that returns gaps in the store
+    /// The gaps can be resolved by calling `reindex()`.
+    fn gaps(&self) -> Vec<(T::HandleType, isize)> {
+        let mut gaps = Vec::new();
+        let mut gapsize: isize = 0;
+        for item in self.iter() {
+            if item.is_none() {
+                gapsize -= 1;
+            } else if gapsize != 0 {
+                let handle = item.as_ref().unwrap().handle().expect("must have handle");
+                gaps.push((handle, gapsize));
+                gapsize = 0;
+            }
+        }
+        gaps
+    }
+
+    fn reindex(self, gaps: &[(T::HandleType, isize)]) -> Self {
+        if !gaps.is_empty() {
+            let totaldelta: isize = gaps.iter().map(|x| x.1).sum();
+            let newsize: usize = (self.len() as isize + totaldelta) as usize;
+            if newsize == 0 {
+                return Vec::new();
+            }
+            let mut newstore: Vec<Option<T>> = Vec::with_capacity(newsize);
+            for item in self {
+                if let Some(mut item) = item {
+                    let handle = item.handle().expect("handle must exist");
+                    let mut delta: isize = 0;
+                    if delta != 0 {
+                        let newhandle = handle.reindex(gaps); //this does iterate over all gaps every time, not very efficient if there are many
+                        item.set_handle(newhandle);
+                    }
+                    newstore.push(Some(item));
+                }
+            }
+            return newstore;
+        }
+        self
     }
 }
 

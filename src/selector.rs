@@ -836,7 +836,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                         // internal ranged selector, these return a result immediately
                         // some duplication because each begin/end has different parameter types even though it looks the same
                         Selector::InternalRangedResourceSelector { begin , end } => {
-                            if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
                                 return None;
@@ -847,7 +847,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                             }
                         }
                         Selector::InternalRangedDataSetSelector { begin, end } => {
-                            if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
                                 return None;
@@ -858,7 +858,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                             }
                         }
                         Selector::InternalRangedAnnotationSelector { begin, end } => {
-                            if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
                                 return None;
@@ -869,7 +869,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                             }
                         }
                         Selector::InternalRangedTextSelector { resource: _, begin, end } => {
-                            if begin.unwrap() + self.cursor_in_range >= end.unwrap() {
+                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
                                 return None;
