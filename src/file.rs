@@ -8,15 +8,18 @@ use crate::config::{Config, Configurable};
 use crate::error::StamError;
 use crate::types::*;
 
-const KNOWN_EXTENSIONS: &[&str; 11] = &[
+const KNOWN_EXTENSIONS: &[&str; 14] = &[
     ".store.stam.json",
     ".annotationset.stam.json",
     ".stam.json",
+    ".store.stam.cbor",
+    ".stam.cbor",
     ".store.stam.csv",
     ".annotationset.stam.csv",
     ".annotations.stam.csv",
     ".stam.csv",
     ".json",
+    ".cbor",
     ".csv",
     ".txt",
     ".md",

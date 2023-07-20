@@ -1,0 +1,72 @@
+use minicbor::{decode::ArrayIterWithCtx, CborLen, Decode, Decoder, Encode, Encoder};
+use smallvec::SmallVec;
+use std::sync::{Arc, RwLock};
+
+use crate::store::*;
+use crate::textselection::TextSelectionHandle;
+use crate::types::*;
+
+// we need these three functions and the CborLen implementation because there is no out of the box support for SmallVec
+// these implementations are not very generic (constrainted to a very particular SmallVec usage), but that's okay as
+// long as we don't need to (de)serialize others.
+
+pub(crate) fn cbor_decode_positionitem_smallvec<'b, Ctx>(
+    d: &mut minicbor::decode::Decoder<'b>,
+    ctx: &mut Ctx,
+) -> Result<SmallVec<[(usize, TextSelectionHandle); 1]>, minicbor::decode::Error> {
+    let iter: ArrayIterWithCtx<Ctx, (usize, TextSelectionHandle)> = d.array_iter_with(ctx)?;
+    let mut v = SmallVec::new();
+    for x in iter {
+        v.push(x?)
+    }
+    Ok(v)
+}
+
+pub(crate) fn cbor_encode_positionitem_smallvec<Ctx, W: minicbor::encode::Write>(
+    v: &SmallVec<[(usize, TextSelectionHandle); 1]>,
+    e: &mut minicbor::encode::Encoder<W>,
+    ctx: &mut Ctx,
+) -> Result<(), minicbor::encode::Error<W::Error>> {
+    e.array(v.len() as u64)?;
+    for x in v {
+        x.encode(e, ctx)?
+    }
+    Ok(())
+}
+
+//copied from u32 implementation in minicbor (make sure to update this if TextSelectionHandle ever adopts a bigger/smaller type)
+impl<C> CborLen<C> for TextSelectionHandle {
+    fn cbor_len(&self, _: &mut C) -> usize {
+        match self.0 {
+            0..=0x17 => 1,
+            0x18..=0xff => 2,
+            0x100..=0xffff => 3,
+            _ => 5,
+        }
+    }
+}
+
+pub(crate) fn cbor_len_positionitem_smallvec<Ctx, W: minicbor::encode::Write>(
+    v: &SmallVec<[(usize, TextSelectionHandle); 1]>,
+    ctx: &mut Ctx,
+) -> usize {
+    let n = v.len();
+    n.cbor_len(ctx) + v.iter().map(|x| x.cbor_len(ctx)).sum::<usize>()
+}
+
+// minicbor has no skip property unfortunately, we have to fake it for the 'changed' fields on AnnotationDataSet and TextResource:
+
+pub(crate) fn cbor_decode_changed<'b, Ctx>(
+    d: &mut minicbor::decode::Decoder<'b>,
+    ctx: &mut Ctx,
+) -> Result<Arc<RwLock<bool>>, minicbor::decode::Error> {
+    Ok(Arc::new(RwLock::new(false)))
+}
+
+pub(crate) fn cbor_encode_changed<Ctx, W: minicbor::encode::Write>(
+    v: &Arc<RwLock<bool>>,
+    e: &mut minicbor::encode::Encoder<W>,
+    ctx: &mut Ctx,
+) -> Result<(), minicbor::encode::Error<W::Error>> {
+    Ok(())
+}

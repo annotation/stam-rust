@@ -6,6 +6,7 @@ use std::slice::Iter;
 use std::sync::{Arc, RwLock};
 
 use datasize::{data_size, DataSize};
+use minicbor::{Decode, Encode};
 use regex::{Regex, RegexSet};
 use sealed::sealed;
 use serde::de::DeserializeSeed;
@@ -15,6 +16,7 @@ use smallvec::smallvec;
 
 use crate::annotation::Annotation;
 use crate::annotationstore::AnnotationStore;
+use crate::cbor::*;
 use crate::config::{Config, Configurable, SerializeMode};
 use crate::error::StamError;
 use crate::file::*;
@@ -33,36 +35,50 @@ use crate::types::*;
 /// The text *SHOULD* be in
 /// [Unicode Normalization Form C (NFC)](https://www.unicode.org/reports/tr15/) but
 /// *MAY* be in another unicode normalization forms.
-#[derive(Debug, Clone, DataSize)]
+#[derive(Debug, Clone, DataSize, Decode, Encode)]
 pub struct TextResource {
-    /// Public identifier for the text resource (often the filename/URL)
-    id: String,
-
-    /// The complete textual content of the resource
-    text: String,
-
     /// The internal numeric identifier for the resource (may only be None upon creation when not bound yet)
+    #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
     intid: Option<TextResourceHandle>,
 
+    /// Public identifier for the text resource (often the filename/URL)
+    #[n(1)]
+    id: String,
+
     /// Is this resource stored stand-off in an external file via @include? This holds the filename.
+    #[n(2)]
     filename: Option<String>,
 
-    /// Flags if the text contents have changed, if so, they need to be reserialised if stored via the include mechanism
-    changed: Arc<RwLock<bool>>, //this is modified via internal mutability
+    /// The complete textual content of the resource
+    #[n(3)]
+    text: String,
 
     /// Length of the text in unicode points
+    #[n(4)]
     textlen: usize,
 
+    /// Flags if the text contents have changed, if so, they need to be reserialised if stored via the include mechanism
+    #[n(5)]
+    #[cbor(
+        encode_with = "cbor_encode_changed",
+        decode_with = "cbor_decode_changed"
+    )]
+    changed: Arc<RwLock<bool>>, //this is modified via internal mutability
+
     /// A store of text selections (not in textual order)
+    #[n(6)]
     textselections: Store<TextSelection>,
 
     /// Maps character positions to utf8 bytes and to text selections
+    #[n(7)]
     positionindex: PositionIndex,
 
     /// Reverse position index, maps utf8 bytes to character positions (and nothing more)
+    #[n(8)]
     byte2charmap: BTreeMap<usize, usize>,
 
     #[data_size(skip)]
+    #[n(9)]
     config: Config,
 }
 
@@ -147,8 +163,9 @@ impl TryFrom<TextResourceBuilder> for TextResource {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
-pub struct TextResourceHandle(u32);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
+#[cbor(transparent)]
+pub struct TextResourceHandle(#[n(0)] u32);
 #[sealed]
 impl Handle for TextResourceHandle {
     fn new(intid: usize) -> Self {

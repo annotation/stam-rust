@@ -2,6 +2,7 @@ mod annotation;
 mod annotationdata;
 mod annotationdataset;
 mod annotationstore;
+mod cbor;
 mod config;
 mod datakey;
 mod datavalue;
@@ -28,6 +29,7 @@ pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle, TargetIter
 pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 pub use annotationstore::AnnotationStore;
+pub use cbor::*;
 pub use config::{Config, Configurable};
 pub use datakey::{DataKey, DataKeyHandle};
 pub use datavalue::{DataOperator, DataValue};

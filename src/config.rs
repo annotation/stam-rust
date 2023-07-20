@@ -1,3 +1,4 @@
+use minicbor::{Decode, Encode};
 use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -41,45 +42,65 @@ pub trait Configurable: Sized {
 }
 
 /// This holds the configuration. It is not limited to configuring a single part of the model, but unifies all in a single configuration.
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Encode, Decode)]
 pub struct Config {
-    /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
-    pub(crate) textrelationmap: bool,
-    /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
-    pub(crate) resource_annotation_map: bool,
-    /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
-    pub(crate) dataset_annotation_map: bool,
-    /// Enable/disable index for annotations that reference other annotations
-    pub(crate) annotation_annotation_map: bool,
+    /// Debug mode
+    #[n(0)]
+    pub(crate) debug: bool,
+
+    /// The working directory
+    #[n(1)]
+    pub(crate) workdir: Option<PathBuf>,
 
     ///generate pseudo-random public identifiers when missing. Each will consist of 21 URL-friendly ASCII symbols after a prefix of A for Annotations, S for DataSets, D for AnnotationData, R for resources
+    #[n(2)]
     pub(crate) generate_ids: bool,
 
     /// Strip temporary IDs during deserialisation. Temporary IDs start with an exclamation mark, a capital ASCII letter denoting the type, and a number
+    #[n(3)]
     pub(crate) strip_temp_ids: bool,
 
-    /// shrink data structures to optimize memory (at the cost of longer deserialisation times)
-    pub(crate) shrink_to_fit: bool,
-
     ///use the `@include` mechanism to point to external files, if unset, all data will be kept in a single STAM JSON file.
+    #[n(4)]
     pub(crate) use_include: bool,
 
-    /// The working directory
-    pub(crate) workdir: Option<PathBuf>,
+    /// shrink data structures to optimize memory (at the cost of longer deserialisation times)
+    #[n(5)]
+    pub(crate) shrink_to_fit: bool,
 
     /// Milestone placement interval (in unicode codepoints) in indexing text resources. A low number above zero increases search performance at the cost of memory and increased initialisation time.
+    #[n(6)]
     pub(crate) milestone_interval: usize,
 
     /// The chosen dataformat for serialisation, defaults to STAM JSON.
+    #[n(7)]
     pub(crate) dataformat: DataFormat,
-
-    /// Debug mode
-    pub(crate) debug: bool,
 
     /// This flag can be flagged on or off (using internal mutability) to indicate whether we are serializing for the standoff include mechanism
     // TODO: move this out of the config?
     #[serde(skip)]
+    #[n(8)]
+    #[cbor(
+        encode_with = "Self::cbor_encode_serialize_mode",
+        decode_with = "Self::cbor_decode_serialize_mode"
+    )]
     pub(crate) serialize_mode: Arc<RwLock<SerializeMode>>,
+
+    /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
+    #[n(100)]
+    pub(crate) textrelationmap: bool,
+
+    /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
+    #[n(101)]
+    pub(crate) resource_annotation_map: bool,
+
+    /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
+    #[n(102)]
+    pub(crate) dataset_annotation_map: bool,
+
+    /// Enable/disable index for annotations that reference other annotations
+    #[n(103)]
+    pub(crate) annotation_annotation_map: bool,
 }
 
 impl Default for Config {
@@ -263,6 +284,23 @@ impl Config {
         let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
         result
             .map_err(|e| StamError::JsonError(e, filename.to_string(), "Reading config from file"))
+    }
+
+    // minicbor has no skip property unfortunately, we have to fake it:
+
+    fn cbor_decode_serialize_mode<'b, Ctx>(
+        d: &mut minicbor::decode::Decoder<'b>,
+        ctx: &mut Ctx,
+    ) -> Result<Arc<RwLock<SerializeMode>>, minicbor::decode::Error> {
+        Ok(Arc::new(RwLock::new(SerializeMode::NoInclude)))
+    }
+
+    fn cbor_encode_serialize_mode<Ctx, W: minicbor::encode::Write>(
+        v: &Arc<RwLock<SerializeMode>>,
+        e: &mut minicbor::encode::Encoder<W>,
+        ctx: &mut Ctx,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        Ok(())
     }
 }
 

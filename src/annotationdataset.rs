@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use datasize::{data_size, DataSize};
+use minicbor::{Decode, Encode};
 use sealed::sealed;
 use serde::de::DeserializeSeed;
 use serde::ser::{SerializeStruct, Serializer};
@@ -9,6 +10,7 @@ use serde::Serialize;
 use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
+use crate::cbor::*;
 use crate::config::{Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
@@ -27,41 +29,57 @@ use std::fmt::Debug;
 /// It effectively defines a certain vocabulary, i.e. key/value pairs.
 /// The `AnnotationDataSet` does not store the [`crate::annotation::Annotation`] instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
-#[derive(Debug, Clone, DataSize)]
+#[derive(Debug, Clone, DataSize, Encode, Decode)]
 pub struct AnnotationDataSet {
+    ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership
+    #[n(0)]
+    intid: Option<AnnotationDataSetHandle>,
+
     /// Public Id
+    #[n(1)]
     id: Option<String>,
 
     /// A store for [`DataKey`]
+    #[n(2)]
     keys: Store<DataKey>,
 
     /// A store for [`AnnotationData`], each makes *reference* to a [`DataKey`] (in this same `AnnotationDataSet`) and gives it a value  ([`DataValue`])
+    #[n(3)]
     data: Store<AnnotationData>,
 
     /// Is this annotation dataset stored stand-off in an external file via @include? This holds the filename
+    #[n(4)]
     filename: Option<String>,
 
     /// Flags if set has changed, if so, they need to be reserialised if stored via the include mechanism
+    #[n(5)]
+    #[cbor(
+        encode_with = "cbor_encode_changed",
+        decode_with = "cbor_decode_changed"
+    )]
     changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
-    ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership
-    intid: Option<AnnotationDataSetHandle>,
-
     /// Maps public IDs to internal IDs for
+    #[n(6)]
     key_idmap: IdMap<DataKeyHandle>,
 
     /// Maps public IDs to internal IDs for AnnotationData
+    #[n(7)]
     data_idmap: IdMap<AnnotationDataHandle>,
 
+    #[n(8)]
     key_data_map: RelationMap<DataKeyHandle, AnnotationDataHandle>,
 
     /// Configuration
     #[data_size(skip)]
+    #[n(9)]
     config: Config,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, DataSize)]
-pub struct AnnotationDataSetHandle(u16);
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, DataSize, Encode, Decode)]
+#[cbor(transparent)]
+pub struct AnnotationDataSetHandle(#[n(0)] u16);
+
 #[sealed]
 impl Handle for AnnotationDataSetHandle {
     fn new(intid: usize) -> Self {
@@ -252,9 +270,7 @@ impl Serialize for AnnotationDataSet {
     {
         let mut state = serializer.serialize_struct("AnnotationDataSet", 4)?;
         state.serialize_field("@type", "AnnotationDataSet")?;
-        if self.filename.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude
-        //                                      ^-- we need type annotations for the compiler, doesn't really matter which we use
-        {
+        if self.filename.is_some() && self.config.serialize_mode() == SerializeMode::AllowInclude {
             let filename = self.filename.as_ref().unwrap();
             if self.id() != Some(&filename) {
                 if let Some(id) = self.id() {
@@ -635,6 +651,8 @@ impl AnnotationDataSet {
         self.keys.shrink_to_fit();
         self.data.shrink_to_fit();
         self.key_data_map.shrink_to_fit(true);
+        self.data_idmap.shrink_to_fit();
+        self.key_idmap.shrink_to_fit();
     }
 
     /// Strip public identifiers from annotation data

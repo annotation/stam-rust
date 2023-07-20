@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::slice::Iter;
 
 use datasize::DataSize;
+use minicbor::{Decode, Encode};
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -39,24 +40,30 @@ type DataVec = Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>; // I also t
 /// Moreover, an `Annotation` can have multiple annotation data associated.
 /// The result is that multiple annotations with the exact same content require less storage
 /// space, and searching and indexing is facilitated.  
-#[derive(Clone, Debug, DataSize)]
+#[derive(Clone, Debug, DataSize, Encode, Decode)]
 pub struct Annotation {
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership,
     /// encapsulated by a handle type
+    #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
     intid: Option<AnnotationHandle>,
 
     /// Public identifier for this annotation
+    #[n(1)]
     id: Option<String>,
 
     /// Reference to the annotation data (may be multiple) that describe(s) this annotation, the first ID refers to an AnnotationDataSet as owned by the AnnotationStore, the second to an AnnotationData instance as owned by that set
+    #[n(2)]
     data: DataVec,
 
     /// Determines selection target
+    #[n(3)]
     target: Selector, //note: Boxing this didn't reduce overall memory footprint, even though Annotation became smaller, probably due to allocator overhead
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
-pub struct AnnotationHandle(u32);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
+#[cbor(transparent)]
+pub struct AnnotationHandle(#[n(0)] u32);
+
 #[sealed]
 impl Handle for AnnotationHandle {
     fn new(intid: usize) -> Self {

@@ -7,6 +7,7 @@ use std::ops::Deref;
 use std::slice::{Iter, IterMut};
 
 use datasize::{data_size, DataSize};
+use minicbor::{Decode, Encode};
 use nanoid::nanoid;
 use smallvec::{smallvec, SmallVec};
 
@@ -19,15 +20,18 @@ pub type Store<T> = Vec<Option<T>>;
 
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
 /// Used to resolve public IDs to internal ones.
-#[derive(Debug, Clone, DataSize)]
+#[derive(Debug, Clone, DataSize, Decode, Encode)]
 pub struct IdMap<HandleType> {
     /// The actual map
+    #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
     data: HashMap<String, HandleType>,
 
     /// A prefix that automatically generated IDs will get when added to this map
+    #[n(1)]
     autoprefix: String,
 
     /// Resolve temp IDs
+    #[n(2)]
     resolve_temp_ids: bool,
 }
 
@@ -89,10 +93,12 @@ where
 }
 
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
-#[derive(Debug, Clone, DataSize)]
+#[derive(Debug, Clone, DataSize, Decode, Encode)]
 pub struct RelationMap<A, B> {
     /// The actual map
+    #[n(0)]
     pub(crate) data: Vec<Vec<B>>,
+    #[n(1)]
     _marker: PhantomData<A>, //zero-size, only needed to bind generic A
 }
 
@@ -211,9 +217,14 @@ where
 }
 
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
-#[derive(Debug, Clone, DataSize)]
-pub struct RelationBTreeMap<A, B> {
+#[derive(Debug, Clone, DataSize, Decode, Encode)]
+pub struct RelationBTreeMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
     /// The actual map
+    #[n(0)]
     pub(crate) data: BTreeMap<A, Vec<B>>,
 }
 
@@ -329,10 +340,12 @@ where
     }
 }
 
-#[derive(Debug, Clone, DataSize)]
+#[derive(Debug, Clone, DataSize, Decode, Encode)]
 pub struct TripleRelationMap<A, B, C> {
     /// The actual map
+    #[n(0)]
     pub(crate) data: Vec<RelationMap<B, C>>,
+    #[n(1)]
     _marker: PhantomData<A>,
 }
 

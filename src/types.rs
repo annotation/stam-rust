@@ -2,6 +2,7 @@ use datasize::DataSize;
 use sealed::sealed;
 use std::hash::Hash;
 
+use minicbor::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
@@ -13,15 +14,18 @@ use crate::error::StamError;
 ///
 /// The cursor can be either begin-aligned or end-aligned. Where BeginAlignedCursor(0)
 /// is the first unicode codepoint in a referenced text, and EndAlignedCursor(0) the last one.
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, DataSize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, DataSize, Encode, Decode)]
 #[serde(tag = "@type", content = "value")]
 pub enum Cursor {
     /// Cursor relative to the start of a text. Has a value of 0 or higher
     #[serde(rename = "BeginAlignedCursor")]
-    BeginAligned(usize),
+    #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
+    BeginAligned(#[n(0)] usize),
+
     /// Cursor relative to the end of a text. Has a value of 0 or lower. The last character of a text begins at EndAlignedCursor(-1) and ends at EndAlignedCursor(0)
     #[serde(rename = "EndAlignedCursor")]
-    EndAligned(isize),
+    #[n(1)]
+    EndAligned(#[n(0)] isize),
 }
 
 impl From<usize> for Cursor {
@@ -175,13 +179,19 @@ impl std::fmt::Display for Type {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Decode, Encode)]
 pub enum DataFormat {
+    #[n(0)]
     Json {
+        #[n(0)]
         compact: bool,
     },
 
+    #[n(1)]
+    CBOR,
+
     #[cfg(feature = "csv")]
+    #[n(2)]
     Csv,
 }
 
@@ -189,6 +199,8 @@ impl std::fmt::Display for DataFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Json { .. } => write!(f, "json"),
+
+            Self::CBOR { .. } => write!(f, "cbor"),
 
             #[cfg(feature = "csv")]
             Self::Csv => write!(f, "csv"),
@@ -202,6 +214,7 @@ impl TryFrom<&str> for DataFormat {
         match s {
             "json" | "Json" | "JSON" => Ok(Self::Json { compact: false }),
             "json-compact" | "Json-compact" | "JSON-compact" => Ok(Self::Json { compact: true }),
+            "cbor" => Ok(Self::CBOR),
 
             #[cfg(feature = "csv")]
             "csv" | "Csv" | "CSV" => Ok(Self::Csv),

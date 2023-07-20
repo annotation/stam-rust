@@ -1,3 +1,4 @@
+use minicbor::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -13,22 +14,28 @@ impl TypeInfo for DataValue {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Encode, Decode)]
 #[serde(tag = "@type", content = "value")]
 pub enum DataValue {
     /// No value
+    #[n(0)]
     Null,
 
-    String(String),
-    Bool(bool),
-    Int(isize),
-    Float(f64),
+    #[n(1)]
+    String(#[n(0)] String),
+    #[n(2)]
+    Bool(#[n(0)] bool),
+    #[n(3)]
+    Int(#[n(0)] isize),
+    #[n(4)]
+    Float(#[n(0)] f64),
     //Datetime(chrono::DateTime), //TODO
     /// Value is an unordered set
     //Set(HashSet<DataValue>),
 
     /// Value is an ordered list
-    List(Vec<DataValue>),
+    #[n(5)]
+    List(#[n(0)] Vec<DataValue>),
 }
 
 impl DataSize for DataValue {

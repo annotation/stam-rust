@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::borrow::Cow;
 use smallvec::SmallVec;
 use datasize::{DataSize,data_size};
+use minicbor::{Encode,Decode};
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
@@ -16,9 +17,12 @@ use crate::store::*;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
-#[derive(Debug, Clone, Deserialize, PartialEq, DataSize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, DataSize, Encode, Decode)]
 pub struct Offset {
+    #[n(0)]  //these macros are field index numbers for cbor binary (de)serialisation
     pub begin: Cursor,
+
+    #[n(1)] 
     pub end: Cursor,
 }
 
@@ -108,18 +112,41 @@ impl Serialize for Offset {
 /// In searching, you also don't need direct access to this structure as
 /// the various search methods on AnnotationStore will resolve the selectors
 /// transparently.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum Selector {
+    /// Refers to the [`TextResource`] (as owned by the AnnotationStore) an an offset in it
+    #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
+    TextSelector(
+        #[n(0)]
+        TextResourceHandle,
+        #[n(1)]
+        Offset
+    ),
+
+    /// Refers to an [`Annotation`] (as owned by the AnnotationStore) and optionally a *relative* text selection offset in it
+    #[n(1)] //these macros are field index numbers for cbor binary (de)serialisation
+    AnnotationSelector(
+        #[n(0)]
+        AnnotationHandle, 
+        #[n(1)]
+        Option<Offset>
+    ),
+
     /// Refers to a [`TextResource`] as a whole (as opposed to a text fragment inside it), as owned by an AnnotationStore.
     /// Annotations using this selector can be considered metadata of a text
-    ResourceSelector(TextResourceHandle),
-    /// Refers to an [`Annotation`] (as owned by the AnnotationStore) and optionally a *relative* text selection offset in it
-    AnnotationSelector(AnnotationHandle, Option<Offset>),
-    /// Refers to the [`TextResource`] (as owned by the AnnotationStore) an an offset in it
-    TextSelector(TextResourceHandle, Offset),
+    #[n(2)]
+    ResourceSelector(
+        #[n(0)]
+        TextResourceHandle
+    ),
+
     /// Refers to an [`crate::AnnotationDataSet`] as owned by an [`AnnotationStore']
     /// Annotations using this selector can be considered metadata.
-    DataSetSelector(AnnotationDataSetHandle),
+    #[n(3)]
+    DataSetSelector(
+        #[n(0)]
+        AnnotationDataSetHandle
+    ),
 
     /// A selector that combines selectors, where the annotation applies to each target
     /// individually.  without any relation between the different targets. Leaving one out or
@@ -129,7 +156,11 @@ pub enum Selector {
     /// simply use multiple [`Annotation'] instances instead. In STAM, even with multiple annotations, you
     /// benefit from the fact that multiple annotations may share the same [`AnnotationData`], and can
     /// therefore easily retrieve all annotations that share particular data.
-    MultiSelector(Vec<Selector>),
+    #[n(4)]
+    MultiSelector(
+        #[n(0)]
+        Vec<Selector>
+    ),
 
     /// A selector that consists of multiple other selectors, used to select more complex targets
     /// that transcend the idea of a single simple selection. This MUST be interpreted as the
@@ -140,47 +171,75 @@ pub enum Selector {
     /// no dependency relation between the selectors, you MUST simply use multiple [`Annotation`] instances or a
     /// [`Self::MultiSelector`] instead. When grouping things into a set, do use this [`Self::CompositeSelector'], as the
     /// set as a whole is considered a composite entity.
-    CompositeSelector(Vec<Selector>),
+    #[n(5)]
+    CompositeSelector(
+        #[n(0)]
+        Vec<Selector>
+    ),
 
     /// Combines selectors and expresseds a direction between two or more selectors in the exact order specified (from -> to)
-    DirectionalSelector(Vec<Selector>),
+    #[n(6)]
+    DirectionalSelector(
+        #[n(0)]
+        Vec<Selector>
+    ),
 
     /// Internal selector pointing directly to a TextSelection, exposed as TextSelector to the outside world
+    #[n(50)]
     InternalTextSelector {
+        #[n(0)]
         resource: TextResourceHandle,
+        #[n(1)]
         textselection: TextSelectionHandle,
     },
     /// Internal selector pointing directly to a TextSelection and an Annotation, exposed as AnnotationSelector to the outside world
     /// This can only be used for annotations that select the entire text of the underlying annotation (no subslices)
+    #[n(51)]
     InternalAnnotationTextSelector {
+        #[n(0)]
         annotation: AnnotationHandle,
+        #[n(1)]
         resource: TextResourceHandle,
+        #[n(2)]
         textselection: TextSelectionHandle,
     },
 
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
     /// Conserved memory by pointing to a internal ID range
+    #[n(52)]
     InternalRangedTextSelector {
+        #[n(0)]
         resource: TextResourceHandle,
+        #[n(1)]
         begin: TextSelectionHandle,
+        #[n(2)]
         end: TextSelectionHandle,
     },
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
     /// Conserved memory by pointing to a internal ID range
+    #[n(53)]
     InternalRangedAnnotationSelector {
+        #[n(0)]
         begin: AnnotationHandle,
+        #[n(1)]
         end: AnnotationHandle,
     },
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
     /// Conserved memory by pointing to a internal ID range
+    #[n(54)]
     InternalRangedResourceSelector {
+        #[n(0)]
         begin: TextResourceHandle,
+        #[n(1)]
         end: TextResourceHandle,
     },
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
     /// Conserved memory by pointing to a internal ID range
+    #[n(55)]
     InternalRangedDataSetSelector {
+        #[n(0)]
         begin: AnnotationDataSetHandle,
+        #[n(1)]
         end: AnnotationDataSetHandle,
     },
 }

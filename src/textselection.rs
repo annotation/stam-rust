@@ -8,10 +8,12 @@ use std::hash::{Hash, Hasher};
 use std::slice::Iter;
 
 use datasize::DataSize;
+use minicbor::{Decode, Encode};
 use smallvec::SmallVec;
 
 use crate::annotation::{Annotation, TargetIter, TargetIterItem};
 use crate::annotationstore::AnnotationStore;
+use crate::cbor::*;
 use crate::config::Configurable;
 use crate::error::StamError;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
@@ -20,7 +22,7 @@ use crate::store::*;
 use crate::text::*;
 use crate::types::*;
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, DataSize)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, DataSize, Encode, Decode)]
 /// Corresponds to a slice of the text. This only contains minimal
 /// information; i.e. the begin offset and end offset.
 ////
@@ -33,13 +35,17 @@ use crate::types::*;
 /// On the lowest-level, this struct is obtain by a call to [`crate::annotationstore::AnnotationStore::textselection()`], which
 /// resolves a [`crate::Selector::TextSelector`]  to a [`TextSelection`]. Such calls are often abstracted away by higher level methods such as [`crate::annotationstore::AnnotationStore::textselections_by_annotation()`].
 pub struct TextSelection {
+    #[n(0)] //for cbor (de)serialisation
     pub(crate) intid: Option<TextSelectionHandle>,
+    #[n(1)]
     pub(crate) begin: usize,
+    #[n(2)]
     pub(crate) end: usize,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, DataSize)]
-pub struct TextSelectionHandle(u32);
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, DataSize, Encode, Decode)]
+#[cbor(transparent)]
+pub struct TextSelectionHandle(#[n(0)] pub(crate) u32); //if this u32 ever changes, make sure to also adapt the CborLen implementation in cbor.rs otherwise things will go horribly wrong
 
 // I tried making this generic but failed, so let's spell it out for the handle
 impl<'a> ToHandle<TextSelection> for TextSelectionHandle {
@@ -765,8 +771,9 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
     }
 }
 
-#[derive(Debug, Clone, DataSize)]
-pub(crate) struct PositionIndex(pub(crate) BTreeMap<usize, PositionIndexItem>);
+#[derive(Debug, Clone, DataSize, Decode, Encode)]
+#[cbor(transparent)]
+pub(crate) struct PositionIndex(#[n(0)] pub(crate) BTreeMap<usize, PositionIndexItem>);
 
 impl Default for PositionIndex {
     fn default() -> Self {
@@ -784,13 +791,28 @@ impl PositionIndex {
     }
 }
 
-#[derive(Debug, Clone, DataSize)]
+#[derive(Debug, Clone, DataSize, Decode, Encode)]
 pub struct PositionIndexItem {
     /// Position in bytes (UTF-8 encoded)
+    #[n(0)]
     pub(crate) bytepos: usize,
+
     /// Lists all text selections that start here
+    #[cbor(
+        n(1),
+        decode_with = "cbor_decode_positionitem_smallvec",
+        encode_with = "cbor_encode_positionitem_smallvec",
+        cbor_len = "cbor_len_positionitem_smallvec"
+    )]
     pub(crate) end2begin: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
+
     /// Lists all text selections that end here (non-inclusive)
+    #[cbor(
+        n(2),
+        decode_with = "cbor_decode_positionitem_smallvec",
+        encode_with = "cbor_encode_positionitem_smallvec",
+        cbor_len = "cbor_len_positionitem_smallvec"
+    )]
     pub(crate) begin2end: SmallVec<[(usize, TextSelectionHandle); 1]>, //heap allocation only needed when there are more than one
 }
 

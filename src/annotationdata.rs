@@ -1,5 +1,6 @@
 //use Chrono::DateTime;
 use datasize::DataSize;
+use minicbor::{Decode, Encode};
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -24,23 +25,29 @@ use crate::types::*;
 ///
 /// Once instantiated, instances of this type are, by design, largely immutable.
 /// The key and value can not be changed. Create a new AnnotationData and new Annotation for edits.
-#[derive(Debug, Clone, DataSize)]
+#[derive(Debug, Clone, DataSize, Encode, Decode)]
 pub struct AnnotationData {
+    ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership
+    #[n(0)]
+    intid: Option<AnnotationDataHandle>,
+
     /// Public identifier
+    #[n(1)]
     id: Option<String>,
 
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
+    #[n(2)]
     pub(crate) key: DataKeyHandle,
 
     //Actual annotation value
+    #[n(3)]
     value: DataValue,
-
-    ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership
-    intid: Option<AnnotationDataHandle>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
-pub struct AnnotationDataHandle(u32);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
+#[cbor(transparent)]
+pub struct AnnotationDataHandle(#[n(0)] u32);
+
 #[sealed]
 impl Handle for AnnotationDataHandle {
     fn new(intid: usize) -> Self {

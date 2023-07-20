@@ -1,4 +1,5 @@
 use datasize::DataSize;
+use minicbor::{Decode, Encode};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
@@ -16,16 +17,18 @@ use crate::types::*;
 /// The DataKey class defines a vocabulary field, it
 /// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
 /// in turn makes reference to a DataKey and assigns it a value.
-#[derive(Deserialize, Debug, Clone, DataSize)]
+#[derive(Deserialize, Debug, Clone, DataSize, Encode, Decode)]
 pub struct DataKey {
-    /// The Id is the name that identifies this key, it must be unique in the dataset to which it pertains
-    #[serde(rename = "@id")]
-    id: String,
-
     //indexed: bool,  //TODO: handle later
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::keys that has the ownership. May be unbound (None) only during creation.
     #[serde(skip)]
+    #[n(0)] //these macros are for cbor binary (de)serialisation
     intid: Option<DataKeyHandle>,
+
+    /// The Id is the name that identifies this key, it must be unique in the dataset to which it pertains
+    #[serde(rename = "@id")]
+    #[n(1)]
+    id: String,
 }
 
 impl Serialize for DataKey {
@@ -40,8 +43,9 @@ impl Serialize for DataKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
-pub struct DataKeyHandle(u16);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
+#[cbor(transparent)]
+pub struct DataKeyHandle(#[n(0)] u16);
 
 #[sealed]
 impl Handle for DataKeyHandle {

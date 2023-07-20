@@ -1,4 +1,5 @@
 use datasize::data_size;
+use minicbor::{Decode, Encode};
 use sealed::sealed;
 use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
@@ -29,26 +30,35 @@ use crate::types::*;
 /// An Annotation Store is an unordered collection of annotations, resources and
 /// annotation data sets. It can be seen as the *root* of the *graph model* and the glue
 /// that holds everything together. It is the entry point for any stam model.
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct AnnotationStore {
+    #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
     pub(crate) id: Option<String>,
 
-    /// Configuration with interior mutability
+    /// Configuration with some minor interior mutability
+    #[n(1)]
     pub(crate) config: Config,
 
+    #[n(2)]
     pub(crate) annotations: Store<Annotation>,
+    #[n(3)]
     pub(crate) annotationsets: Store<AnnotationDataSet>,
+    #[n(4)]
     pub(crate) resources: Store<TextResource>,
 
     /// Links to annotations by ID.
+    #[n(50)]
     pub(crate) annotation_idmap: IdMap<AnnotationHandle>,
     /// Links to resources by ID.
+    #[n(51)]
     pub(crate) resource_idmap: IdMap<TextResourceHandle>,
     /// Links to datasets by ID.
+    #[n(52)]
     pub(crate) dataset_idmap: IdMap<AnnotationDataSetHandle>,
 
     //reverse indices:
     /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores IntIds.
+    #[n(100)]
     pub(crate) dataset_data_annotation_map:
         TripleRelationMap<AnnotationDataSetHandle, AnnotationDataHandle, AnnotationHandle>,
 
@@ -56,23 +66,29 @@ pub struct AnnotationStore {
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
     //
     /// This is the reverse index for text, it maps TextResource => TextSelection => Annotation
+    #[n(101)]
     pub(crate) textrelationmap:
         TripleRelationMap<TextResourceHandle, TextSelectionHandle, AnnotationHandle>,
 
     /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
+    #[n(102)]
     pub(crate) resource_annotation_map: RelationMap<TextResourceHandle, AnnotationHandle>,
 
     /// Reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
+    #[n(103)]
     pub(crate) dataset_annotation_map: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
 
     /// Reverse index for annotations that reference other annotations
+    #[n(104)]
     pub(crate) annotation_annotation_map: RelationBTreeMap<AnnotationHandle, AnnotationHandle>,
 
     /// path associated with this store
+    #[n(200)]
     pub(crate) filename: Option<PathBuf>,
 
     #[cfg(feature = "csv")]
     /// path associated with the stand-off files holding annotations (only used for STAM CSV)
+    #[n(201)]
     pub(crate) annotations_filename: Option<PathBuf>,
 }
 
@@ -582,6 +598,11 @@ impl AnnotationStore {
             }
         }
 
+        if filename.ends_with("cbor") || config.dataformat == DataFormat::CBOR {
+            config.dataformat = DataFormat::CBOR;
+            return AnnotationStore::from_cbor_file(filename, config);
+        }
+
         #[cfg(feature = "csv")]
         if filename.ends_with("csv") || config.dataformat == DataFormat::Csv {
             config.dataformat = DataFormat::Csv;
@@ -659,83 +680,89 @@ impl AnnotationStore {
     /// They will be derived from the existing filenames, if any.
     /// End user should just use [`AnnotationStore.set_filename`] with a recognized extension (json, csv)
     pub(crate) fn set_dataformat(&mut self, dataformat: DataFormat) -> Result<(), StamError> {
-        //first the children
-        for resource in self.resources.iter_mut() {
-            if let Some(resource) = resource.as_mut() {
-                if resource.config().dataformat != dataformat {
-                    let mut basename = if let Some(basename) = resource.filename_without_extension()
-                    {
-                        basename.to_owned()
-                    } else if let Some(id) = resource.id() {
-                        sanitize_id_to_filename(id)
-                    } else {
-                        return Err(StamError::SerializationError(format!(
+        if dataformat != DataFormat::CBOR {
+            //process the children
+
+            for resource in self.resources.iter_mut() {
+                if let Some(resource) = resource.as_mut() {
+                    if resource.config().dataformat != dataformat {
+                        let mut basename = if let Some(basename) =
+                            resource.filename_without_extension()
+                        {
+                            basename.to_owned()
+                        } else if let Some(id) = resource.id() {
+                            sanitize_id_to_filename(id)
+                        } else {
+                            return Err(StamError::SerializationError(format!(
                             "Unable to infer a filename for resource {:?}. Has neither filename nor ID.",
                             resource
                         )));
-                    };
+                        };
 
-                    if basename.find("/").is_none() {
-                        if let Some(workdir) = resource.config().workdir() {
-                            if workdir.ends_with("/") {
-                                basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                    + &basename;
-                            } else {
-                                basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                    + "/"
-                                    + &basename;
+                        if basename.find("/").is_none() {
+                            if let Some(workdir) = resource.config().workdir() {
+                                if workdir.ends_with("/") {
+                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                        + &basename;
+                                } else {
+                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                        + "/"
+                                        + &basename;
+                                }
                             }
                         }
-                    }
 
-                    //always prefer external plain text for CSV
-                    #[cfg(feature = "csv")]
-                    if dataformat == DataFormat::Csv {
-                        resource.set_filename(format!("{}.txt", basename).as_str());
-                        resource.mark_changed()
+                        //always prefer external plain text for CSV
+                        #[cfg(feature = "csv")]
+                        if dataformat == DataFormat::Csv {
+                            resource.set_filename(format!("{}.txt", basename).as_str());
+                            resource.mark_changed()
+                        }
                     }
                 }
             }
-        }
-        for annotationset in self.annotationsets.iter_mut() {
-            if let Some(annotationset) = annotationset.as_mut() {
-                if annotationset.config().dataformat != dataformat {
-                    let mut basename = if let Some(basename) =
-                        annotationset.filename_without_extension()
-                    {
-                        basename.to_owned()
-                    } else if let Some(id) = annotationset.id() {
-                        sanitize_id_to_filename(id)
-                    } else {
-                        return Err(StamError::SerializationError(format!(
+            for annotationset in self.annotationsets.iter_mut() {
+                if let Some(annotationset) = annotationset.as_mut() {
+                    if annotationset.config().dataformat != dataformat {
+                        let mut basename = if let Some(basename) =
+                            annotationset.filename_without_extension()
+                        {
+                            basename.to_owned()
+                        } else if let Some(id) = annotationset.id() {
+                            sanitize_id_to_filename(id)
+                        } else {
+                            return Err(StamError::SerializationError(format!(
                         "Unable to infer a filename for annotationset. Has neither filename nor ID.",
                     )));
-                    };
+                        };
 
-                    if basename.find("/").is_none() {
-                        if let Some(workdir) = annotationset.config().workdir() {
-                            if workdir.ends_with("/") {
-                                basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                    + &basename;
-                            } else {
-                                basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                    + "/"
-                                    + &basename;
+                        if basename.find("/").is_none() {
+                            if let Some(workdir) = annotationset.config().workdir() {
+                                if workdir.ends_with("/") {
+                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                        + &basename;
+                                } else {
+                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
+                                        + "/"
+                                        + &basename;
+                                }
                             }
                         }
-                    }
 
-                    if let DataFormat::Json { .. } = dataformat {
-                        annotationset
-                            .set_filename(format!("{}.annotationset.stam.json", basename).as_str());
-                        annotationset.mark_changed()
-                    }
+                        if let DataFormat::Json { .. } = dataformat {
+                            annotationset.set_filename(
+                                format!("{}.annotationset.stam.json", basename).as_str(),
+                            );
+                            annotationset.mark_changed()
+                        }
 
-                    #[cfg(feature = "csv")]
-                    if dataformat == DataFormat::Csv {
-                        annotationset
-                            .set_filename(format!("{}.annotationset.stam.csv", basename).as_str());
-                        annotationset.mark_changed()
+                        #[cfg(feature = "csv")]
+                        if dataformat == DataFormat::Csv {
+                            annotationset.set_filename(
+                                format!("{}.annotationset.stam.csv", basename).as_str(),
+                            );
+                            annotationset.mark_changed()
+                        }
                     }
                 }
             }
@@ -754,6 +781,9 @@ impl AnnotationStore {
         if let DataFormat::Json { .. } = dataformat {
             // we don't use set_filename because that might recurse back to us
             self.filename = Some(format!("{}.store.stam.json", basename).into());
+        } else if let DataFormat::CBOR = dataformat {
+            // we don't use set_filename because that might recurse back to us
+            self.filename = Some(format!("{}.store.stam.cbor", basename).into());
         }
 
         #[cfg(feature = "csv")]
@@ -763,6 +793,7 @@ impl AnnotationStore {
         }
 
         self.update_config(|config| config.dataformat = dataformat);
+
         Ok(())
     }
 
@@ -778,6 +809,9 @@ impl AnnotationStore {
                 DataFormat::Json { .. } => {
                     self.to_json_file(self.filename().unwrap(), self.config()) //may produce 1 or multiple files
                 }
+                DataFormat::CBOR { .. } => {
+                    self.to_cbor_file(self.filename().unwrap()) //always one file
+                }
                 #[cfg(feature = "csv")]
                 DataFormat::Csv => self.to_csv_files(self.filename().unwrap()), //always produces multiple files
             }
@@ -786,6 +820,29 @@ impl AnnotationStore {
                 "No filename associated with the store".to_owned(),
             ))
         }
+    }
+
+    fn to_cbor_file(&self, filename: &str) -> Result<(), StamError> {
+        debug(self.config(), || {
+            format!("{}.to_cbor_file: filename={:?}", Self::typeinfo(), filename)
+        });
+        let writer = open_file_writer(filename, self.config())?;
+        let writer = minicbor::encode::write::Writer::new(writer);
+        minicbor::encode(self, writer)
+            .map_err(|e| StamError::SerializationError(format!("{}", e)))?;
+        Ok(())
+    }
+
+    fn from_cbor_file(filename: &str, config: Config) -> Result<Self, StamError> {
+        debug(&config, || {
+            format!("AnnotationStore::from_json_file: filename={:?}", filename)
+        });
+        let mut reader = open_file_reader(filename, &config)?;
+        let mut buffer: Vec<u8> = Vec::new(); //will hold the entire CBOR file!!!
+        reader
+            .read_to_end(&mut buffer)
+            .map_err(|e| StamError::DeserializationError(format!("{}", e)))?;
+        minicbor::decode(&buffer).map_err(|e| StamError::DeserializationError(format!("{}", e)))
     }
 
     /// Propagate the entire configuration to all children, will overwrite customized configurations
@@ -1451,28 +1508,34 @@ impl AssociatedFile for AnnotationStore {
             }
         }
 
-        //check if the dataformat changed, and update all other files accordingly then (via set_dataformat())
-        #[cfg(feature = "csv")]
-        match self.config.dataformat {
-            //OLD dataformat
-            DataFormat::Csv => {
-                if self.filename().unwrap().ends_with(".json") {
-                    debug(&self.config, || {
-                        format!("AnnotationStore.set_filename: Changing dataformat to JSON")
-                    });
-                    self.set_dataformat(DataFormat::Json { compact: false })
-                        .unwrap_or_default(); //ignores errors!
-                }
-            }
-            DataFormat::Json { .. } => {
-                if self.filename().unwrap().ends_with(".csv") {
-                    debug(&self.config, || {
-                        format!("AnnotationStore.set_filename: Changing dataformat to CSV")
-                    });
-                    self.set_dataformat(DataFormat::Csv).unwrap_or_default(); //ignores errors!
-                }
+        if self.filename().unwrap().ends_with(".json") {
+            if let DataFormat::Json { .. } = self.config.dataformat {
+                //nothing to do
+            } else {
+                debug(&self.config, || {
+                    format!("AnnotationStore.set_filename: Changing dataformat to JSON")
+                });
+                self.set_dataformat(DataFormat::Json { compact: false })
+                    .unwrap_or_default(); //ignores errors!
             }
         }
+
+        #[cfg(feature = "csv")]
+        if self.filename().unwrap().ends_with(".csv") && self.config.dataformat != DataFormat::Csv {
+            debug(&self.config, || {
+                format!("AnnotationStore.set_filename: Changing dataformat to CSV")
+            });
+            self.set_dataformat(DataFormat::Csv).unwrap_or_default(); //ignores errors!
+        }
+
+        if self.filename().unwrap().ends_with(".cbor") && self.config.dataformat != DataFormat::CBOR
+        {
+            debug(&self.config, || {
+                format!("AnnotationStore.set_filename: Changing dataformat to CBOR")
+            });
+            self.set_dataformat(DataFormat::CBOR).unwrap_or_default(); //ignores errors!
+        }
+
         self
     }
 
