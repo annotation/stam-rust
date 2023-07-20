@@ -842,7 +842,15 @@ impl AnnotationStore {
         reader
             .read_to_end(&mut buffer)
             .map_err(|e| StamError::DeserializationError(format!("{}", e)))?;
-        minicbor::decode(&buffer).map_err(|e| StamError::DeserializationError(format!("{}", e)))
+        let mut store: AnnotationStore = minicbor::decode(&buffer)
+            .map_err(|e| StamError::DeserializationError(format!("{}", e)))?;
+        // the supplied configuration is largely discarded in favour of the loaded one from file, but we do copy some settings:
+        store.config.debug = config.debug;
+        store.config.shrink_to_fit = config.shrink_to_fit;
+        if config.shrink_to_fit() {
+            store.shrink_to_fit(true);
+        }
+        Ok(store)
     }
 
     /// Propagate the entire configuration to all children, will overwrite customized configurations
