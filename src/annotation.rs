@@ -7,6 +7,7 @@ use datasize::DataSize;
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use crate::annotationdata::{
     AnnotationData, AnnotationDataBuilder, AnnotationDataHandle, AnnotationDataRefWithSet,
@@ -28,6 +29,8 @@ use crate::text::Text;
 use crate::textselection::ResultTextSelection;
 use crate::types::*;
 
+type DataVec = Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>; // I also tried SmallVec, makes no noticable difference in memory size or performance
+
 /// `Annotation` represents a particular *instance of annotation* and is the central
 /// concept of the model. They can be considered the primary nodes of the graph model. The
 /// instance of annotation is strictly decoupled from the *data* or key/value of the
@@ -38,18 +41,18 @@ use crate::types::*;
 /// space, and searching and indexing is facilitated.  
 #[derive(Clone, Debug, DataSize)]
 pub struct Annotation {
+    ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership,
+    /// encapsulated by a handle type
+    intid: Option<AnnotationHandle>,
+
     /// Public identifier for this annotation
     id: Option<String>,
 
     /// Reference to the annotation data (may be multiple) that describe(s) this annotation, the first ID refers to an AnnotationDataSet as owned by the AnnotationStore, the second to an AnnotationData instance as owned by that set
-    data: Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>,
+    data: DataVec,
 
     /// Determines selection target
-    target: Selector,
-
-    ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership,
-    /// encapsulated by a handle type
-    intid: Option<AnnotationHandle>,
+    target: Selector, //note: Boxing this didn't reduce overall memory footprint, even though Annotation became smaller, probably due to allocator overhead
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize)]
@@ -452,7 +455,7 @@ impl AnnotationStore {
         };
 
         // Convert AnnotationDataBuilder into AnnotationData that is ready to be stored
-        let mut data = Vec::with_capacity(builder.data.len());
+        let mut data = DataVec::with_capacity(builder.data.len());
         for dataitem in builder.data {
             let (datasethandle, datahandle) = self.insert_data(dataitem)?;
             data.push((datasethandle, datahandle));
@@ -482,11 +485,7 @@ impl AnnotationStore {
 
 impl<'a> Annotation {
     /// Create a new unbounded Annotation instance, you will likely want to use BuildAnnotation::new() instead and pass it to AnnotationStore.build()
-    pub fn new(
-        id: Option<String>,
-        target: Selector,
-        data: Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>,
-    ) -> Self {
+    pub fn new(id: Option<String>, target: Selector, data: DataVec) -> Self {
         Annotation {
             id,
             data,
