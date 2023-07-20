@@ -174,7 +174,7 @@ impl<'a> Serialize for WrappedStore<'a, AnnotationData, AnnotationDataSet> {
 impl AnnotationData {
     /// Creates a new unbounded AnnotationData instance, you will likely never want to instantiate this directly, but via
     //// [`AnnotationDataSet::with_data()`] or indirectly [`AnnotationBuilder::with_data()`].
-    pub fn new(id: Option<String>, key: DataKeyHandle, value: DataValue) -> Self {
+    pub(crate) fn new(id: Option<String>, key: DataKeyHandle, value: DataValue) -> Self {
         AnnotationData {
             id,
             key,

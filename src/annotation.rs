@@ -485,7 +485,7 @@ impl AnnotationStore {
 
 impl<'a> Annotation {
     /// Create a new unbounded Annotation instance, you will likely want to use BuildAnnotation::new() instead and pass it to AnnotationStore.build()
-    pub fn new(id: Option<String>, target: Selector, data: DataVec) -> Self {
+    fn new(id: Option<String>, target: Selector, data: DataVec) -> Self {
         Annotation {
             id,
             data,
@@ -505,7 +505,7 @@ impl<'a> Annotation {
         self.data.iter()
     }
 
-    /// Returns data at specified index
+    /// Low-level method that returns raw data (handles) at specified index
     pub fn data_by_index(
         &self,
         index: usize,
