@@ -52,24 +52,19 @@ impl<HandleType> IdMap<HandleType>
 where
     HandleType: Handle,
 {
-    pub fn new(autoprefix: String) -> Self {
+    pub(crate) fn new(autoprefix: String) -> Self {
         Self {
             autoprefix,
             ..Self::default()
         }
     }
 
-    /// Sets a prefix that automatically generated IDs will get when added to this map
-    pub fn set_autoprefix(&mut self, autoprefix: String) {
-        self.autoprefix = autoprefix;
-    }
-
-    pub fn with_resolve_temp_ids(mut self, value: bool) -> Self {
+    pub(crate) fn with_resolve_temp_ids(mut self, value: bool) -> Self {
         self.set_resolve_temp_ids(value);
         self
     }
 
-    pub fn set_resolve_temp_ids(&mut self, value: bool) {
+    pub(crate) fn set_resolve_temp_ids(&mut self, value: bool) {
         self.resolve_temp_ids = value;
     }
 
@@ -94,7 +89,7 @@ where
 
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
 #[derive(Debug, Clone, DataSize, Decode, Encode)]
-pub struct RelationMap<A, B> {
+pub(crate) struct RelationMap<A, B> {
     /// The actual map
     #[n(0)]
     pub(crate) data: Vec<Vec<B>>,
@@ -154,24 +149,9 @@ where
         total
     }
 
-    /// Returns count info on the map, returns a 3-tuple:
-    ///     * the length of the map (len())
-    ///     * the total count of all items  (totalcount())
-    pub fn countinfo(&self) -> (usize, usize) {
-        let mut total = 0;
-        for v in self.data.iter() {
-            total += v.len();
-        }
-        (self.len(), total)
-    }
-
     /// Like countinfo(), but returns an extra value at the end of the tuple with the lower-bound estimated memory consumption in bytes.
     pub fn meminfo(&self) -> usize {
         data_size(self)
-    }
-
-    pub fn count(&self, x: A) -> usize {
-        self.data.get(x.as_usize()).map(|v| v.len()).unwrap_or(0)
     }
 
     pub fn len(&self) -> usize {
@@ -218,7 +198,7 @@ where
 
 /// This models relations or 'edges' in graph terminology, between handles. It acts as a reverse index is used for various purposes.
 #[derive(Debug, Clone, DataSize, Decode, Encode)]
-pub struct RelationBTreeMap<A, B>
+pub(crate) struct RelationBTreeMap<A, B>
 where
     A: Handle,
     B: Handle,
@@ -279,24 +259,9 @@ where
         total
     }
 
-    /// Returns count info on the map, returns a 3-tuple:
-    ///     * the length of the map (len())
-    ///     * the total count of all items  (totalcount())
-    pub fn countinfo(&self) -> (usize, usize) {
-        let mut total = 0;
-        for v in self.data.values() {
-            total += v.len();
-        }
-        (self.len(), total)
-    }
-
     /// Like countinfo(), but returns an extra value at the end of the tuple with the lower-bound estimated memory consumption in bytes.
     pub fn meminfo(&self) -> usize {
         data_size(self)
-    }
-
-    pub fn count(&self, x: A) -> usize {
-        self.data.get(&x).map(|v| v.len()).unwrap_or(0)
     }
 
     pub fn len(&self) -> usize {
@@ -341,7 +306,7 @@ where
 }
 
 #[derive(Debug, Clone, DataSize, Decode, Encode)]
-pub struct TripleRelationMap<A, B, C> {
+pub(crate) struct TripleRelationMap<A, B, C> {
     /// The actual map
     #[n(0)]
     pub(crate) data: Vec<RelationMap<B, C>>,
@@ -401,31 +366,9 @@ where
         total
     }
 
-    /// Returns count info on the map, returns a 3-tuple:
-    ///     * the length of the map (len())
-    ///     * the aggregate length of the inner map (partialcount())
-    ///     * the total count of all items  (totalcount())
-    pub fn countinfo(&self) -> (usize, usize, usize) {
-        let mut total = 0;
-        let mut inner = 0;
-        for v in self.data.iter() {
-            inner += v.len();
-            total += v.totalcount();
-        }
-        (self.len(), inner, total)
-    }
-
     /// Like countinfo(), but returns an extra value at the end of the tuple with the lower-estimate  memory consumption in bytes.
     pub fn meminfo(&self) -> usize {
         data_size(self)
-    }
-
-    pub fn count(&self, x: A, y: B) -> usize {
-        if let Some(v) = self.data.get(x.as_usize()) {
-            v.get(y).map(|v| v.len()).unwrap_or(0)
-        } else {
-            0
-        }
     }
 
     pub fn len(&self) -> usize {
@@ -921,7 +864,7 @@ where
 //  generic iterator implementations, these take care of skipping over deleted items (None)
 
 /// This is the iterator to iterate over a Store,  it is created by the iter() method from the [`StoreFor<T>`] trait
-/// It produces a references to the item wrapped in a fat pointer ([`WrappedItem<T>`]) that also contains reference to the store
+/// It produces a references to the item wrapped in a fat pointer ([`ResultItem<T>`]) that also contains reference to the store
 /// and which is immediately implements various methods for working with the type.
 pub struct StoreIter<'store, T>
 where
@@ -1204,7 +1147,7 @@ where
 // (ideally it needn't be public)
 
 /// Helper structure that contains a store and a reference to self. Mostly for internal use.
-pub struct WrappedStore<'a, T, S: StoreFor<T>>
+pub(crate) struct WrappedStore<'a, T, S: StoreFor<T>>
 where
     T: Storable,
     S: Sized,
