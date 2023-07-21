@@ -720,7 +720,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Returns true if the store has the item
-    fn has<'a>(&'a self, item: impl Request<T>) -> bool {
+    fn has(&self, item: impl Request<T>) -> bool {
         if let Some(handle) = item.to_handle(self) {
             self.store().get(handle.as_usize()).is_some()
         } else {
@@ -739,7 +739,7 @@ pub trait StoreFor<T: Storable>: Configurable {
 
     /// Get a reference to an item from the store
     /// This is a low-level API method, you usually want to use dedicated high-level methods like `annotation()`, `resource()` instead.
-    fn get<'a>(&'a self, item: impl Request<T>) -> Result<&'a T, StamError> {
+    fn get(&self, item: impl Request<T>) -> Result<&T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store().get(handle.as_usize()) {
                 return Ok(item);
@@ -821,7 +821,7 @@ pub trait StoreFor<T: Storable>: Configurable {
 
     /// Iterate over all items in the store
     /// This is a low-level API method, use dedicated high-level iterators like `annotations()`, `resources()` instead.  
-    fn iter<'a>(&'a self) -> StoreIter<'a, T>
+    fn iter(&self) -> StoreIter<T>
     where
         T: Storable<StoreType = Self>,
     {
@@ -835,7 +835,7 @@ pub trait StoreFor<T: Storable>: Configurable {
 
     /// Iterate over the store, mutably
     /// This is a low-level API method.
-    fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a, T> {
+    fn iter_mut(&mut self) -> StoreIterMut<T> {
         let len = self.store().len();
         StoreIterMut {
             iter: self.store_mut().iter_mut(),
@@ -860,7 +860,7 @@ pub trait StoreFor<T: Storable>: Configurable {
 pub(crate) trait WrappableStore<T: Storable>: StoreFor<T> {
     /// Wraps the entire store along with a reference to self
     /// Low-level method that you won't need
-    fn wrap_store<'a>(&'a self) -> WrappedStore<T, Self>
+    fn wrap_store(&self) -> WrappedStore<T, Self>
     where
         Self: Sized,
     {
