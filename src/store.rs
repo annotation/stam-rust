@@ -855,10 +855,11 @@ pub trait StoreFor<T: Storable>: Configurable {
     fn last_handle(&self) -> T::HandleType {
         T::HandleType::new(self.store().len() - 1)
     }
+}
 
+pub(crate) trait WrappableStore<T: Storable>: StoreFor<T> {
     /// Wraps the entire store along with a reference to self
     /// Low-level method that you won't need
-    // TODO: shouldn't be public
     fn wrap_store<'a>(&'a self) -> WrappedStore<T, Self>
     where
         Self: Sized,

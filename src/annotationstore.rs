@@ -419,7 +419,7 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     }
 }
 
-//impl<'a> Add<NewAnnotation<'a>,Annotation> for AnnotationStore
+impl WrappableStore<Annotation> for AnnotationStore {}
 
 impl Serialize for AnnotationStore {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

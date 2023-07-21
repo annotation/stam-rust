@@ -263,6 +263,8 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
 
 impl ToJson for AnnotationDataSet {}
 
+impl WrappableStore<AnnotationData> for AnnotationDataSet {}
+
 impl Serialize for AnnotationDataSet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
