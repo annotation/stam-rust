@@ -1152,7 +1152,9 @@ impl StoreFor<TextSelection> for TextResource {
     fn store_typeinfo() -> &'static str {
         "TextSelection in TextResource"
     }
+}
 
+impl private::StoreCallbacks<TextSelection> for TextResource {
     fn inserted(&mut self, handle: TextSelectionHandle) -> Result<(), StamError> {
         //called after a TextSelection gets inserted into this Store
         //update the PositionIndex

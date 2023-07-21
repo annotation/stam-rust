@@ -121,7 +121,9 @@ impl StoreFor<TextResource> for AnnotationStore {
     fn store_typeinfo() -> &'static str {
         "TextResource in AnnotationStore"
     }
+}
 
+impl private::StoreCallbacks<TextResource> for AnnotationStore {
     /// Called prior to inserting an item into to the store
     /// If it returns an error, the insert will be cancelled.
     /// Allows for bookkeeping such as inheriting configuration
@@ -165,7 +167,9 @@ impl StoreFor<Annotation> for AnnotationStore {
     fn store_typeinfo() -> &'static str {
         "Annotation in AnnotationStore"
     }
+}
 
+impl private::StoreCallbacks<Annotation> for AnnotationStore {
     fn inserted(&mut self, handle: AnnotationHandle) -> Result<(), StamError> {
         // called after the item is inserted in the store
         // updates the relation map, this is where most of the reverse indexing happens
@@ -395,7 +399,9 @@ impl StoreFor<AnnotationDataSet> for AnnotationStore {
     fn store_typeinfo() -> &'static str {
         "AnnotationDataSet in AnnotationStore"
     }
+}
 
+impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
     /// Called prior to inserting an item into to the store
     /// If it returns an error, the insert will be cancelled.
     /// Allows for bookkeeping such as inheriting configuration

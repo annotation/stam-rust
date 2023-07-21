@@ -42,7 +42,7 @@ pub use resources::{
 pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };
-pub use store::*;
+pub use store::{BuildItem, Request, ResultItem, Storable, Store, StoreFor};
 pub use text::{FindRegexIter, FindRegexMatch, Text};
 pub use textselection::{
     ResultTextSelection, TestTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,

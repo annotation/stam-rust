@@ -165,7 +165,9 @@ impl StoreFor<DataKey> for AnnotationDataSet {
     fn store_typeinfo() -> &'static str {
         "DataKey in AnnotationDataSet"
     }
+}
 
+impl private::StoreCallbacks<DataKey> for AnnotationDataSet {
     #[allow(unused_variables)]
     fn inserted(&mut self, handle: DataKeyHandle) -> Result<(), StamError> {
         // called after the key is inserted in the store
@@ -236,7 +238,9 @@ impl StoreFor<AnnotationData> for AnnotationDataSet {
     fn store_typeinfo() -> &'static str {
         "AnnotationData in AnnotationDataSet"
     }
+}
 
+impl private::StoreCallbacks<AnnotationData> for AnnotationDataSet {
     fn inserted(&mut self, handle: AnnotationDataHandle) -> Result<(), StamError> {
         // called after the item is inserted in the store
         // update the relation map

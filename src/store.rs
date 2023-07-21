@@ -517,7 +517,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
 /// It is a sealed trait, not implementable outside this crate.
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait StoreFor<T: Storable>: Configurable {
+pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
     /// Get a reference to the entire store for the associated type
     /// This is a low-level API method.
     fn store(&self) -> &Store<T>;
@@ -626,29 +626,6 @@ pub trait StoreFor<T: Storable>: Configurable {
         Ok(handle)
     }
 
-    /// Called prior to inserting an item into to the store
-    /// If it returns an error, the insert will be cancelled.
-    /// Allows for bookkeeping such as inheriting configuration
-    /// parameters from parent to the item
-    ///
-    /// This is a low-level API method.
-    #[allow(unused_variables)]
-    fn preinsert(&self, item: &mut T) -> Result<(), StamError> {
-        //default implementation does nothing
-        Ok(())
-    }
-
-    /// Called after an item was inserted to the store
-    /// Allows the store to do further bookkeeping
-    /// like updating relation maps
-    ///
-    /// This is a low-level API method.
-    #[allow(unused_variables)]
-    fn inserted(&mut self, handle: T::HandleType) -> Result<(), StamError> {
-        //default implementation does nothing
-        Ok(())
-    }
-
     /// Inserts items into the store using a builder pattern
     fn add(mut self, item: T) -> Result<Self, StamError>
     where
@@ -724,17 +701,6 @@ pub trait StoreFor<T: Storable>: Configurable {
         Ok(())
     }
 
-    /// Called before an item is removed from the store
-    /// Allows the store to do further bookkeeping
-    /// like updating relation maps
-    ///
-    /// This is a low-level API method.
-    #[allow(unused_variables)]
-    fn preremove(&mut self, handle: T::HandleType) -> Result<(), StamError> {
-        //default implementation does nothing
-        Ok(())
-    }
-
     /// Resolves an ID to a handle.
     /// Also works for temporary IDs if enabled.
     /// This is a low-level API method. You usually don't want to call this directly.
@@ -793,6 +759,48 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// This is a low-level API method.
     fn last_handle(&self) -> T::HandleType {
         T::HandleType::new(self.store().len() - 1)
+    }
+}
+
+pub(crate) mod private {
+    //we need a public trait in a private mod as a trick to have a sealed traits
+
+    pub trait Storable {}
+
+    pub trait StoreCallbacks<T: crate::store::Storable> {
+        /// Called prior to inserting an item into to the store
+        /// If it returns an error, the insert will be cancelled.
+        /// Allows for bookkeeping such as inheriting configuration
+        /// parameters from parent to the item
+        ///
+        /// This is a low-level API method.
+        #[allow(unused_variables)]
+        fn preinsert(&self, item: &mut T) -> Result<(), crate::error::StamError> {
+            //default implementation does nothing
+            Ok(())
+        }
+
+        /// Called after an item was inserted to the store
+        /// Allows the store to do further bookkeeping
+        /// like updating relation maps
+        ///
+        /// This is a low-level API method.
+        #[allow(unused_variables)]
+        fn inserted(&mut self, handle: T::HandleType) -> Result<(), crate::error::StamError> {
+            //default implementation does nothing
+            Ok(())
+        }
+
+        /// Called before an item is removed from the store
+        /// Allows the store to do further bookkeeping
+        /// like updating relation maps
+        ///
+        /// This is a low-level API method.
+        #[allow(unused_variables)]
+        fn preremove(&mut self, handle: T::HandleType) -> Result<(), crate::error::StamError> {
+            //default implementation does nothing
+            Ok(())
+        }
     }
 }
 
