@@ -249,7 +249,7 @@ impl StoreFor<Annotation> for AnnotationStore {
         if multitarget {
             if self.config.dataset_annotation_map {
                 let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self)?
+                    .as_resultitem(self)
                     .annotationsets()
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
@@ -259,7 +259,7 @@ impl StoreFor<Annotation> for AnnotationStore {
 
             if self.config.annotation_annotation_map {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self)?
+                    .as_resultitem(self)
                     .annotations(false, false)
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
@@ -268,7 +268,7 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
 
             let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = annotation
-                .as_resultitem(self)?
+                .as_resultitem(self)
                 .resources()
                 .map(|targetitem| {
                     let res_handle = targetitem.handle();
@@ -447,13 +447,7 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
         for data in self.store.iter() {
             if let Some(data) = data {
-                if let Ok(data) = data.as_resultitem(self.parent) {
-                    seq.serialize_element(&data)?;
-                } else {
-                    return Err(serde::ser::Error::custom(
-                        "Unable to wrap annotationdata during serialization",
-                    ));
-                }
+                seq.serialize_element(&data.as_resultitem(self.parent))?;
             }
         }
         seq.end()
@@ -1243,9 +1237,7 @@ impl AnnotationStore {
         &self,
         annotation: impl Request<Annotation>,
     ) -> Option<ResultItem<Annotation>> {
-        self.get(annotation)
-            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
-            .ok()
+        self.get(annotation).map(|x| x.as_resultitem(self)).ok()
     }
 
     /// Get an [`AnnotationDataSet'] by reference (as a fat pointer [`WrappedItem<AnnotationDataSet'])
@@ -1254,9 +1246,7 @@ impl AnnotationStore {
         &self,
         annotationset: impl Request<AnnotationDataSet>,
     ) -> Option<ResultItem<AnnotationDataSet>> {
-        self.get(annotationset)
-            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
-            .ok()
+        self.get(annotationset).map(|x| x.as_resultitem(self)).ok()
     }
 
     /// Get a [`TextResource'] by reference (as a fat pointer [`WrappedItem<TextResource'])
@@ -1265,9 +1255,7 @@ impl AnnotationStore {
         &self,
         resource: impl Request<TextResource>,
     ) -> Option<ResultItem<TextResource>> {
-        self.get(resource)
-            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
-            .ok()
+        self.get(resource).map(|x| x.as_resultitem(self)).ok()
     }
 
     /// Returns length for each of the reverse indices

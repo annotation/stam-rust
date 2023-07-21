@@ -509,11 +509,6 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         ))
     }
 
-    /// Like [`Self::id()`] but returns a [`StamError::NoIdError`] error if there is no internal id.
-    fn id_or_err(&self) -> Result<&str, StamError> {
-        self.id().ok_or(StamError::NoIdError(""))
-    }
-
     /// Builder pattern to set the public Id
     #[allow(unused_variables)]
     fn with_id(self, id: impl Into<String>) -> Self
@@ -525,6 +520,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     }
 
     /// Sets/resets the identifier for this item
+    /// This is a low level method.
     /// Be careful as this does *NOT* update any ID maps that may exist!
     fn set_id(&mut self, _id: Option<String>) {
         //no-op by default
@@ -539,7 +535,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     fn as_resultitem<'store>(
         &'store self,
         store: &'store Self::StoreType,
-    ) -> Result<ResultItem<'store, Self>, StamError>
+    ) -> ResultItem<'store, Self>
     where
         Self: Sized,
     {
@@ -947,9 +943,7 @@ where
         self.count += 1;
         loop {
             match self.iter.next() {
-                Some(Some(item)) => {
-                    return Some(item.as_resultitem(self.store).expect("wrap must succeed"))
-                }
+                Some(Some(item)) => return Some(item.as_resultitem(self.store)),
                 Some(None) => continue,
                 None => return None,
             }
@@ -1021,12 +1015,13 @@ impl<'store, T> ResultItem<'store, T>
 where
     T: Storable,
 {
-    //Create a new wrapped item. Not public, called by [`StoreFor<T>::wrap()`] instead.
-    pub(crate) fn new(item: &'store T, store: &'store T::StoreType) -> Result<Self, StamError> {
+    /// Create a new wrapped item. Not public, called by [`StoreFor<T>::as_resultitem()`] instead.
+    /// will panic if called on an unbound item!
+    pub(crate) fn new(item: &'store T, store: &'store T::StoreType) -> Self {
         if item.handle().is_none() {
-            return Err(StamError::Unbound("can't wrap unbound items"));
+            panic!("can't wrap unbound items");
         }
-        Ok(Self { item, store })
+        Self { item, store }
     }
 
     pub fn store(&self) -> &'store T::StoreType {
@@ -1103,7 +1098,6 @@ where
             .first()
             .expect("there must be an item")
             .as_resultitem(self.store())
-            .expect("wrap must succeed")
     }
 
     /// Collects items from an iterator and return a ResultItemSet.
@@ -1136,7 +1130,7 @@ where
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = ResultItem<'store, T>> + 'a {
         self.items
             .iter()
-            .map(|item| item.as_resultitem(self.store()).expect("wrap must succeed"))
+            .map(|item| item.as_resultitem(self.store()))
     }
 }
 
@@ -1196,7 +1190,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(item) = self.items.pop() {
-            Some(item.as_resultitem(self.store).expect("wrap must succeed"))
+            Some(item.as_resultitem(self.store))
         } else {
             None
         }

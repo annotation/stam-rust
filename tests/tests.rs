@@ -816,7 +816,7 @@ fn as_resultitem() -> Result<(), StamError> {
     let store = setup_example_2()?;
 
     let annotation: &Annotation = store.get("A1")?;
-    let wrappedannotation = annotation.as_resultitem(&store)?;
+    let wrappedannotation = annotation.as_resultitem(&store);
 
     assert_eq!(wrappedannotation.id(), Some("A1"));
     let _store2 = wrappedannotation.store();

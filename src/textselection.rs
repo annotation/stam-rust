@@ -695,9 +695,7 @@ impl<'store, 'slf> TextSelectionSet {
                             .as_ref()
                             .get(ts_handle)
                             .expect("textselection handle must be valid");
-                        textselection
-                            .as_resultitem(resource.as_ref())
-                            .expect("wrap must succeed")
+                        textselection.as_resultitem(resource.as_ref())
                     }),
             )
         } else {
@@ -728,9 +726,7 @@ impl<'store, 'slf> TextSelectionSet {
                             .as_ref()
                             .get(ts_handle)
                             .expect("textselection handle must be valid");
-                        textselection
-                            .as_resultitem(resource.as_ref())
-                            .expect("wrap must succeed")
+                        textselection.as_resultitem(resource.as_ref())
                     }),
             )
         } else {
@@ -1886,9 +1882,7 @@ impl TextResource {
                 let textselection: &'store TextSelection = self
                     .get(ts_handle)
                     .expect("textselection handle must be valid");
-                textselection
-                    .as_resultitem(self)
-                    .expect("wrap must succeed")
+                textselection.as_resultitem(self)
             })
     }
 
@@ -1905,9 +1899,7 @@ impl TextResource {
                 let textselection: &'store TextSelection = self
                     .get(ts_handle)
                     .expect("textselection handle must be valid");
-                textselection
-                    .as_resultitem(self)
-                    .expect("wrap must succeed")
+                textselection.as_resultitem(self)
             })
     }
 }
@@ -2193,9 +2185,7 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
                             .get(*textselection)
                             .expect("TextSelection must exist");
                         return Some(TargetIterItem {
-                            item: textselection
-                                .as_resultitem(resource)
-                                .expect("wrap must succeed"),
+                            item: textselection.as_resultitem(resource),
                             selectoriteritem: selectoritem,
                         });
                     }

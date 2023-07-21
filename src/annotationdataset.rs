@@ -599,9 +599,7 @@ impl AnnotationDataSet {
 
     /// Retrieve a key in this set
     pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<DataKey>> {
-        self.get(key)
-            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
-            .ok()
+        self.get(key).map(|x| x.as_resultitem(self)).ok()
     }
 
     /// Retrieve a [`AnnotationData`] in this set
@@ -614,9 +612,7 @@ impl AnnotationDataSet {
         &'a self,
         annotationdata: impl Request<AnnotationData>,
     ) -> Option<ResultItem<'a, AnnotationData>> {
-        self.get(annotationdata)
-            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
-            .ok()
+        self.get(annotationdata).map(|x| x.as_resultitem(self)).ok()
     }
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
@@ -680,7 +676,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     ) -> Option<ResultItem<'store, AnnotationData>> {
         self.as_ref()
             .data_by_value(key, value)
-            .map(|annotationdata| annotationdata.as_resultitem(self.as_ref()).unwrap())
+            .map(|annotationdata| annotationdata.as_resultitem(self.as_ref()))
     }
 
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.

@@ -200,7 +200,7 @@ impl Annotation {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json_string(&self, store: &AnnotationStore) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: ResultItem<Self> = ResultItem::new(self, store)?;
+        let wrapped: ResultItem<Self> = ResultItem::new(self, store);
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation to string: {}", e))
         })
@@ -368,11 +368,8 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
                 //AnnotationData has no ID, we can't make a reference, therefore we serialize the whole thing (may lead to redundancy in the output)
                 //                v--- this is just a newtype wrapper around WrappedStorable<'a, AnnotationData, AnnotationDataSet>, with a distinct
                 //                     serialize implementation so it also outputs the set
-                let wrappeddata = AnnotationDataRefWithSet(
-                    annotationdata
-                        .as_resultitem(annotationset)
-                        .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?,
-                );
+                let wrappeddata =
+                    AnnotationDataRefWithSet(annotationdata.as_resultitem(annotationset));
                 seq.serialize_element(&wrappeddata)?;
             } else {
                 seq.serialize_element(&AnnotationDataRef {
@@ -832,9 +829,7 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
                         let resource: &TextResource =
                             self.iter.store.get(*res_id).expect("Resource must exist");
                         return Some(TargetIterItem {
-                            item: resource
-                                .as_resultitem(self.store)
-                                .expect("wrap must succeed"),
+                            item: resource.as_resultitem(self.store),
                             selectoriteritem: selectoritem,
                         });
                     }
@@ -859,9 +854,7 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
                         let annotationset: &AnnotationDataSet =
                             self.iter.store.get(*set_id).expect("Dataset must exist");
                         return Some(TargetIterItem {
-                            item: annotationset
-                                .as_resultitem(self.store)
-                                .expect("wrap must succeed"),
+                            item: annotationset.as_resultitem(self.store),
                             selectoriteritem: selectoritem,
                         });
                     }
@@ -886,9 +879,7 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
                         let annotation: &Annotation =
                             self.iter.store.get(*a_id).expect("Annotation must exist");
                         return Some(TargetIterItem {
-                            item: annotation
-                                .as_resultitem(self.store)
-                                .expect("wrap must succeed"),
+                            item: annotation.as_resultitem(self.store),
                             selectoriteritem: selectoritem,
                         });
                     }

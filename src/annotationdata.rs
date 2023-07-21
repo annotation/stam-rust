@@ -165,13 +165,7 @@ impl<'a> Serialize for WrappedStore<'a, AnnotationData, AnnotationDataSet> {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
         for data in self.store.iter() {
             if let Some(data) = data {
-                if let Ok(data) = data.as_resultitem(self.parent) {
-                    seq.serialize_element(&data)?;
-                } else {
-                    return Err(serde::ser::Error::custom(
-                        "Unable to wrap annotationdata during serialization",
-                    ));
-                }
+                seq.serialize_element(&data.as_resultitem(self.parent))?;
             }
         }
         seq.end()
@@ -209,8 +203,8 @@ impl AnnotationData {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json(&self, store: &AnnotationDataSet) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: ResultItem<Self> = ResultItem::new(self, store)?;
-        serde_json::to_string_pretty(&wrapped).map_err(|e| {
+        let resultitem: ResultItem<Self> = ResultItem::new(self, store);
+        serde_json::to_string_pretty(&resultitem).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation dataset to string: {}", e))
         })
     }

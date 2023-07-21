@@ -572,11 +572,8 @@ impl TextResource {
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
     pub fn textselections(&self) -> impl Iterator<Item = ResultItem<TextSelection>> {
         self.store().iter().filter_map(|item| {
-            item.as_ref().map(|textselection| {
-                textselection
-                    .as_resultitem(self)
-                    .expect("Wrap must succeed")
-            })
+            item.as_ref()
+                .map(|textselection| textselection.as_resultitem(self))
         })
     }
 
@@ -992,7 +989,7 @@ impl<'store> Text<'store, 'store> for TextResource {
             Ok(Some(handle)) => {
                 //existing textselection
                 let textselection: &TextSelection = self.get(handle)?; //shouldn't fail here anymore
-                let wrapped = textselection.as_resultitem(self)?;
+                let wrapped = textselection.as_resultitem(self);
                 Ok(ResultTextSelection::Bound(wrapped))
             }
             Ok(None) => {
@@ -1226,11 +1223,7 @@ impl<'a> Iterator for TextSelectionIter<'a> {
                 if let Some((_end, handle)) = begin2enditer.next() {
                     let textselection: &TextSelection =
                         self.resource.get(*handle).expect("handle must exist");
-                    return Some(
-                        textselection
-                            .as_resultitem(self.resource)
-                            .expect("wrap must succeed"),
-                    );
+                    return Some(textselection.as_resultitem(self.resource));
                 }
                 //fall back to final clause
             } else {
@@ -1254,11 +1247,7 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
                 if let Some((_begin, handle)) = end2beginiter.next() {
                     let textselection: &TextSelection =
                         self.resource.get(*handle).expect("handle must exist");
-                    return Some(
-                        textselection
-                            .as_resultitem(self.resource)
-                            .expect("wrap must succeed"),
-                    );
+                    return Some(textselection.as_resultitem(self.resource));
                 }
                 //fall back to final clause
             } else {
