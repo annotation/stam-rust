@@ -1241,7 +1241,7 @@ impl AnnotationStore {
     /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
     pub fn annotation(
         &self,
-        annotation: impl ToHandle<Annotation>,
+        annotation: impl Request<Annotation>,
     ) -> Option<ResultItem<Annotation>> {
         self.get(annotation)
             .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
@@ -1252,7 +1252,7 @@ impl AnnotationStore {
     /// Returns `None` if it does not exist.
     pub fn annotationset(
         &self,
-        annotationset: impl ToHandle<AnnotationDataSet>,
+        annotationset: impl Request<AnnotationDataSet>,
     ) -> Option<ResultItem<AnnotationDataSet>> {
         self.get(annotationset)
             .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
@@ -1263,7 +1263,7 @@ impl AnnotationStore {
     /// Returns `None` if it does not exist.
     pub fn resource(
         &self,
-        resource: impl ToHandle<TextResource>,
+        resource: impl Request<TextResource>,
     ) -> Option<ResultItem<TextResource>> {
         self.get(resource)
             .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
@@ -1351,8 +1351,8 @@ impl AnnotationStore {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
         &'a self,
-        set: impl ToHandle<AnnotationDataSet>,
-        key: Option<impl ToHandle<DataKey>>,
+        set: impl Request<AnnotationDataSet>,
+        key: Option<impl Request<DataKey>>,
         value: DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'a, AnnotationData>>> {
         //if let Some(set) = set {
@@ -1377,8 +1377,8 @@ impl AnnotationStore {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn test_data<'a>(
         &'a self,
-        set: impl ToHandle<AnnotationDataSet>,
-        key: Option<impl ToHandle<DataKey>>,
+        set: impl Request<AnnotationDataSet>,
+        key: Option<impl Request<DataKey>>,
         value: DataOperator<'a>,
     ) -> bool {
         match self.find_data(set, key, value) {

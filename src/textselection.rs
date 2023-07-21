@@ -48,7 +48,7 @@ pub struct TextSelection {
 pub struct TextSelectionHandle(#[n(0)] pub(crate) u32); //if this u32 ever changes, make sure to also adapt the CborLen implementation in cbor.rs otherwise things will go horribly wrong
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> ToHandle<TextSelection> for TextSelectionHandle {
+impl<'a> Request<TextSelection> for TextSelectionHandle {
     fn to_handle<'store, S>(&self, _store: &'store S) -> Option<TextSelectionHandle>
     where
         S: StoreFor<TextSelection>,

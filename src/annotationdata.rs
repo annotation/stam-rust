@@ -59,7 +59,7 @@ impl Handle for AnnotationDataHandle {
 }
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> ToHandle<AnnotationData> for AnnotationDataHandle {
+impl<'a> Request<AnnotationData> for AnnotationDataHandle {
     fn to_handle<'store, S>(&self, _store: &'store S) -> Option<AnnotationDataHandle>
     where
         S: StoreFor<AnnotationData>,

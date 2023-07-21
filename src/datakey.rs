@@ -57,7 +57,7 @@ impl Handle for DataKeyHandle {
     }
 }
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> ToHandle<DataKey> for DataKeyHandle {
+impl<'a> Request<DataKey> for DataKeyHandle {
     fn to_handle<'store, S>(&self, _store: &'store S) -> Option<DataKeyHandle>
     where
         S: StoreFor<DataKey>,

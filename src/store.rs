@@ -705,7 +705,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Returns true if the store has the item
-    fn has<'a>(&'a self, item: impl ToHandle<T>) -> bool {
+    fn has<'a>(&'a self, item: impl Request<T>) -> bool {
         if let Some(handle) = item.to_handle(self) {
             self.store().get(handle.as_usize()).is_some()
         } else {
@@ -723,7 +723,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a reference to an item from the store
-    fn get<'a>(&'a self, item: impl ToHandle<T>) -> Result<&'a T, StamError> {
+    fn get<'a>(&'a self, item: impl Request<T>) -> Result<&'a T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store().get(handle.as_usize()) {
                 return Ok(item);
@@ -733,7 +733,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a mutable reference to an item from the store by internal ID
-    fn get_mut(&mut self, item: impl ToHandle<T>) -> Result<&mut T, StamError> {
+    fn get_mut(&mut self, item: impl Request<T>) -> Result<&mut T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store_mut().get_mut(handle.as_usize()) {
                 return Ok(item);
@@ -1385,7 +1385,7 @@ where
     */
 }
 
-pub trait ToHandle<T>
+pub trait Request<T>
 where
     T: Storable,
     Self: Sized,
@@ -1423,7 +1423,7 @@ where
     */
 }
 
-impl<'a, T> ToHandle<T> for &'a str
+impl<'a, T> Request<T> for &'a str
 where
     T: Storable,
 {
@@ -1441,7 +1441,7 @@ where
     }
 }
 
-impl<'a, T> ToHandle<T> for String
+impl<'a, T> Request<T> for String
 where
     T: Storable,
 {
@@ -1459,7 +1459,7 @@ where
     }
 }
 
-impl<'a, T> ToHandle<T> for ResultItem<'a, T>
+impl<'a, T> Request<T> for ResultItem<'a, T>
 where
     T: Storable,
 {
@@ -1471,7 +1471,7 @@ where
     }
 }
 
-impl<'a, T> ToHandle<T> for BuildItem<'a, T>
+impl<'a, T> Request<T> for BuildItem<'a, T>
 where
     T: Storable,
 {
@@ -1489,7 +1489,7 @@ where
     }
 }
 
-impl<'a, T> ToHandle<T> for &BuildItem<'a, T>
+impl<'a, T> Request<T> for &BuildItem<'a, T>
 where
     T: Storable,
 {

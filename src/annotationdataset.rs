@@ -92,7 +92,7 @@ impl Handle for AnnotationDataSetHandle {
 
 //these I couldn't solve nicely using generics:
 
-impl<'a> ToHandle<AnnotationDataSet> for AnnotationDataSetHandle {
+impl<'a> Request<AnnotationDataSet> for AnnotationDataSetHandle {
     fn to_handle<'store, S>(&self, _store: &'store S) -> Option<AnnotationDataSetHandle>
     where
         S: StoreFor<AnnotationDataSet>,
@@ -473,7 +473,7 @@ impl AnnotationDataSet {
     /// This is a low level method, use the similar [`WrappedItem<AnnotationDataSet>.find_data()`] for a higher level version.
     pub fn data_by_value(
         &self,
-        key: impl ToHandle<DataKey>,
+        key: impl Request<DataKey>,
         value: &DataValue,
     ) -> Option<&AnnotationData> {
         let datakey: Option<&DataKey> = self.key(key).map(|key| key.as_ref());
@@ -596,7 +596,7 @@ impl AnnotationDataSet {
     }
 
     /// Retrieve a key in this set
-    pub fn key(&self, key: impl ToHandle<DataKey>) -> Option<ResultItem<DataKey>> {
+    pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<DataKey>> {
         self.get(key)
             .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
             .ok()
@@ -610,7 +610,7 @@ impl AnnotationDataSet {
     /// performant low-level method, use `StoreFor<T>::get()` instead.
     pub fn annotationdata<'a>(
         &'a self,
-        annotationdata: impl ToHandle<AnnotationData>,
+        annotationdata: impl Request<AnnotationData>,
     ) -> Option<ResultItem<'a, AnnotationData>> {
         self.get(annotationdata)
             .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
@@ -619,7 +619,7 @@ impl AnnotationDataSet {
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
     /// This is a low-level method. use [`WrappedItem<DataKey>.data()`] instead.
-    pub fn data_by_key(&self, key: impl ToHandle<DataKey>) -> Option<&Vec<AnnotationDataHandle>> {
+    pub fn data_by_key(&self, key: impl Request<DataKey>) -> Option<&Vec<AnnotationDataHandle>> {
         if let Some(key_handle) = key.to_handle(self) {
             self.key_data_map.get(key_handle)
         } else {
@@ -673,7 +673,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     /// Returns a single match, use `Self::find_data()` for a more extensive search.
     pub fn data_by_value(
         &self,
-        key: impl ToHandle<DataKey>,
+        key: impl Request<DataKey>,
         value: &DataValue,
     ) -> Option<ResultItem<'store, AnnotationData>> {
         self.as_ref()
@@ -688,7 +688,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
         &'slf self,
-        key: Option<impl ToHandle<DataKey>>,
+        key: Option<impl Request<DataKey>>,
         value: DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
     where
@@ -722,7 +722,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn test_data<'a>(
         &'slf self,
-        key: Option<impl ToHandle<DataKey>>,
+        key: Option<impl Request<DataKey>>,
         value: DataOperator<'a>,
     ) -> bool {
         match self.find_data(key, value) {
@@ -745,7 +745,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     }
 
     /// Tests whether two AnnotationDataSets are the same
-    pub fn test(&'slf self, other: impl ToHandle<AnnotationDataSet>) -> bool {
+    pub fn test(&'slf self, other: impl Request<AnnotationDataSet>) -> bool {
         Some(self.handle()) == other.to_handle(self.store())
     }
 

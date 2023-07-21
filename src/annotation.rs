@@ -74,7 +74,7 @@ impl Handle for AnnotationHandle {
     }
 }
 
-impl<'a> ToHandle<Annotation> for AnnotationHandle {
+impl<'a> Request<Annotation> for AnnotationHandle {
     fn to_handle<'store, S>(&self, _store: &'store S) -> Option<AnnotationHandle>
     where
         S: StoreFor<Annotation>,
@@ -657,8 +657,8 @@ impl<'store, 'slf> ResultItem<'store, Annotation> {
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn find_data<'a>(
         &'slf self,
-        set: Option<impl ToHandle<AnnotationDataSet>>,
-        key: Option<impl ToHandle<DataKey>>,
+        set: Option<impl Request<AnnotationDataSet>>,
+        key: Option<impl Request<DataKey>>,
         value: DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf>
     where

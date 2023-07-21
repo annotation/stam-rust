@@ -177,7 +177,7 @@ impl Handle for TextResourceHandle {
 }
 
 // I tried making this generic but failed, so let's spell it out for the handle
-impl<'a> ToHandle<TextResource> for TextResourceHandle {
+impl<'a> Request<TextResource> for TextResourceHandle {
     fn to_handle<'store, S>(&self, _store: &'store S) -> Option<TextResourceHandle>
     where
         S: StoreFor<TextResource>,
