@@ -585,14 +585,20 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait StoreFor<T: Storable>: Configurable {
     /// Get a reference to the entire store for the associated type
+    /// This is a low-level API method.
     fn store(&self) -> &Store<T>;
+
     /// Get a mutable reference to the entire store for the associated type
+    /// This is a low-level API method.
     fn store_mut(&mut self) -> &mut Store<T>;
+
     /// Get a reference to the id map for the associated type, mapping global ids to internal ids
+    /// This is a low-level API method.
     fn idmap(&self) -> Option<&IdMap<T::HandleType>> {
         None
     }
     /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
+    /// This is a low-level API method.
     fn idmap_mut(&mut self) -> Option<&mut IdMap<T::HandleType>> {
         None
     }
@@ -681,6 +687,8 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// If it returns an error, the insert will be cancelled.
     /// Allows for bookkeeping such as inheriting configuration
     /// parameters from parent to the item
+    ///
+    /// This is a low-level API method.
     #[allow(unused_variables)]
     fn preinsert(&self, item: &mut T) -> Result<(), StamError> {
         //default implementation does nothing
@@ -690,12 +698,15 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// Called after an item was inserted to the store
     /// Allows the store to do further bookkeeping
     /// like updating relation maps
+    ///
+    /// This is a low-level API method.
     #[allow(unused_variables)]
     fn inserted(&mut self, handle: T::HandleType) -> Result<(), StamError> {
         //default implementation does nothing
         Ok(())
     }
 
+    /// Inserts items into the store using a builder pattern
     fn add(mut self, item: T) -> Result<Self, StamError>
     where
         Self: Sized,
@@ -723,6 +734,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a reference to an item from the store
+    /// This is a low-level API method, you usually want to use dedicated high-level methods like `annotation()`, `resource()` instead.
     fn get<'a>(&'a self, item: impl Request<T>) -> Result<&'a T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store().get(handle.as_usize()) {
@@ -733,6 +745,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Get a mutable reference to an item from the store by internal ID
+    /// This is a low-level API method
     fn get_mut(&mut self, item: impl Request<T>) -> Result<&mut T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store_mut().get_mut(handle.as_usize()) {
@@ -771,6 +784,8 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// Called before an item is removed from the store
     /// Allows the store to do further bookkeeping
     /// like updating relation maps
+    ///
+    /// This is a low-level API method.
     #[allow(unused_variables)]
     fn preremove(&mut self, handle: T::HandleType) -> Result<(), StamError> {
         //default implementation does nothing
@@ -779,7 +794,7 @@ pub trait StoreFor<T: Storable>: Configurable {
 
     /// Resolves an ID to a handle.
     /// Also works for temporary IDs if enabled.
-    /// You usually don't want to call this directly
+    /// This is a low-level API method. You usually don't want to call this directly.
     fn resolve_id(&self, id: &str) -> Result<T::HandleType, StamError> {
         if let Some(idmap) = self.idmap() {
             if idmap.resolve_temp_ids {
@@ -800,7 +815,8 @@ pub trait StoreFor<T: Storable>: Configurable {
         }
     }
 
-    /// Iterate over the store
+    /// Iterate over all items in the store
+    /// This is a low-level API method, use dedicated high-level iterators like `annotations()`, `resources()` instead.  
     fn iter<'a>(&'a self) -> StoreIter<'a, T>
     where
         T: Storable<StoreType = Self>,
@@ -814,6 +830,7 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Iterate over the store, mutably
+    /// This is a low-level API method.
     fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a, T> {
         let len = self.store().len();
         StoreIterMut {
@@ -824,16 +841,19 @@ pub trait StoreFor<T: Storable>: Configurable {
     }
 
     /// Return the internal id that will be assigned for the next item to the store
+    /// This is a low-level API method.
     fn next_handle(&self) -> T::HandleType {
         T::HandleType::new(self.store().len()) //this is one of the very few places in the code where we create a handle from scratch
     }
 
     /// Return the internal id that was assigned to last inserted item
+    /// This is a low-level API method.
     fn last_handle(&self) -> T::HandleType {
         T::HandleType::new(self.store().len() - 1)
     }
 
     /// This binds an item to the store *PRIOR* to it being actually added
+    /// This is a low-level API method.
     /// You should never need to call this directly (it can only be called once per item anyway).
     fn bind(&mut self, mut item: T) -> Result<T, StamError> {
         //we already pass the internal id this item will get upon the next insert()
