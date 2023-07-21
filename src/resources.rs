@@ -246,8 +246,9 @@ impl Storable for TextResource {
         self.id = id.into();
         self
     }
-    fn set_handle(&mut self, handle: TextResourceHandle) {
+    fn with_handle(mut self, handle: TextResourceHandle) -> Self {
         self.intid = Some(handle);
+        self
     }
 
     fn carries_id() -> bool {

@@ -113,8 +113,9 @@ impl Storable for DataKey {
     fn handle(&self) -> Option<DataKeyHandle> {
         self.intid
     }
-    fn set_handle(&mut self, intid: DataKeyHandle) {
+    fn with_handle(mut self, intid: DataKeyHandle) -> Self {
         self.intid = Some(intid);
+        self
     }
 
     fn with_id(mut self, id: impl Into<String>) -> Self {

@@ -468,10 +468,11 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         ResultItem::new(self, store)
     }
 
-    /// Set the internal ID. May only be called once (though currently not enforced).
-    #[allow(unused_variables)]
-    fn set_handle(&mut self, handle: <Self as Storable>::HandleType) {
+    /// Set the internal ID for an item. May only be called once just after instantiation.
+    /// This is a low-level API method that can not be used publicly due to ownership restrictions.
+    fn with_handle(mut self, handle: <Self as Storable>::HandleType) -> Self {
         //no-op in default implementation
+        self
     }
 
     /// Generate a random ID in a given idmap (adds it to the map and assigns it to the item)
@@ -554,7 +555,7 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
             if item.handle().is_some() {
                 return Err(StamError::AlreadyBound("bind()"));
             } else {
-                item.set_handle(self.next_handle());
+                item = item.with_handle(self.next_handle());
             }
             intid
         };
@@ -851,7 +852,7 @@ where
                 if let Some(mut item) = item {
                     let handle = item.handle().expect("handle must exist");
                     let newhandle = handle.reindex(gaps); //this does iterate over all gaps every time, not very efficient if there are many
-                    item.set_handle(newhandle);
+                    item = item.with_handle(newhandle);
                     newstore.push(Some(item));
                 }
             }

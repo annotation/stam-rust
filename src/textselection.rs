@@ -150,8 +150,9 @@ impl Storable for TextSelection {
     fn handle(&self) -> Option<TextSelectionHandle> {
         self.intid
     }
-    fn set_handle(&mut self, handle: TextSelectionHandle) {
+    fn with_handle(mut self, handle: TextSelectionHandle) -> Self {
         self.intid = Some(handle);
+        self
     }
 
     fn carries_id() -> bool {

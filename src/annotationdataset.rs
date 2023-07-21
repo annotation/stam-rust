@@ -134,8 +134,9 @@ impl Storable for AnnotationDataSet {
     fn handle(&self) -> Option<Self::HandleType> {
         self.intid
     }
-    fn set_handle(&mut self, handle: AnnotationDataSetHandle) {
+    fn with_handle(mut self, handle: AnnotationDataSetHandle) -> Self {
         self.intid = Some(handle);
+        self
     }
     fn carries_id() -> bool {
         true
