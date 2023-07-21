@@ -369,8 +369,8 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
                 //                v--- this is just a newtype wrapper around WrappedStorable<'a, AnnotationData, AnnotationDataSet>, with a distinct
                 //                     serialize implementation so it also outputs the set
                 let wrappeddata = AnnotationDataRefWithSet(
-                    annotationset
-                        .wrap(annotationdata)
+                    annotationdata
+                        .as_resultitem(annotationset)
                         .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?,
                 );
                 seq.serialize_element(&wrappeddata)?;
@@ -832,7 +832,9 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
                         let resource: &TextResource =
                             self.iter.store.get(*res_id).expect("Resource must exist");
                         return Some(TargetIterItem {
-                            item: resource.wrap_in(self.store).expect("wrap must succeed"),
+                            item: resource
+                                .as_resultitem(self.store)
+                                .expect("wrap must succeed"),
                             selectoriteritem: selectoritem,
                         });
                     }
@@ -858,7 +860,7 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
                             self.iter.store.get(*set_id).expect("Dataset must exist");
                         return Some(TargetIterItem {
                             item: annotationset
-                                .wrap_in(self.store)
+                                .as_resultitem(self.store)
                                 .expect("wrap must succeed"),
                             selectoriteritem: selectoritem,
                         });
@@ -884,7 +886,9 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
                         let annotation: &Annotation =
                             self.iter.store.get(*a_id).expect("Annotation must exist");
                         return Some(TargetIterItem {
-                            item: annotation.wrap_in(self.store).expect("wrap must succeed"),
+                            item: annotation
+                                .as_resultitem(self.store)
+                                .expect("wrap must succeed"),
                             selectoriteritem: selectoritem,
                         });
                     }

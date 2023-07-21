@@ -533,17 +533,17 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     /// Does this type support an ID?
     fn carries_id() -> bool;
 
-    /// Returns a wrapped reference to this item and the store that owns it. This allows for some
-    /// more introspection on the part of the item.
-    /// reverse of [`StoreFor<T>::wrap()`]
-    fn wrap_in<'store>(
+    /// Returns the item as a ResultItem, i.e. a wrapped reference that includes a reference to
+    /// both this item as well as the store that owns it. All high-level API functions are implemented
+    /// on such Result types.
+    fn as_resultitem<'store>(
         &'store self,
         store: &'store Self::StoreType,
     ) -> Result<ResultItem<'store, Self>, StamError>
     where
         Self: Sized,
     {
-        store.wrap(self)
+        ResultItem::new(self, store)
     }
 
     /// Set the internal ID. May only be called once (though currently not enforced).
@@ -847,16 +847,6 @@ pub trait StoreFor<T: Storable>: Configurable {
         }
     }
 
-    /// Wraps the item in a smart pointer that also holds a reference to this store
-    /// This method performs some extra checks to verify if the item is indeed owned by the store
-    /// and returns an error if not.
-    fn wrap<'a>(&'a self, item: &'a T) -> Result<ResultItem<T>, StamError>
-    where
-        T: Storable<StoreType = Self>,
-    {
-        ResultItem::new(item, self)
-    }
-
     /// Wraps the entire store along with a reference to self
     /// Low-level method that you won't need
     // TODO: shouldn't be public
@@ -947,7 +937,9 @@ where
         self.count += 1;
         loop {
             match self.iter.next() {
-                Some(Some(item)) => return Some(self.store.wrap(item).expect("wrap must succeed")),
+                Some(Some(item)) => {
+                    return Some(item.as_resultitem(self.store).expect("wrap must succeed"))
+                }
                 Some(None) => continue,
                 None => return None,
             }
@@ -1097,8 +1089,10 @@ where
     }
 
     pub fn first(&self) -> ResultItem<'store, T> {
-        self.store()
-            .wrap(self.items.first().expect("there must be an item"))
+        self.items
+            .first()
+            .expect("there must be an item")
+            .as_resultitem(self.store())
             .expect("wrap must succeed")
     }
 
@@ -1132,7 +1126,7 @@ where
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = ResultItem<'store, T>> + 'a {
         self.items
             .iter()
-            .map(|item| self.store().wrap(item).expect("wrap must succeed"))
+            .map(|item| item.as_resultitem(self.store()).expect("wrap must succeed"))
     }
 }
 
@@ -1192,7 +1186,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(item) = self.items.pop() {
-            Some(self.store.wrap(item).expect("wrap must succeed"))
+            Some(item.as_resultitem(self.store).expect("wrap must succeed"))
         } else {
             None
         }

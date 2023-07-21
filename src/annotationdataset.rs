@@ -598,7 +598,7 @@ impl AnnotationDataSet {
     /// Retrieve a key in this set
     pub fn key(&self, key: impl ToHandle<DataKey>) -> Option<ResultItem<DataKey>> {
         self.get(key)
-            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
             .ok()
     }
 
@@ -613,7 +613,7 @@ impl AnnotationDataSet {
         annotationdata: impl ToHandle<AnnotationData>,
     ) -> Option<ResultItem<'a, AnnotationData>> {
         self.get(annotationdata)
-            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
             .ok()
     }
 
@@ -678,7 +678,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     ) -> Option<ResultItem<'store, AnnotationData>> {
         self.as_ref()
             .data_by_value(key, value)
-            .map(|annotationdata| annotationdata.wrap_in(self.as_ref()).unwrap())
+            .map(|annotationdata| annotationdata.as_resultitem(self.as_ref()).unwrap())
     }
 
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.

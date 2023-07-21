@@ -696,7 +696,7 @@ impl<'store, 'slf> TextSelectionSet {
                             .get(ts_handle)
                             .expect("textselection handle must be valid");
                         textselection
-                            .wrap_in(resource.as_ref())
+                            .as_resultitem(resource.as_ref())
                             .expect("wrap must succeed")
                     }),
             )
@@ -729,7 +729,7 @@ impl<'store, 'slf> TextSelectionSet {
                             .get(ts_handle)
                             .expect("textselection handle must be valid");
                         textselection
-                            .wrap_in(resource.as_ref())
+                            .as_resultitem(resource.as_ref())
                             .expect("wrap must succeed")
                     }),
             )
@@ -1886,7 +1886,9 @@ impl TextResource {
                 let textselection: &'store TextSelection = self
                     .get(ts_handle)
                     .expect("textselection handle must be valid");
-                textselection.wrap_in(self).expect("wrap must succeed")
+                textselection
+                    .as_resultitem(self)
+                    .expect("wrap must succeed")
             })
     }
 
@@ -1903,7 +1905,9 @@ impl TextResource {
                 let textselection: &'store TextSelection = self
                     .get(ts_handle)
                     .expect("textselection handle must be valid");
-                textselection.wrap_in(self).expect("wrap must succeed")
+                textselection
+                    .as_resultitem(self)
+                    .expect("wrap must succeed")
             })
     }
 }
@@ -2189,7 +2193,9 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
                             .get(*textselection)
                             .expect("TextSelection must exist");
                         return Some(TargetIterItem {
-                            item: textselection.wrap_in(resource).expect("wrap must succeed"),
+                            item: textselection
+                                .as_resultitem(resource)
+                                .expect("wrap must succeed"),
                             selectoriteritem: selectoritem,
                         });
                     }

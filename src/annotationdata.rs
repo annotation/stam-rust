@@ -165,7 +165,7 @@ impl<'a> Serialize for WrappedStore<'a, AnnotationData, AnnotationDataSet> {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
         for data in self.store.iter() {
             if let Some(data) = data {
-                if let Ok(data) = self.parent.wrap(data) {
+                if let Ok(data) = data.as_resultitem(self.parent) {
                     seq.serialize_element(&data)?;
                 } else {
                     return Err(serde::ser::Error::custom(

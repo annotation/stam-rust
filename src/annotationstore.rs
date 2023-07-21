@@ -248,8 +248,8 @@ impl StoreFor<Annotation> for AnnotationStore {
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
             if self.config.dataset_annotation_map {
-                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = self
-                    .wrap(annotation)?
+                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = annotation
+                    .as_resultitem(self)?
                     .annotationsets()
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
@@ -258,8 +258,8 @@ impl StoreFor<Annotation> for AnnotationStore {
             }
 
             if self.config.annotation_annotation_map {
-                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = self
-                    .wrap(annotation)?
+                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
+                    .as_resultitem(self)?
                     .annotations(false, false)
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
@@ -267,8 +267,8 @@ impl StoreFor<Annotation> for AnnotationStore {
                     .extend(target_annotations.into_iter());
             }
 
-            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = self
-                .wrap(annotation)?
+            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = annotation
+                .as_resultitem(self)?
                 .resources()
                 .map(|targetitem| {
                     let res_handle = targetitem.handle();
@@ -447,7 +447,7 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
         for data in self.store.iter() {
             if let Some(data) = data {
-                if let Ok(data) = self.parent.wrap(data) {
+                if let Ok(data) = data.as_resultitem(self.parent) {
                     seq.serialize_element(&data)?;
                 } else {
                     return Err(serde::ser::Error::custom(
@@ -1244,7 +1244,7 @@ impl AnnotationStore {
         annotation: impl ToHandle<Annotation>,
     ) -> Option<ResultItem<Annotation>> {
         self.get(annotation)
-            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
             .ok()
     }
 
@@ -1255,7 +1255,7 @@ impl AnnotationStore {
         annotationset: impl ToHandle<AnnotationDataSet>,
     ) -> Option<ResultItem<AnnotationDataSet>> {
         self.get(annotationset)
-            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
             .ok()
     }
 
@@ -1266,7 +1266,7 @@ impl AnnotationStore {
         resource: impl ToHandle<TextResource>,
     ) -> Option<ResultItem<TextResource>> {
         self.get(resource)
-            .map(|x| x.wrap_in(self).expect("wrap must succeed"))
+            .map(|x| x.as_resultitem(self).expect("wrap must succeed"))
             .ok()
     }
 

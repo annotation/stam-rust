@@ -812,11 +812,11 @@ fn parse_json_annotationstore_from_file() -> Result<(), StamError> {
 }
 
 #[test]
-fn wrapped() -> Result<(), StamError> {
+fn as_resultitem() -> Result<(), StamError> {
     let store = setup_example_2()?;
 
     let annotation: &Annotation = store.get("A1")?;
-    let wrappedannotation = store.wrap(annotation)?; //alternative we could have used wrap_in() directly on the previous line, but that would require more complex type annotations
+    let wrappedannotation = annotation.as_resultitem(&store)?;
 
     assert_eq!(wrappedannotation.id(), Some("A1"));
     let _store2 = wrappedannotation.store();

@@ -572,8 +572,11 @@ impl TextResource {
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
     pub fn textselections(&self) -> impl Iterator<Item = ResultItem<TextSelection>> {
         self.store().iter().filter_map(|item| {
-            item.as_ref()
-                .map(|textselection| textselection.wrap_in(self).expect("Wrap must succeed"))
+            item.as_ref().map(|textselection| {
+                textselection
+                    .as_resultitem(self)
+                    .expect("Wrap must succeed")
+            })
         })
     }
 
@@ -989,7 +992,7 @@ impl<'store> Text<'store, 'store> for TextResource {
             Ok(Some(handle)) => {
                 //existing textselection
                 let textselection: &TextSelection = self.get(handle)?; //shouldn't fail here anymore
-                let wrapped = textselection.wrap_in(self)?;
+                let wrapped = textselection.as_resultitem(self)?;
                 Ok(ResultTextSelection::Bound(wrapped))
             }
             Ok(None) => {
@@ -1225,7 +1228,7 @@ impl<'a> Iterator for TextSelectionIter<'a> {
                         self.resource.get(*handle).expect("handle must exist");
                     return Some(
                         textselection
-                            .wrap_in(self.resource)
+                            .as_resultitem(self.resource)
                             .expect("wrap must succeed"),
                     );
                 }
@@ -1253,7 +1256,7 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
                         self.resource.get(*handle).expect("handle must exist");
                     return Some(
                         textselection
-                            .wrap_in(self.resource)
+                            .as_resultitem(self.resource)
                             .expect("wrap must succeed"),
                     );
                 }

@@ -556,7 +556,11 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Que
                     if let Some(iter) = item.annotations_metadata() {
                         for annotation in iter {
                             for data in annotation.data() {
-                                if store.wrap(data.set()).expect("wrap must succeed").test(set)
+                                if data
+                                    .set()
+                                    .as_resultitem(store)
+                                    .expect("wrap must succeed")
+                                    .test(set)
                                     && data.test(Some(&key), &value)
                                 {
                                     return true;
@@ -625,7 +629,7 @@ impl<'store> TestConstraint<'store, TextSelectionSet> for QueryIter<'store> {
         for item in itemset.iter() {
             //Get a ResultTextSelection (implements higher level API)
             let item = if item.handle().is_some() {
-                ResultTextSelection::Bound(resource.wrap(item).expect("wrap must succeed"))
+                ResultTextSelection::Bound(item.as_resultitem(resource).expect("wrap must succeed"))
             } else {
                 ResultTextSelection::Unbound(resource, item.clone())
             };
@@ -634,7 +638,11 @@ impl<'store> TestConstraint<'store, TextSelectionSet> for QueryIter<'store> {
                     if let Some(iter) = item.annotations(store) {
                         for annotation in iter {
                             for data in annotation.data() {
-                                if store.wrap(data.set()).expect("wrap must succeed").test(set)
+                                if data
+                                    .set()
+                                    .as_resultitem(store)
+                                    .expect("wrap must succeed")
+                                    .test(set)
                                     && data.test(Some(&key), &value)
                                 {
                                     return true;
