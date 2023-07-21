@@ -552,11 +552,6 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         //no-op in default implementation
     }
 
-    /// Callback function that is called after an item is bound to a store
-    fn bound(&mut self) {
-        //no-op by default
-    }
-
     /// Generate a random ID in a given idmap (adds it to the map and assigns it to the item)
     fn generate_id(self, idmap: Option<&mut IdMap<Self::HandleType>>) -> Self
     where
@@ -616,7 +611,16 @@ pub trait StoreFor<T: Storable>: Configurable {
             // item has no internal id yet, i.e. it is unbound
             // we generate an id and bind it now
             let intid = self.next_handle();
-            item = self.bind(item)?;
+
+            // Bind an item to the store *PRIOR* to it being actually added:
+
+            //we already pass the internal id this item will get upon the next insert()
+            //so it knows its internal id immediate after construction
+            if item.handle().is_some() {
+                return Err(StamError::AlreadyBound("bind()"));
+            } else {
+                item.set_handle(self.next_handle());
+            }
             intid
         };
 
@@ -850,21 +854,6 @@ pub trait StoreFor<T: Storable>: Configurable {
     /// This is a low-level API method.
     fn last_handle(&self) -> T::HandleType {
         T::HandleType::new(self.store().len() - 1)
-    }
-
-    /// This binds an item to the store *PRIOR* to it being actually added
-    /// This is a low-level API method.
-    /// You should never need to call this directly (it can only be called once per item anyway).
-    fn bind(&mut self, mut item: T) -> Result<T, StamError> {
-        //we already pass the internal id this item will get upon the next insert()
-        //so it knows its internal id immediate after construction
-        if item.handle().is_some() {
-            Err(StamError::AlreadyBound("bind()"))
-        } else {
-            item.set_handle(self.next_handle());
-            item.bound();
-            Ok(item)
-        }
     }
 
     /// Wraps the entire store along with a reference to self
