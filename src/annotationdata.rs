@@ -29,11 +29,11 @@ use crate::types::*;
 pub struct AnnotationData {
     ///Internal numeric ID for this AnnotationData, corresponds with the index in the AnnotationDataSet::data that has the ownership
     #[n(0)]
-    intid: Option<AnnotationDataHandle>,
+    pub(crate) intid: Option<AnnotationDataHandle>,
 
     /// Public identifier
     #[n(1)]
-    id: Option<String>,
+    pub(crate) id: Option<String>,
 
     ///Refers to the key by id, the keys are stored in the AnnotationDataSet that holds this AnnotationData
     #[n(2)]
@@ -98,20 +98,16 @@ impl Storable for AnnotationData {
         self.id.as_deref()
     }
 
+    fn set_handle(&mut self, intid: AnnotationDataHandle) {
+        self.intid = Some(intid);
+    }
     fn with_id(mut self, id: impl Into<String>) -> Self {
         self.id = Some(id.into());
         self
     }
-    fn set_handle(&mut self, intid: AnnotationDataHandle) {
-        self.intid = Some(intid);
-    }
 
     fn carries_id() -> bool {
         true
-    }
-
-    fn set_id(&mut self, id: Option<String>) {
-        self.id = id;
     }
 }
 

@@ -1463,7 +1463,7 @@ impl AnnotationStore {
     pub fn strip_annotation_ids(&mut self) {
         for annotation in self.annotations.iter_mut() {
             if let Some(annotation) = annotation {
-                annotation.set_id(None);
+                annotation.id = None;
             }
         }
         self.annotation_idmap =

@@ -452,23 +452,6 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         ))
     }
 
-    /// Builder pattern to set the public Id
-    #[allow(unused_variables)]
-    fn with_id(self, id: impl Into<String>) -> Self
-    where
-        Self: Sized,
-    {
-        //no-op
-        self
-    }
-
-    /// Sets/resets the identifier for this item
-    /// This is a low level method.
-    /// Be careful as this does *NOT* update any ID maps that may exist!
-    fn set_id(&mut self, _id: Option<String>) {
-        //no-op by default
-    }
-
     /// Does this type support an ID?
     fn carries_id() -> bool;
 
@@ -511,6 +494,19 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         }
         // if the item is not bound or has no IDmap, we can't check collisions, but that's okay
         self.with_id(format!("X{}", nanoid!()))
+    }
+
+    /// Builder pattern to set the public ID
+    #[allow(unused_variables)]
+    fn with_id(self, id: impl Into<String>) -> Self
+    where
+        Self: Sized,
+    {
+        if Self::carries_id() {
+            unimplemented!("with_id() not implemented");
+        }
+        //no-op
+        self
     }
 }
 
@@ -763,18 +759,16 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
 }
 
 pub(crate) mod private {
-    //we need a public trait in a private mod as a trick to have a sealed traits
-
-    pub trait Storable {}
+    //we need a public trait in a private mod as a trick to have a sealed traits (private supertraits to publicly exposed traits)
+    //None of these traits and methods within are exposed publicly
 
     pub trait StoreCallbacks<T: crate::store::Storable> {
         /// Called prior to inserting an item into to the store
         /// If it returns an error, the insert will be cancelled.
         /// Allows for bookkeeping such as inheriting configuration
         /// parameters from parent to the item
-        ///
-        /// This is a low-level API method.
         #[allow(unused_variables)]
+        #[doc(hidden)]
         fn preinsert(&self, item: &mut T) -> Result<(), crate::error::StamError> {
             //default implementation does nothing
             Ok(())
@@ -783,9 +777,8 @@ pub(crate) mod private {
         /// Called after an item was inserted to the store
         /// Allows the store to do further bookkeeping
         /// like updating relation maps
-        ///
-        /// This is a low-level API method.
         #[allow(unused_variables)]
+        #[doc(hidden)]
         fn inserted(&mut self, handle: T::HandleType) -> Result<(), crate::error::StamError> {
             //default implementation does nothing
             Ok(())
@@ -794,9 +787,8 @@ pub(crate) mod private {
         /// Called before an item is removed from the store
         /// Allows the store to do further bookkeeping
         /// like updating relation maps
-        ///
-        /// This is a low-level API method.
         #[allow(unused_variables)]
+        #[doc(hidden)]
         fn preremove(&mut self, handle: T::HandleType) -> Result<(), crate::error::StamError> {
             //default implementation does nothing
             Ok(())

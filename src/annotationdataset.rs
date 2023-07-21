@@ -137,13 +137,8 @@ impl Storable for AnnotationDataSet {
     fn set_handle(&mut self, handle: AnnotationDataSetHandle) {
         self.intid = Some(handle);
     }
-
     fn carries_id() -> bool {
         true
-    }
-
-    fn set_id(&mut self, id: Option<String>) {
-        self.id = id;
     }
 }
 
@@ -662,7 +657,7 @@ impl AnnotationDataSet {
     pub fn strip_data_ids(&mut self) {
         for data in self.data.iter_mut() {
             if let Some(data) = data {
-                data.set_id(None);
+                data.id = None;
             }
         }
         self.data_idmap =

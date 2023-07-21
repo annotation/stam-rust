@@ -49,7 +49,7 @@ pub struct Annotation {
 
     /// Public identifier for this annotation
     #[n(1)]
-    id: Option<String>,
+    pub(crate) id: Option<String>,
 
     /// Reference to the annotation data (may be multiple) that describe(s) this annotation, the first ID refers to an AnnotationDataSet as owned by the AnnotationStore, the second to an AnnotationData instance as owned by that set
     #[n(2)]
@@ -134,18 +134,12 @@ impl Storable for Annotation {
     fn set_handle(&mut self, handle: Self::HandleType) {
         self.intid = Some(handle);
     }
-
-    fn with_id(mut self, id: impl Into<String>) -> Self {
-        self.id = Some(id.into());
-        self
-    }
-
     fn carries_id() -> bool {
         true
     }
-
-    fn set_id(&mut self, id: Option<String>) {
-        self.id = id;
+    fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 }
 
