@@ -1,3 +1,4 @@
+use regex::{Regex, RegexSet};
 use std::marker::PhantomData;
 
 use crate::annotation::Annotation;
@@ -5,6 +6,8 @@ use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 use crate::resources::TextResource;
 use crate::store::*;
+use crate::text::{FindRegexMatch, Text};
+use crate::textselection::TextSelection;
 use crate::types::*;
 
 impl AnnotationStore {
@@ -58,10 +61,30 @@ impl AnnotationStore {
     pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<Annotation>> {
         self.iter()
     }
+
+    /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
+    /// See [`TextResource.find_text_regex()`].
+    /// Note that this method, unlike its counterpart [`TextResource.find_text_regex()`], silently ignores any deeper errors that might occur.
+    pub fn find_text_regex<'store, 'r>(
+        &'store self,
+        expressions: &'r [Regex],
+        precompiledset: &'r Option<RegexSet>,
+        allow_overlap: bool,
+    ) -> impl Iterator<Item = FindRegexMatch<'store, 'r>> {
+        self.resources()
+            .filter_map(move |resource: ResultItem<'store, TextResource>| {
+                //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
+                resource
+                    .as_ref()
+                    .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
+                    .ok() //ignore errors!
+            })
+            .flatten()
+    }
 }
 
 impl<'store> ResultItem<'store, TextResource> {
-    /// Iterates over all annotations about this resource as a whole, i.e. Annotations with a ResourceSelector.
+    /// Returns an iterator over all annotations about this resource as a whole, i.e. Annotations with a ResourceSelector.
     /// Such annotations can be considered metadata.
     pub fn annotations_about_metadata(
         &self,
@@ -75,7 +98,7 @@ impl<'store> ResultItem<'store, TextResource> {
             .filter_map(|a_handle| store.annotation(*a_handle))
     }
 
-    /// Iterates over all annotations about this text in this resource i.e. Annotations with a TextSelector.
+    /// Returns an iterator over all annotations about any text in this resource i.e. Annotations with a TextSelector.
     pub fn annotations_about_text(
         &self,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
@@ -87,13 +110,38 @@ impl<'store> ResultItem<'store, TextResource> {
             .filter_map(|a_handle| store.annotation(a_handle))
     }
 
-    /// Iterates over all annotations about this resource, both annotations that can be considered metadata as well
+    /// Returns an iterator over all annotations about this resource, both annotations that can be considered metadata as well
     /// annotations that reference a portion of the text. The former are always returned before the latter.
     pub fn annotations_about(
         &self,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         self.annotations_about_metadata()
             .chain(self.annotations_about_text())
+    }
+
+    /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
+    /// They are returned in textual order, but this does not come with any significant performance overhead. If you want an unsorted version use [`self.as_ref().textselections_unsorted()`] instead.
+    /// This is a double-ended iterator that can be traversed in both directions.
+    pub fn textselections(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = ResultItem<'store, TextSelection>> {
+        self.as_ref().iter()
+    }
+
+    /// Returns a sorted double-ended iterator over a range of all textselections and returns all
+    /// textselections that either start or end in this range (depending on the direction you're
+    /// iterating in)
+    pub fn textselections_in_range(
+        &self,
+        begin: usize,
+        end: usize,
+    ) -> impl DoubleEndedIterator<Item = ResultItem<'store, TextSelection>> {
+        self.as_ref().range(begin, end)
+    }
+
+    /// Returns the number of textselections that are marked in this resource (i.e. there are one or more annotations on it).
+    pub fn textselections_len(&self) -> usize {
+        self.as_ref().textselections_len()
     }
 }
 

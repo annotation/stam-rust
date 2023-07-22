@@ -568,7 +568,7 @@ impl TextResource {
 
     /// Returns an unsorted iterator over all textselections in this resource
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
-    pub fn textselections(&self) -> impl Iterator<Item = ResultItem<TextSelection>> {
+    pub fn textselections_unsorted(&self) -> impl Iterator<Item = ResultItem<TextSelection>> {
         self.store().iter().filter_map(|item| {
             item.as_ref()
                 .map(|textselection| textselection.as_resultitem(self))
@@ -595,7 +595,7 @@ impl TextResource {
     }
 
     /// returns a sorted double-ended iterator over all textselections in this resource
-    /// for unsorted (slightly more performant), use [`textresource::textselections()`] instead.
+    /// for unsorted (slightly more performant), use [`textresource::textselections_unsorted()`] instead.
     pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
         self.range(0, self.textlen())
     }
@@ -677,75 +677,6 @@ impl TextResource {
 
     pub fn shrink_to_fit(&mut self) {
         self.textselections.shrink_to_fit();
-    }
-}
-
-impl<'store, 'slf> ResultItem<'store, TextResource> {
-    /// Returns all annotations that reference any text selection in the resource. Use
-    /// [`Self.annotations_metadata()`] instead if you are looking for annotations that reference
-    /// the resource as is via a ResourceSelector. These are **NOT** include here.
-    pub fn annotations(
-        &'slf self,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store> {
-        let store = self.store();
-        if let Some(iter) = store.annotations_by_resource(self.handle()) {
-            Some(iter.filter_map(|a_handle| store.annotation(a_handle)))
-        } else {
-            None
-        }
-    }
-
-    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
-    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
-    pub fn annotations_metadata(
-        &'slf self,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
-        if let Some(vec) = self.store().annotations_by_resource_metadata(self.handle()) {
-            Some(
-                vec.iter()
-                    .filter_map(|a_handle| self.store().annotation(*a_handle)),
-            )
-        } else {
-            None
-        }
-    }
-
-    pub fn textselections(&'slf self) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
-        self.as_ref().textselections()
-    }
-
-    pub fn textselections_len(&self) -> usize {
-        self.as_ref().textselections_len()
-    }
-
-    /// Returns a sorted double-ended iterator over a range of all textselections and returns all
-    /// textselections that either start or end in this range (depending on the direction you're
-    /// iterating in)
-    pub fn range<'a>(&'a self, begin: usize, end: usize) -> TextSelectionIter<'a> {
-        self.as_ref().range(begin, end)
-    }
-
-    /// returns a sorted double-ended iterator over all textselections in this resource
-    /// for unsorted (slightly more performant), use [`textresource::textselections()`] instead.
-    pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
-        self.as_ref().iter()
-    }
-
-    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use
-    /// By passing a [`PositionMode`] parameter you can specify whether you want only positions where a textselection begins, ends or both.
-    pub fn positions<'a>(&'a self, mode: PositionMode) -> Box<dyn Iterator<Item = &'a usize> + 'a> {
-        self.as_ref().positions(mode)
-    }
-
-    /// Lookup a position (unicode point) in the PositionIndex. Low-level function.
-    /// Only works for positions at which a TextSelection starts or ends (non-inclusive), returns None otherwise
-    pub fn position(&self, index: usize) -> Option<&PositionIndexItem> {
-        self.as_ref().position(index)
-    }
-
-    /// Returns the number of positions in the positionindex
-    pub fn positionindex_len(&self) -> usize {
-        self.as_ref().positionindex_len()
     }
 }
 
