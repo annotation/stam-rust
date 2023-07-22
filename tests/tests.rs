@@ -17,9 +17,9 @@ fn instantiation_naive() -> Result<(), StamError> {
         Config::default(),
     ));
 
-    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
-    annotationset.insert(DataKey::new("pos"))?;
-    store.insert(annotationset)?;
+    let mut dataset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
+    dataset.insert(DataKey::new("pos"))?;
+    store.insert(dataset)?;
 
     Ok(())
 }
@@ -37,13 +37,13 @@ fn sanity_check() -> Result<(), StamError> {
     ));
 
     // Create a dataset with one key and insert it into the store
-    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
-    annotationset.insert(DataKey::new("pos"))?; //returns a DataKeyHandle, not further used in this test
-    let set_handle = store.insert(annotationset)?;
+    let mut dataset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
+    dataset.insert(DataKey::new("pos"))?; //returns a DataKeyHandle, not further used in this test
+    let set_handle = store.insert(dataset)?;
 
     //get by handle (internal id)
-    let annotationset: &AnnotationDataSet = store.get(set_handle)?;
-    assert_eq!(annotationset.id(), Some("testdataset"));
+    let dataset: &AnnotationDataSet = store.get(set_handle)?;
+    assert_eq!(dataset.id(), Some("testdataset"));
 
     //get by directly by id
     let resource: &TextResource = store.get("testres")?;
@@ -193,9 +193,9 @@ fn store_get_by_id() -> Result<(), StamError> {
 
     //test by public ID
     let _resource: &TextResource = store.get("testres")?;
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    let _datakey: &DataKey = annotationset.get("pos")?;
-    let _annotationdata: &AnnotationData = annotationset.get("D1")?;
+    let dataset: &AnnotationDataSet = store.get("testdataset")?;
+    let _datakey: &DataKey = dataset.get("pos")?;
+    let _annotationdata: &AnnotationData = dataset.get("D1")?;
     let _annotation: &Annotation = store.get("A1")?;
     Ok(())
 }
@@ -206,9 +206,9 @@ fn store_get_by_id_2() -> Result<(), StamError> {
 
     //test by public ID
     let _resource: &TextResource = store.get("testres")?;
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    let _datakey: &DataKey = annotationset.get("pos")?;
-    let _annotationdata: &AnnotationData = annotationset.get("D1")?;
+    let dataset: &AnnotationDataSet = store.get("testdataset")?;
+    let _datakey: &DataKey = dataset.get("pos")?;
+    let _annotationdata: &AnnotationData = dataset.get("D1")?;
     let _annotation: &Annotation = store.get("A1")?;
     Ok(())
 }
@@ -220,9 +220,9 @@ fn store_temp_id() -> Result<(), StamError> {
     let annotation: &Annotation = store.get("A1")?;
     assert_eq!(annotation.temp_id().unwrap(), "!A0");
 
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    assert_eq!(annotationset.temp_id().unwrap(), "!S0");
-    let key: &DataKey = annotationset.get("pos")?;
+    let dataset: &AnnotationDataSet = store.get("testdataset")?;
+    assert_eq!(dataset.temp_id().unwrap(), "!S0");
+    let key: &DataKey = dataset.get("pos")?;
     assert_eq!(key.temp_id().unwrap(), "!K0");
 
     let annotation2 = store
@@ -230,7 +230,7 @@ fn store_temp_id() -> Result<(), StamError> {
         .expect("resolving via temporary ID should work too");
     assert_eq!(annotation2.id().unwrap(), "A1");
 
-    let key2 = annotationset
+    let key2 = dataset
         .key("!K0")
         .expect("resolving via temporary ID should work too");
     assert_eq!(key2.id().unwrap(), "pos");
@@ -252,7 +252,7 @@ fn store_iter_data() -> Result<(), StamError> {
         assert_eq!(data.value(), &DataValue::String("noun".to_string()));
         assert_eq!(data.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
         assert_eq!(data.id(), Some("D1"));
-        assert_eq!(data.set().id(), Some("testdataset"));
+        assert_eq!(data.set(&store).id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -471,13 +471,13 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 
     assert_eq!(data.id(), &BuildItem::from("D1"));
     assert_eq!(data.id(), "D1"); //can also be compared with &str etc
-    assert_eq!(data.annotationset(), &BuildItem::from("testdataset"));
-    assert_eq!(data.annotationset(), "testdataset");
+    assert_eq!(data.dataset(), &BuildItem::from("testdataset"));
+    assert_eq!(data.dataset(), "testdataset");
 
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut("testdataset").unwrap();
     //we already had this annotation, check prior to insert
-    let datahandle1: AnnotationDataHandle = dataset.annotationdata("D1").unwrap().handle();
+    let datahandle1: AnnotationDataHandle = dataset.annotationdata("D1").unwrap().handle().unwrap();
     //insert (which doesn't really insert in this case) but returns the same existing handle
     let datahandle2 = dataset.build_insert_data(data, true).unwrap();
     assert_eq!(datahandle1, datahandle2);
@@ -568,7 +568,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
         assert_eq!(data.key().as_str(), "pos"); //shortcut for the same as above
         assert_eq!(data.value(), &DataValue::String("interjection".to_string()));
         assert_eq!(data.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(data.set().id(), Some("testdataset"));
+        assert_eq!(data.set(&store).id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -612,12 +612,12 @@ fn parse_json_annotationset() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     let sethandle = store.insert(annotationset)?;
 
-    let annotationset: &AnnotationDataSet = store.get(sethandle)?;
-    assert_eq!(annotationset.id(), Some("https://purl.org/dc"));
+    let dataset = store.dataset(sethandle).unwrap();
+    assert_eq!(dataset.id(), Some("https://purl.org/dc"));
 
     let mut count = 0;
     let mut firstkeyhandle: Option<DataKeyHandle> = None;
-    for key in annotationset.keys() {
+    for key in dataset.keys() {
         count += 1;
         if count == 1 {
             assert_eq!(key.id(), Some("http://purl.org/dc/terms/creator"));
@@ -627,7 +627,7 @@ fn parse_json_annotationset() -> Result<(), StamError> {
     assert_eq!(count, 3);
 
     count = 0;
-    for data in annotationset.data() {
+    for data in dataset.data() {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(data.id(), Some("D1"));
@@ -958,6 +958,20 @@ fn annotations_by_offset() -> Result<(), StamError> {
     Ok(())
 }
 
+/*
+#[test]
+fn annotations_by_offset_lowlevel() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let resource: &TextResource = store.get("testres")?;
+    let textselection = resource.textselection(&Offset::simple(6, 11))?;
+    let v: &Vec<_> = store
+        .annotations_by_textselection(resource.handle().unwrap(), textselection.as_ref().unwrap())
+        .expect("some");
+    assert_eq!(v.len(), 1);
+    Ok(())
+}
+*/
+
 #[test]
 fn textselections_by_annotation() -> Result<(), StamError> {
     let store = setup_example_2()?;
@@ -977,7 +991,7 @@ fn textselections_by_annotation() -> Result<(), StamError> {
 fn textselections_by_resource_unsorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
     let resource: &TextResource = store.get("testres")?;
-    let v: Vec<_> = resource.textselections().collect();
+    let v: Vec<_> = resource.textselections_unsorted().collect();
     assert_eq!(v[0].begin(), 6);
     assert_eq!(v[0].end(), 11);
     assert_eq!(v[1].begin(), 0);
@@ -1087,8 +1101,8 @@ fn data_by_value_low() -> Result<(), StamError> {
 #[test]
 fn data_by_value_high() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
-    let annotationdata = annotationset.data_by_value("pos", &"noun".into());
+    let dataset = store.dataset("testdataset").unwrap();
+    let annotationdata = dataset.data_by_value("pos", &"noun".into());
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -1097,9 +1111,9 @@ fn data_by_value_high() -> Result<(), StamError> {
 #[test]
 fn find_data_exact() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").unwrap();
     let mut count = 0;
-    for annotationdata in annotationset
+    for annotationdata in dataset
         .find_data(Some("pos"), DataOperator::Equals("noun"))
         .into_iter()
         .flatten()
@@ -1114,9 +1128,9 @@ fn find_data_exact() -> Result<(), StamError> {
 #[test]
 fn find_data_by_key() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").unwrap();
     let mut count = 0;
-    for _ in annotationset
+    for _ in dataset
         .find_data(Some("type"), DataOperator::Any)
         .into_iter()
         .flatten()
@@ -1130,7 +1144,7 @@ fn find_data_by_key() -> Result<(), StamError> {
 #[test]
 fn find_data_all() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
+    let annotationset = store.dataset("testdataset").unwrap();
     let mut count = 0;
     let key: Option<DataKeyHandle> = None;
     for _ in annotationset
@@ -1268,7 +1282,7 @@ fn test_multiselector2_creation_and_sanity() -> Result<(), StamError> {
     assert_eq!(v2.len(), 1);
     assert_eq!(v2[0].0, 11);
 
-    let v3: Vec<_> = resource.textselections().collect();
+    let v3: Vec<_> = resource.textselections_unsorted().collect();
     assert_eq!(v3.len(), 2);
 
     Ok(())
@@ -1565,7 +1579,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosInterjection"));
-        assert_eq!(data.set().id(), Some("https://example.org/test/"));
+        assert_eq!(data.set(&store).id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "interjection");
     }
 
@@ -1574,7 +1588,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosNoun"));
-        assert_eq!(data.set().id(), Some("https://example.org/test/"));
+        assert_eq!(data.set(&store).id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "noun");
     }
 
@@ -1718,8 +1732,8 @@ fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
                 resource.as_ref(),
                 resource
                     .as_ref()
-                    .textselections()
-                    .map(|textselection| textselection.as_ref())
+                    .textselections_unsorted()
+                    .map(|textselection| textselection)
                     .collect(),
             )
         })
@@ -1751,15 +1765,11 @@ fn test_lifetime_sanity_keys() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
     annotate_regex(&mut store)?;
     let result: Vec<(&AnnotationDataSet, Vec<&DataKey>)> = store
-        .annotationsets()
+        .datasets()
         .map(|annotationset| {
             (
                 annotationset.as_ref(),
-                annotationset
-                    .as_ref()
-                    .keys()
-                    .map(|key| key.as_ref())
-                    .collect(),
+                annotationset.as_ref().keys().map(|key| key).collect(),
             )
         })
         .collect();
@@ -1793,11 +1803,9 @@ fn test_annotations_by_textselection() -> Result<(), StamError> {
     let mut count_annotations = 0;
     for textselection in resource.textselections() {
         count += 1;
-        if let Some(iter) = textselection.annotations(&store) {
+        for annotation in textselection.annotations(&store) {
             count_annotations += 1;
-            for annotation in iter {
-                eprintln!("{} {:?}", textselection.text(), annotation.id());
-            }
+            eprintln!("{} {:?}", textselection.text(), annotation.id());
         }
     }
     assert_eq!(count, resource.textselections_len());
@@ -1844,10 +1852,13 @@ fn test_find_textselections_embedded() -> Result<(), StamError> {
     let phrase1 = store.annotation("Phrase1").unwrap();
     let mut count = 0;
     for reftextsel in phrase1.textselections() {
-        for textsel in reftextsel.find_textselections(TextSelectionOperator::Embedded {
-            all: false,
-            negate: false,
-        }) {
+        for textsel in reftextsel.find_textselections(
+            TextSelectionOperator::Embedded {
+                all: false,
+                negate: false,
+            },
+            &store,
+        ) {
             count += 1;
             assert_eq!(textsel.begin(), 0);
             assert_eq!(textsel.end(), 63);
@@ -1862,7 +1873,7 @@ fn test_textselectioniter_range_exact() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let mut count = 0;
-    for textsel in resource.range(17, 40) {
+    for textsel in resource.textselections_in_range(17, 40) {
         count += 1;
         assert_eq!(textsel.begin(), 17);
         assert_eq!(textsel.end(), 40);
@@ -1876,14 +1887,14 @@ fn test_textselectioniter_range_bigger() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let mut count = 0;
-    for textsel in resource.range(1, 50) {
+    for textsel in resource.textselections_in_range(1, 50) {
         count += 1;
         assert_eq!(textsel.begin(), 17);
         assert_eq!(textsel.end(), 40);
     }
     assert_eq!(count, 1);
     count = 0;
-    for _textsel in resource.range(0, 64) {
+    for _textsel in resource.textselections_in_range(0, 64) {
         count += 1;
     }
     assert_eq!(count, 2);
@@ -1896,10 +1907,13 @@ fn test_find_textselections_embeds() -> Result<(), StamError> {
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
     for reftextsel in sentence1.textselections() {
-        for textsel in reftextsel.find_textselections(TextSelectionOperator::Embeds {
-            all: false,
-            negate: false,
-        }) {
+        for textsel in reftextsel.find_textselections(
+            TextSelectionOperator::Embeds {
+                all: false,
+                negate: false,
+            },
+            &store,
+        ) {
             count += 1;
             assert_eq!(textsel.begin(), 17);
             assert_eq!(textsel.end(), 40);
@@ -1935,13 +1949,10 @@ fn test_find_annotations_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence = store.annotation("Sentence1").unwrap();
     let mut count = 0;
-    for annotation in sentence
-        .find_annotations(TextSelectionOperator::Embeds {
-            all: false,
-            negate: false,
-        })
-        .unwrap()
-    {
+    for annotation in sentence.find_annotations(TextSelectionOperator::Embeds {
+        all: false,
+        negate: false,
+    }) {
         count += 1;
         assert_eq!(annotation.id(), Some("Phrase1"));
     }
@@ -1959,8 +1970,6 @@ fn test_find_annotations_overlaps() -> Result<(), StamError> {
             all: false,
             negate: false,
         })
-        .into_iter()
-        .flatten()
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -1982,8 +1991,6 @@ fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
             all: false,
             negate: false,
         })
-        .into_iter()
-        .flatten()
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -2005,8 +2012,6 @@ fn test_find_annotations_precedes() -> Result<(), StamError> {
             all: false,
             negate: false,
         })
-        .into_iter()
-        .flatten()
         .collect();
     assert_eq!(annotations.len(), 1);
     assert!(annotations
@@ -2025,8 +2030,6 @@ fn test_find_annotations_succeeds() -> Result<(), StamError> {
             all: false,
             negate: false,
         })
-        .into_iter()
-        .flatten()
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -2115,7 +2118,7 @@ fn test_textselections_scale_sorted_iter() -> Result<(), StamError> {
 
     //iterate over all textselections unsorted
     let mut count = 0;
-    for _ in resource.iter() {
+    for _ in resource.as_ref().textselections_unsorted() {
         count += 1;
     }
     assert_eq!(count, n - 2);
@@ -2136,10 +2139,13 @@ fn test_textselections_scale_test_overlap() -> Result<(), StamError> {
     //iterate over all textselections unsorted
 
     let mut count = 0;
-    for _textselection in selection.find_textselections(TextSelectionOperator::Overlaps {
-        all: false,
-        negate: false,
-    }) {
+    for _textselection in selection.find_textselections(
+        TextSelectionOperator::Overlaps {
+            all: false,
+            negate: false,
+        },
+        &store,
+    ) {
         count += 1;
     }
 

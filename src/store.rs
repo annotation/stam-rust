@@ -881,13 +881,13 @@ impl<'store, T> Iterator for StoreIter<'store, T>
 where
     T: Storable,
 {
-    type Item = ResultItem<'store, T>;
+    type Item = &'store T;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
         loop {
             match self.iter.next() {
-                Some(Some(item)) => return Some(item.as_resultitem(self.store)),
+                Some(Some(item)) => return Some(item),
                 Some(None) => continue,
                 None => return None,
             }
@@ -933,7 +933,8 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
-/// It is heavily used as a return type all through the higher-level API.
+/// It is heavily used as a return type all throughout the higher-level API. Most API traits
+/// are implemented for a particular variant of this type.
 #[derive(Debug)]
 pub struct ResultItem<'store, T>
 where
@@ -960,7 +961,7 @@ where
     T: Storable,
 {
     fn eq(&self, other: &ResultItem<'store, T>) -> bool {
-        self == other
+        self.as_ref() == other.as_ref()
     }
 }
 

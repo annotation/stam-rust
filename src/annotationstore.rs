@@ -279,7 +279,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                     if self.config.textrelationmap {
                         //process relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
-                        match self.textselection(
+                        match self.textselection_by_selector(
                             targetitem.selector(),
                             Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
                         ) {
@@ -933,21 +933,6 @@ impl AnnotationStore {
         <AnnotationStore as StoreFor<TextResource>>::resolve_id(self, id)
     }
 
-    /// Returns an iterator over all annotations ([`Annotation`]) in the store
-    pub fn annotations<'a>(&'a self) -> StoreIter<'a, Annotation> {
-        self.iter()
-    }
-
-    /// Returns an iterator over all text resources ([`TextResource`] instances) in the store
-    pub fn resources<'a>(&'a self) -> StoreIter<'a, TextResource> {
-        self.iter()
-    }
-
-    /// Returns an iterator over all [`AnnotationDataSet`] instances in the store
-    pub fn annotationsets<'a>(&'a self) -> StoreIter<'a, AnnotationDataSet> {
-        self.iter()
-    }
-
     /// Returns the number of annotations in the store (deletions are not substracted)
     pub fn annotations_len(&self) -> usize {
         self.annotations.len()
@@ -961,38 +946,6 @@ impl AnnotationStore {
     /// Returns the number of datasets in the store (deletions are not substracted)
     pub fn annotationsets_len(&self) -> usize {
         self.annotationsets.len()
-    }
-
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
-    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
-    /// instead for those.
-    ///
-    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
-    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
-    pub fn textselection<'b>(
-        //MAYBE TODO: move to Textual?
-        &self,
-        selector: &Selector,
-        subselectors: Option<impl Iterator<Item = &'b Selector>>,
-    ) -> Result<ResultTextSelection, StamError> {
-        match selector {
-            Selector::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(*res_id)?;
-                let mut textselection = resource.textselection(offset)?;
-                if let Some(subselectors) = subselectors {
-                    for selector in subselectors {
-                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
-                            //each annotation selector selects a subslice of the previous textselection
-                            textselection = textselection.textselection(&suboffset)?;
-                        }
-                    }
-                }
-                Ok(textselection)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "selector for Annotationstore::textselection() must be a TextSelector",
-            )),
-        }
     }
 
     /// Builds a [`Selector`] based on its [`SelectorBuilder`], this will produce an error if the selected resource does not exist.
@@ -1054,36 +1007,6 @@ impl AnnotationStore {
                 Ok(Selector::CompositeSelector(new_v))
             }
         }
-    }
-
-    /// Method to retrieve an annotation from the store.
-    ///
-    /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`ResultItem<Annotation>`]) that also contains reference to the store
-    /// and which is immediately implements various methods for working with the type.
-    /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
-    pub fn annotation(
-        &self,
-        annotation: impl Request<Annotation>,
-    ) -> Option<ResultItem<Annotation>> {
-        self.get(annotation).map(|x| x.as_resultitem(self)).ok()
-    }
-
-    /// Get an [`AnnotationDataSet'] by reference (as a fat pointer [`ResultItem<AnnotationDataSet'])
-    /// Returns `None` if it does not exist.
-    pub fn annotationset(
-        &self,
-        annotationset: impl Request<AnnotationDataSet>,
-    ) -> Option<ResultItem<AnnotationDataSet>> {
-        self.get(annotationset).map(|x| x.as_resultitem(self)).ok()
-    }
-
-    /// Get a [`TextResource'] by reference (as a fat pointer [`ResultItem<TextResource'])
-    /// Returns `None` if it does not exist.
-    pub fn resource(
-        &self,
-        resource: impl Request<TextResource>,
-    ) -> Option<ResultItem<TextResource>> {
-        self.get(resource).map(|x| x.as_resultitem(self)).ok()
     }
 
     /// Returns length for each of the reverse indices
@@ -1158,49 +1081,6 @@ impl AnnotationStore {
             self.dataset_data_annotation_map.partialcount(),
             self.textrelationmap.partialcount(),
         )
-    }
-
-    /// Finds the [`AnnotationData'] in a specific set. Returns an iterator over all matches.
-    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
-    ///
-    /// Provide `key` as an Option, if set to `None`, all keys in the specified set will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn find_data<'a>(
-        &'a self,
-        set: impl Request<AnnotationDataSet>,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'a, AnnotationData>>> {
-        //if let Some(set) = set {
-        if let Some(annotationset) = self.annotationset(set) {
-            return annotationset.find_data(key, value);
-        }
-        /*} else {
-            //this doesn't work:
-            return Some(
-                self.annotationsets()
-                    .filter_map(|annotationset| annotationset.find_data(key, value))
-                    .flatten(),
-            );
-        }*/
-        None
-    }
-
-    /// Tests if for annotation data in a specific set, returns a boolean.
-    /// If you want to actually retrieve the data, use `find_data()` instead.
-    ///
-    /// Provide `key` as Option, if set to `None`, all keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn test_data<'a>(
-        &'a self,
-        set: impl Request<AnnotationDataSet>,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> bool {
-        match self.find_data(set, key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
     }
 
     /// Re-allocates data structures to minimize memory consumption
@@ -1301,6 +1181,37 @@ impl AnnotationStore {
             }
         }
     }
+
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
+    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
+    /// instead for those.
+    ///
+    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
+    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
+    pub(crate) fn textselection_by_selector<'b>(
+        &self,
+        selector: &Selector,
+        subselectors: Option<impl Iterator<Item = &'b Selector>>,
+    ) -> Result<ResultTextSelection, StamError> {
+        match selector {
+            Selector::TextSelector(res_id, offset) => {
+                let resource: &TextResource = self.get(*res_id)?;
+                let mut textselection = resource.textselection(offset)?;
+                if let Some(subselectors) = subselectors {
+                    for selector in subselectors {
+                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
+                            //each annotation selector selects a subslice of the previous textselection
+                            textselection = textselection.textselection(&suboffset)?;
+                        }
+                    }
+                }
+                Ok(textselection)
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "selector for Annotationstore::textselection() must be a TextSelector",
+            )),
+        }
+    }
 }
 
 #[sealed]
@@ -1377,10 +1288,10 @@ impl AnnotationStore {
     /// This is a low-level method, use [`ResultItem<TextResource>.annotations()`] instead for higher-level access.
     ///
     /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
-    pub(crate) fn annotations_by_resource(
-        &self,
+    pub(crate) fn annotations_by_resource<'store>(
+        &'store self,
         resource_handle: TextResourceHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + 'store> {
         if let Some(textselection_annotationmap) =
             self.textrelationmap.data.get(resource_handle.as_usize())
         {
@@ -1441,13 +1352,11 @@ impl AnnotationStore {
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
-        if let Some(resource) = self.resource(resource_handle) {
-            if let Ok(textselection) = resource.as_ref().textselection(&offset) {
-                if let Some(textselection_handle) = textselection.handle() {
-                    return self
-                        .textrelationmap
-                        .get(resource_handle, textselection_handle);
-                }
+        if let Some(resource) = self.get(resource_handle).ok() {
+            if let Ok(Some(textselection_handle)) = resource.known_textselection(&offset) {
+                return self
+                    .textrelationmap
+                    .get(resource_handle, textselection_handle);
             }
         };
         None
@@ -1485,14 +1394,14 @@ impl AnnotationStore {
     /// Returns all annotations that reference any keys/data in an annotationset
     /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
     /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations()`] instead.
-    pub(crate) fn annotations_by_annotationset(
+    pub(crate) fn annotations_by_dataset(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
     ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
         if let Some(data_annotationmap) = self
             .dataset_data_annotation_map
             .data
-            .get(annotationset_handle.as_usize())
+            .get(dataset_handle.as_usize())
         {
             Some(
                 data_annotationmap
@@ -1508,38 +1417,38 @@ impl AnnotationStore {
     /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
     /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations_metadata()`] instead.
-    pub(crate) fn annotations_by_annotationset_metadata(
+    pub(crate) fn annotations_by_dataset_metadata(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
-        self.dataset_annotation_map.get(annotationset_handle)
+        self.dataset_annotation_map.get(dataset_handle)
     }
 
     /// Find all annotations referenced by data. This is a lookup in the reverse index and returns a reference to it.
     /// This is a low-level method. Use [`ResultItem<AnnotationData>.annotations()`] instead.
     pub(crate) fn annotations_by_data(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
         data_handle: AnnotationDataHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
         self.dataset_data_annotation_map
-            .get(annotationset_handle, data_handle)
+            .get(dataset_handle, data_handle)
     }
 
     /// Find all annotations referenced by key
     /// This is a low-level method
     pub(crate) fn annotations_by_key(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
     ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
-        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
+        let dataset: Option<&AnnotationDataSet> = self.get(dataset_handle).ok();
         if let Some(dataset) = dataset {
             if let Some(data) = dataset.data_by_key(datakey_handle) {
                 Some(
                     data.iter()
                         .filter_map(move |dataitem| {
-                            self.annotations_by_data(annotationset_handle, *dataitem)
+                            self.annotations_by_data(dataset_handle, *dataitem)
                         })
                         .flat_map(|v| v.iter().copied()), //(only the handles are copied)
                 )

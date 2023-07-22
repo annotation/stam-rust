@@ -341,14 +341,13 @@ impl FromJson for AnnotationDataSet {
         let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
 
-        let mut annotationset: AnnotationDataSet =
-            AnnotationDataSet::new(config).with_filename(filename); //we use the original filename, not the one we found
+        let mut dataset: AnnotationDataSet = AnnotationDataSet::new(config).with_filename(filename); //we use the original filename, not the one we found
 
-        DeserializeAnnotationDataSet::new(&mut annotationset)
+        DeserializeAnnotationDataSet::new(&mut dataset)
             .deserialize(deserializer)
             .map_err(|e| StamError::DeserializationError(e.to_string()))?;
 
-        Ok(annotationset)
+        Ok(dataset)
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON string
@@ -356,13 +355,13 @@ impl FromJson for AnnotationDataSet {
     fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
 
-        let mut annotationset: AnnotationDataSet = AnnotationDataSet::new(config);
+        let mut dataset: AnnotationDataSet = AnnotationDataSet::new(config);
 
-        DeserializeAnnotationDataSet::new(&mut annotationset)
+        DeserializeAnnotationDataSet::new(&mut dataset)
             .deserialize(deserializer)
             .map_err(|e| StamError::DeserializationError(e.to_string()))?;
 
-        Ok(annotationset)
+        Ok(dataset)
     }
 
     /// Merges an AnnotationDataSet from a STAM JSON file into the current one
@@ -472,13 +471,13 @@ impl AnnotationDataSet {
     }
 
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
-    /// This is a low level method, use the similar [`WrappedItem<AnnotationDataSet>.find_data()`] for a higher level version.
+    /// This is a low level method, use the similar [`ResultItem<AnnotationDataSet>.data_by_value()`] for a higher level version.
     pub fn data_by_value(
         &self,
         key: impl Request<DataKey>,
         value: &DataValue,
     ) -> Option<&AnnotationData> {
-        let datakey: Option<&DataKey> = self.key(key).map(|key| key.as_ref());
+        let datakey: Option<&DataKey> = self.key(key).map(|key| key);
         if let Some(datakey) = datakey {
             let datakey_handle = datakey.handle().expect("key must be bound at this point");
             if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.as_usize()) {
@@ -598,21 +597,16 @@ impl AnnotationDataSet {
     }
 
     /// Retrieve a key in this set
-    pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<DataKey>> {
-        self.get(key).map(|x| x.as_resultitem(self)).ok()
+    pub fn key(&self, key: impl Request<DataKey>) -> Option<&DataKey> {
+        self.get(key).map(|x| x).ok()
     }
 
     /// Retrieve a [`AnnotationData`] in this set
-    ///
-    /// Returns a reference to [`AnnotationData`] that is wrapped in a fat pointer
-    /// ([`WrappedItem<AnnotationData>`]) that also contains reference to the store and which is
-    /// immediately implements various methods for working with the type. If you need a more
-    /// performant low-level method, use `StoreFor<T>::get()` instead.
-    pub fn annotationdata<'a>(
-        &'a self,
+    pub fn annotationdata(
+        &self,
         annotationdata: impl Request<AnnotationData>,
-    ) -> Option<ResultItem<'a, AnnotationData>> {
-        self.get(annotationdata).map(|x| x.as_resultitem(self)).ok()
+    ) -> Option<&AnnotationData> {
+        self.get(annotationdata).ok()
     }
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
@@ -663,106 +657,6 @@ impl AnnotationDataSet {
         }
         self.data_idmap =
             IdMap::new("D".to_string()).with_resolve_temp_ids(self.config().strip_temp_ids());
-    }
-}
-
-impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
-    /// Returns [`AnnotationData'] in the annotation dataset that matches they key and value.
-    /// Returns a single match, use `Self::find_data()` for a more extensive search.
-    pub fn data_by_value(
-        &self,
-        key: impl Request<DataKey>,
-        value: &DataValue,
-    ) -> Option<ResultItem<'store, AnnotationData>> {
-        self.as_ref()
-            .data_by_value(key, value)
-            .map(|annotationdata| annotationdata.as_resultitem(self.as_ref()))
-    }
-
-    /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.
-    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
-    ///
-    /// Provide `key`  as an Options, if set to `None`, all keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn find_data<'a>(
-        &'slf self,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
-    where
-        'store: 'slf,
-        'a: 'store,
-    {
-        let mut key_handle: Option<DataKeyHandle> = None; //this means 'any' in this context
-        if let Some(key) = key {
-            key_handle = key.to_handle(self.as_ref());
-            if key_handle.is_none() {
-                //requested key doesn't exist, bail out early, we won't find anything at all
-                return None;
-            }
-        };
-        Some(self.as_ref().data().filter_map(move |annotationdata| {
-            if (key_handle.is_none() || key_handle.unwrap() == annotationdata.key().handle())
-                && annotationdata.as_ref().value().test(&value)
-            {
-                Some(annotationdata)
-            } else {
-                None
-            }
-        }))
-    }
-
-    /// Tests if the dataset has certain data, returns a boolean.
-    /// If you want to actually retrieve the data, use `find_data()` instead.
-    ///
-    /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
-    pub fn test_data<'a>(
-        &'slf self,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> bool {
-        match self.find_data(key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
-    }
-
-    /// Returns all annotations that use this dataset. Use
-    /// [`Self.annotations_metadata()`] instead if you are looking for annotations that reference
-    /// the dataset as a whole via a DataSetSelector. These are also included here, though.
-    pub fn annotations(
-        &'slf self,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
-        if let Some(iter) = self.store().annotations_by_annotationset(self.handle()) {
-            Some(iter.filter_map(|a_handle| self.store().annotation(a_handle)))
-        } else {
-            None
-        }
-    }
-
-    /// Tests whether two AnnotationDataSets are the same
-    pub fn test(&'slf self, other: impl Request<AnnotationDataSet>) -> bool {
-        Some(self.handle()) == other.to_handle(self.store())
-    }
-
-    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
-    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
-    pub fn annotations_metadata(
-        &'slf self,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
-        if let Some(vec) = self
-            .store()
-            .annotations_by_annotationset_metadata(self.handle())
-        {
-            Some(
-                vec.iter()
-                    .filter_map(|a_handle| self.store().annotation(*a_handle)),
-            )
-        } else {
-            None
-        }
     }
 }
 

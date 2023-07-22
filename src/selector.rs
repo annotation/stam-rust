@@ -617,15 +617,15 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 state.end()
             }
             Selector::DataSetSelector(dataset_handle) => {
-                let annotationset: Result<&AnnotationDataSet, _> =
+                let dataset: Result<&AnnotationDataSet, _> =
                     self.store().get(*dataset_handle);
-                let annotationset = annotationset.map_err(serde::ser::Error::custom)?;
+                let dataset = dataset.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 2)?;
                 state.serialize_field("@type", "DataSetSelector")?;
-                if let Some(id) = annotationset.id() {
+                if let Some(id) = dataset.id() {
                     state.serialize_field("annotationset", &id)?;
                 } else {
-                    state.serialize_field("annotationset", &annotationset.temp_id().map_err(serde::ser::Error::custom)?)?;
+                    state.serialize_field("annotationset", &dataset.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
                 state.end()
             }

@@ -30,9 +30,22 @@ where
 
     /// Converts a unicode character position to a UTF-8 byte position
     fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError>;
+
     /// Converts a UTF-8 byte position into a unicode position
     fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError>;
 
+    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
+    /// is held by the [`FindRegexMatch'] struct.
+    ///
+    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
+    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
+    /// the entire expression is returned.
+    ///
+    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
+    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
+    /// false. All of this only matters if you supply multiple regular expressions.
+    ///
+    /// Results are returned in the exact order they are found in the text
     fn find_text_regex<'regex>(
         &'slf self,
         expressions: &'regex [Regex],
@@ -217,28 +230,6 @@ pub(crate) fn find_text_regex_select_expressions<'a, 'b>(
             _ => unreachable!("Expected 1 or 2 expressions"),
         }
     })
-}
-
-impl AnnotationStore {
-    /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// See [`TextResource.find_text_regex()`].
-    /// Note that this method, unlike its counterpart [`TextResource.find_text_regex()`], silently ignores any deeper errors that might occur.
-    pub fn find_text_regex<'store, 'r>(
-        &'store self,
-        expressions: &'r [Regex],
-        precompiledset: &'r Option<RegexSet>,
-        allow_overlap: bool,
-    ) -> impl Iterator<Item = FindRegexMatch<'store, 'r>> {
-        self.resources()
-            .filter_map(move |resource: ResultItem<'store, TextResource>| {
-                //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
-                resource
-                    .as_ref()
-                    .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
-                    .ok() //ignore errors!
-            })
-            .flatten()
-    }
 }
 
 /// Wrapper over iterator regex Matches or CaptureMatches

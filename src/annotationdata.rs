@@ -207,63 +207,6 @@ impl AnnotationData {
     }
 }
 
-impl<'store, 'slf> ResultItem<'store, AnnotationData> {
-    /// Return a reference to the AnnotationDataSet that holds this data (and its key)
-    pub fn set(&'slf self) -> &'store AnnotationDataSet {
-        self.store()
-    }
-
-    pub fn value(&'slf self) -> &'store DataValue {
-        self.as_ref().value()
-    }
-
-    pub fn key(&'slf self) -> ResultItem<'store, DataKey> {
-        self.store()
-            .key(self.as_ref().key())
-            .expect("AnnotationData must always have a key at this point")
-    }
-
-    /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
-    /// The iterator returns the annoations as [`WrappedItem<Annotation>`].
-    /// Especially useful in combination with a call to  [`WrappedItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
-    pub fn annotations(
-        &'slf self,
-        annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store> {
-        if let Some(vec) = annotationstore.annotations_by_data(
-            self.set().handle().expect("set must have handle"),
-            self.handle(),
-        ) {
-            Some(
-                vec.iter()
-                    .filter_map(|a_handle| annotationstore.annotation(*a_handle)),
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Returns the number of annotations ([`Annotation`]) that make use of this data.
-    pub fn annotations_len(&'slf self, annotationstore: &'store AnnotationStore) -> usize {
-        if let Some(vec) = annotationstore.annotations_by_data(
-            self.set().handle().expect("set must have handle"),
-            self.handle(),
-        ) {
-            vec.len()
-        } else {
-            0
-        }
-    }
-
-    pub fn test(&self, key: Option<&BuildItem<DataKey>>, operator: &DataOperator) -> bool {
-        if key.is_none() || self.key().test(key.unwrap()) {
-            self.as_ref().value().test(operator)
-        } else {
-            false
-        }
-    }
-}
-
 /// This is the builder for `AnnotationData`. It contains public IDs or handles that will be resolved.
 /// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] or [`AnnotationDataSet.build_insert_data()`] methods.
 /// It also does not have its own `build()` method but is resolved via the aforementioned methods.
@@ -274,7 +217,7 @@ pub struct AnnotationDataBuilder<'a> {
     #[serde(rename = "@id")]
     pub(crate) id: BuildItem<'a, AnnotationData>,
     #[serde(rename = "set")]
-    pub(crate) annotationset: BuildItem<'a, AnnotationDataSet>,
+    pub(crate) dataset: BuildItem<'a, AnnotationDataSet>,
     pub(crate) key: BuildItem<'a, DataKey>,
     pub(crate) value: DataValue,
 }
@@ -283,7 +226,7 @@ impl<'a> Default for AnnotationDataBuilder<'a> {
     fn default() -> Self {
         Self {
             id: BuildItem::None,
-            annotationset: BuildItem::None,
+            dataset: BuildItem::None,
             key: BuildItem::None,
             value: DataValue::Null,
         }
@@ -304,13 +247,13 @@ impl<'a> AnnotationDataBuilder<'a> {
         &self.id
     }
 
-    pub fn with_annotationset(mut self, annotationset: BuildItem<'a, AnnotationDataSet>) -> Self {
-        self.annotationset = annotationset;
+    pub fn with_dataset(mut self, dataset: BuildItem<'a, AnnotationDataSet>) -> Self {
+        self.dataset = dataset;
         self
     }
 
-    pub fn annotationset(&self) -> &BuildItem<AnnotationDataSet> {
-        &self.annotationset
+    pub fn dataset(&self) -> &BuildItem<AnnotationDataSet> {
+        &self.dataset
     }
 
     pub fn with_key(mut self, key: BuildItem<'a, DataKey>) -> Self {
@@ -346,7 +289,7 @@ impl<'a> From<AnnotationDataJson> for AnnotationDataBuilder<'a> {
     fn from(helper: AnnotationDataJson) -> Self {
         Self {
             id: helper.id.into(),
-            annotationset: helper.set.into(),
+            dataset: helper.set.into(),
             key: helper.key.into(),
             value: helper.value.unwrap_or(DataValue::Null),
         }
