@@ -955,11 +955,20 @@ where
     }
 }
 
+impl<'store, T> PartialEq<ResultItem<'store, T>> for ResultItem<'store, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &ResultItem<'store, T>) -> bool {
+        self == other
+    }
+}
+
 impl<'store, T> ResultItem<'store, T>
 where
     T: Storable,
 {
-    /// Create a new wrapped item. Not public, called by [`StoreFor<T>::as_resultitem()`] instead.
+    /// Create a new wrapped item. Not public, called by [`StoreFor<T>::as_resultitem()`].
     /// will panic if called on an unbound item!
     pub(crate) fn new(item: &'store T, store: &'store T::StoreType) -> Self {
         if item.handle().is_none() {
@@ -968,6 +977,7 @@ where
         Self { item, store }
     }
 
+    /// Get the store this item is a direct member of
     pub fn store(&self) -> &'store T::StoreType {
         self.store
     }
@@ -977,12 +987,14 @@ where
         self.item
     }
 
+    /// Get the handle (internal identifier) for the contained item
     pub fn handle(&self) -> T::HandleType {
         self.item
             .handle()
-            .expect("handle was already guaranteed, this should always work")
+            .expect("handle was already guaranteed for ResultItem, this should always work")
     }
 
+    /// Get the public identifier for the contained item
     pub fn id(&self) -> Option<&'store str> {
         self.item.id()
     }
@@ -1604,15 +1616,6 @@ where
             Self::Ref(r) => r.id() == Some(other),
             _ => false,
         }
-    }
-}
-
-impl<'store, T> PartialEq<ResultItem<'store, T>> for ResultItem<'store, T>
-where
-    T: Storable,
-{
-    fn eq(&self, other: &ResultItem<'store, T>) -> bool {
-        self.as_ref() == other.as_ref()
     }
 }
 

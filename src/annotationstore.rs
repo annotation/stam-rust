@@ -1058,7 +1058,7 @@ impl AnnotationStore {
 
     /// Method to retrieve an annotation from the store.
     ///
-    /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`WrappedItem<Annotation>`]) that also contains reference to the store
+    /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`ResultItem<Annotation>`]) that also contains reference to the store
     /// and which is immediately implements various methods for working with the type.
     /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
     pub fn annotation(
@@ -1068,7 +1068,7 @@ impl AnnotationStore {
         self.get(annotation).map(|x| x.as_resultitem(self)).ok()
     }
 
-    /// Get an [`AnnotationDataSet'] by reference (as a fat pointer [`WrappedItem<AnnotationDataSet'])
+    /// Get an [`AnnotationDataSet'] by reference (as a fat pointer [`ResultItem<AnnotationDataSet'])
     /// Returns `None` if it does not exist.
     pub fn annotationset(
         &self,
@@ -1077,7 +1077,7 @@ impl AnnotationStore {
         self.get(annotationset).map(|x| x.as_resultitem(self)).ok()
     }
 
-    /// Get a [`TextResource'] by reference (as a fat pointer [`WrappedItem<TextResource'])
+    /// Get a [`TextResource'] by reference (as a fat pointer [`ResultItem<TextResource'])
     /// Returns `None` if it does not exist.
     pub fn resource(
         &self,
@@ -1374,7 +1374,7 @@ impl AssociatedFile for AnnotationStore {
 // low-level search API (private)
 impl AnnotationStore {
     /// Returns all annotations that reference any text selection in the resource.
-    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations()`] instead for higher-level access.
+    /// This is a low-level method, use [`ResultItem<TextResource>.annotations()`] instead for higher-level access.
     ///
     /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
     pub(crate) fn annotations_by_resource(
@@ -1396,7 +1396,7 @@ impl AnnotationStore {
     }
 
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
-    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations(_metadata`] instead for higher-level access.
+    /// This is a low-level method, use [`ResultItem<TextResource>.annotations(_metadata`] instead for higher-level access.
     ///
     /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
     pub(crate) fn annotations_by_resource_metadata(
@@ -1407,7 +1407,7 @@ impl AnnotationStore {
     }
 
     /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
-    /// This is a low-level method, use [`WrappedItem<TextSelection>.annotations()`] instead for higher-level access.
+    /// This is a low-level method, use [`ResultItem<TextSelection>.annotations()`] instead for higher-level access.
     pub(crate) fn annotations_by_textselection(
         &self,
         resource_handle: TextResourceHandle,
@@ -1473,8 +1473,8 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
     ///
-    /// This is a low-lever function, use [`WrappedItem<Annotation>.annotations_reverse()`] instead.
-    /// Use [`wrappeditem<annotation>.annotations()`] if you are looking for the annotations that an annotation points at.
+    /// This is a low-lever function, use [`ResultItem<Annotation>.annotations_reverse()`] instead.
+    /// Use [`ResultItem<annotation>.annotations()`] if you are looking for the annotations that an annotation points at.
     pub(crate) fn annotations_by_annotation_reverse(
         &self,
         annotation_handle: AnnotationHandle,
@@ -1484,7 +1484,7 @@ impl AnnotationStore {
 
     /// Returns all annotations that reference any keys/data in an annotationset
     /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
-    /// This is a low-level method. Use [`WrappedItem<AnnotationDataSet>.annotations()`] instead.
+    /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations()`] instead.
     pub(crate) fn annotations_by_annotationset(
         &self,
         annotationset_handle: AnnotationDataSetHandle,
