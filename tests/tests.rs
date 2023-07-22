@@ -944,12 +944,17 @@ fn existing_textselection() -> Result<(), StamError> {
 #[test]
 fn annotations_by_offset() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let res_handle = store.resolve_resource_id("testres")?;
-    let v = store
-        .annotations_by_offset(res_handle, &Offset::simple(6, 11))
-        .expect("test: offset should exist");
-    let a_ref = store.resolve_annotation_id("A1")?;
-    assert_eq!(v, &vec!(a_ref));
+    let resource = store
+        .resource("testres")
+        .expect("test: resource must exist");
+    let textselection = resource.textselection(&Offset::simple(6, 11))?;
+    let v: Vec<_> = textselection
+        .annotations(&store)
+        .into_iter()
+        .flatten()
+        .collect();
+    let a_ref = store.annotation("A1").unwrap();
+    assert_eq!(v, vec!(a_ref));
     Ok(())
 }
 
@@ -1679,10 +1684,14 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
     annotate_regex(&mut store)?;
 
-    let set = store.annotationset("myset").unwrap();
-    let data = set.data_by_value("type", &"header".into()).unwrap();
-    let vec = store.annotations_by_data(set.handle(), data.handle());
-    assert_eq!(vec.unwrap().len(), 4);
+    let data: Vec<_> = store
+        .find_data("myset", Some("type"), DataOperator::Equals("header"))
+        .into_iter()
+        .flatten()
+        .filter_map(|data| data.annotations(&store))
+        .flatten()
+        .collect();
+    assert_eq!(data.len(), 4);
     Ok(())
 }
 

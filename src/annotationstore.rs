@@ -963,184 +963,6 @@ impl AnnotationStore {
         self.annotationsets.len()
     }
 
-    /// Returns all annotations that reference any text selection in the resource.
-    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations()`] instead for higher-level access.
-    ///
-    /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
-    pub fn annotations_by_resource(
-        &self,
-        resource_handle: TextResourceHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
-        if let Some(textselection_annotationmap) =
-            self.textrelationmap.data.get(resource_handle.as_usize())
-        {
-            Some(
-                textselection_annotationmap
-                    .data
-                    .iter()
-                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
-            )
-        } else {
-            None
-        }
-    }
-
-    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
-    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations(_metadata`] instead for higher-level access.
-    ///
-    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
-    pub fn annotations_by_resource_metadata(
-        &self,
-        resource_handle: TextResourceHandle,
-    ) -> Option<&Vec<AnnotationHandle>> {
-        self.resource_annotation_map.get(resource_handle)
-    }
-
-    /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
-    /// This is a low-level method, use [`WrappedItem<TextSelection>.annotations()`] instead for higher-level access.
-    pub fn annotations_by_textselection(
-        &self,
-        resource_handle: TextResourceHandle,
-        textselection: &TextSelection,
-    ) -> Option<&Vec<AnnotationHandle>> {
-        if let Some(handle) = textselection.handle() {
-            // existing textselection. Quick lookup in the reverse
-            // index. Returns a reference to a vector.
-            self.textrelationmap.get(resource_handle, handle)
-        } else {
-            // we can just cast a TextSelection into an offset and see if it exists as existing textselection
-            self.annotations_by_offset(resource_handle, &textselection.into())
-        }
-    }
-
-    /*
-    pub fn annotations_by_textselection_operator(
-        &self,
-        resource_handle: TextResourceHandle,
-        operator: &TextSelectionOperator,
-    ) -> Option<impl Iterator<Item = AnnotationHandle>> {
-        //TODO: implement
-        panic!("annotations_by_textselection_operator() not implemented yet");
-    }
-    */
-
-    /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
-    /// This is  a low-level method.
-    pub fn annotations_by_offset<'a>(
-        &'a self,
-        resource_handle: TextResourceHandle,
-        offset: &Offset,
-    ) -> Option<&'a Vec<AnnotationHandle>> {
-        if let Some(resource) = self.resource(resource_handle) {
-            if let Ok(textselection) = resource.as_ref().textselection(&offset) {
-                if let Some(textselection_handle) = textselection.handle() {
-                    return self
-                        .textrelationmap
-                        .get(resource_handle, textselection_handle);
-                }
-            }
-        };
-        None
-    }
-
-    /// Find all annotations that overlap with a particular offset.
-    /*
-    pub fn annotations_by_offset_operator(
-        &self,
-        resource_handle: TextResourceHandle,
-        offset: &TextRelationOperator,
-    ) -> Option<impl Iterator<Item = AnnotationHandle>> {
-        let resource: Option<&TextResource> = self.get(&resource_handle.into()).ok();
-        resource?;
-        if let Ok(textselection) = resource.unwrap().textselection(&offset.offset()) {
-            //TODO: implement
-            panic!("annotations_by_offset_overlap() not implemented yet");
-        } else {
-            None
-        }
-    }
-    */
-
-    /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
-    ///
-    /// This is a low-lever function, use [`WrappedItem<Annotation>.annotations_reverse()`] instead.
-    /// Use [`wrappeditem<annotation>.annotations()`] if you are looking for the annotations that an annotation points at.
-    pub fn annotations_by_annotation_reverse(
-        &self,
-        annotation_handle: AnnotationHandle,
-    ) -> Option<&Vec<AnnotationHandle>> {
-        self.annotation_annotation_map.get(annotation_handle)
-    }
-
-    /// Returns all annotations that reference any keys/data in an annotationset
-    /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
-    /// This is a low-level method. Use [`WrappedItem<AnnotationDataSet>.annotations()`] instead.
-    pub fn annotations_by_annotationset(
-        &self,
-        annotationset_handle: AnnotationDataSetHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
-        if let Some(data_annotationmap) = self
-            .dataset_data_annotation_map
-            .data
-            .get(annotationset_handle.as_usize())
-        {
-            Some(
-                data_annotationmap
-                    .data
-                    .iter()
-                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
-    /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
-    /// This is a low-level method. Use [`WrappedItem<AnnotationDataSet>.annotations_metadata()`] instead.
-    pub fn annotations_by_annotationset_metadata(
-        &self,
-        annotationset_handle: AnnotationDataSetHandle,
-    ) -> Option<&Vec<AnnotationHandle>> {
-        self.dataset_annotation_map.get(annotationset_handle)
-    }
-
-    /// Find all annotations referenced by data. This is a lookup in the reverse index and return a reference.
-    /// This is a low-level method. Use [`WrappedItem<AnnotationData>.annotations()`] instead.
-    pub fn annotations_by_data(
-        &self,
-        annotationset_handle: AnnotationDataSetHandle,
-        data_handle: AnnotationDataHandle,
-    ) -> Option<&Vec<AnnotationHandle>> {
-        self.dataset_data_annotation_map
-            .get(annotationset_handle, data_handle)
-    }
-
-    /// Find all annotations referenced by key
-    /// This is a low-level method
-    pub fn annotations_by_key(
-        &self,
-        annotationset_handle: AnnotationDataSetHandle,
-        datakey_handle: DataKeyHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
-        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
-        if let Some(dataset) = dataset {
-            if let Some(data) = dataset.data_by_key(datakey_handle) {
-                Some(
-                    data.iter()
-                        .filter_map(move |dataitem| {
-                            self.annotations_by_data(annotationset_handle, *dataitem)
-                        })
-                        .flat_map(|v| v.iter().copied()), //(only the handles are copied)
-                )
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
     /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
     /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
     /// instead for those.
@@ -1546,6 +1368,187 @@ impl AssociatedFile for AnnotationStore {
         self.filename
             .as_ref()
             .map(|x| x.to_str().expect("valid utf-8"))
+    }
+}
+
+// low-level search API (private)
+impl AnnotationStore {
+    /// Returns all annotations that reference any text selection in the resource.
+    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations()`] instead for higher-level access.
+    ///
+    /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
+    pub(crate) fn annotations_by_resource(
+        &self,
+        resource_handle: TextResourceHandle,
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
+        if let Some(textselection_annotationmap) =
+            self.textrelationmap.data.get(resource_handle.as_usize())
+        {
+            Some(
+                textselection_annotationmap
+                    .data
+                    .iter()
+                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
+            )
+        } else {
+            None
+        }
+    }
+
+    /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
+    /// This is a low-level method, use [`WrappedItem<TextResource>.annotations(_metadata`] instead for higher-level access.
+    ///
+    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
+    pub(crate) fn annotations_by_resource_metadata(
+        &self,
+        resource_handle: TextResourceHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.resource_annotation_map.get(resource_handle)
+    }
+
+    /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
+    /// This is a low-level method, use [`WrappedItem<TextSelection>.annotations()`] instead for higher-level access.
+    pub(crate) fn annotations_by_textselection(
+        &self,
+        resource_handle: TextResourceHandle,
+        textselection: &TextSelection,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        if let Some(handle) = textselection.handle() {
+            // existing textselection. Quick lookup in the reverse
+            // index. Returns a reference to a vector.
+            self.textrelationmap.get(resource_handle, handle)
+        } else {
+            // we can just cast a TextSelection into an offset and see if it exists as existing textselection
+            self.annotations_by_offset(resource_handle, &textselection.into())
+        }
+    }
+
+    /*
+    pub fn annotations_by_textselection_operator(
+        &self,
+        resource_handle: TextResourceHandle,
+        operator: &TextSelectionOperator,
+    ) -> Option<impl Iterator<Item = AnnotationHandle>> {
+        //TODO: implement
+        panic!("annotations_by_textselection_operator() not implemented yet");
+    }
+    */
+
+    /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
+    /// This is  a low-level method.
+    pub(crate) fn annotations_by_offset<'a>(
+        &'a self,
+        resource_handle: TextResourceHandle,
+        offset: &Offset,
+    ) -> Option<&'a Vec<AnnotationHandle>> {
+        if let Some(resource) = self.resource(resource_handle) {
+            if let Ok(textselection) = resource.as_ref().textselection(&offset) {
+                if let Some(textselection_handle) = textselection.handle() {
+                    return self
+                        .textrelationmap
+                        .get(resource_handle, textselection_handle);
+                }
+            }
+        };
+        None
+    }
+
+    /// Find all annotations that overlap with a particular offset.
+    /*
+    pub fn annotations_by_offset_operator(
+        &self,
+        resource_handle: TextResourceHandle,
+        offset: &TextRelationOperator,
+    ) -> Option<impl Iterator<Item = AnnotationHandle>> {
+        let resource: Option<&TextResource> = self.get(&resource_handle.into()).ok();
+        resource?;
+        if let Ok(textselection) = resource.unwrap().textselection(&offset.offset()) {
+            //TODO: implement
+            panic!("annotations_by_offset_overlap() not implemented yet");
+        } else {
+            None
+        }
+    }
+    */
+
+    /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
+    ///
+    /// This is a low-lever function, use [`WrappedItem<Annotation>.annotations_reverse()`] instead.
+    /// Use [`wrappeditem<annotation>.annotations()`] if you are looking for the annotations that an annotation points at.
+    pub(crate) fn annotations_by_annotation_reverse(
+        &self,
+        annotation_handle: AnnotationHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.annotation_annotation_map.get(annotation_handle)
+    }
+
+    /// Returns all annotations that reference any keys/data in an annotationset
+    /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
+    /// This is a low-level method. Use [`WrappedItem<AnnotationDataSet>.annotations()`] instead.
+    pub(crate) fn annotations_by_annotationset(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
+        if let Some(data_annotationmap) = self
+            .dataset_data_annotation_map
+            .data
+            .get(annotationset_handle.as_usize())
+        {
+            Some(
+                data_annotationmap
+                    .data
+                    .iter()
+                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
+    /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
+    /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations_metadata()`] instead.
+    pub(crate) fn annotations_by_annotationset_metadata(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.dataset_annotation_map.get(annotationset_handle)
+    }
+
+    /// Find all annotations referenced by data. This is a lookup in the reverse index and returns a reference to it.
+    /// This is a low-level method. Use [`ResultItem<AnnotationData>.annotations()`] instead.
+    pub(crate) fn annotations_by_data(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+        data_handle: AnnotationDataHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.dataset_data_annotation_map
+            .get(annotationset_handle, data_handle)
+    }
+
+    /// Find all annotations referenced by key
+    /// This is a low-level method
+    pub(crate) fn annotations_by_key(
+        &self,
+        annotationset_handle: AnnotationDataSetHandle,
+        datakey_handle: DataKeyHandle,
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
+        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
+        if let Some(dataset) = dataset {
+            if let Some(data) = dataset.data_by_key(datakey_handle) {
+                Some(
+                    data.iter()
+                        .filter_map(move |dataitem| {
+                            self.annotations_by_data(annotationset_handle, *dataitem)
+                        })
+                        .flat_map(|v| v.iter().copied()), //(only the handles are copied)
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
