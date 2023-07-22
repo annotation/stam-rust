@@ -1347,20 +1347,16 @@ impl AnnotationStore {
 
     /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
     /// This is  a low-level method.
-    /// TODO: this is too high-level for here
     pub(crate) fn annotations_by_offset<'a>(
         &'a self,
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
         if let Some(resource) = self.get(resource_handle).ok() {
-            //high-level method!
-            if let Ok(textselection) = resource.textselection(&offset) {
-                if let Some(textselection_handle) = textselection.handle() {
-                    return self
-                        .textrelationmap
-                        .get(resource_handle, textselection_handle);
-                }
+            if let Ok(Some(textselection_handle)) = resource.known_textselection(&offset) {
+                return self
+                    .textrelationmap
+                    .get(resource_handle, textselection_handle);
             }
         };
         None

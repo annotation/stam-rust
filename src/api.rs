@@ -456,7 +456,7 @@ impl<'store> ResultItem<'store, Annotation> {
     pub fn find_textselections(
         &self,
         operator: TextSelectionOperator,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, TextSelection>>> {
+    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
         //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
         let tset: TextSelectionSet = self.textselections().collect();
         tset.find_textselections(operator, self.store())
@@ -472,9 +472,7 @@ impl<'store> ResultItem<'store, Annotation> {
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         self.find_textselections(operator)
-            .into_iter()
-            .flatten()
-            .filter_map(|tsel| tsel.annotations(store))
+            .map(|tsel| tsel.annotations(store))
             .flatten()
     }
 }
@@ -791,22 +789,17 @@ impl<'store> ResultItem<'store, TextSelection> {
         self.store().as_resultitem(annotationstore)
     }
 
-    /// Iterates over all annotations that are referenced by this TextSelection, if any.
+    /// Iterates over all annotations that reference this TextSelection, if any.
     /// Note that you need to explicitly specify the `AnnotationStore` for this method.
     pub fn annotations(
         &self,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
-        if let Some(vec) = annotationstore
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        annotationstore
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
-        {
-            Some(
-                vec.iter()
-                    .map(|a_handle| annotationstore.annotation(*a_handle).unwrap()),
-            )
-        } else {
-            None
-        }
+            .into_iter()
+            .flatten()
+            .map(|a_handle| annotationstore.annotation(*a_handle).unwrap())
     }
 
     /// Returns the number of annotations that reference this text selection
@@ -846,7 +839,7 @@ impl<'store> ResultItem<'store, TextSelection> {
         let tset: TextSelectionSet = self.clone().into();
         self.resource(annotationstore)
             .find_textselections(operator, tset)
-            .filter_map(|tsel| tsel.annotations(annotationstore))
+            .map(|tsel| tsel.annotations(annotationstore))
             .flatten()
     }
 }
@@ -968,7 +961,7 @@ impl<'store> ResultTextSelection<'store> {
         annotationstore: &'store AnnotationStore,
     ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         match self {
-            Self::Bound(item) => item.annotations(annotationstore),
+            Self::Bound(item) => Some(item.annotations(annotationstore)),
             Self::Unbound(..) => None,
         }
     }
@@ -1017,7 +1010,7 @@ impl<'store> ResultTextSelection<'store> {
         });
         self.resource(annotationstore)
             .find_textselections(operator, tset)
-            .filter_map(|tsel| tsel.annotations(annotationstore))
+            .map(|tsel| tsel.annotations(annotationstore))
             .flatten()
     }
 }
@@ -1032,9 +1025,10 @@ impl<'store> TextSelectionSet {
         self,
         operator: TextSelectionOperator,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, TextSelection>>> {
-        if let Some(resource) = annotationstore.resource(self.resource()) {
-            Some(
+    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+        annotationstore
+            .resource(self.resource())
+            .map(|resource| {
                 resource
                     .as_ref()
                     .textselections_by_operator(operator, self)
@@ -1044,11 +1038,10 @@ impl<'store> TextSelectionSet {
                             .get(ts_handle)
                             .expect("textselection handle must be valid");
                         textselection.as_resultitem(resource.as_ref())
-                    }),
-            )
-        } else {
-            None
-        }
+                    })
+            })
+            .into_iter()
+            .flatten()
     }
 
     /*

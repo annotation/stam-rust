@@ -383,8 +383,6 @@ impl<'store> QueryIter<'store> {
                             itemset
                                 .clone()
                                 .find_textselections(operator.clone(), store)
-                                .into_iter()
-                                .flatten()
                                 .map(|textselections| textselections.into()),
                         )),
                         result: QueryResultItem::None,
@@ -397,8 +395,6 @@ impl<'store> QueryIter<'store> {
                                 itemset
                                     .clone()
                                     .find_textselections(operator.clone(), store)
-                                    .into_iter()
-                                    .flatten()
                                     .map(|textselections| textselections.into()),
                             )),
                             result: QueryResultItem::None,
