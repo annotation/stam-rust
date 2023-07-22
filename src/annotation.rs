@@ -522,189 +522,6 @@ impl<'a> Annotation {
     }
 }
 
-impl<'store, 'slf> ResultItem<'store, Annotation> {
-    /// Iterate over the annotation data, returns [`WrappedItem<AnnotationData>`].
-    pub fn data(&'slf self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf {
-        //                               this was the magic bit I needed to make it work ---^
-        self.as_ref().data().map(|(dataset_handle, data_handle)| {
-            let annotationset: &'store AnnotationDataSet = self
-                .store()
-                .get(*dataset_handle)
-                .expect("dataset must exist");
-            let annotationdata: ResultItem<'store, AnnotationData> = annotationset
-                .annotationdata(*data_handle)
-                .expect("data must exist");
-            annotationdata
-        })
-    }
-
-    /// Iterates over the resources this annotation points to
-    pub fn resources(&'slf self) -> TargetIter<'store, TextResource> {
-        let selector_iter: SelectorIter<'store> = self
-            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
-            .target()
-            .iter(self.store(), true, true);
-        //                                                                         ^ -- we track ancestors because it is needed to resolve relative offsets
-        TargetIter {
-            store: self.store(),
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
-    }
-
-    /// Iterates over all the annotations this annotation points to directly (i.e. via a [`Selector::AnnotationSelector'])
-    /// Use [`Self.annotations_reverse()'] if you want to find the annotations this resource is pointed by.
-    pub fn annotations(
-        &'slf self,
-        recursive: bool,
-        track_ancestors: bool,
-    ) -> TargetIter<'store, Annotation> {
-        let selector_iter: SelectorIter<'store> = self
-            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
-            .target()
-            .iter(self.store(), recursive, track_ancestors);
-        TargetIter {
-            store: self.store(),
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
-    }
-
-    /// Iterates over all the annotations that reference this annotation, if any
-    pub fn annotations_reverse(
-        &'slf self,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'slf> {
-        if let Some(v) = self
-            .store()
-            .annotations_by_annotation_reverse(self.handle())
-        {
-            Some(v.iter().map(|a_handle| {
-                self.store()
-                    .annotation(*a_handle)
-                    .expect("annotation handle must be valid")
-            }))
-        } else {
-            None
-        }
-    }
-
-    /// Iterates over the annotation data sets this annotation points to (only the ones it points to directly using DataSetSelector, i.e. as metadata)
-    pub fn annotationsets(&'slf self) -> TargetIter<'store, AnnotationDataSet> {
-        let selector_iter: SelectorIter<'store> = self
-            .as_ref() // <-- deref() doesn't work here, need 'store lifetime
-            .target()
-            .iter(self.store(), true, false);
-        TargetIter {
-            store: self.store(),
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
-    }
-
-    /// Iterate over all resources with text selections this annotation refers to (i.e. via [`Selector::TextSelector`])
-    pub fn textselections(&'slf self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'slf {
-        self.resources().filter_map(|targetitem| {
-            //process offset relative offset
-            //MAYBE TODO: rewrite AnnotationStore::textselection to something in Textual trait
-            self.store()
-                .textselection(
-                    targetitem.selector(),
-                    Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
-                )
-                .ok() //ignores errors!
-        })
-    }
-
-    /// Iterates over all text slices this annotation refers to
-    pub fn text(&'slf self) -> impl Iterator<Item = &'store str> + 'slf {
-        self.textselections()
-            .map(|textselection| textselection.text())
-    }
-
-    /// Returns the resource the annotation points to. Only works for TextSelector,
-    /// ResourceSelector and AnnotationSelector, and not for complex selectors.
-    /// Returns a WrongSelectorType error if the annotation does not point at any resource.
-    pub fn resource(&'slf self) -> Option<ResultItem<'store, TextResource>> {
-        match self.as_ref().target() {
-            Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                self.store().resource(*res_id)
-            }
-            Selector::AnnotationSelector(a_id, _) => {
-                if let Some(annotation) = self.store().annotation(*a_id) {
-                    annotation.resource()
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
-
-    /// Finds the [`AnnotationData'] in the annotation. Returns an iterator over all matches.
-    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
-    ///
-    /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
-    pub fn find_data<'a>(
-        &'slf self,
-        set: Option<impl Request<AnnotationDataSet>>,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'slf>
-    where
-        'a: 'slf,
-    {
-        let mut set_handle: Option<AnnotationDataSetHandle> = None; //None means 'any' in this context
-        let mut key_handle: Option<DataKeyHandle> = None; //idem
-
-        if let Some(set) = set {
-            if let Ok(set) = self.store().get(set) {
-                set_handle = Some(set.handle().expect("set must have handle"));
-                if let Some(key) = key {
-                    key_handle = key.to_handle(set);
-                    if key_handle.is_none() {
-                        //requested key doesn't exist, bail out early, we won't find anything at all
-                        return None;
-                    }
-                }
-            } else {
-                //requested set doesn't exist, bail out early, we won't find anything at all
-                return None;
-            }
-        }
-
-        Some(self.data().filter_map(move |annotationdata| {
-            if (set_handle.is_none() || set_handle == annotationdata.set().handle())
-                && (key_handle.is_none() || key_handle.unwrap() == annotationdata.key().handle())
-                && annotationdata.as_ref().value().test(&value)
-            {
-                Some(annotationdata)
-            } else {
-                None
-            }
-        }))
-    }
-
-    /// Tests if the annotation has certain data, returns a boolean.
-    /// If you want to actually retrieve the data, use `find_data()` instead.
-    ///
-    /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
-    pub fn test_data<'a>(
-        &'slf self,
-        set: Option<BuildItem<AnnotationDataSet>>,
-        key: Option<BuildItem<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> bool {
-        match self.find_data(set, key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
-    }
-}
-
 /// Helper structure for deserialisation
 #[derive(Deserialize)]
 pub(crate) struct AnnotationJson<'a> {
@@ -741,13 +558,15 @@ impl SelfSelector for Annotation {
     }
 }
 
+//semi higher-level
+
 pub struct TargetIter<'a, T>
 where
     T: Storable,
 {
     pub(crate) store: &'a T::StoreType,
     pub(crate) iter: SelectorIter<'a>,
-    _phantomdata: PhantomData<T>,
+    pub(crate) _phantomdata: PhantomData<T>,
 }
 
 impl<'a, T> TargetIter<'a, T>

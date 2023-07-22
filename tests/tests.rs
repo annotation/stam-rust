@@ -252,7 +252,7 @@ fn store_iter_data() -> Result<(), StamError> {
         assert_eq!(data.value(), &DataValue::String("noun".to_string()));
         assert_eq!(data.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
         assert_eq!(data.id(), Some("D1"));
-        assert_eq!(data.set().id(), Some("testdataset"));
+        assert_eq!(data.set(&store).id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -477,7 +477,7 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut("testdataset").unwrap();
     //we already had this annotation, check prior to insert
-    let datahandle1: AnnotationDataHandle = dataset.annotationdata("D1").unwrap().handle();
+    let datahandle1: AnnotationDataHandle = dataset.annotationdata("D1").unwrap().handle().unwrap();
     //insert (which doesn't really insert in this case) but returns the same existing handle
     let datahandle2 = dataset.build_insert_data(data, true).unwrap();
     assert_eq!(datahandle1, datahandle2);
@@ -568,7 +568,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
         assert_eq!(data.key().as_str(), "pos"); //shortcut for the same as above
         assert_eq!(data.value(), &DataValue::String("interjection".to_string()));
         assert_eq!(data.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(data.set().id(), Some("testdataset"));
+        assert_eq!(data.set(&store).id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -1565,7 +1565,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosInterjection"));
-        assert_eq!(data.set().id(), Some("https://example.org/test/"));
+        assert_eq!(data.set(&store).id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "interjection");
     }
 
@@ -1574,7 +1574,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosNoun"));
-        assert_eq!(data.set().id(), Some("https://example.org/test/"));
+        assert_eq!(data.set(&store).id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "noun");
     }
 

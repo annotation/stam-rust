@@ -279,7 +279,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                     if self.config.textrelationmap {
                         //process relative offset (note that this essentially duplicates 'iter_target_textselection` but
                         //it allows us to combine two things in one and save an iteration.
-                        match self.textselection(
+                        match self.textselection_by_selector(
                             targetitem.selector(),
                             Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
                         ) {
@@ -948,38 +948,6 @@ impl AnnotationStore {
         self.annotationsets.len()
     }
 
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
-    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
-    /// instead for those.
-    ///
-    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
-    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
-    pub fn textselection<'b>(
-        //MAYBE TODO: move to Textual?
-        &self,
-        selector: &Selector,
-        subselectors: Option<impl Iterator<Item = &'b Selector>>,
-    ) -> Result<ResultTextSelection, StamError> {
-        match selector {
-            Selector::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(*res_id)?;
-                let mut textselection = resource.textselection(offset)?;
-                if let Some(subselectors) = subselectors {
-                    for selector in subselectors {
-                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
-                            //each annotation selector selects a subslice of the previous textselection
-                            textselection = textselection.textselection(&suboffset)?;
-                        }
-                    }
-                }
-                Ok(textselection)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "selector for Annotationstore::textselection() must be a TextSelector",
-            )),
-        }
-    }
-
     /// Builds a [`Selector`] based on its [`SelectorBuilder`], this will produce an error if the selected resource does not exist.
     pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
         match item {
@@ -1211,6 +1179,37 @@ impl AnnotationStore {
             if let Some(annotationset) = annotationset {
                 annotationset.strip_data_ids();
             }
+        }
+    }
+
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
+    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
+    /// instead for those.
+    ///
+    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
+    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
+    pub(crate) fn textselection_by_selector<'b>(
+        &self,
+        selector: &Selector,
+        subselectors: Option<impl Iterator<Item = &'b Selector>>,
+    ) -> Result<ResultTextSelection, StamError> {
+        match selector {
+            Selector::TextSelector(res_id, offset) => {
+                let resource: &TextResource = self.get(*res_id)?;
+                let mut textselection = resource.textselection(offset)?;
+                if let Some(subselectors) = subselectors {
+                    for selector in subselectors {
+                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
+                            //each annotation selector selects a subslice of the previous textselection
+                            textselection = textselection.textselection(&suboffset)?;
+                        }
+                    }
+                }
+                Ok(textselection)
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "selector for Annotationstore::textselection() must be a TextSelector",
+            )),
         }
     }
 }

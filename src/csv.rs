@@ -439,7 +439,7 @@ where
                                 "AnnotationData must have a public id for csv serialization",
                             )));
                         }
-                        let set = data.set();
+                        let set = data.store();
                         if set.id().is_none() {
                             return Err(StamError::SerializationError(format!(
                                 "AnnotationDataSet must have a public id for csv serialization",
@@ -476,7 +476,7 @@ where
                                     "AnnotationData must have a public id for csv serialization",
                                 )));
                             }
-                            let set = data.set();
+                            let set = data.store();
                             if set.id().is_none() {
                                 return Err(StamError::SerializationError(format!(
                                     "AnnotationDataSet must have a public id for csv serialization",

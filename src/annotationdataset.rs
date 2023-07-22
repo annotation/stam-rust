@@ -471,13 +471,13 @@ impl AnnotationDataSet {
     }
 
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
-    /// This is a low level method, use the similar [`WrappedItem<AnnotationDataSet>.find_data()`] for a higher level version.
+    /// This is a low level method, use the similar [`ResultItem<AnnotationDataSet>.data_by_value()`] for a higher level version.
     pub fn data_by_value(
         &self,
         key: impl Request<DataKey>,
         value: &DataValue,
     ) -> Option<&AnnotationData> {
-        let datakey: Option<&DataKey> = self.key(key).map(|key| key.as_ref());
+        let datakey: Option<&DataKey> = self.key(key).map(|key| key);
         if let Some(datakey) = datakey {
             let datakey_handle = datakey.handle().expect("key must be bound at this point");
             if let Some(dataitems) = self.key_data_map.data.get(datakey_handle.as_usize()) {
@@ -597,21 +597,16 @@ impl AnnotationDataSet {
     }
 
     /// Retrieve a key in this set
-    pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<DataKey>> {
-        self.get(key).map(|x| x.as_resultitem(self)).ok()
+    pub fn key(&self, key: impl Request<DataKey>) -> Option<&DataKey> {
+        self.get(key).map(|x| x).ok()
     }
 
     /// Retrieve a [`AnnotationData`] in this set
-    ///
-    /// Returns a reference to [`AnnotationData`] that is wrapped in a fat pointer
-    /// ([`WrappedItem<AnnotationData>`]) that also contains reference to the store and which is
-    /// immediately implements various methods for working with the type. If you need a more
-    /// performant low-level method, use `StoreFor<T>::get()` instead.
-    pub fn annotationdata<'a>(
-        &'a self,
+    pub fn annotationdata(
+        &self,
         annotationdata: impl Request<AnnotationData>,
-    ) -> Option<ResultItem<'a, AnnotationData>> {
-        self.get(annotationdata).map(|x| x.as_resultitem(self)).ok()
+    ) -> Option<&AnnotationData> {
+        self.get(annotationdata).ok()
     }
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
@@ -662,13 +657,6 @@ impl AnnotationDataSet {
         }
         self.data_idmap =
             IdMap::new("D".to_string()).with_resolve_temp_ids(self.config().strip_temp_ids());
-    }
-}
-
-impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
-    /// Tests whether two AnnotationDataSets are the same
-    pub fn test(&'slf self, other: impl Request<AnnotationDataSet>) -> bool {
-        Some(self.handle()) == other.to_handle(self.store())
     }
 }
 

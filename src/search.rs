@@ -556,7 +556,7 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Que
                 Constraint::AnnotationData { set, key, value } => {
                     for annotation in item.annotations_about_metadata() {
                         for data in annotation.data() {
-                            if data.set().as_resultitem(store).test(set)
+                            if data.store().as_resultitem(store).test(set)
                                 && data.test(Some(&key), &value)
                             {
                                 return true;
@@ -633,7 +633,7 @@ impl<'store> TestConstraint<'store, TextSelectionSet> for QueryIter<'store> {
                     if let Some(iter) = item.annotations(store) {
                         for annotation in iter {
                             for data in annotation.data() {
-                                if data.set().as_resultitem(store).test(set)
+                                if data.store().as_resultitem(store).test(set)
                                     && data.test(Some(&key), &value)
                                 {
                                     return true;
