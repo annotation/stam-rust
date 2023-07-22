@@ -881,13 +881,13 @@ impl<'store, T> Iterator for StoreIter<'store, T>
 where
     T: Storable,
 {
-    type Item = ResultItem<'store, T>;
+    type Item = &'store T;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.count += 1;
         loop {
             match self.iter.next() {
-                Some(Some(item)) => return Some(item.as_resultitem(self.store)),
+                Some(Some(item)) => return Some(item),
                 Some(None) => continue,
                 None => return None,
             }

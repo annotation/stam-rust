@@ -235,12 +235,12 @@ impl<'a> AnnotationBuilder<'a> {
     /// use multiple annotations instead if each it interpretable independent of the others.
     pub fn with_data(
         self,
-        annotationset: impl Into<BuildItem<'a, AnnotationDataSet>>,
+        dataset: impl Into<BuildItem<'a, AnnotationDataSet>>,
         key: impl Into<BuildItem<'a, DataKey>>,
         value: impl Into<DataValue>,
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
-            annotationset: annotationset.into(),
+            dataset: dataset.into(),
             key: key.into(),
             value: value.into(),
             ..Default::default()
@@ -257,7 +257,7 @@ impl<'a> AnnotationBuilder<'a> {
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id: id.into(),
-            annotationset: dataset.into(),
+            dataset: dataset.into(),
             key: key.into(),
             value: value.into(),
         })
@@ -272,7 +272,7 @@ impl<'a> AnnotationBuilder<'a> {
     ) -> Self {
         self.with_data_builder(AnnotationDataBuilder {
             id: annotationdata.into(),
-            annotationset: dataset.into(),
+            dataset: dataset.into(),
             ..Default::default()
         })
     }
@@ -403,27 +403,26 @@ impl AnnotationStore {
             format!("AnnotationStore.insert_data: dataitem={:?}", dataitem)
         });
         // Obtain the dataset for this data item
-        let dataset: &mut AnnotationDataSet =
-            if let Ok(dataset) = self.get_mut(&dataitem.annotationset) {
-                dataset
-            } else {
-                // this data referenced a dataset that does not exist yet, create it
-                let dataset_id: String = match dataitem.annotationset {
-                    BuildItem::Id(dataset_id) => dataset_id,
-                    BuildItem::IdRef(dataset_id) => dataset_id.to_string(),
-                    _ =>
-                    // if no dataset was specified at all, we create one named 'default-annotationset'
-                    // the name is not prescribed by the STAM spec, the fact that we
-                    // handle a missing set, however, is.
-                    {
-                        "default-annotationset".into()
-                    }
-                };
-                let inserted_intid =
-                    self.insert(AnnotationDataSet::new(self.config().clone()).with_id(dataset_id))?;
-                self.get_mut(inserted_intid)
-                    .expect("must exist after insertion")
+        let dataset: &mut AnnotationDataSet = if let Ok(dataset) = self.get_mut(&dataitem.dataset) {
+            dataset
+        } else {
+            // this data referenced a dataset that does not exist yet, create it
+            let dataset_id: String = match dataitem.dataset {
+                BuildItem::Id(dataset_id) => dataset_id,
+                BuildItem::IdRef(dataset_id) => dataset_id.to_string(),
+                _ =>
+                // if no dataset was specified at all, we create one named 'default-annotationset'
+                // the name is not prescribed by the STAM spec, the fact that we
+                // handle a missing set, however, is.
+                {
+                    "default-annotationset".into()
+                }
             };
+            let inserted_intid =
+                self.insert(AnnotationDataSet::new(self.config().clone()).with_id(dataset_id))?;
+            self.get_mut(inserted_intid)
+                .expect("must exist after insertion")
+        };
 
         // Insert the data into the dataset
         let data_handle = dataset.insert_data(dataitem.id, dataitem.key, dataitem.value, true)?;

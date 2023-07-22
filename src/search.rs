@@ -3,6 +3,7 @@ use smallvec::{smallvec, SmallVec};
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
+use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::StamError;
@@ -553,14 +554,12 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Que
         for item in itemset.iter() {
             match constraint {
                 Constraint::AnnotationData { set, key, value } => {
-                    if let Some(iter) = item.annotations_metadata() {
-                        for annotation in iter {
-                            for data in annotation.data() {
-                                if data.set().as_resultitem(store).test(set)
-                                    && data.test(Some(&key), &value)
-                                {
-                                    return true;
-                                }
+                    for annotation in item.annotations_about_metadata() {
+                        for data in annotation.data() {
+                            if data.set().as_resultitem(store).test(set)
+                                && data.test(Some(&key), &value)
+                            {
+                                return true;
                             }
                         }
                     }

@@ -2066,11 +2066,11 @@ trait FindTextSelections<'store> {
                 // note: negation is considered by the test() and self.new_textseliter() methods
                 let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
                 for textselection in self.new_textseliter(&reftextselection) {
-                    if Some(textselection.handle()) != reftextselection.handle()
-                        && reftextselection.test(self.operator(), textselection.as_ref())
+                    if textselection.handle() != reftextselection.handle()
+                        && reftextselection.test(self.operator(), textselection)
                     {
                         //do not include the item itself
-                        buffer2.push(textselection.handle())
+                        buffer2.push(textselection.handle().unwrap())
                     }
                 }
                 self.update_buffer(buffer2);
@@ -2085,10 +2085,10 @@ trait FindTextSelections<'store> {
                     self.set_textseliter(self.new_textseliter(&reftextselection));
                 }
                 if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
-                    if Some(textselection.handle()) != reftextselection.handle() //do not include the item itself
-                        && reftextselection.test(self.operator(), textselection.as_ref())
+                    if textselection.handle() != reftextselection.handle() //do not include the item itself
+                        && reftextselection.test(self.operator(), textselection)
                     {
-                        return (Some(textselection.handle()), false);
+                        return (Some(textselection.handle().unwrap()), false);
                     }
                 } else {
                     return (None, false);

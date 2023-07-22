@@ -568,11 +568,10 @@ impl TextResource {
 
     /// Returns an unsorted iterator over all textselections in this resource
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
-    pub fn textselections_unsorted(&self) -> impl Iterator<Item = ResultItem<TextSelection>> {
-        self.store().iter().filter_map(|item| {
-            item.as_ref()
-                .map(|textselection| textselection.as_resultitem(self))
-        })
+    pub fn textselections_unsorted(&self) -> impl Iterator<Item = &TextSelection> {
+        self.store()
+            .iter()
+            .filter_map(|item| item.as_ref().map(|textselection| textselection))
     }
 
     pub fn textselections_len(&self) -> usize {
@@ -1044,7 +1043,7 @@ pub struct TextSelectionIter<'a> {
 }
 
 impl<'a> Iterator for TextSelectionIter<'a> {
-    type Item = ResultItem<'a, TextSelection>;
+    type Item = &'a TextSelection;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -1052,7 +1051,7 @@ impl<'a> Iterator for TextSelectionIter<'a> {
                 if let Some((_end, handle)) = begin2enditer.next() {
                     let textselection: &TextSelection =
                         self.resource.get(*handle).expect("handle must exist");
-                    return Some(textselection.as_resultitem(self.resource));
+                    return Some(textselection);
                 }
                 //fall back to final clause
             } else {
@@ -1076,7 +1075,7 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
                 if let Some((_begin, handle)) = end2beginiter.next() {
                     let textselection: &TextSelection =
                         self.resource.get(*handle).expect("handle must exist");
-                    return Some(textselection.as_resultitem(self.resource));
+                    return Some(textselection);
                 }
                 //fall back to final clause
             } else {

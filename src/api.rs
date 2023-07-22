@@ -55,18 +55,21 @@ impl AnnotationStore {
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
     pub fn resources(&self) -> impl Iterator<Item = ResultItem<TextResource>> {
         self.iter()
+            .map(|item: &TextResource| item.as_resultitem(self))
     }
 
     /// Returns an iterator over all [`AnnotationDataSet`] instances in the store.
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
     pub fn datasets<'a>(&'a self) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
         self.iter()
+            .map(|item: &AnnotationDataSet| item.as_resultitem(self))
     }
 
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
     pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<Annotation>> {
         self.iter()
+            .map(|item: &Annotation| item.as_resultitem(self))
     }
 
     /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
@@ -107,7 +110,12 @@ impl AnnotationStore {
 
     /// Returns an iterator over all data in all sets
     pub fn data(&self) -> impl Iterator<Item = ResultItem<AnnotationData>> {
-        self.datasets().map(|set| set.as_ref().data()).flatten()
+        self.datasets()
+            .map(|set| {
+                let set = set.as_ref();
+                set.data().map(|item| item.as_resultitem(set))
+            })
+            .flatten()
     }
 
     /// Tests if for annotation data in a specific set, returns a boolean.
@@ -131,12 +139,16 @@ impl AnnotationStore {
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set
     pub fn data(&self) -> impl Iterator<Item = ResultItem<AnnotationData>> {
-        self.as_ref().data()
+        self.as_ref()
+            .data()
+            .map(|item| item.as_resultitem(self.as_ref()))
     }
 
     /// Returns an iterator over all keys in this set
     pub fn keys(&self) -> impl Iterator<Item = ResultItem<DataKey>> {
-        self.as_ref().keys()
+        self.as_ref()
+            .keys()
+            .map(|item| item.as_resultitem(self.as_ref()))
     }
 
     /// Returns an iterator over annotations that directly point at the resource, i.e. are metadata for it.
@@ -186,11 +198,12 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
                 return None;
             }
         };
-        Some(self.as_ref().data().filter_map(move |annotationdata| {
-            if (key_handle.is_none() || key_handle.unwrap() == annotationdata.key().handle())
-                && annotationdata.as_ref().value().test(&value)
+        let store = self.as_ref();
+        Some(store.data().filter_map(move |annotationdata| {
+            if (key_handle.is_none() || key_handle.unwrap() == annotationdata.key())
+                && annotationdata.value().test(&value)
             {
-                Some(annotationdata)
+                Some(annotationdata.as_resultitem(store))
             } else {
                 None
             }
@@ -257,6 +270,7 @@ impl<'store> ResultItem<'store, TextResource> {
 
     /// Returns an iterator over all annotations about this resource, both annotations that can be considered metadata as well
     /// annotations that reference a portion of the text. The former are always returned before the latter.
+    /// Use `annotations_about_metadata()` or `annotations_about_text()` instead if you want to differentiate the two.
     pub fn annotations_about(
         &self,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
@@ -270,7 +284,8 @@ impl<'store> ResultItem<'store, TextResource> {
     pub fn textselections(
         &self,
     ) -> impl DoubleEndedIterator<Item = ResultItem<'store, TextSelection>> {
-        self.as_ref().iter()
+        let resource = self.as_ref();
+        resource.iter().map(|item| item.as_resultitem(resource))
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
@@ -281,7 +296,10 @@ impl<'store> ResultItem<'store, TextResource> {
         begin: usize,
         end: usize,
     ) -> impl DoubleEndedIterator<Item = ResultItem<'store, TextSelection>> {
-        self.as_ref().range(begin, end)
+        let resource = self.as_ref();
+        resource
+            .range(begin, end)
+            .map(|item| item.as_resultitem(resource))
     }
 
     /// Returns the number of textselections that are marked in this resource (i.e. there are one or more annotations on it).

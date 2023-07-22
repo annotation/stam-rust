@@ -557,7 +557,7 @@ impl ToCsv for AnnotationDataSet {
                     "All AnnotationData must have a public ID for CSV serialization to work",
                 )));
             }
-            let key = data.key();
+            let key = self.get(data.key())?;
             writer
                 .serialize(AnnotationDataCsv {
                     id: data.id().map(|x| Cow::Borrowed(x)),
@@ -565,7 +565,7 @@ impl ToCsv for AnnotationDataSet {
                         .id()
                         .map(|x| Cow::Borrowed(x))
                         .expect("key must have a public ID"),
-                    value: data.as_ref().value().to_string(),
+                    value: data.value().to_string(),
                 })
                 .map_err(|e| {
                     StamError::SerializationError(format!(
