@@ -612,12 +612,12 @@ fn parse_json_annotationset() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     let sethandle = store.insert(annotationset)?;
 
-    let annotationset: &AnnotationDataSet = store.get(sethandle)?;
-    assert_eq!(annotationset.id(), Some("https://purl.org/dc"));
+    let dataset = store.dataset(sethandle).unwrap();
+    assert_eq!(dataset.id(), Some("https://purl.org/dc"));
 
     let mut count = 0;
     let mut firstkeyhandle: Option<DataKeyHandle> = None;
-    for key in annotationset.keys() {
+    for key in dataset.keys() {
         count += 1;
         if count == 1 {
             assert_eq!(key.id(), Some("http://purl.org/dc/terms/creator"));
@@ -627,7 +627,7 @@ fn parse_json_annotationset() -> Result<(), StamError> {
     assert_eq!(count, 3);
 
     count = 0;
-    for data in annotationset.data() {
+    for data in dataset.data() {
         //there should be only one so we can safely test in the loop body
         count += 1;
         assert_eq!(data.id(), Some("D1"));
@@ -1751,7 +1751,7 @@ fn test_lifetime_sanity_keys() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
     annotate_regex(&mut store)?;
     let result: Vec<(&AnnotationDataSet, Vec<&DataKey>)> = store
-        .annotationsets()
+        .datasets()
         .map(|annotationset| {
             (
                 annotationset.as_ref(),
