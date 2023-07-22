@@ -341,14 +341,13 @@ impl FromJson for AnnotationDataSet {
         let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
 
-        let mut annotationset: AnnotationDataSet =
-            AnnotationDataSet::new(config).with_filename(filename); //we use the original filename, not the one we found
+        let mut dataset: AnnotationDataSet = AnnotationDataSet::new(config).with_filename(filename); //we use the original filename, not the one we found
 
-        DeserializeAnnotationDataSet::new(&mut annotationset)
+        DeserializeAnnotationDataSet::new(&mut dataset)
             .deserialize(deserializer)
             .map_err(|e| StamError::DeserializationError(e.to_string()))?;
 
-        Ok(annotationset)
+        Ok(dataset)
     }
 
     /// Loads an AnnotationDataSet from a STAM JSON string
@@ -356,13 +355,13 @@ impl FromJson for AnnotationDataSet {
     fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
         let deserializer = &mut serde_json::Deserializer::from_str(string);
 
-        let mut annotationset: AnnotationDataSet = AnnotationDataSet::new(config);
+        let mut dataset: AnnotationDataSet = AnnotationDataSet::new(config);
 
-        DeserializeAnnotationDataSet::new(&mut annotationset)
+        DeserializeAnnotationDataSet::new(&mut dataset)
             .deserialize(deserializer)
             .map_err(|e| StamError::DeserializationError(e.to_string()))?;
 
-        Ok(annotationset)
+        Ok(dataset)
     }
 
     /// Merges an AnnotationDataSet from a STAM JSON file into the current one
@@ -735,7 +734,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     pub fn annotations(
         &'slf self,
     ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
-        if let Some(iter) = self.store().annotations_by_annotationset(self.handle()) {
+        if let Some(iter) = self.store().annotations_by_dataset(self.handle()) {
             Some(iter.filter_map(|a_handle| self.store().annotation(a_handle)))
         } else {
             None
@@ -752,10 +751,7 @@ impl<'store, 'slf> ResultItem<'store, AnnotationDataSet> {
     pub fn annotations_metadata(
         &'slf self,
     ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
-        if let Some(vec) = self
-            .store()
-            .annotations_by_annotationset_metadata(self.handle())
-        {
+        if let Some(vec) = self.store().annotations_by_dataset_metadata(self.handle()) {
             Some(
                 vec.iter()
                     .filter_map(|a_handle| self.store().annotation(*a_handle)),

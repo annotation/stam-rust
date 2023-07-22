@@ -2,12 +2,19 @@ use regex::{Regex, RegexSet};
 use std::marker::PhantomData;
 
 use crate::annotation::Annotation;
+use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
+use crate::datakey::DataKey;
+use crate::datavalue::{DataOperator, DataValue};
+use crate::error::*;
 use crate::resources::TextResource;
+use crate::selector::Offset;
 use crate::store::*;
-use crate::text::{FindRegexMatch, Text};
-use crate::textselection::TextSelection;
+use crate::text::{
+    FindNoCaseTextIter, FindRegexIter, FindRegexMatch, FindTextIter, SplitTextIter, Text,
+};
+use crate::textselection::{ResultTextSelection, TextSelection};
 use crate::types::*;
 
 impl AnnotationStore {
@@ -81,6 +88,49 @@ impl AnnotationStore {
             })
             .flatten()
     }
+
+    /// Finds the [`AnnotationData'] in a specific set. Returns an iterator over all matches.
+    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
+    ///
+    /// Provide `key` as an Option, if set to `None`, all keys in the specified set will be searched.
+    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    pub fn find_data<'store>(
+        &'store self,
+        set: impl Request<AnnotationDataSet>,
+        key: Option<impl Request<DataKey>>,
+        value: DataOperator<'store>,
+    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>>> {
+        //if let Some(set) = set {
+        if let Some(dataset) = self.dataset(set) {
+            return dataset.find_data(key, value);
+        }
+        /*} else {
+            //this doesn't work:
+            return Some(
+                self.annotationsets()
+                    .filter_map(|annotationset| annotationset.find_data(key, value))
+                    .flatten(),
+            );
+        }*/
+        None
+    }
+
+    /// Tests if for annotation data in a specific set, returns a boolean.
+    /// If you want to actually retrieve the data, use `find_data()` instead.
+    ///
+    /// Provide `key` as Option, if set to `None`, all keys will be searched.
+    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    pub fn test_data<'store>(
+        &'store self,
+        set: impl Request<AnnotationDataSet>,
+        key: Option<impl Request<DataKey>>,
+        value: DataOperator<'store>,
+    ) -> bool {
+        match self.find_data(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
+    }
 }
 
 impl<'store> ResultItem<'store, TextResource> {
@@ -142,6 +192,69 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Returns the number of textselections that are marked in this resource (i.e. there are one or more annotations on it).
     pub fn textselections_len(&self) -> usize {
         self.as_ref().textselections_len()
+    }
+}
+
+/// this implementation mostly defers directly to the wrapped item, documentation is found on the trait and not repeated here
+impl<'store> Text<'store, 'store> for ResultItem<'store, TextResource> {
+    fn textlen(&self) -> usize {
+        self.as_ref().textlen()
+    }
+
+    fn text(&'store self) -> &'store str {
+        self.as_ref().text()
+    }
+
+    fn text_by_offset(&'store self, offset: &Offset) -> Result<&'store str, StamError> {
+        self.as_ref().text_by_offset(offset)
+    }
+
+    fn absolute_cursor(&self, cursor: usize) -> usize {
+        cursor
+    }
+
+    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
+        self.as_ref().utf8byte(abscursor)
+    }
+
+    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
+        self.as_ref().utf8byte_to_charpos(bytecursor)
+    }
+
+    fn textselection(
+        &'store self,
+        offset: &Offset,
+    ) -> Result<ResultTextSelection<'store>, StamError> {
+        self.as_ref().textselection(offset)
+    }
+
+    fn find_text_regex<'regex>(
+        &'store self,
+        expressions: &'regex [Regex],
+        precompiledset: Option<&RegexSet>,
+        allow_overlap: bool,
+    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
+        self.as_ref()
+            .find_text_regex(expressions, precompiledset, allow_overlap)
+    }
+
+    fn find_text<'fragment>(
+        &'store self,
+        fragment: &'fragment str,
+    ) -> FindTextIter<'store, 'fragment> {
+        self.as_ref().find_text(fragment)
+    }
+
+    fn find_text_nocase(&'store self, fragment: &str) -> FindNoCaseTextIter<'store> {
+        self.as_ref().find_text_nocase(fragment)
+    }
+
+    fn split_text<'b>(&'store self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
+        self.as_ref().split_text(delimiter)
+    }
+
+    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
+        self.as_ref().subslice_utf8_offset(subslice)
     }
 }
 

@@ -1115,49 +1115,6 @@ impl AnnotationStore {
         )
     }
 
-    /// Finds the [`AnnotationData'] in a specific set. Returns an iterator over all matches.
-    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
-    ///
-    /// Provide `key` as an Option, if set to `None`, all keys in the specified set will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn find_data<'a>(
-        &'a self,
-        set: impl Request<AnnotationDataSet>,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'a, AnnotationData>>> {
-        //if let Some(set) = set {
-        if let Some(annotationset) = self.annotationset(set) {
-            return annotationset.find_data(key, value);
-        }
-        /*} else {
-            //this doesn't work:
-            return Some(
-                self.annotationsets()
-                    .filter_map(|annotationset| annotationset.find_data(key, value))
-                    .flatten(),
-            );
-        }*/
-        None
-    }
-
-    /// Tests if for annotation data in a specific set, returns a boolean.
-    /// If you want to actually retrieve the data, use `find_data()` instead.
-    ///
-    /// Provide `key` as Option, if set to `None`, all keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn test_data<'a>(
-        &'a self,
-        set: impl Request<AnnotationDataSet>,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> bool {
-        match self.find_data(set, key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
-    }
-
     /// Re-allocates data structures to minimize memory consumption
     pub fn shrink_to_fit(&mut self, recursive: bool) {
         if recursive {
@@ -1391,13 +1348,15 @@ impl AnnotationStore {
 
     /// Find all annotations with a particular offset (exact). This is a lookup in the reverse index and returns a reference to a vector.
     /// This is  a low-level method.
+    /// TODO: this is too high-level for here
     pub(crate) fn annotations_by_offset<'a>(
         &'a self,
         resource_handle: TextResourceHandle,
         offset: &Offset,
     ) -> Option<&'a Vec<AnnotationHandle>> {
-        if let Some(resource) = self.resource(resource_handle) {
-            if let Ok(textselection) = resource.as_ref().textselection(&offset) {
+        if let Some(resource) = self.get(resource_handle).ok() {
+            //high-level method!
+            if let Ok(textselection) = resource.textselection(&offset) {
                 if let Some(textselection_handle) = textselection.handle() {
                     return self
                         .textrelationmap
@@ -1440,14 +1399,14 @@ impl AnnotationStore {
     /// Returns all annotations that reference any keys/data in an annotationset
     /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
     /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations()`] instead.
-    pub(crate) fn annotations_by_annotationset(
+    pub(crate) fn annotations_by_dataset(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
     ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
         if let Some(data_annotationmap) = self
             .dataset_data_annotation_map
             .data
-            .get(annotationset_handle.as_usize())
+            .get(dataset_handle.as_usize())
         {
             Some(
                 data_annotationmap
@@ -1463,38 +1422,38 @@ impl AnnotationStore {
     /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
     /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations_metadata()`] instead.
-    pub(crate) fn annotations_by_annotationset_metadata(
+    pub(crate) fn annotations_by_dataset_metadata(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
-        self.dataset_annotation_map.get(annotationset_handle)
+        self.dataset_annotation_map.get(dataset_handle)
     }
 
     /// Find all annotations referenced by data. This is a lookup in the reverse index and returns a reference to it.
     /// This is a low-level method. Use [`ResultItem<AnnotationData>.annotations()`] instead.
     pub(crate) fn annotations_by_data(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
         data_handle: AnnotationDataHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
         self.dataset_data_annotation_map
-            .get(annotationset_handle, data_handle)
+            .get(dataset_handle, data_handle)
     }
 
     /// Find all annotations referenced by key
     /// This is a low-level method
     pub(crate) fn annotations_by_key(
         &self,
-        annotationset_handle: AnnotationDataSetHandle,
+        dataset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
     ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
-        let dataset: Option<&AnnotationDataSet> = self.get(annotationset_handle).ok();
+        let dataset: Option<&AnnotationDataSet> = self.get(dataset_handle).ok();
         if let Some(dataset) = dataset {
             if let Some(data) = dataset.data_by_key(datakey_handle) {
                 Some(
                     data.iter()
                         .filter_map(move |dataitem| {
-                            self.annotations_by_data(annotationset_handle, *dataitem)
+                            self.annotations_by_data(dataset_handle, *dataitem)
                         })
                         .flat_map(|v| v.iter().copied()), //(only the handles are copied)
                 )

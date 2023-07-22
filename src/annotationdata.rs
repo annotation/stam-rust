@@ -274,7 +274,7 @@ pub struct AnnotationDataBuilder<'a> {
     #[serde(rename = "@id")]
     pub(crate) id: BuildItem<'a, AnnotationData>,
     #[serde(rename = "set")]
-    pub(crate) annotationset: BuildItem<'a, AnnotationDataSet>,
+    pub(crate) dataset: BuildItem<'a, AnnotationDataSet>,
     pub(crate) key: BuildItem<'a, DataKey>,
     pub(crate) value: DataValue,
 }
@@ -283,7 +283,7 @@ impl<'a> Default for AnnotationDataBuilder<'a> {
     fn default() -> Self {
         Self {
             id: BuildItem::None,
-            annotationset: BuildItem::None,
+            dataset: BuildItem::None,
             key: BuildItem::None,
             value: DataValue::Null,
         }
@@ -304,13 +304,13 @@ impl<'a> AnnotationDataBuilder<'a> {
         &self.id
     }
 
-    pub fn with_annotationset(mut self, annotationset: BuildItem<'a, AnnotationDataSet>) -> Self {
-        self.annotationset = annotationset;
+    pub fn with_dataset(mut self, dataset: BuildItem<'a, AnnotationDataSet>) -> Self {
+        self.dataset = dataset;
         self
     }
 
-    pub fn annotationset(&self) -> &BuildItem<AnnotationDataSet> {
-        &self.annotationset
+    pub fn dataset(&self) -> &BuildItem<AnnotationDataSet> {
+        &self.dataset
     }
 
     pub fn with_key(mut self, key: BuildItem<'a, DataKey>) -> Self {
@@ -346,7 +346,7 @@ impl<'a> From<AnnotationDataJson> for AnnotationDataBuilder<'a> {
     fn from(helper: AnnotationDataJson) -> Self {
         Self {
             id: helper.id.into(),
-            annotationset: helper.set.into(),
+            dataset: helper.set.into(),
             key: helper.key.into(),
             value: helper.value.unwrap_or(DataValue::Null),
         }

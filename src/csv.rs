@@ -269,16 +269,16 @@ impl AnnotationStore {
             self.config(),
             CsvTable::Annotation,
         )?;
-        for annotationset in self.annotationsets().map(|x| x.as_ref()) {
-            if annotationset.changed() {
+        for dataset in self.datasets().map(|x| x.as_ref()) {
+            if dataset.changed() {
                 debug(self.config(), || {
                     format!(
                         "{}.to_csv_files: writing AnnotationDataSet",
                         Self::typeinfo()
                     )
                 });
-                annotationset.to_csv_file(
-                    annotationset
+                dataset.to_csv_file(
+                    dataset
                         .filename()
                         .map(|x| x.to_owned())
                         .unwrap_or_else(|| {
@@ -288,11 +288,11 @@ impl AnnotationStore {
                             format!("{}.annotationset.stam.csv", basename)
                         })
                         .as_str(),
-                    annotationset.config(),
+                    dataset.config(),
                     CsvTable::AnnotationDataSet,
                 )?;
-                if annotationset.filename().is_some() {
-                    annotationset.mark_unchanged();
+                if dataset.filename().is_some() {
+                    dataset.mark_unchanged();
                 }
             }
         }
@@ -352,7 +352,7 @@ where
                     .map_err(|e| {
                         StamError::SerializationError(format!("Failure serializing CSV: {:?}", e))
                     })?;
-                for dataset in self.annotationsets().map(|x| x.as_ref()) {
+                for dataset in self.datasets().map(|x| x.as_ref()) {
                     if dataset.filename().is_none() {
                         return Err(StamError::SerializationError(format!(
                             "AnnotationDataSet must have a set filename for CSV serialization to work",
@@ -905,15 +905,14 @@ impl FromCsv for AnnotationStore {
                                 record.filename
                             )
                         });
-                        let mut annotationset = AnnotationDataSet::from_csv_file(
+                        let mut dataset = AnnotationDataSet::from_csv_file(
                             &record.filename,
                             store.config().clone(),
                         )?;
                         if record.id.is_some() {
-                            annotationset =
-                                annotationset.with_id(record.id.map(|x| x.to_string()).unwrap());
+                            dataset = dataset.with_id(record.id.map(|x| x.to_string()).unwrap());
                         }
-                        store.insert(annotationset)?;
+                        store.insert(dataset)?;
                     }
                     Type::TextResource => {
                         debug(store.config(), || {
@@ -987,8 +986,7 @@ impl FromCsv for AnnotationDataSet {
         config: Config,
     ) -> Result<Self, StamError> {
         let mut reader = csv::Reader::from_reader(reader);
-        let mut annotationset =
-            AnnotationDataSet::new(config).with_filename(filename.unwrap_or(""));
+        let mut dataset = AnnotationDataSet::new(config).with_filename(filename.unwrap_or(""));
         for result in reader.deserialize() {
             let record: AnnotationDataCsv = result.map_err(|e| {
                 StamError::CsvError(format!("{}", e), "while parsing AnnotationDataSet")
@@ -997,7 +995,7 @@ impl FromCsv for AnnotationDataSet {
                 && !record.key.is_empty()
                 && record.value.is_empty()
             {
-                annotationset.insert(DataKey::new(record.key))?;
+                dataset.insert(DataKey::new(record.key))?;
             } else {
                 let builder = AnnotationDataBuilder {
                     id: if record.id.is_none() || record.id.as_ref().unwrap().is_empty() {
@@ -1010,13 +1008,13 @@ impl FromCsv for AnnotationDataSet {
                     } else {
                         BuildItem::Id(record.key.to_string())
                     },
-                    annotationset: BuildItem::None, //we're confined to a single set so don't need this
+                    dataset: BuildItem::None, //we're confined to a single set so don't need this
                     value: record.value.into(), //TODO: does this mean we only deserialize String types??
                 };
-                annotationset.build_insert_data(builder, false)?; //safety is off for faster parsing (data should not have duplicates)
+                dataset.build_insert_data(builder, false)?; //safety is off for faster parsing (data should not have duplicates)
             }
         }
         //Note: ID is determined by StoreManifest rather than the set itself and will be associated later
-        Ok(annotationset)
+        Ok(dataset)
     }
 }

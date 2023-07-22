@@ -30,9 +30,22 @@ where
 
     /// Converts a unicode character position to a UTF-8 byte position
     fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError>;
+
     /// Converts a UTF-8 byte position into a unicode position
     fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError>;
 
+    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
+    /// is held by the [`FindRegexMatch'] struct.
+    ///
+    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
+    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
+    /// the entire expression is returned.
+    ///
+    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
+    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
+    /// false. All of this only matters if you supply multiple regular expressions.
+    ///
+    /// Results are returned in the exact order they are found in the text
     fn find_text_regex<'regex>(
         &'slf self,
         expressions: &'regex [Regex],

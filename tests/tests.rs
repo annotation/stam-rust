@@ -17,9 +17,9 @@ fn instantiation_naive() -> Result<(), StamError> {
         Config::default(),
     ));
 
-    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
-    annotationset.insert(DataKey::new("pos"))?;
-    store.insert(annotationset)?;
+    let mut dataset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
+    dataset.insert(DataKey::new("pos"))?;
+    store.insert(dataset)?;
 
     Ok(())
 }
@@ -37,13 +37,13 @@ fn sanity_check() -> Result<(), StamError> {
     ));
 
     // Create a dataset with one key and insert it into the store
-    let mut annotationset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
-    annotationset.insert(DataKey::new("pos"))?; //returns a DataKeyHandle, not further used in this test
-    let set_handle = store.insert(annotationset)?;
+    let mut dataset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
+    dataset.insert(DataKey::new("pos"))?; //returns a DataKeyHandle, not further used in this test
+    let set_handle = store.insert(dataset)?;
 
     //get by handle (internal id)
-    let annotationset: &AnnotationDataSet = store.get(set_handle)?;
-    assert_eq!(annotationset.id(), Some("testdataset"));
+    let dataset: &AnnotationDataSet = store.get(set_handle)?;
+    assert_eq!(dataset.id(), Some("testdataset"));
 
     //get by directly by id
     let resource: &TextResource = store.get("testres")?;
@@ -193,9 +193,9 @@ fn store_get_by_id() -> Result<(), StamError> {
 
     //test by public ID
     let _resource: &TextResource = store.get("testres")?;
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    let _datakey: &DataKey = annotationset.get("pos")?;
-    let _annotationdata: &AnnotationData = annotationset.get("D1")?;
+    let dataset: &AnnotationDataSet = store.get("testdataset")?;
+    let _datakey: &DataKey = dataset.get("pos")?;
+    let _annotationdata: &AnnotationData = dataset.get("D1")?;
     let _annotation: &Annotation = store.get("A1")?;
     Ok(())
 }
@@ -206,9 +206,9 @@ fn store_get_by_id_2() -> Result<(), StamError> {
 
     //test by public ID
     let _resource: &TextResource = store.get("testres")?;
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    let _datakey: &DataKey = annotationset.get("pos")?;
-    let _annotationdata: &AnnotationData = annotationset.get("D1")?;
+    let dataset: &AnnotationDataSet = store.get("testdataset")?;
+    let _datakey: &DataKey = dataset.get("pos")?;
+    let _annotationdata: &AnnotationData = dataset.get("D1")?;
     let _annotation: &Annotation = store.get("A1")?;
     Ok(())
 }
@@ -220,9 +220,9 @@ fn store_temp_id() -> Result<(), StamError> {
     let annotation: &Annotation = store.get("A1")?;
     assert_eq!(annotation.temp_id().unwrap(), "!A0");
 
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    assert_eq!(annotationset.temp_id().unwrap(), "!S0");
-    let key: &DataKey = annotationset.get("pos")?;
+    let dataset: &AnnotationDataSet = store.get("testdataset")?;
+    assert_eq!(dataset.temp_id().unwrap(), "!S0");
+    let key: &DataKey = dataset.get("pos")?;
     assert_eq!(key.temp_id().unwrap(), "!K0");
 
     let annotation2 = store
@@ -230,7 +230,7 @@ fn store_temp_id() -> Result<(), StamError> {
         .expect("resolving via temporary ID should work too");
     assert_eq!(annotation2.id().unwrap(), "A1");
 
-    let key2 = annotationset
+    let key2 = dataset
         .key("!K0")
         .expect("resolving via temporary ID should work too");
     assert_eq!(key2.id().unwrap(), "pos");
@@ -471,8 +471,8 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 
     assert_eq!(data.id(), &BuildItem::from("D1"));
     assert_eq!(data.id(), "D1"); //can also be compared with &str etc
-    assert_eq!(data.annotationset(), &BuildItem::from("testdataset"));
-    assert_eq!(data.annotationset(), "testdataset");
+    assert_eq!(data.dataset(), &BuildItem::from("testdataset"));
+    assert_eq!(data.dataset(), "testdataset");
 
     let mut store = setup_example_2().unwrap();
     let dataset: &mut AnnotationDataSet = store.get_mut("testdataset").unwrap();
@@ -977,7 +977,7 @@ fn textselections_by_annotation() -> Result<(), StamError> {
 fn textselections_by_resource_unsorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
     let resource: &TextResource = store.get("testres")?;
-    let v: Vec<_> = resource.textselections().collect();
+    let v: Vec<_> = resource.textselections_unsorted().collect();
     assert_eq!(v[0].begin(), 6);
     assert_eq!(v[0].end(), 11);
     assert_eq!(v[1].begin(), 0);
@@ -1087,8 +1087,8 @@ fn data_by_value_low() -> Result<(), StamError> {
 #[test]
 fn data_by_value_high() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
-    let annotationdata = annotationset.data_by_value("pos", &"noun".into());
+    let dataset = store.dataset("testdataset").unwrap();
+    let annotationdata = dataset.data_by_value("pos", &"noun".into());
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -1097,9 +1097,9 @@ fn data_by_value_high() -> Result<(), StamError> {
 #[test]
 fn find_data_exact() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").unwrap();
     let mut count = 0;
-    for annotationdata in annotationset
+    for annotationdata in dataset
         .find_data(Some("pos"), DataOperator::Equals("noun"))
         .into_iter()
         .flatten()
@@ -1114,9 +1114,9 @@ fn find_data_exact() -> Result<(), StamError> {
 #[test]
 fn find_data_by_key() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").unwrap();
     let mut count = 0;
-    for _ in annotationset
+    for _ in dataset
         .find_data(Some("type"), DataOperator::Any)
         .into_iter()
         .flatten()
@@ -1268,7 +1268,7 @@ fn test_multiselector2_creation_and_sanity() -> Result<(), StamError> {
     assert_eq!(v2.len(), 1);
     assert_eq!(v2[0].0, 11);
 
-    let v3: Vec<_> = resource.textselections().collect();
+    let v3: Vec<_> = resource.textselections_unsorted().collect();
     assert_eq!(v3.len(), 2);
 
     Ok(())
@@ -1718,7 +1718,7 @@ fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
                 resource.as_ref(),
                 resource
                     .as_ref()
-                    .textselections()
+                    .textselections_unsorted()
                     .map(|textselection| textselection.as_ref())
                     .collect(),
             )
