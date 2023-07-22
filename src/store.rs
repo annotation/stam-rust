@@ -935,13 +935,23 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is heavily used as a return type all throughout the higher-level API. Most API traits
 /// are implemented for a particular variant of this type.
-#[derive(Debug)]
 pub struct ResultItem<'store, T>
 where
     T: Storable,
 {
     item: &'store T,
     store: &'store T::StoreType,
+}
+
+impl<'store, T> Debug for ResultItem<'store, T>
+where
+    T: Storable,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResultItem")
+            .field("item", &self.item)
+            .finish()
+    }
 }
 
 impl<'store, T> Clone for ResultItem<'store, T>
