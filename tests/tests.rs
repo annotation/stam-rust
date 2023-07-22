@@ -1130,7 +1130,7 @@ fn find_data_by_key() -> Result<(), StamError> {
 #[test]
 fn find_data_all() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let annotationset = store.annotationset("testdataset").unwrap();
+    let annotationset = store.dataset("testdataset").unwrap();
     let mut count = 0;
     let key: Option<DataKeyHandle> = None;
     for _ in annotationset
@@ -1719,7 +1719,7 @@ fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
                 resource
                     .as_ref()
                     .textselections_unsorted()
-                    .map(|textselection| textselection.as_ref())
+                    .map(|textselection| textselection)
                     .collect(),
             )
         })
@@ -1755,11 +1755,7 @@ fn test_lifetime_sanity_keys() -> Result<(), StamError> {
         .map(|annotationset| {
             (
                 annotationset.as_ref(),
-                annotationset
-                    .as_ref()
-                    .keys()
-                    .map(|key| key.as_ref())
-                    .collect(),
+                annotationset.as_ref().keys().map(|key| key).collect(),
             )
         })
         .collect();
@@ -1862,7 +1858,7 @@ fn test_textselectioniter_range_exact() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let mut count = 0;
-    for textsel in resource.range(17, 40) {
+    for textsel in resource.textselections_in_range(17, 40) {
         count += 1;
         assert_eq!(textsel.begin(), 17);
         assert_eq!(textsel.end(), 40);
@@ -1876,14 +1872,14 @@ fn test_textselectioniter_range_bigger() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let mut count = 0;
-    for textsel in resource.range(1, 50) {
+    for textsel in resource.textselections_in_range(1, 50) {
         count += 1;
         assert_eq!(textsel.begin(), 17);
         assert_eq!(textsel.end(), 40);
     }
     assert_eq!(count, 1);
     count = 0;
-    for _textsel in resource.range(0, 64) {
+    for _textsel in resource.textselections_in_range(0, 64) {
         count += 1;
     }
     assert_eq!(count, 2);
@@ -2115,7 +2111,7 @@ fn test_textselections_scale_sorted_iter() -> Result<(), StamError> {
 
     //iterate over all textselections unsorted
     let mut count = 0;
-    for _ in resource.iter() {
+    for _ in resource.as_ref().textselections_unsorted() {
         count += 1;
     }
     assert_eq!(count, n - 2);
