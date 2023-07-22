@@ -933,7 +933,8 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 
 /// This is a smart pointer that encapsulates both the item and the store that owns it.
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
-/// It is heavily used as a return type all through the higher-level API.
+/// It is heavily used as a return type all throughout the higher-level API. Most API traits
+/// are implemented for a particular variant of this type.
 #[derive(Debug)]
 pub struct ResultItem<'store, T>
 where

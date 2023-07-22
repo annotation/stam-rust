@@ -686,9 +686,10 @@ impl<'store, 'slf> ResultItem<'store, TextResource> {
     /// the resource as is via a ResourceSelector. These are **NOT** include here.
     pub fn annotations(
         &'slf self,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + '_> {
-        if let Some(iter) = self.store().annotations_by_resource(self.handle()) {
-            Some(iter.filter_map(|a_handle| self.store().annotation(a_handle)))
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store> {
+        let store = self.store();
+        if let Some(iter) = store.annotations_by_resource(self.handle()) {
+            Some(iter.filter_map(|a_handle| store.annotation(a_handle)))
         } else {
             None
         }

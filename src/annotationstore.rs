@@ -933,21 +933,6 @@ impl AnnotationStore {
         <AnnotationStore as StoreFor<TextResource>>::resolve_id(self, id)
     }
 
-    /// Returns an iterator over all annotations ([`Annotation`]) in the store
-    pub fn annotations<'a>(&'a self) -> StoreIter<'a, Annotation> {
-        self.iter()
-    }
-
-    /// Returns an iterator over all text resources ([`TextResource`] instances) in the store
-    pub fn resources<'a>(&'a self) -> StoreIter<'a, TextResource> {
-        self.iter()
-    }
-
-    /// Returns an iterator over all [`AnnotationDataSet`] instances in the store
-    pub fn annotationsets<'a>(&'a self) -> StoreIter<'a, AnnotationDataSet> {
-        self.iter()
-    }
-
     /// Returns the number of annotations in the store (deletions are not substracted)
     pub fn annotations_len(&self) -> usize {
         self.annotations.len()
@@ -1054,36 +1039,6 @@ impl AnnotationStore {
                 Ok(Selector::CompositeSelector(new_v))
             }
         }
-    }
-
-    /// Method to retrieve an annotation from the store.
-    ///
-    /// Returns a reference to [`Annotation`] that is wrapped in a fat pointer ([`ResultItem<Annotation>`]) that also contains reference to the store
-    /// and which is immediately implements various methods for working with the type.
-    /// If you need a more performant low-level method, use `StoreFor<T>::get()` instead.
-    pub fn annotation(
-        &self,
-        annotation: impl Request<Annotation>,
-    ) -> Option<ResultItem<Annotation>> {
-        self.get(annotation).map(|x| x.as_resultitem(self)).ok()
-    }
-
-    /// Get an [`AnnotationDataSet'] by reference (as a fat pointer [`ResultItem<AnnotationDataSet'])
-    /// Returns `None` if it does not exist.
-    pub fn annotationset(
-        &self,
-        annotationset: impl Request<AnnotationDataSet>,
-    ) -> Option<ResultItem<AnnotationDataSet>> {
-        self.get(annotationset).map(|x| x.as_resultitem(self)).ok()
-    }
-
-    /// Get a [`TextResource'] by reference (as a fat pointer [`ResultItem<TextResource'])
-    /// Returns `None` if it does not exist.
-    pub fn resource(
-        &self,
-        resource: impl Request<TextResource>,
-    ) -> Option<ResultItem<TextResource>> {
-        self.get(resource).map(|x| x.as_resultitem(self)).ok()
     }
 
     /// Returns length for each of the reverse indices
@@ -1377,10 +1332,10 @@ impl AnnotationStore {
     /// This is a low-level method, use [`ResultItem<TextResource>.annotations()`] instead for higher-level access.
     ///
     /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
-    pub(crate) fn annotations_by_resource(
-        &self,
+    pub(crate) fn annotations_by_resource<'store>(
+        &'store self,
         resource_handle: TextResourceHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
+    ) -> Option<impl Iterator<Item = AnnotationHandle> + 'store> {
         if let Some(textselection_annotationmap) =
             self.textrelationmap.data.get(resource_handle.as_usize())
         {
