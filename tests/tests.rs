@@ -958,6 +958,20 @@ fn annotations_by_offset() -> Result<(), StamError> {
     Ok(())
 }
 
+/*
+#[test]
+fn annotations_by_offset_lowlevel() -> Result<(), StamError> {
+    let store = setup_example_2()?;
+    let resource: &TextResource = store.get("testres")?;
+    let textselection = resource.textselection(&Offset::simple(6, 11))?;
+    let v: &Vec<_> = store
+        .annotations_by_textselection(resource.handle().unwrap(), textselection.as_ref().unwrap())
+        .expect("some");
+    assert_eq!(v.len(), 1);
+    Ok(())
+}
+*/
+
 #[test]
 fn textselections_by_annotation() -> Result<(), StamError> {
     let store = setup_example_2()?;

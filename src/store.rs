@@ -971,7 +971,7 @@ where
     T: Storable,
 {
     fn eq(&self, other: &ResultItem<'store, T>) -> bool {
-        self == other
+        self.as_ref() == other.as_ref()
     }
 }
 

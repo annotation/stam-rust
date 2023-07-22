@@ -1,4 +1,5 @@
 use regex::{Regex, RegexSet};
+use std::io::Write;
 use std::marker::PhantomData;
 
 use crate::annotation::{Annotation, TargetIter, TargetIterItem};
@@ -724,7 +725,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
 
     pub fn key(&self) -> ResultItem<'store, DataKey> {
         self.store()
-            .key(self.key().handle())
+            .key(self.as_ref().key())
             .expect("AnnotationData must always have a key at this point")
             .as_resultitem(self.store())
     }
@@ -797,9 +798,12 @@ impl<'store> ResultItem<'store, TextSelection> {
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         annotationstore
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
+            .map(|v| {
+                v.into_iter()
+                    .map(|a_handle| annotationstore.annotation(*a_handle).unwrap())
+            })
             .into_iter()
             .flatten()
-            .map(|a_handle| annotationstore.annotation(*a_handle).unwrap())
     }
 
     /// Returns the number of annotations that reference this text selection
@@ -861,6 +865,16 @@ impl<'store> ResultTextSelection<'store> {
     pub fn as_ref(&self) -> Option<&'store TextSelection> {
         match self {
             Self::Bound(item) => Some(item.as_ref()),
+            Self::Unbound(..) => None,
+        }
+    }
+
+    /// Return a reference to the textselection in the store.
+    /// Only works on bound items.
+    /// Use [`Self.inner()`] instead if
+    pub fn as_resultitem(&self) -> Option<&ResultItem<'store, TextSelection>> {
+        match self {
+            Self::Bound(item) => Some(item),
             Self::Unbound(..) => None,
         }
     }
