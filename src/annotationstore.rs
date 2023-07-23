@@ -5,6 +5,7 @@ use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::SmallVec;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -1436,31 +1437,27 @@ impl AnnotationStore {
     }
 
     /// Find all annotations referenced by key
-    /// This allocates and returns a Vec<> because it needs to ensure there are no duplicates
+    /// This allocates and returns a set because it needs to ensure there are no duplicates
     /// This is a low-level method.
     pub(crate) fn annotations_by_key(
         &self,
         dataset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
-    ) -> Vec<AnnotationHandle> {
+    ) -> BTreeSet<AnnotationHandle> {
         let dataset: Option<&AnnotationDataSet> = self.get(dataset_handle).ok();
         if let Some(dataset) = dataset {
             if let Some(data) = dataset.data_by_key(datakey_handle) {
-                let mut results: Vec<AnnotationHandle> = data
-                    .iter()
+                data.iter()
                     .filter_map(move |dataitem| {
                         self.annotations_by_data_indexlookup(dataset_handle, *dataitem)
                     })
                     .flat_map(|v| v.iter().copied()) //(only the handles are copied)
-                    .collect();
-                results.sort();
-                results.dedup();
-                results
+                    .collect()
             } else {
-                Vec::new()
+                BTreeSet::new()
             }
         } else {
-            Vec::new()
+            BTreeSet::new()
         }
     }
 }

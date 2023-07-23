@@ -7,6 +7,7 @@ use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::SelectorKind;
 use crate::store::*;
+use std::collections::BTreeSet;
 use std::ops::Deref;
 
 impl<'store> ResultItem<'store, AnnotationData> {
@@ -62,21 +63,22 @@ impl<'store> ResultItem<'store, AnnotationData> {
         }
     }
 
-    /// Returns an iterator over all text resources that make use of this data via annotations (either as metadata or on text)
+    /// Returns a set of all text resources that make use of this data via annotations (either as metadata or on text)
     pub fn resources(
         &self,
         annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    ) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations(annotationstore)
             .map(|annotation| annotation.resources().map(|resource| resource.clone()))
             .flatten()
+            .collect()
     }
 
-    /// Returns an iterator over all text resources that make use of this data via annotations via a ResourceSelector (i.e. as metadata)
+    /// Returns an set of all text resources that make use of this data via annotations via a ResourceSelector (i.e. as metadata)
     pub fn resources_as_metadata(
         &self,
         annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    ) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations(annotationstore)
             .map(|annotation| {
                 annotation.resources().filter_map(|resource| {
@@ -88,13 +90,14 @@ impl<'store> ResultItem<'store, AnnotationData> {
                 })
             })
             .flatten()
+            .collect()
     }
 
     /// Returns an iterator over all text resources that make use of this data via annotations via a TextSelector (i.e. on text)
     pub fn resources_on_text(
         &self,
         annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    ) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations(annotationstore)
             .map(|annotation| {
                 annotation
@@ -107,15 +110,17 @@ impl<'store> ResultItem<'store, AnnotationData> {
                     })
             })
             .flatten()
+            .collect()
     }
 
-    /// Returns an iterator over all data sets that annotations reference via a DataSetSelector (i.e. metadata)
+    /// Returns an iterator over all data sets that annotations using this data reference via a DataSetSelector (i.e. metadata)
     pub fn datasets(
         &self,
         annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
+    ) -> BTreeSet<ResultItem<'store, AnnotationDataSet>> {
         self.annotations(annotationstore)
             .map(|annotation| annotation.datasets().map(|dataset| dataset.clone()))
             .flatten()
+            .collect()
     }
 }
