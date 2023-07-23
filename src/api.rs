@@ -140,6 +140,7 @@ impl AnnotationStore {
     }
 }
 
+//impl AnnotationDataSet
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set
     pub fn data(&self) -> impl Iterator<Item = ResultItem<AnnotationData>> {
@@ -181,7 +182,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
 
     /// Returns an iterator over annotations that directly point at the resource, i.e. are metadata for it.
     /// If you want to iterator over all annotations that reference data from this set, use [`annotations()`] instead.
-    pub fn annotations_about(
+    pub fn annotations_as_metadata(
         &self,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
@@ -191,6 +192,26 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             .map(|v| v.iter())
             .flatten()
             .filter_map(|a_handle| store.annotation(*a_handle))
+    }
+    /// Returns an iterator over annotations that directly point at the resource, i.e. are metadata for it.
+    /// If you want to iterator over all annotations that reference data from this set, use [`annotations()`] instead.
+    pub fn annotations_using_set(
+        &self,
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+        let store = self.store();
+        store
+            .annotations_by_dataset(self.handle())
+            .into_iter()
+            .flatten()
+            .filter_map(|a_handle| store.annotation(a_handle))
+    }
+
+    /// Returns an iterator over all annotations that reference this dataset, both annotations that can be considered metadata as well
+    /// annotations that make use of this set. The former are always returned before the latter.
+    /// Use `annotations_as_metadata()` or `annotations_using_set()` instead if you want to differentiate the two.
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+        self.annotations_as_metadata()
+            .chain(self.annotations_using_set())
     }
 
     /// Returns a single [`AnnotationData'] in the annotation dataset that matches they key and value.
@@ -255,25 +276,13 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         }
     }
 
-    /// Returns all annotations that use this dataset.
-    /// The returned annotations are not part of the dataset, they merely reference data from it.
-    /// Use [`Self.annotations_about()`] instead if you are looking for annotations that reference
-    /// the dataset as a whole via a DataSetSelector.
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        let store = self.store();
-        store
-            .annotations_by_dataset(self.handle())
-            .into_iter()
-            .flatten()
-            .filter_map(|a_handle| store.annotation(a_handle))
-    }
-
     /// Tests whether two AnnotationDataSets are the same
     pub fn test(&self, other: impl Request<AnnotationDataSet>) -> bool {
         Some(self.handle()) == other.to_handle(self.store())
     }
 }
 
+//impl Annotation
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over over the data for this annotation
     pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store {
@@ -302,9 +311,9 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 
-    /// Iterates over all the annotations this annotation points to directly (i.e. via a [`Selector::AnnotationSelector'])
-    /// Use [`Self.annotations_reverse()'] if you want to find the annotations this resource is pointed by.
-    pub fn annotations(
+    /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
+    /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
+    pub fn annotations_in_targets(
         &self,
         recursive: bool,
         track_ancestors: bool,
@@ -321,9 +330,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all the annotations that reference this annotation, if any
-    pub fn annotations_about(
-        &self,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         self.store()
             .annotations_by_annotation_reverse(self.handle())
@@ -481,7 +488,7 @@ impl<'store> ResultItem<'store, Annotation> {
 impl<'store> ResultItem<'store, TextResource> {
     /// Returns an iterator over all annotations about this resource as a whole, i.e. Annotations with a ResourceSelector.
     /// Such annotations can be considered metadata.
-    pub fn annotations_about_metadata(
+    pub fn annotations_as_metadata(
         &self,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
@@ -494,7 +501,7 @@ impl<'store> ResultItem<'store, TextResource> {
     }
 
     /// Returns an iterator over all annotations about any text in this resource i.e. Annotations with a TextSelector.
-    pub fn annotations_about_text(
+    pub fn annotations_on_text(
         &self,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
@@ -505,14 +512,12 @@ impl<'store> ResultItem<'store, TextResource> {
             .filter_map(|a_handle| store.annotation(a_handle))
     }
 
-    /// Returns an iterator over all annotations about this resource, both annotations that can be considered metadata as well
+    /// Returns an iterator over all annotations that reference this resource, both annotations that can be considered metadata as well
     /// annotations that reference a portion of the text. The former are always returned before the latter.
-    /// Use `annotations_about_metadata()` or `annotations_about_text()` instead if you want to differentiate the two.
-    pub fn annotations_about(
-        &self,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        self.annotations_about_metadata()
-            .chain(self.annotations_about_text())
+    /// Use `annotations_as_metadata()` or `annotations_on_text()` instead if you want to differentiate the two.
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+        self.annotations_as_metadata()
+            .chain(self.annotations_on_text())
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
