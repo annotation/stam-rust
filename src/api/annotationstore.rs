@@ -1,4 +1,5 @@
 use regex::{Regex, RegexSet};
+use std::collections::BTreeSet;
 
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
@@ -9,6 +10,7 @@ use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::text::{FindRegexMatch, Text};
+use crate::textselection::{ResultTextSelection, ResultTextSelectionSet, TextSelectionSet};
 use crate::types::*;
 
 impl AnnotationStore {
@@ -208,8 +210,8 @@ impl AnnotationStore {
     /// Returns an iterator returning both the annotation, as well the matching data item
     ///
     /// This may return the same annotation multiple times if different matching data references it!
-    /// This iterator does not guarantee any ordering of the returned annotations.
     ///
+    /// If you already have a `ResultItem<DataKey>` instance, just use `ResultItem<DataKey>.find_by_data()` instead, it'll be much more efficient.
     /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.annotations()` instead, it'll be much more efficient.
     ///
     /// See `find_data()` for further parameter explanation.
@@ -233,6 +235,111 @@ impl AnnotationStore {
             .map(|data| {
                 data.annotations(self)
                     .map(move |annotation| (annotation, data.clone()))
+            })
+            .into_iter()
+            .flatten()
+    }
+
+    /// Searches for texts selections by data (via annotations)
+    /// Returns an iterator returning both the text selection, as well the matching data item
+    ///
+    /// This may return the same text selection multiple times if different matching data references it!
+    ///
+    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.annotations()` instead, it'll be much more efficient.
+    ///
+    /// See `find_data()` for further parameter explanation.
+    pub fn text_by_data<'store, 'a>(
+        &'store self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> impl Iterator<
+        Item = (
+            ResultTextSelectionSet,
+            ResultItem<'store, Annotation>,
+            ResultItem<'store, AnnotationData>,
+        ),
+    >
+    where
+        'a: 'store,
+    {
+        let store = self;
+        self.find_data(set, key, value)
+            .into_iter()
+            .flatten()
+            .map(move |data| {
+                data.annotations(store).map(move |annotation| {
+                    let tset: TextSelectionSet = annotation.textselections().collect();
+                    (tset.as_resultset(store), annotation, data.clone())
+                })
+            })
+            .into_iter()
+            .flatten()
+    }
+
+    /// Searches for resources by metadata.
+    /// Returns an iterator returning both the annotation, as well the annotation data
+    ///
+    /// This may return the same resource multiple times if different matching data references it!
+    ///
+    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.resources_as_metadata()` instead, it'll be much more efficient.
+    ///
+    /// See `find_data()` for further parameter explanation.
+    pub fn resources_by_metadata<'store, 'a>(
+        &'store self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> impl Iterator<
+        Item = (
+            ResultItem<'store, TextResource>,
+            ResultItem<'store, AnnotationData>,
+        ),
+    >
+    where
+        'a: 'store,
+    {
+        self.find_data(set, key, value)
+            .into_iter()
+            .flatten()
+            .map(|data| {
+                data.resources_as_metadata(self)
+                    .into_iter()
+                    .map(move |resource| (resource, data.clone()))
+            })
+            .into_iter()
+            .flatten()
+    }
+
+    /// Searches for datasets by metadata.
+    /// Returns an iterator returning both the annotation, as well the annotation data
+    ///
+    /// This may return the same resource multiple times if different matching data references it!
+    ///
+    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.resources_as_metadata()` instead, it'll be much more efficient.
+    ///
+    /// See `find_data()` for further parameter explanation.
+    pub fn datasets_by_metadata<'store, 'a>(
+        &'store self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> impl Iterator<
+        Item = (
+            ResultItem<'store, AnnotationDataSet>,
+            ResultItem<'store, AnnotationData>,
+        ),
+    >
+    where
+        'a: 'store,
+    {
+        self.find_data(set, key, value)
+            .into_iter()
+            .flatten()
+            .map(|data| {
+                data.datasets(self)
+                    .into_iter()
+                    .map(move |dataset| (dataset, data.clone()))
             })
             .into_iter()
             .flatten()

@@ -548,8 +548,7 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Que
                 Constraint::AnnotationData { set, key, value } => {
                     for annotation in item.annotations_as_metadata() {
                         for data in annotation.data() {
-                            if data.store().as_resultitem(store).test(set)
-                                && data.test(Some(&key), &value)
+                            if data.store().as_resultitem(store).test(set) && data.test(key, &value)
                             {
                                 return true;
                             }

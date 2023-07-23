@@ -12,6 +12,7 @@ use minicbor::{Decode, Encode};
 use smallvec::SmallVec;
 
 use crate::annotation::{TargetIter, TargetIterItem};
+use crate::annotationstore::AnnotationStore;
 use crate::cbor::*;
 use crate::config::Configurable;
 use crate::error::StamError;
@@ -695,9 +696,14 @@ impl Ord for PositionIndexItem {
 /// All textselections in a set must reference the same resource, which implies they are comparable.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextSelectionSet {
-    data: SmallVec<[TextSelection; 8]>,
+    data: SmallVec<[TextSelection; 1]>,
     resource: TextResourceHandle,
     sorted: bool,
+}
+
+pub struct ResultTextSelectionSet<'store> {
+    tset: TextSelectionSet,
+    store: &'store AnnotationStore,
 }
 
 pub struct TextSelectionSetIntoIter {
@@ -1057,6 +1063,10 @@ impl TextSelectionSet {
             resource,
             sorted: false,
         }
+    }
+
+    pub fn as_resultset(self, store: &AnnotationStore) -> ResultTextSelectionSet {
+        ResultTextSelectionSet { tset: self, store }
     }
 
     pub fn add(&mut self, textselection: TextSelection) -> &mut Self {
