@@ -470,6 +470,7 @@ where
                     } else {
                         let mut data_ids = String::new();
                         let mut set_ids = String::new();
+                        //get data via high-level method
                         for data in annotation.data() {
                             if data.id().is_none() {
                                 return Err(StamError::SerializationError(format!(

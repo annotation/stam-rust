@@ -558,7 +558,7 @@ impl SelfSelector for Annotation {
     }
 }
 
-//semi higher-level
+//this is exposed in the high-level API:
 
 pub struct TargetIter<'a, T>
 where

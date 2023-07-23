@@ -65,6 +65,14 @@ impl<'a> Request<DataKey> for DataKeyHandle {
         Some(*self)
     }
 }
+impl<'a> Request<DataKey> for Option<DataKeyHandle> {
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<DataKeyHandle>
+    where
+        S: StoreFor<DataKey>,
+    {
+        *self
+    }
+}
 
 impl<'a> From<&DataKeyHandle> for BuildItem<'a, DataKey> {
     fn from(handle: &DataKeyHandle) -> Self {

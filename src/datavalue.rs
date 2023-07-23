@@ -351,8 +351,8 @@ impl<'a> TryFrom<DataOperator<'a>> for DataValue {
     }
 }
 
-impl<'a> From<&DataValue> for DataOperator<'a> {
-    fn from(v: &DataValue) -> Self {
+impl<'a> From<&'a DataValue> for DataOperator<'a> {
+    fn from(v: &'a DataValue) -> Self {
         match v {
             DataValue::Null => DataOperator::Null,
             DataValue::String(s) => DataOperator::Equals(s.as_str()),
@@ -360,7 +360,7 @@ impl<'a> From<&DataValue> for DataOperator<'a> {
             DataValue::Float(v) => DataOperator::EqualsFloat(*v),
             DataValue::Bool(true) => DataOperator::True,
             DataValue::Bool(false) => DataOperator::False,
-            DataValue::List(v) => {
+            DataValue::List(_) => {
                 eprintln!("STAM warning: Automatic conversion from list values to operators is not supported!");
                 DataOperator::Null
             }
@@ -369,14 +369,8 @@ impl<'a> From<&DataValue> for DataOperator<'a> {
 }
 
 impl<'a> From<&'a str> for DataOperator<'a> {
-    fn from(s: &str) -> Self {
+    fn from(s: &'a str) -> Self {
         DataOperator::Equals(s)
-    }
-}
-
-impl<'a> From<String> for DataOperator<'a> {
-    fn from(s: String) -> Self {
-        DataOperator::Equals(s.as_str())
     }
 }
 

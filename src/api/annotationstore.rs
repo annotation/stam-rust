@@ -2,9 +2,9 @@ use regex::{Regex, RegexSet};
 
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
-use crate::annotationdataset::AnnotationDataSet;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::datakey::DataKey;
+use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
@@ -86,20 +86,88 @@ impl AnnotationStore {
             .flatten()
     }
 
-    /// Finds the [`AnnotationData'] in a specific set. Returns an iterator over all matches.
-    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
-    ///
-    /// Provide `key` as an Option, if set to `None`, all keys in the specified set will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn find_data<'store>(
+    /// internal helper method
+    pub(crate) fn find_data_request_resolver<'store>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'store>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>>> {
-        self.dataset(set)
-            .map(|set| set.find_data(key, value))
-            .flatten()
+        key: impl Request<DataKey>,
+    ) -> Option<(Option<AnnotationDataSetHandle>, Option<DataKeyHandle>)> {
+        let mut test_set_handle: Option<AnnotationDataSetHandle> = None; //None means 'any' in this context
+        let mut test_key_handle: Option<DataKeyHandle> = None; //idem
+
+        if !set.any() {
+            if let Ok(set) = self.get(set) {
+                test_set_handle = Some(set.handle().expect("set must have handle"));
+                if !key.any() {
+                    test_key_handle = key.to_handle(set);
+                    if test_key_handle.is_none() {
+                        //requested key doesn't exist, bail out early, we won't find anything at all
+                        return None;
+                    }
+                }
+            } else {
+                //requested set doesn't exist, bail out early, we won't find anything at all
+                return None;
+            }
+        } else if !key.any() {
+            // Not the most elegant solution but it'll have to do, I don't want to wrap this in Result<>, and I don't
+            // want to be entirely silent about this error either:
+            eprintln!("STAM warning: Providing a key without a set in data searches is invalid! Key will be ignored!");
+        }
+
+        Some((test_set_handle, test_key_handle))
+    }
+
+    /// Finds [`AnnotationData'] using data search criteria.
+    /// This returns an iterator over all matches.
+    ///
+    /// If you are not interested in returning the results but merely testing the presence of particular data,
+    /// then use `test_data` instead..
+    ///
+    /// You can pass a boolean (true/false, doesn't matter) or empty string literal for set or key to represent any set/key.
+    /// To search for any value, `value` can must be explicitly set to `DataOperator::Any` to return all values.
+    ///
+    /// Value is a DataOperator that can apply a data test to the value. Use `DataOperator::Equals` to search
+    /// for an exact value. As a shortcut, you can pass `"value".into()`  to the automatically conver into an equality
+    /// DataOperator.
+    ///
+    /// Example call to retrieve all data indiscriminately: `annotation.data(false,false, DataOperator::Any)`
+    ///  .. or just use the alias function `data_all()`.
+    ///
+    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
+    ///       search for keys if you don't know their set.
+    pub fn find_data<'store, 'a>(
+        &'store self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>>>
+    where
+        'a: 'store,
+    {
+        if let Some((test_set_handle, test_key_handle)) = self.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.datasets() //we do have to go over all and test because otherwise we have distinct return types
+                    .filter_map(move |dataset| {
+                        if test_set_handle.is_none() || dataset.handle() == test_set_handle.unwrap()
+                        {
+                            Some(
+                                dataset
+                                    .find_data(test_key_handle, value)
+                                    .into_iter()
+                                    .flatten(),
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                    .into_iter()
+                    .flatten(),
+            )
+        } else {
+            None
+        }
     }
 
     /// Returns an iterator over all data in all sets
@@ -112,17 +180,22 @@ impl AnnotationStore {
             .flatten()
     }
 
-    /// Tests if for annotation data in a specific set, returns a boolean.
+    /// Tests if certain annotation data exists, returns a boolean.
     /// If you want to actually retrieve the data, use `find_data()` instead.
     ///
     /// Provide `key` as Option, if set to `None`, all keys will be searched.
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn test_data<'store>(
+    ///
+    /// Note: This gives no guarantee that data, although it exists, is actually used by annotations
+    pub fn test_data<'store, 'a>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'store>,
-    ) -> bool {
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> bool
+    where
+        'a: 'store,
+    {
         match self.find_data(set, key, value) {
             Some(mut iter) => iter.next().is_some(),
             None => false,

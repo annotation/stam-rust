@@ -94,18 +94,19 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.
     /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
     ///
-    /// Provide `key`  as an Options, if set to `None`, all keys will be searched.
+    /// If you pass an empty string literal or boolean to `key`, all keys will be searched.
+    ///
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
         &self,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
     ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
     where
         'a: 'store,
     {
         let mut key_handle: Option<DataKeyHandle> = None; //this means 'any' in this context
-        if let Some(key) = key {
+        if !key.any() {
             key_handle = key.to_handle(self.as_ref());
             if key_handle.is_none() {
                 //requested key doesn't exist, bail out early, we won't find anything at all
@@ -130,11 +131,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
-    pub fn test_data<'a>(
-        &self,
-        key: Option<impl Request<DataKey>>,
-        value: DataOperator<'a>,
-    ) -> bool {
+    pub fn test_data<'a>(&self, key: impl Request<DataKey>, value: &'a DataOperator<'a>) -> bool {
         match self.find_data(key, value) {
             Some(mut iter) => iter.next().is_some(),
             None => false,

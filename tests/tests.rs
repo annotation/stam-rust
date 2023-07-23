@@ -1114,7 +1114,7 @@ fn find_data_exact() -> Result<(), StamError> {
     let dataset = store.dataset("testdataset").unwrap();
     let mut count = 0;
     for annotationdata in dataset
-        .find_data(Some("pos"), DataOperator::Equals("noun"))
+        .find_data("pos", &DataOperator::Equals("noun"))
         .into_iter()
         .flatten()
     {
@@ -1131,7 +1131,7 @@ fn find_data_by_key() -> Result<(), StamError> {
     let dataset = store.dataset("testdataset").unwrap();
     let mut count = 0;
     for _ in dataset
-        .find_data(Some("type"), DataOperator::Any)
+        .find_data("type", &DataOperator::Any)
         .into_iter()
         .flatten()
     {
@@ -1146,9 +1146,8 @@ fn find_data_all() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let annotationset = store.dataset("testdataset").unwrap();
     let mut count = 0;
-    let key: Option<DataKeyHandle> = None;
     for _ in annotationset
-        .find_data(key, DataOperator::Any)
+        .find_data(false, &DataOperator::Any)
         .into_iter()
         .flatten()
     {
@@ -1699,7 +1698,7 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
     annotate_regex(&mut store)?;
 
     let data: Vec<_> = store
-        .find_data("myset", Some("type"), DataOperator::Equals("header"))
+        .find_data("myset", "type", &DataOperator::Equals("header"))
         .into_iter()
         .flatten()
         .filter_map(|data| data.annotations(&store))

@@ -51,7 +51,7 @@ pub enum Constraint<'q> {
     AnnotationData {
         set: BuildItem<'q, AnnotationDataSet>,
         key: BuildItem<'q, DataKey>,
-        value: DataOperator<'q>,
+        value: &'q DataOperator<'q>,
     },
     TextResource(ResultItemSet<'q, TextResource>),
     TextResourceVariable(Variable),
@@ -234,7 +234,7 @@ impl<'store> QueryIter<'store> {
                     Some(QueryState {
                         iterator: SubIter::ResourceIter(Box::new(
                             store
-                                .find_data(set.clone(), Some(key.clone()), value.clone())
+                                .find_data(set.clone(), key.clone(), value)
                                 .into_iter()
                                 .flatten()
                                 .map(|data| data.annotations(store))
@@ -312,7 +312,7 @@ impl<'store> QueryIter<'store> {
                     Some(QueryState {
                         iterator: SubIter::TextSelectionIter(Box::new(
                             store
-                                .find_data(set.clone(), Some(key.clone()), value.clone())
+                                .find_data(set.clone(), key.clone(), value)
                                 .into_iter()
                                 .flatten()
                                 .map(|data| data.annotations(store))
@@ -628,12 +628,9 @@ impl<'store> TestConstraint<'store, TextSelectionSet> for QueryIter<'store> {
                 Constraint::AnnotationData { set, key, value } => {
                     if let Some(iter) = item.annotations(store) {
                         for annotation in iter {
-                            for data in annotation.data() {
-                                if data.store().as_resultitem(store).test(set)
-                                    && data.test(Some(&key), &value)
-                                {
-                                    return true;
-                                }
+                            for data in annotation.find_data(set, key, value).into_iter().flatten()
+                            {
+                                return true;
                             }
                         }
                     }
