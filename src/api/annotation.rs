@@ -19,6 +19,7 @@ use crate::types::*;
 //impl Annotation
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references
+    /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
     pub fn resources(&self) -> TargetIter<'store, TextResource> {
         let selector_iter: SelectorIter<'store> =
             self.as_ref().target().iter(self.store(), true, true);
@@ -61,6 +62,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all the annotations that reference this annotation, if any
+    /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         self.store()
@@ -72,17 +74,6 @@ impl<'store> ResultItem<'store, Annotation> {
                     .annotation(*a_handle)
                     .expect("annotation handle must be valid")
             })
-    }
-
-    /// Iterates over the annotation data sets this annotation references using a DataSetSelector, i.e. as metadata
-    pub fn annotationsets(&self) -> TargetIter<'store, AnnotationDataSet> {
-        let selector_iter: SelectorIter<'store> =
-            self.as_ref().target().iter(self.store(), true, false);
-        TargetIter {
-            store: self.store(),
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
     }
 
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
@@ -101,6 +92,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all text slices this annotation refers to
+    /// They are returned in the exact order as they were selected.
     pub fn text(&self) -> impl Iterator<Item = &'store str> {
         self.textselections()
             .map(|textselection| textselection.text())

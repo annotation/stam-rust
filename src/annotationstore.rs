@@ -254,7 +254,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             if self.config.dataset_annotation_map {
                 let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = annotation
                     .as_resultitem(self)
-                    .annotationsets()
+                    .datasets() //high-level method!!!
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
                 self.dataset_annotation_map
@@ -264,7 +264,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             if self.config.annotation_annotation_map {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
                     .as_resultitem(self)
-                    .annotations_in_targets(false, false) //high-level method
+                    .annotations_in_targets(false, false) //high-level method!!!
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
                 self.annotation_annotation_map
@@ -1436,27 +1436,31 @@ impl AnnotationStore {
     }
 
     /// Find all annotations referenced by key
-    /// This is a low-level method
+    /// This allocates and returns a Vec<> because it needs to ensure there are no duplicates
+    /// This is a low-level method.
     pub(crate) fn annotations_by_key(
         &self,
         dataset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
+    ) -> Vec<AnnotationHandle> {
         let dataset: Option<&AnnotationDataSet> = self.get(dataset_handle).ok();
         if let Some(dataset) = dataset {
             if let Some(data) = dataset.data_by_key(datakey_handle) {
-                Some(
-                    data.iter()
-                        .filter_map(move |dataitem| {
-                            self.annotations_by_data_indexlookup(dataset_handle, *dataitem)
-                        })
-                        .flat_map(|v| v.iter().copied()), //(only the handles are copied)
-                )
+                let mut results: Vec<AnnotationHandle> = data
+                    .iter()
+                    .filter_map(move |dataitem| {
+                        self.annotations_by_data_indexlookup(dataset_handle, *dataitem)
+                    })
+                    .flat_map(|v| v.iter().copied()) //(only the handles are copied)
+                    .collect();
+                results.sort();
+                results.dedup();
+                results
             } else {
-                None
+                Vec::new()
             }
         } else {
-            None
+            Vec::new()
         }
     }
 }

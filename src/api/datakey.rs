@@ -3,6 +3,8 @@ use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKey;
+use crate::resources::TextResource;
+use crate::selector::SelectorKind;
 use crate::store::*;
 
 //TODO: implement reference to rootstore so we don't need to pass AnnotationStore to various methods
@@ -36,32 +38,83 @@ impl<'store> ResultItem<'store, DataKey> {
     pub fn annotations(
         &self,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store> {
-        if let Some(iter) = annotationstore.annotations_by_key(
-            self.store().handle().expect("set must have handle"),
-            self.handle(),
-        ) {
-            Some(iter.filter_map(|a_handle| annotationstore.annotation(a_handle)))
-        } else {
-            None
-        }
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+        let set_handle = self.store().handle().expect("set must have handle");
+        annotationstore
+            .annotations_by_key(set_handle, self.handle())
+            .into_iter()
+            .filter_map(|a_handle| annotationstore.annotation(a_handle))
     }
 
     /// Returns the number of annotations that make use of this key.
     ///  Note: this method has suffix `_count` instead of `_len` because it is not O(1) but does actual counting (O(n) at worst).
     pub fn annotations_count(&self, annotationstore: &'store AnnotationStore) -> usize {
-        if let Some(iter) = annotationstore.annotations_by_key(
-            self.store().handle().expect("set must have handle"),
-            self.handle(),
-        ) {
-            iter.count()
-        } else {
-            0
-        }
+        annotationstore
+            .annotations_by_key(
+                self.store().handle().expect("set must have handle"),
+                self.handle(),
+            )
+            .len()
     }
 
     /// Tests whether two DataKeys are the same
     pub fn test(&self, other: &BuildItem<DataKey>) -> bool {
         Some(self.handle()) == other.to_handle(self.store())
+    }
+
+    /// Returns an iterator over all text resources that make use of this key via annotations (either as metadata or on text)
+    pub fn resources(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+        self.annotations(annotationstore)
+            .map(|annotation| annotation.resources().map(|resource| resource.clone()))
+            .flatten()
+    }
+
+    /// Returns resources that make use of this key as metadata (via annotation with a ResourceSelector)
+    pub fn resources_as_metadata(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+        self.annotations(annotationstore)
+            .map(|annotation| {
+                annotation.resources().filter_map(|resource| {
+                    if resource.selector().kind() == SelectorKind::ResourceSelector {
+                        Some(resource.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .flatten()
+    }
+
+    /// Returns an iterator over all text resources that make use of this key via annotations via a ResourceSelector (i.e. as metadata)
+    pub fn resources_on_text(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+        self.annotations(annotationstore)
+            .map(|annotation| {
+                annotation
+                    .resources()
+                    .filter_map(|resource| match resource.selector().kind() {
+                        SelectorKind::TextSelector | SelectorKind::ResourceSelector => {
+                            Some(resource.clone())
+                        }
+                        _ => None,
+                    })
+            })
+            .flatten()
+    }
+
+    pub fn datasets(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<'store, AnnotationDataSet>> {
+        self.annotations(annotationstore)
+            .map(|annotation| annotation.datasets().map(|dataset| dataset.clone()))
+            .flatten()
     }
 }
