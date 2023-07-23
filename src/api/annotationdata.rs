@@ -4,7 +4,10 @@ use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKey;
 use crate::datavalue::{DataOperator, DataValue};
+use crate::resources::{TextResource, TextResourceHandle};
+use crate::selector::SelectorKind;
 use crate::store::*;
+use std::ops::Deref;
 
 impl<'store> ResultItem<'store, AnnotationData> {
     /// Method to return a reference to the dataset that holds this data
@@ -57,5 +60,58 @@ impl<'store> ResultItem<'store, AnnotationData> {
         } else {
             false
         }
+    }
+
+    pub fn resources(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<TextResource>> {
+        self.annotations(annotationstore)
+            .map(|annotation| annotation.resources().map(|resource| resource.clone()))
+            .flatten()
+    }
+
+    pub fn resources_as_metadata(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<TextResource>> {
+        self.annotations(annotationstore)
+            .map(|annotation| {
+                annotation.resources().filter_map(|resource| {
+                    if resource.selector().kind() == SelectorKind::ResourceSelector {
+                        Some(resource.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .flatten()
+    }
+
+    pub fn resources_on_text(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<TextResource>> {
+        self.annotations(annotationstore)
+            .map(|annotation| {
+                annotation
+                    .resources()
+                    .filter_map(|resource| match resource.selector().kind() {
+                        SelectorKind::TextSelector | SelectorKind::ResourceSelector => {
+                            Some(resource.clone())
+                        }
+                        _ => None,
+                    })
+            })
+            .flatten()
+    }
+
+    pub fn datasets(
+        &self,
+        annotationstore: &'store AnnotationStore,
+    ) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
+        self.annotations(annotationstore)
+            .map(|annotation| annotation.datasets().map(|dataset| dataset.clone()))
+            .flatten()
     }
 }

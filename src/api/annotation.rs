@@ -30,6 +30,18 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 
+    /// Returns an iterator over the datasets that this annotation (by its target selector) references
+    pub fn datasets(&self) -> TargetIter<'store, AnnotationDataSet> {
+        let selector_iter: SelectorIter<'store> =
+            self.as_ref().target().iter(self.store(), true, true);
+        //                                                  ^ -- we track ancestors because it is needed to resolve relative offsets
+        TargetIter {
+            store: self.store(),
+            iter: selector_iter,
+            _phantomdata: PhantomData,
+        }
+    }
+
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
     pub fn annotations_in_targets(
