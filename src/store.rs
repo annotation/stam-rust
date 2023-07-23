@@ -1379,6 +1379,11 @@ where
         None
     }
 
+    /// Represents a request for any value in certain contexts
+    fn any(&self) -> bool {
+        false
+    }
+
     /*
     /// Resolves a requested item from a store, producing a ResultItem.
     fn resolve<'store, S>(self, store: &'store S) -> Option<ResultItem<'store, T>>
@@ -1410,6 +1415,24 @@ where
     fn requested_id_owned(self) -> Option<String> {
         Some(self.to_string())
     }
+    fn any(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl<'a, T> Request<T> for bool
+where
+    T: Storable,
+{
+    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        None
+    }
+    fn any(&self) -> bool {
+        true
+    }
 }
 
 impl<'a, T> Request<T> for String
@@ -1427,6 +1450,9 @@ where
     }
     fn requested_id_owned(self) -> Option<String> {
         Some(self)
+    }
+    fn any(&self) -> bool {
+        self.is_empty()
     }
 }
 
