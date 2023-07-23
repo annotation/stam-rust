@@ -30,23 +30,18 @@ impl<'store> ResultItem<'store, AnnotationData> {
     pub fn annotations(
         &self,
         annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store> {
-        if let Some(vec) = annotationstore.annotations_by_data(
-            self.store().handle().expect("set must have handle"),
-            self.handle(),
-        ) {
-            Some(
-                vec.iter()
-                    .filter_map(|a_handle| annotationstore.annotation(*a_handle)),
-            )
-        } else {
-            None
-        }
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+        let set_handle = self.store().handle().expect("set must have handle");
+        annotationstore
+            .annotations_by_data_indexlookup(set_handle, self.handle())
+            .into_iter()
+            .flatten()
+            .filter_map(|a_handle| annotationstore.annotation(*a_handle))
     }
 
     /// Returns the number of annotations ([`Annotation`]) that make use of this data.
     pub fn annotations_len(&self, annotationstore: &'store AnnotationStore) -> usize {
-        if let Some(vec) = annotationstore.annotations_by_data(
+        if let Some(vec) = annotationstore.annotations_by_data_indexlookup(
             self.store().handle().expect("set must have handle"),
             self.handle(),
         ) {

@@ -136,6 +136,8 @@ impl AnnotationStore {
     ///
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
     ///       search for keys if you don't know their set.
+    /// Note: If you already know the set and you have lots of sets in your data, then it may be
+    ///       slightly more performant to call [`AnnotationDataSet.find_data()`] directly.
     pub fn find_data<'store, 'a>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
@@ -200,5 +202,39 @@ impl AnnotationStore {
             Some(mut iter) => iter.next().is_some(),
             None => false,
         }
+    }
+
+    /// Searches for annotations by data.
+    /// Returns an iterator returning both the annotation, as well the matching data item
+    ///
+    /// This may return the same annotation multiple times if different matching data references it!
+    /// This iterator does not guarantee any ordering of the returned annotations.
+    ///
+    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.annotations()` instead, it'll be much more efficient.
+    ///
+    /// See `find_data()` for further parameter explanation.
+    pub fn annotations_by_data<'store, 'a>(
+        &'store self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> impl Iterator<
+        Item = (
+            ResultItem<'store, Annotation>,
+            ResultItem<'store, AnnotationData>,
+        ),
+    >
+    where
+        'a: 'store,
+    {
+        self.find_data(set, key, value)
+            .into_iter()
+            .flatten()
+            .map(|data| {
+                data.annotations(self)
+                    .map(move |annotation| (annotation, data.clone()))
+            })
+            .into_iter()
+            .flatten()
     }
 }

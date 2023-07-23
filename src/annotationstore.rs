@@ -1426,7 +1426,7 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by data. This is a lookup in the reverse index and returns a reference to it.
     /// This is a low-level method. Use [`ResultItem<AnnotationData>.annotations()`] instead.
-    pub(crate) fn annotations_by_data(
+    pub(crate) fn annotations_by_data_indexlookup(
         &self,
         dataset_handle: AnnotationDataSetHandle,
         data_handle: AnnotationDataHandle,
@@ -1448,7 +1448,7 @@ impl AnnotationStore {
                 Some(
                     data.iter()
                         .filter_map(move |dataitem| {
-                            self.annotations_by_data(dataset_handle, *dataitem)
+                            self.annotations_by_data_indexlookup(dataset_handle, *dataitem)
                         })
                         .flat_map(|v| v.iter().copied()), //(only the handles are copied)
                 )

@@ -1701,7 +1701,7 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
         .find_data("myset", "type", &DataOperator::Equals("header"))
         .into_iter()
         .flatten()
-        .filter_map(|data| data.annotations(&store))
+        .map(|data| data.annotations(&store))
         .flatten()
         .collect();
     assert_eq!(data.len(), 4);

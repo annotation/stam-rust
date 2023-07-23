@@ -238,8 +238,6 @@ impl<'store> QueryIter<'store> {
                                 .into_iter()
                                 .flatten()
                                 .map(|data| data.annotations(store))
-                                .into_iter()
-                                .flatten()
                                 .flatten()
                                 .map(|annotation| annotation.resources())
                                 .flatten()
@@ -316,8 +314,6 @@ impl<'store> QueryIter<'store> {
                                 .into_iter()
                                 .flatten()
                                 .map(|data| data.annotations(store))
-                                .into_iter()
-                                .flatten()
                                 .flatten()
                                 .map(|annotation| annotation.textselections().collect()),
                         )),
