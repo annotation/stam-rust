@@ -11,8 +11,7 @@ use datasize::DataSize;
 use minicbor::{Decode, Encode};
 use smallvec::SmallVec;
 
-use crate::annotation::{Annotation, TargetIter, TargetIterItem};
-use crate::annotationstore::AnnotationStore;
+use crate::annotation::{TargetIter, TargetIterItem};
 use crate::cbor::*;
 use crate::config::Configurable;
 use crate::error::StamError;
