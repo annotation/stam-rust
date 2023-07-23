@@ -1,7 +1,9 @@
 use sealed::sealed;
 use serde::Deserialize;
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::slice::{Iter, IterMut};
@@ -966,12 +968,37 @@ where
     }
 }
 
-impl<'store, T> PartialEq<ResultItem<'store, T>> for ResultItem<'store, T>
+impl<'store, T> PartialEq for ResultItem<'store, T>
 where
     T: Storable,
 {
-    fn eq(&self, other: &ResultItem<'store, T>) -> bool {
-        self.as_ref() == other.as_ref()
+    fn eq(&self, other: &Self) -> bool {
+        self.handle() == other.handle()
+    }
+}
+impl<'store, T> Eq for ResultItem<'store, T> where T: Storable {}
+impl<'store, T> Hash for ResultItem<'store, T>
+where
+    T: Storable,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.handle().hash(state)
+    }
+}
+impl<'store, T> PartialOrd for ResultItem<'store, T>
+where
+    T: Storable,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.handle().cmp(&other.handle()))
+    }
+}
+impl<'store, T> Ord for ResultItem<'store, T>
+where
+    T: Storable,
+{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.handle().cmp(&other.handle())
     }
 }
 
