@@ -1803,9 +1803,11 @@ fn test_annotations_by_textselection() -> Result<(), StamError> {
     let mut count_annotations = 0;
     for textselection in resource.textselections() {
         count += 1;
-        for annotation in textselection.annotations(&store) {
-            count_annotations += 1;
-            eprintln!("{} {:?}", textselection.text(), annotation.id());
+        if let Some(annotations) = textselection.annotations(&store) {
+            for annotation in annotations {
+                count_annotations += 1;
+                eprintln!("{} {:?}", textselection.text(), annotation.id());
+            }
         }
     }
     assert_eq!(count, resource.textselections_len());

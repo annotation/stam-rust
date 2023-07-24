@@ -48,11 +48,11 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
     /// They are returned in textual order, but this does not come with any significant performance overhead. If you want an unsorted version use [`self.as_ref().textselections_unsorted()`] instead.
     /// This is a double-ended iterator that can be traversed in both directions.
-    pub fn textselections(
-        &self,
-    ) -> impl DoubleEndedIterator<Item = ResultItem<'store, TextSelection>> {
+    pub fn textselections(&self) -> impl DoubleEndedIterator<Item = ResultTextSelection<'store>> {
         let resource = self.as_ref();
-        resource.iter().map(|item| item.as_resultitem(resource))
+        resource
+            .iter()
+            .map(|item| item.as_resultitem(resource).into())
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
@@ -62,11 +62,11 @@ impl<'store> ResultItem<'store, TextResource> {
         &self,
         begin: usize,
         end: usize,
-    ) -> impl DoubleEndedIterator<Item = ResultItem<'store, TextSelection>> {
+    ) -> impl DoubleEndedIterator<Item = ResultTextSelection<'store>> {
         let resource = self.as_ref();
         resource
             .range(begin, end)
-            .map(|item| item.as_resultitem(resource))
+            .map(|item| item.as_resultitem(resource).into())
     }
 
     /// Returns the number of textselections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -75,13 +75,13 @@ impl<'store> ResultItem<'store, TextResource> {
     }
 
     /// Find textselections by applying a text selection operator ([`TextSelectionOperator`]) to a
-    /// one or more querying textselections (in an [`TextSelectionSet']). Returns an iterator over all matching
-    /// text selections in the resource, as [`WrappedItem<TextSelection>`].
+    /// one or more querying textselections. Returns an iterator over all matching
+    /// text selections in the resource.
     pub fn related_text(
         &self,
         operator: TextSelectionOperator,
         refset: impl Into<TextSelectionSet>,
-    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let resource = self.as_ref();
         resource
             .textselections_by_operator(operator, refset.into())
@@ -89,14 +89,14 @@ impl<'store> ResultItem<'store, TextResource> {
                 let textselection: &'store TextSelection = resource
                     .get(ts_handle)
                     .expect("textselection handle must be valid");
-                textselection.as_resultitem(resource)
+                textselection.as_resultitem(resource).into()
             })
     }
 
     /*
     /// Find textselections by applying a text selection operator ([`TextSelectionOperator`]) to a
     /// one or more querying textselections (in an [`TextSelectionSet']). Returns an iterator over all matching
-    /// text selections in the resource, as [`WrappedItem<TextSelection>`].
+    /// text selections in the resource, as [`ResultItem<TextSelection>`].
     pub fn find_textselections_ref<'q>(
         &self,
         operator: TextSelectionOperator,
