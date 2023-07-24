@@ -77,14 +77,14 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Find textselections by applying a text selection operator ([`TextSelectionOperator`]) to a
     /// one or more querying textselections (in an [`TextSelectionSet']). Returns an iterator over all matching
     /// text selections in the resource, as [`WrappedItem<TextSelection>`].
-    pub fn find_textselections(
+    pub fn related_text(
         &self,
         operator: TextSelectionOperator,
-        refset: TextSelectionSet,
+        refset: impl Into<TextSelectionSet>,
     ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
         let resource = self.as_ref();
         resource
-            .textselections_by_operator(operator, refset)
+            .textselections_by_operator(operator, refset.into())
             .map(|ts_handle| {
                 let textselection: &'store TextSelection = resource
                     .get(ts_handle)

@@ -45,6 +45,8 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
+    ///
+    /// This does no sorting, if you want results in textual order, add `.textual_order()`
     pub fn annotations_in_targets(
         &self,
         recursive: bool,
@@ -63,6 +65,8 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Iterates over all the annotations that reference this annotation, if any
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
+    ///
+    /// This does no sorting, if you want results in textual order, add `.textual_order()`
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         self.store()
@@ -203,6 +207,77 @@ impl<'store> ResultItem<'store, Annotation> {
         value: &'a DataOperator<'a>,
     ) -> bool {
         match self.find_data(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
+    }
+
+    /// Search for data *about* this annotation, i.e. data on other annotation that refer to this one.
+    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`].
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn find_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.annotations()
+                    .map(move |annotation| {
+                        annotation
+                            .find_data(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(move |data| (data, annotation.clone()))
+                    })
+                    .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Shortcut method to get all data *about* this annotation, i.e. data on other annotation that refer to this one.
+    /// Do not confuse this with the data this annotation holds, which can be obtained via [`Self.data()`].
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn data_about(
+        &self,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    > {
+        self.find_data_about(false, false, &DataOperator::Any)
+    }
+
+    /// Test data *about* this annotation, i.e. data on other annotation that refer to this one.
+    /// Do not confuse this with the data this annotation holds, which can be tested via [`Self.test_data()`].
+    pub fn test_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> bool
+    where
+        'a: 'store,
+    {
+        match self.find_data_about(set, key, value) {
             Some(mut iter) => iter.next().is_some(),
             None => false,
         }
