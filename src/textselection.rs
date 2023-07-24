@@ -2068,14 +2068,46 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
     }
 }
 
-#[derive(Debug, PartialEq)] //TODO: reimplement PartialEq
+#[derive(Debug)] //TODO: reimplement PartialEq
 pub enum ResultTextSelection<'store> {
     Bound(ResultItem<'store, TextSelection>),
     Unbound(&'store TextResource, TextSelection),
 }
 
+impl<'store> PartialEq for ResultTextSelection<'store> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.store() == other.store() {
+            self.inner().eq(other.inner())
+        } else {
+            false
+        }
+    }
+}
+
+impl<'store> PartialOrd for ResultTextSelection<'store> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.inner().partial_cmp(other.inner())
+    }
+}
+
 impl<'store> From<ResultItem<'store, TextSelection>> for ResultTextSelection<'store> {
     fn from(textselection: ResultItem<'store, TextSelection>) -> Self {
         Self::Bound(textselection)
+    }
+}
+
+impl<'store> PartialEq for ResultTextSelectionSet<'store> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.resource() == other.resource() {
+            self.tset == other.tset
+        } else {
+            false
+        }
+    }
+}
+
+impl<'store> PartialOrd for ResultTextSelectionSet<'store> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.tset.partial_cmp(&other.tset)
     }
 }

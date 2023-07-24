@@ -371,3 +371,72 @@ where
         v
     }
 }
+
+impl<'store, I> SortTextualOrder<ResultTextSelection<'store>> for I
+where
+    I: Iterator<Item = ResultTextSelection<'store>>,
+{
+    fn textual_order(&mut self) -> Vec<ResultTextSelection<'store>> {
+        let mut v: Vec<_> = self.collect();
+        v.sort_unstable_by(|a, b| {
+            a.partial_cmp(b)
+                .expect("PartialOrd must work for ResultTextSelection")
+        });
+        v
+    }
+}
+
+impl<'store, I> SortTextualOrder<ResultTextSelectionSet<'store>> for I
+where
+    I: Iterator<Item = ResultTextSelectionSet<'store>>,
+{
+    fn textual_order(&mut self) -> Vec<ResultTextSelectionSet<'store>> {
+        let mut v: Vec<_> = self.collect();
+        v.sort_unstable_by(|a, b| {
+            if a.tset.is_empty() && b.tset.is_empty() {
+                Ordering::Equal
+            } else if a.tset.is_empty() {
+                Ordering::Greater
+            } else if b.tset.is_empty() {
+                Ordering::Less
+            } else {
+                a.partial_cmp(b)
+                    .expect("PartialOrd must work for ResultTextSelectionSet")
+            }
+        });
+        v
+    }
+}
+
+impl<'store, I> SortTextualOrder<TextSelectionSet> for I
+where
+    I: Iterator<Item = TextSelectionSet>,
+{
+    fn textual_order(&mut self) -> Vec<TextSelectionSet> {
+        let mut v: Vec<_> = self.collect();
+        v.sort_unstable_by(|a, b| {
+            if a.is_empty() && b.is_empty() {
+                Ordering::Equal
+            } else if a.is_empty() {
+                Ordering::Greater
+            } else if b.is_empty() {
+                Ordering::Less
+            } else {
+                a.partial_cmp(b)
+                    .expect("PartialOrd must work for TextSelectionSet")
+            }
+        });
+        v
+    }
+}
+
+impl<'store, I> SortTextualOrder<TextSelection> for I
+where
+    I: Iterator<Item = TextSelection>,
+{
+    fn textual_order(&mut self) -> Vec<TextSelection> {
+        let mut v: Vec<_> = self.collect();
+        v.sort_unstable_by(|a, b| a.cmp(b));
+        v
+    }
+}
