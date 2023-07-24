@@ -702,8 +702,8 @@ pub struct TextSelectionSet {
 }
 
 pub struct ResultTextSelectionSet<'store> {
-    tset: TextSelectionSet,
-    store: &'store AnnotationStore,
+    pub(crate) tset: TextSelectionSet,
+    pub(crate) rootstore: &'store AnnotationStore,
 }
 
 pub struct TextSelectionSetIntoIter {
@@ -806,6 +806,29 @@ impl<'store> FromIterator<ResultTextSelection<'store>> for TextSelectionSet {
             });
         }
         tset
+    }
+}
+
+impl<'store> From<ResultTextSelectionSet<'store>> for TextSelectionSet {
+    fn from(other: ResultTextSelectionSet<'store>) -> Self {
+        other.tset
+    }
+}
+
+impl PartialOrd for TextSelectionSet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if let (Some(begin), Some(otherbegin)) = (self.begin(), other.begin()) {
+            let ord = begin.cmp(&otherbegin);
+            if ord != Ordering::Equal {
+                Some(ord)
+            } else {
+                let end = self.end().unwrap();
+                let otherend = other.end().unwrap();
+                Some(end.cmp(&otherend))
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -1066,7 +1089,10 @@ impl TextSelectionSet {
     }
 
     pub fn as_resultset(self, store: &AnnotationStore) -> ResultTextSelectionSet {
-        ResultTextSelectionSet { tset: self, store }
+        ResultTextSelectionSet {
+            tset: self,
+            rootstore: store,
+        }
     }
 
     pub fn add(&mut self, textselection: TextSelection) -> &mut Self {
@@ -1139,6 +1165,13 @@ impl TextSelectionSet {
         intersection
     }
     */
+
+    pub fn begin(&self) -> Option<usize> {
+        self.leftmost().map(|x| x.begin())
+    }
+    pub fn end(&self) -> Option<usize> {
+        self.rightmost().map(|x| x.end())
+    }
 
     /// Returns the left-most TextSelection (the one with the lowest start offset) in the set.
     pub fn leftmost(&self) -> Option<&TextSelection> {

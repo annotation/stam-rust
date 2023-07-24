@@ -210,28 +210,28 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the text relations pertaining to the annotations. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`WrappedItem<TextSelection>`]).
+    /// (as [`ResultTextSelection`]).
     /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
-    pub fn find_textselections(
+    pub fn related_text(
         &self,
         operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
         let tset: TextSelectionSet = self.textselections().collect();
-        tset.find_textselections(operator, self.store())
+        tset.as_resultset(self.store()).related_text(operator)
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
     /// are in a specific relation with the text selections of the current one. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`WrappedItem<TextSelection>`]).
+    /// (as [`ResultTextSelection`]).
     /// If you are interested in the text selections only, use [`Self.find_textselections()`] instead.
-    pub fn find_annotations(
+    pub fn annotations_by_related_text(
         &self,
         operator: TextSelectionOperator,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
-        self.find_textselections(operator)
-            .map(|tsel| tsel.annotations(store))
+        self.related_text(operator)
+            .filter_map(|tsel| tsel.annotations(store))
             .flatten()
     }
 }
