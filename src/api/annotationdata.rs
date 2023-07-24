@@ -55,8 +55,8 @@ impl<'store> ResultItem<'store, AnnotationData> {
         }
     }
 
-    pub fn test(&self, key: Option<&BuildItem<DataKey>>, operator: &DataOperator) -> bool {
-        if key.is_none() || self.key().test(key.unwrap()) {
+    pub fn test(&self, key: impl Request<DataKey>, operator: &DataOperator) -> bool {
+        if key.any() || self.key().test(key) {
             self.as_ref().value().test(operator)
         } else {
             false

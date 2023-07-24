@@ -96,6 +96,8 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     ///
     /// If you pass an empty string literal or boolean to `key`, all keys will be searched.
     ///
+    /// If you already have a `ResultItem<DataKey>` , use `ResultItem<DataKey>.find_data()` instead, it'll be much more efficient.
+    ///
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     pub fn find_data<'a>(
         &self,
@@ -141,5 +143,38 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Tests whether two AnnotationDataSets are the same
     pub fn test(&self, other: impl Request<AnnotationDataSet>) -> bool {
         Some(self.handle()) == other.to_handle(self.store())
+    }
+
+    /// Searches for annotations by data, invariant over all keys.
+    /// If you want to search by a key, use `ResultItem<DataKey>.annotations_by_data()` instead, it'll be much more efficient.
+    /// This returns an iterator returning both the annotation and the matching data item
+    ///
+    /// This may return the same annotation multiple times if different keys or annotationdata (e.g. multiple values) reference it!
+    ///
+    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.annotations()` instead, it'll be much more efficient.
+    ///
+    /// See `find_data()` for further parameter explanation.
+    pub fn annotations_by_data<'a>(
+        &self,
+        value: &'a DataOperator<'a>,
+    ) -> impl Iterator<
+        Item = (
+            ResultItem<'store, Annotation>,
+            ResultItem<'store, AnnotationData>,
+        ),
+    >
+    where
+        'a: 'store,
+    {
+        let set_handle = self.handle();
+        self.annotations()
+            .map(move |annotation| {
+                annotation
+                    .find_data(set_handle, false, value)
+                    .into_iter()
+                    .flatten()
+                    .map(move |data| (annotation.clone(), data))
+            })
+            .flatten()
     }
 }
