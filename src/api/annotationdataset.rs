@@ -56,18 +56,6 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             .filter_map(|a_handle| store.annotation(*a_handle))
     }
 
-    /// Returns a single [`AnnotationData'] in the annotation dataset that matches they key and value.
-    /// Returns a single match, use `Self::find_data()` for a more extensive search.
-    pub fn data_by_value(
-        &self,
-        key: impl Request<DataKey>,
-        value: &DataValue,
-    ) -> Option<ResultItem<'store, AnnotationData>> {
-        self.as_ref()
-            .data_by_value(key, value)
-            .map(|annotationdata| annotationdata.as_resultitem(self.as_ref()))
-    }
-
     /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.
     /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
     ///
