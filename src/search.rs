@@ -378,7 +378,8 @@ impl<'store> QueryIter<'store> {
                         iterator: SubIter::TextSelectionIter(Box::new(
                             itemset
                                 .clone()
-                                .find_textselections(operator.clone(), store)
+                                .as_resultset(store)
+                                .related_text(operator.clone())
                                 .map(|textselections| textselections.into()),
                         )),
                         result: QueryResultItem::None,
@@ -390,7 +391,8 @@ impl<'store> QueryIter<'store> {
                             iterator: SubIter::TextSelectionIter(Box::new(
                                 itemset
                                     .clone()
-                                    .find_textselections(operator.clone(), store)
+                                    .as_resultset(store)
+                                    .related_text(operator.clone())
                                     .map(|textselections| textselections.into()),
                             )),
                             result: QueryResultItem::None,

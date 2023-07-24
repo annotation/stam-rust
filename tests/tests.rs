@@ -1852,7 +1852,7 @@ fn test_find_textselections_embedded() -> Result<(), StamError> {
     let phrase1 = store.annotation("Phrase1").unwrap();
     let mut count = 0;
     for reftextsel in phrase1.textselections() {
-        for textsel in reftextsel.find_textselections(
+        for textsel in reftextsel.related_text(
             TextSelectionOperator::Embedded {
                 all: false,
                 negate: false,
@@ -1907,7 +1907,7 @@ fn test_find_textselections_embeds() -> Result<(), StamError> {
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
     for reftextsel in sentence1.textselections() {
-        for textsel in reftextsel.find_textselections(
+        for textsel in reftextsel.related_text(
             TextSelectionOperator::Embeds {
                 all: false,
                 negate: false,
@@ -1929,7 +1929,7 @@ fn test_find_annotations_embeds() -> Result<(), StamError> {
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
     for reftextsel in sentence1.textselections() {
-        for annotation in reftextsel.find_annotations(
+        for annotation in reftextsel.annotations_by_related_text(
             TextSelectionOperator::Embeds {
                 all: false,
                 negate: false,
@@ -1949,7 +1949,7 @@ fn test_find_annotations_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence = store.annotation("Sentence1").unwrap();
     let mut count = 0;
-    for annotation in sentence.find_annotations(TextSelectionOperator::Embeds {
+    for annotation in sentence.annotations_by_related_text(TextSelectionOperator::Embeds {
         all: false,
         negate: false,
     }) {
@@ -1966,7 +1966,7 @@ fn test_find_annotations_overlaps() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase1").unwrap();
     let annotations: Vec<_> = phrase
-        .find_annotations(TextSelectionOperator::Overlaps {
+        .annotations_by_related_text(TextSelectionOperator::Overlaps {
             all: false,
             negate: false,
         })
@@ -1987,7 +1987,7 @@ fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
-        .find_annotations(TextSelectionOperator::Overlaps {
+        .annotations_by_related_text(TextSelectionOperator::Overlaps {
             all: false,
             negate: false,
         })
@@ -2008,7 +2008,7 @@ fn test_find_annotations_precedes() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
-        .find_annotations(TextSelectionOperator::Before {
+        .annotations_by_related_text(TextSelectionOperator::Before {
             all: false,
             negate: false,
         })
@@ -2026,7 +2026,7 @@ fn test_find_annotations_succeeds() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase3").unwrap();
     let annotations: Vec<_> = phrase
-        .find_annotations(TextSelectionOperator::After {
+        .annotations_by_related_text(TextSelectionOperator::After {
             all: false,
             negate: false,
         })
@@ -2139,7 +2139,7 @@ fn test_textselections_scale_test_overlap() -> Result<(), StamError> {
     //iterate over all textselections unsorted
 
     let mut count = 0;
-    for _textselection in selection.find_textselections(
+    for _textselection in selection.related_text(
         TextSelectionOperator::Overlaps {
             all: false,
             negate: false,
