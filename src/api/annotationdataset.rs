@@ -44,11 +44,9 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             .ok()
     }
 
-    /// Returns an iterator over annotations that directly point at the resource, i.e. are metadata for it.
+    /// Returns an iterator over annotations that directly point at the dataset, i.e. are metadata for it.
     /// If you want to iterator over all annotations that reference data from this set, use [`annotations()`] instead.
-    pub fn annotations_as_metadata(
-        &self,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         store
             .annotations_by_dataset_metadata(self.handle())
@@ -56,27 +54,6 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             .map(|v| v.iter())
             .flatten()
             .filter_map(|a_handle| store.annotation(*a_handle))
-    }
-
-    /// Returns an iterator over annotations that directly point at the resource, i.e. are metadata for it.
-    /// If you want to iterator over all annotations that reference data from this set, use [`annotations()`] instead.
-    pub fn annotations_using_set(
-        &self,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        let store = self.store();
-        store
-            .annotations_by_dataset(self.handle())
-            .into_iter()
-            .flatten()
-            .filter_map(|a_handle| store.annotation(a_handle))
-    }
-
-    /// Returns an iterator over all annotations that reference this dataset, both annotations that can be considered metadata as well
-    /// annotations that make use of this set. The former are always returned before the latter.
-    /// Use `annotations_as_metadata()` or `annotations_using_set()` instead if you want to differentiate the two.
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        self.annotations_as_metadata()
-            .chain(self.annotations_using_set())
     }
 
     /// Returns a single [`AnnotationData'] in the annotation dataset that matches they key and value.
