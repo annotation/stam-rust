@@ -1102,7 +1102,8 @@ fn data_by_value_low() -> Result<(), StamError> {
 fn data_by_value_high() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let dataset = store.dataset("testdataset").unwrap();
-    let annotationdata = dataset.data_by_value("pos", &"noun".into());
+    let key = dataset.key("pos").unwrap();
+    let annotationdata = key.find_data(&DataOperator::Equals("noun")).next();
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
