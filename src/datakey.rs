@@ -72,6 +72,9 @@ impl<'a> Request<DataKey> for Option<DataKeyHandle> {
     {
         *self
     }
+    fn any(&self) -> bool {
+        self.is_none()
+    }
 }
 
 impl<'a> From<&DataKeyHandle> for BuildItem<'a, DataKey> {

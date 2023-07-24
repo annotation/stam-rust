@@ -100,6 +100,18 @@ impl<'a> Request<AnnotationDataSet> for AnnotationDataSetHandle {
         Some(*self)
     }
 }
+impl<'a> Request<AnnotationDataSet> for Option<AnnotationDataSetHandle> {
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<AnnotationDataSetHandle>
+    where
+        S: StoreFor<AnnotationDataSet>,
+    {
+        *self
+    }
+
+    fn any(&self) -> bool {
+        self.is_none()
+    }
+}
 
 impl From<AnnotationDataSetHandle> for BuildItem<'_, AnnotationDataSet> {
     fn from(handle: AnnotationDataSetHandle) -> Self {

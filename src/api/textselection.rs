@@ -1,5 +1,9 @@
 use crate::annotation::Annotation;
+use crate::annotationdata::AnnotationData;
+use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
+use crate::datakey::DataKey;
+use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::resources::TextResource;
 use crate::selector::Offset;
@@ -68,8 +72,7 @@ impl<'store> ResultItem<'store, TextSelection> {
         annotationstore: &'store AnnotationStore,
     ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
         let tset: TextSelectionSet = self.clone().into();
-        self.resource(annotationstore)
-            .find_textselections(operator, tset)
+        self.resource(annotationstore).related_text(operator, tset)
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
@@ -83,7 +86,7 @@ impl<'store> ResultItem<'store, TextSelection> {
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         let tset: TextSelectionSet = self.clone().into();
         self.resource(annotationstore)
-            .find_textselections(operator, tset)
+            .related_text(operator, tset)
             .map(|tsel| tsel.annotations(annotationstore))
             .flatten()
     }
@@ -244,8 +247,7 @@ impl<'store> ResultTextSelection<'store> {
             Self::Bound(item) => item.as_ref().clone().into(),
             Self::Unbound(_, textselection) => textselection.clone(),
         });
-        self.resource(annotationstore)
-            .find_textselections(operator, tset)
+        self.resource(annotationstore).related_text(operator, tset)
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
@@ -264,10 +266,82 @@ impl<'store> ResultTextSelection<'store> {
             Self::Unbound(_, textselection) => textselection.clone(),
         });
         self.resource(annotationstore)
-            .find_textselections(operator, tset)
+            .related_text(operator, tset)
             .map(|tsel| tsel.annotations(annotationstore))
             .flatten()
             .collect()
+    }
+
+    /// Search for data *about* this text, i.e. data on annotations that refer to this text.
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn find_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+        store: &'store AnnotationStore,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.annotations(store)
+                    .into_iter()
+                    .flatten()
+                    .map(move |annotation| {
+                        annotation
+                            .find_data(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(move |data| (data, annotation.clone()))
+                    })
+                    .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Shortcut method to get all data *about* this text, i.e. data on annotations that refer to this text
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn data_about(
+        &self,
+        store: &'store AnnotationStore,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    > {
+        self.find_data_about(false, false, &DataOperator::Any, store)
+    }
+
+    /// Test data *about* this text, i.e. data on annotations that refer to this text
+    pub fn test_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+        store: &'store AnnotationStore,
+    ) -> bool
+    where
+        'a: 'store,
+    {
+        match self.find_data_about(set, key, value, store) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
     }
 }
 
