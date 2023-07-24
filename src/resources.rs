@@ -289,6 +289,12 @@ impl Serialize for TextResource {
     }
 }
 
+impl PartialOrd for TextResource {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.intid.partial_cmp(&other.intid)
+    }
+}
+
 #[sealed]
 impl ChangeMarker for TextResource {
     fn change_marker(&self) -> &Arc<RwLock<bool>> {
