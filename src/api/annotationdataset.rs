@@ -142,4 +142,57 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             })
             .flatten()
     }
+
+    /// Search for data *about* this text, i.e. data on annotations that refer to this set as metadata.
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn find_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.annotations()
+                    .map(move |annotation| {
+                        annotation
+                            .find_data(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(move |data| (data, annotation.clone()))
+                    })
+                    .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Test data *about* this dataset, i.e. data on annotations that refer to this dataset as metadata
+    pub fn test_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> bool
+    where
+        'a: 'store,
+    {
+        match self.find_data_about(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
+    }
 }

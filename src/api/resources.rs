@@ -1,6 +1,10 @@
 use regex::{Regex, RegexSet};
 
 use crate::annotation::Annotation;
+use crate::annotationdata::AnnotationData;
+use crate::annotationdataset::AnnotationDataSet;
+use crate::datakey::DataKey;
+use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::resources::TextResource;
 use crate::selector::Offset;
@@ -116,6 +120,165 @@ impl<'store> ResultItem<'store, TextResource> {
             })
     }
     */
+
+    /// Search for data *about* this text, i.e. data on annotations that refer to this resource in any way.
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn find_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.annotations()
+                    .map(move |annotation| {
+                        annotation
+                            .find_data(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(move |data| (data, annotation.clone()))
+                    })
+                    .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Search for data *about* this text, i.e. data on annotations that refer to this resource as metadata.
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn find_metadata_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.annotations_as_metadata()
+                    .map(move |annotation| {
+                        annotation
+                            .find_data(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(move |data| (data, annotation.clone()))
+                    })
+                    .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Search for data *about* this text, i.e. data on annotations that refer to text in this resource.
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn find_data_about_text<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.annotations_on_text()
+                    .map(move |annotation| {
+                        annotation
+                            .find_data(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(move |data| (data, annotation.clone()))
+                    })
+                    .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Test data *about* this resource, i.e. data on annotations that refer to this resource in any way
+    pub fn test_data_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> bool
+    where
+        'a: 'store,
+    {
+        match self.find_data_about(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
+    }
+
+    /// Test data *about* this resource, i.e. data on metadata annotations that refer to this resource
+    pub fn test_metadata_about<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> bool
+    where
+        'a: 'store,
+    {
+        match self.find_metadata_about(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
+    }
+
+    /// Test data *about* this resource, i.e. data on annotations that refer to text in this resource
+    pub fn test_data_about_text<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> bool
+    where
+        'a: 'store,
+    {
+        match self.find_data_about_text(set, key, value) {
+            Some(mut iter) => iter.next().is_some(),
+            None => false,
+        }
+    }
 }
 
 /// this implementation mostly defers directly to the wrapped item, documentation is found on the trait and not repeated here
