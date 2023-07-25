@@ -201,7 +201,8 @@ where
                 Ok(ResultTextSelection::Bound(wrapped))
             }
             Ok(None) => {
-                let textselection: TextSelection = self.as_ref().textselection_by_offset(offset)?;
+                let textselection: TextSelection =
+                    self.as_ref().textselection_by_offset_unchecked(offset)?;
                 Ok(ResultTextSelection::Unbound(
                     self.rootstore(),
                     self.as_ref(),

@@ -551,8 +551,8 @@ impl TextResource {
     }
 
     /// Low-level method to get a textselection, if the text selection is known, its' handle will be set
-    ///  If you don't care about unbound textselection but only known ones, then use `known_textselection()` instead.
-    pub fn offset_to_textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
+    /// If you don't care about unbound textselection but only known ones, then use `known_textselection()` instead.
+    pub fn textselection_by_offset(&self, offset: &Offset) -> Result<TextSelection, StamError> {
         let (begin, end) = (
             self.beginaligned_cursor(&offset.begin)?,
             self.beginaligned_cursor(&offset.end)?,
@@ -643,7 +643,7 @@ impl TextResource {
     /// Returns a text selection by offset.
     /// This is a lower-level method that does not check if the text selection exists, use [`textselection()`]. instead.
     // this is deliberately NOT part of HasText if applied to e.g. TextSelection it would yield TextSelections with relative offsets
-    pub(crate) fn textselection_by_offset(
+    pub(crate) fn textselection_by_offset_unchecked(
         &self,
         offset: &Offset,
     ) -> Result<TextSelection, StamError> {

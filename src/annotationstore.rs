@@ -225,7 +225,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                         .unwrap()
                         .as_mut()
                         .unwrap();
-                    let textselection = resource.offset_to_textselection(offset)?;
+                    let textselection = resource.textselection_by_offset(offset)?;
                     let textselection_handle: TextSelectionHandle =
                         if let Some(textselection_handle) = textselection.handle() {
                             //already exists
