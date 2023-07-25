@@ -2068,7 +2068,7 @@ impl<'a> Iterator for TargetIter<'a, TextSelection> {
     }
 }
 
-#[derive(Debug)] //TODO: reimplement PartialEq
+#[derive(Debug, Clone)] //TODO: reimplement PartialEq
 pub enum ResultTextSelection<'store> {
     Bound(ResultItem<'store, TextSelection>),
     Unbound(&'store TextResource, TextSelection),

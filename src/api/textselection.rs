@@ -343,6 +343,76 @@ impl<'store> ResultTextSelection<'store> {
             None => false,
         }
     }
+
+    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
+    /// It returns both the matching text and for each also the matching annotation data and matching annotation
+    /// If you do not wish to return the data, but merely test for it, then use [`Self.related_text_test_data()`] instead.
+    /// It effectively combines `related_text()` with `find_data_about()` on its results, into a single method.
+    /// See these methods for further parameter explanation.
+    pub fn related_text_with_data<'a>(
+        &self,
+        operator: TextSelectionOperator,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+        store: &'store AnnotationStore,
+    ) -> Option<
+        impl Iterator<
+            Item = (
+                ResultTextSelection<'store>,
+                Vec<(
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                )>,
+            ),
+        >,
+    >
+    where
+        'a: 'store,
+    {
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(self.related_text(operator, store).map(move |tsel| {
+                let data = tsel
+                    .find_data_about(test_set_handle, test_key_handle, value, store)
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                (tsel.clone(), data)
+            }))
+        } else {
+            None
+        }
+    }
+
+    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
+    /// This returns the matching text, not the data.
+    /// It effectively combines `related_text()` with `test_data_about()` on its results, into a single method.
+    /// See these methods for further parameter explanation.
+    pub fn related_text_test_data<'a>(
+        &self,
+        operator: TextSelectionOperator,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+        store: &'store AnnotationStore,
+    ) -> Option<impl Iterator<Item = ResultTextSelection<'store>>>
+    where
+        'a: 'store,
+    {
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(self.related_text(operator, store).filter_map(move |tsel| {
+                if tsel.test_data_about(test_set_handle, test_key_handle, value, store) {
+                    Some(tsel)
+                } else {
+                    None
+                }
+            }))
+        } else {
+            None
+        }
+    }
 }
 
 impl<'store> ResultTextSelectionSet<'store> {
