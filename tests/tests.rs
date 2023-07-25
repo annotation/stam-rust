@@ -68,7 +68,7 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
                 .with_data_with_id("pos", "noun", "D1")?,
         )?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A1")
                 .with_target(SelectorBuilder::textselector(
                     "testres",
@@ -90,7 +90,7 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A1")
                 .with_target(SelectorBuilder::textselector(
                     "testres",
@@ -112,7 +112,7 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A1")
                 .with_target(SelectorBuilder::textselector(
                     "testres",
@@ -121,7 +121,7 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
                 .with_data_with_id("testdataset", "pos", "noun", "D1"),
         )?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A2")
                 .with_target(SelectorBuilder::textselector(
                     "testres",
@@ -143,7 +143,7 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("sentence2")
                 .with_target(SelectorBuilder::textselector(
                     "testres",
@@ -152,7 +152,7 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
                 .with_data("testdataset", "type", "sentence"),
         )?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("sentence2word2")
                 .with_target(SelectorBuilder::annotationselector(
                     "sentence2",
@@ -908,7 +908,7 @@ fn textselection_relative() -> Result<(), StamError> {
 #[test]
 fn textselection_relative_endaligned() -> Result<(), StamError> {
     let store = setup_example_3()?.with_annotation(
-        Annotation::builder()
+        AnnotationBuilder::new()
             .with_id("sentence2lastword")
             .with_target(SelectorBuilder::annotationselector(
                 "sentence2",
@@ -1168,7 +1168,7 @@ pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("WordAnnotation")
                 .with_target(SelectorBuilder::multiselector([
                     SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
@@ -1205,7 +1205,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A1")
                 .with_target(SelectorBuilder::textselector(
                     "testres",
@@ -1214,7 +1214,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                 .with_data_with_id("testdataset", "pos", "noun", "D1"),
         )?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A2")
                 .with_target(SelectorBuilder::textselector(
                     "testres",
@@ -1223,7 +1223,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                 .with_data_with_id("testdataset", "pos", "interjection", "D2"),
         )?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("WordAnnotation")
                 .with_target(SelectorBuilder::multiselector([
                     SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
@@ -1232,7 +1232,7 @@ pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
                 .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
         )?
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("AllPosAnnotation")
                 .with_target(SelectorBuilder::multiselector(vec![
                     SelectorBuilder::annotationselector("A1", Some(Offset::whole())),
