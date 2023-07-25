@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-use std::marker::PhantomData;
-use std::ops::Deref;
 use std::slice::Iter;
 
 use datasize::DataSize;
@@ -19,7 +16,6 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
-use crate::resources::TextResource;
 use crate::selector::{Offset, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
 use crate::store::*;
 use crate::types::*;

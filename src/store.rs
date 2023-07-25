@@ -474,7 +474,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
 
     /// Set the internal ID for an item. May only be called once just after instantiation.
     /// This is a low-level API method that can not be used publicly due to ownership restrictions.
-    fn with_handle(mut self, handle: <Self as Storable>::HandleType) -> Self {
+    fn with_handle(self, _handle: <Self as Storable>::HandleType) -> Self {
         //no-op in default implementation
         self
     }
@@ -1060,10 +1060,6 @@ where
         self.store
     }
 
-    pub(crate) fn is_partial(&self) -> bool {
-        self.rootstore.is_none()
-    }
-
     /// Get the underlying AnnotationStore
     pub fn rootstore(&self) -> &'store AnnotationStore {
         // This will panic for partial result items!
@@ -1166,6 +1162,7 @@ where
         for item in iter {
             if store.is_none() {
                 store = Some(item.store());
+                rootstore = Some(item.rootstore());
             }
             items.push(item.as_ref());
         }

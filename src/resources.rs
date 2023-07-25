@@ -7,7 +7,6 @@ use std::sync::{Arc, RwLock};
 
 use datasize::{data_size, DataSize};
 use minicbor::{Decode, Encode};
-use regex::{Regex, RegexSet};
 use sealed::sealed;
 use serde::de::DeserializeSeed;
 use serde::ser::{SerializeStruct, Serializer};
@@ -24,9 +23,7 @@ use crate::selector::{Offset, Selector, SelfSelector};
 use crate::store::*;
 use crate::text::*;
 use crate::textselection::PositionIndexItem;
-use crate::textselection::{
-    PositionIndex, ResultTextSelection, TextSelection, TextSelectionHandle,
-};
+use crate::textselection::{PositionIndex, TextSelection, TextSelectionHandle};
 use crate::types::*;
 
 /// This holds the textual resource to be annotated. It holds the full text in memory.
@@ -442,25 +439,6 @@ impl TextResource {
             )
         });
         TextResourceBuilder::from_file(filename, config)?.build()
-    }
-
-    /// Loads a text for the TextResource from file (STAM JSON or plain text), the text will be loaded into memory entirely
-    /// The use of [`Self.from_file()`] is preferred instead. This method can be dangerous
-    /// if it modifies any existing text of a resource.
-    #[allow(unused_assignments)]
-    pub(crate) fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
-        self.check_mutation();
-        self = TextResourceBuilder::from_file(filename, config)?.build()?;
-        Ok(self)
-    }
-
-    /// Sets the filename for writing, will force a write to it when the underlying store is serialized.
-    /// *CAUTION*: This method does not load a file so it will overwrite any existing file!
-    // Use [`Self.from_file()`] or [`Self.with_file()`] instead to load from file.
-    pub(crate) fn with_filename(mut self, filename: &str) -> Self {
-        self.filename = Some(filename.to_string());
-        self.mark_changed();
-        self
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely

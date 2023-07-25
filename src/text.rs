@@ -1,12 +1,6 @@
 use crate::error::StamError;
-use crate::resources::TextResource;
 use crate::selector::Offset;
-use crate::store::*;
-use crate::textselection::ResultTextSelection;
-use crate::textselection::TextSelection;
 use crate::types::*;
-use regex::{Regex, RegexSet};
-use smallvec::{smallvec, SmallVec};
 
 /// This trait provides methods that operate on structures that hold or represent text content.
 /// They are fairly low-level methods but are exposed in the public API.

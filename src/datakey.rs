@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 //use serde_json::Result;
 
-use crate::annotation::Annotation;
-use crate::annotationdata::AnnotationData;
-use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
-use crate::annotationstore::AnnotationStore;
+use crate::annotationdataset::AnnotationDataSet;
 use crate::error::StamError;
 use crate::store::*;
 use crate::types::*;

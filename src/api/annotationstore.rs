@@ -1,5 +1,3 @@
-use regex::{Regex, RegexSet};
-
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};

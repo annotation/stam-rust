@@ -9,22 +9,20 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
-use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
+use crate::annotationdata::AnnotationDataHandle;
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetHandle, DeserializeAnnotationDataSet,
 };
 use crate::config::{Config, Configurable};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
-use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::DataOperator;
+use crate::datakey::DataKeyHandle;
 use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
 use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
 use crate::selector::{Offset, Selector, SelectorBuilder};
 use crate::store::*;
-use crate::text::*;
 use crate::textselection::{ResultTextSelection, TextSelection, TextSelectionHandle};
 use crate::types::*;
 

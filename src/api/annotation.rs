@@ -23,7 +23,6 @@ impl<'store> ResultItem<'store, Annotation> {
         //                                                  ^ -- we track ancestors because it is needed to resolve relative offsets
         TargetIter {
             store: self.store(),
-            rootstore: self.store(),
             iter: selector_iter,
             _phantomdata: PhantomData,
         }
@@ -35,7 +34,6 @@ impl<'store> ResultItem<'store, Annotation> {
             self.as_ref().target().iter(self.store(), true, false);
         TargetIter {
             store: self.store(),
-            rootstore: self.store(),
             iter: selector_iter,
             _phantomdata: PhantomData,
         }
@@ -56,7 +54,6 @@ impl<'store> ResultItem<'store, Annotation> {
                 .iter(self.store(), recursive, track_ancestors);
         TargetIter {
             store: self.store(),
-            rootstore: self.store(),
             iter: selector_iter,
             _phantomdata: PhantomData,
         }

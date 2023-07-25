@@ -31,7 +31,6 @@ pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHa
 pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 pub use annotationstore::AnnotationStore;
 pub use api::*;
-pub use cbor::*;
 pub use config::{Config, Configurable};
 pub use datakey::{DataKey, DataKeyHandle};
 pub use datavalue::{DataOperator, DataValue};

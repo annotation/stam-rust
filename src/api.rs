@@ -22,7 +22,6 @@ use std::ops::Deref;
 
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
-use crate::annotationstore::AnnotationStore;
 use crate::resources::TextResource;
 use crate::selector::{AncestorVec, Selector, SelectorIter, SelectorIterItem};
 use crate::store::*;
@@ -36,7 +35,6 @@ where
     T: Storable,
 {
     pub(crate) store: &'a T::StoreType,
-    pub(crate) rootstore: &'a AnnotationStore,
     pub(crate) iter: SelectorIter<'a>,
     pub(crate) _phantomdata: PhantomData<T>,
 }
@@ -45,14 +43,9 @@ impl<'a, T> TargetIter<'a, T>
 where
     T: Storable,
 {
-    pub fn new(
-        rootstore: &'a AnnotationStore,
-        store: &'a T::StoreType,
-        iter: SelectorIter<'a>,
-    ) -> Self {
+    pub fn new(store: &'a T::StoreType, iter: SelectorIter<'a>) -> Self {
         Self {
             store,
-            rootstore,
             iter,
             _phantomdata: PhantomData,
         }

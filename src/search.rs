@@ -167,7 +167,7 @@ impl<'store> QueryIter<'store> {
 
     pub(crate) fn add_query(&mut self, mut query: Query<'store>) -> Result<(), StamError> {
         //Encode existing variables in the query
-        for (constraint, qualifier) in query.iter_mut() {
+        for (constraint, _qualifier) in query.iter_mut() {
             match constraint {
                 Constraint::TextResourceVariable(var)
                 | Constraint::TextRelationVariable(var, _) => {

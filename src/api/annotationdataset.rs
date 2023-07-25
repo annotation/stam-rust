@@ -2,7 +2,7 @@ use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::{DataOperator, DataValue};
+use crate::datavalue::DataOperator;
 use crate::store::*;
 
 impl<'store> ResultItem<'store, AnnotationDataSet> {

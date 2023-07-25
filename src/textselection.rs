@@ -1,4 +1,3 @@
-use regex::{Regex, RegexSet};
 use sealed::sealed;
 use std::cmp::Ordering;
 use std::collections::btree_map;
