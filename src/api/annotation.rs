@@ -11,7 +11,6 @@ use crate::store::*;
 use crate::text::Text;
 use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
 
-//impl Annotation
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references
     /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
@@ -29,8 +28,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the datasets that this annotation (by its target selector) references
     pub fn datasets(&self) -> TargetIter<'store, AnnotationDataSet> {
         let selector_iter: SelectorIter<'store> =
-            self.as_ref().target().iter(self.store(), true, true);
-        //                                                  ^ -- we track ancestors because it is needed to resolve relative offsets
+            self.as_ref().target().iter(self.store(), true, false);
         TargetIter {
             store: self.store(),
             iter: selector_iter,
@@ -61,7 +59,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Iterates over all the annotations that reference this annotation, if any
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     ///
-    /// This does no sorting, if you want results in textual order, add `.textual_order()`
+    /// This does no sorting nor deduplication, if you want results in textual order, add `.textual_order()`
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         self.store()

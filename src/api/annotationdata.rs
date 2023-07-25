@@ -112,7 +112,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
             .collect()
     }
 
-    /// Returns an iterator over all data sets that annotations using this data reference via a DataSetSelector (i.e. metadata)
+    /// Returns an iterator over all data sets that annotations using this data reference via a DataSetSelector (i.e. as metadata)
     pub fn datasets(
         &self,
         annotationstore: &'store AnnotationStore,

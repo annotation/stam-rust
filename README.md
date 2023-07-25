@@ -71,49 +71,6 @@ The `ResultItem<T>` type holds *a reference* to T,
 with a lifetime equal to the store, it also holds a reference to the store
 itself. You can call `as_ref()` on all `ResultItem<T>` instances to a direct reference with a lifetime equal to the store.
 
-#### Retrieving items (advanced, low-level)
-
-*(feel free to skip this subsection on a first reading!)*
-
-For lower-level, access we can use the `get()` method on  a store to retrieve
-any item in the STAM model from the store, such as by public ID. It will return
-a directly return a reference.
-
-```rust
-let annotation: &stam::Annotation = store.get("my-annotation")?;
-let resource: &stam::TextResource = store.get("my-resource")?;
-let annotationset: &stam::AnnotationDataSet = store.get("my-annotationset")?;
-let key: &stam::DataKey = annotationset.get("my-key")?;
-let data: &stam::AnnotationData = annotationset.get("my-data")?;
-```
-
-The directly returned reference is not as potent as `ResultItem<T>`, as the
-latter implements more higher-level methods. You can turn a reference `&T` to a `ResultItem<T>` yourself though:
-
-```rust
-let annotation = store.wrap(annotation);
-let resource = store.wrap(resource);
-let annotationset = store.wrap(annotationset);
-let key = annotationset.wrap(key);
-let data = annotationset.wrap(data);
-```
-
-Low-level methods often return a so called *handle* instead of a reference. You
-can use this handle to obtain a reference as shown in the next example:
-
-```rust
-let annotation: &stam::Annotation = store.get(handle)?;
-```
-
-Retrieving items by handle is much faster than retrieval by public ID, as
-handles encapsulate an internal numeric ID. Passing around handles is also
-cheap and sometimes easier than passing around references, as it avoids
-borrowing issues.
-
-The ``get()`` method returns a `Result<&T, StamError>`. When using `get()` it is 
-is important to specify the return type, as that's how the compiler can infer what you want to get.
-(these methods are provided by the `ForStore<T>` trait.).
-
 ### Adding items
 
 Add a resource to an existing store:
