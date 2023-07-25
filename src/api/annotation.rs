@@ -286,7 +286,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the text relations pertaining to the annotations. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultTextSelection`]).
-    /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
+    /// If you are interested in the annotations associated with the found text selections, then use [`Self.annotations_by_related_text()`] instead.
     pub fn related_text(
         &self,
         operator: TextSelectionOperator,
@@ -299,7 +299,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
     /// are in a specific relation with the text selections of the current one. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultTextSelection`]).
-    /// If you are interested in the text selections only, use [`Self.find_textselections()`] instead.
+    /// If you are interested in the text selections only, use [`Self.related_text`] instead.
     pub fn annotations_by_related_text(
         &self,
         operator: TextSelectionOperator,
@@ -308,5 +308,75 @@ impl<'store> ResultItem<'store, Annotation> {
         self.related_text(operator)
             .filter_map(|tsel| tsel.annotations(store))
             .flatten()
+    }
+
+    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
+    /// It returns both the matching text and for each also the matching annotation data and matching annotation
+    /// If you do not wish to return the data, but merely test for it, then use [`Self.related_text_test_data()`] instead.
+    /// It effectively combines `related_text()` with `find_data_about()` on its results, into a single method.
+    /// See these methods for further parameter explanation.
+    pub fn related_text_with_data<'a>(
+        &self,
+        operator: TextSelectionOperator,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<
+        impl Iterator<
+            Item = (
+                ResultTextSelection<'store>,
+                Vec<(
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                )>,
+            ),
+        >,
+    >
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(self.related_text(operator).map(move |tsel| {
+                let data = tsel
+                    .find_data_about(test_set_handle, test_key_handle, value, store)
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                (tsel.clone(), data)
+            }))
+        } else {
+            None
+        }
+    }
+
+    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
+    /// This returns the matching text, not the data.
+    /// It effectively combines `related_text()` with `test_data_about()` on its results, into a single method.
+    /// See these methods for further parameter explanation.
+    pub fn related_text_test_data<'a>(
+        &self,
+        operator: TextSelectionOperator,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<impl Iterator<Item = ResultTextSelection<'store>>>
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(self.related_text(operator).filter_map(move |tsel| {
+                if tsel.test_data_about(test_set_handle, test_key_handle, value, store) {
+                    Some(tsel)
+                } else {
+                    None
+                }
+            }))
+        } else {
+            None
+        }
     }
 }
