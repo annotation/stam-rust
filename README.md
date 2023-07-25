@@ -175,8 +175,8 @@ for annotation in store.annotations() {
 ```
 
 Here is an overview of the most important methods that return an iterator, the
-iterators in turn all return `WrappedItem<T>` instances. The table is divided into two parts,
-the top part follows STAM's ownership model. Those in the bottom part leverage the various *reverse indices*
+iterators in turn all return `ResultItem<T>` instances. The table is divided into two parts,
+the top part simple methods that follows STAM's ownership model. Those in the bottom part leverage the various *reverse indices*
 that are computed:
 
 
@@ -187,7 +187,7 @@ that are computed:
 | `AnnotationStore.annotationsets()`   | `AnnotationDataSet`   | all annotation sets in the store    |
 | `AnnotationDataSet.keys()`           | `DataKey`             | all keys in the set                 |
 | `AnnotationDataSet.data()`           | `AnnotationData`      | all data in the set                 |
-| `Annotation.data()`                  | `AnnotationData`      | the data for the annotation         |
+| `Annotation.data()`                  | `AnnotationData`      | the data pertaining to the annotation |
 | -------------------------------------|-----------------------|-------------------------------------|
 | `TextResource.textselections()`      | `TextSelection`       | all *known* text selections in the resource (1) |
 | `TextResource.annotations()`         | `Annotation`          | Annotations referencing this text using a `TextSelector` or `AnnotationSelector` |
@@ -243,10 +243,10 @@ Many of these methods take a `TextSelectionOperator` as parameter, this expresse
 * `Overlaps` - Each TextSelection in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
 * `Embeds` - All TextSelections in B are embedded by a TextSelection in A (cf. textfabric's `[[`)
 * `Embedded` - All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
-* `Precedes` - Each TextSelection in A precedes (comes before) a textselection in B  (cf. textfabric's `<<`)
-* `Succeeds` - Each TextSelection In A succeeds (comes after) a textselection in B (cf. textfabric's `>>`)
-* `LeftAdjacent` - Each TextSelection in A is ends where at least one TextSelection in B begins.
-* `RightAdjacent` - Each TextSelection in A is begis where at least one TextSelection in A ends.
+* `Before` - Each TextSelection in A comes before a textselection in B  (cf. textfabric's `<<`)
+* `After` - Each TextSelection In A comes after a textselection in B (cf. textfabric's `>>`)
+* `Precedes` - Each TextSelection in A is precedes B; it ends where at least one TextSelection in B begins.
+* `Succeeds` - Each TextSelection in A is succeeds B; it begins where at least one TextSelection in A ends.
 * `SameBegin` - Each TextSelection in A starts where a TextSelection in B starts
 * `SameEnd` - Each TextSelection in A starts where a TextSelection in B ends
 
