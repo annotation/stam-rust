@@ -1,13 +1,11 @@
 use regex::{Regex, RegexSet};
 use smallvec::{smallvec, SmallVec};
 
-use crate::annotationstore::AnnotationStore;
 use crate::error::StamError;
 use crate::resources::TextResource;
 use crate::selector::Offset;
-use crate::textselection::{ResultTextSelection, TextSelection};
+use crate::textselection::ResultTextSelection;
 
-use crate::store::*;
 use crate::types::*;
 
 /// This trait provides methods that operate on structures that hold or represent text content.

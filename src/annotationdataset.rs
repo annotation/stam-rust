@@ -7,7 +7,6 @@ use serde::de::DeserializeSeed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
-use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::cbor::*;
@@ -15,7 +14,7 @@ use crate::config::{Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
 use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::{DataOperator, DataValue};
+use crate::datavalue::DataValue;
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};

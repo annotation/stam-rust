@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
+use crate::cbor::{cbor_decode_serialize_mode, cbor_encode_serialize_mode};
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::*;
@@ -81,8 +82,8 @@ pub struct Config {
     #[serde(skip)]
     #[n(8)]
     #[cbor(
-        encode_with = "Self::cbor_encode_serialize_mode",
-        decode_with = "Self::cbor_decode_serialize_mode"
+        encode_with = "cbor_encode_serialize_mode",
+        decode_with = "cbor_decode_serialize_mode"
     )]
     pub(crate) serialize_mode: Arc<RwLock<SerializeMode>>,
 
@@ -284,23 +285,6 @@ impl Config {
         let result: Result<Self, _> = serde_path_to_error::deserialize(deserializer);
         result
             .map_err(|e| StamError::JsonError(e, filename.to_string(), "Reading config from file"))
-    }
-
-    // minicbor has no skip property unfortunately, we have to fake it:
-
-    fn cbor_decode_serialize_mode<'b, Ctx>(
-        d: &mut minicbor::decode::Decoder<'b>,
-        ctx: &mut Ctx,
-    ) -> Result<Arc<RwLock<SerializeMode>>, minicbor::decode::Error> {
-        Ok(Arc::new(RwLock::new(SerializeMode::NoInclude)))
-    }
-
-    fn cbor_encode_serialize_mode<Ctx, W: minicbor::encode::Write>(
-        v: &Arc<RwLock<SerializeMode>>,
-        e: &mut minicbor::encode::Encoder<W>,
-        ctx: &mut Ctx,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        Ok(())
     }
 }
 

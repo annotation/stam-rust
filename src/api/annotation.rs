@@ -1,20 +1,15 @@
-use std::io::Write;
 use std::marker::PhantomData;
 
 use crate::annotation::{Annotation, TargetIter};
 use crate::annotationdata::AnnotationData;
-use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
-use crate::datakey::{DataKey, DataKeyHandle};
+use crate::annotationdataset::AnnotationDataSet;
+use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::error::*;
 use crate::resources::TextResource;
 use crate::selector::{Selector, SelectorIter};
 use crate::store::*;
 use crate::text::Text;
-use crate::textselection::{
-    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
-};
-use crate::types::*;
+use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
 
 //impl Annotation
 impl<'store> ResultItem<'store, Annotation> {
