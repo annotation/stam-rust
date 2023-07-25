@@ -129,7 +129,12 @@ impl<'a> Serialize for ResultItem<'a, AnnotationData> {
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
-        state.serialize_field("key", &self.key().id())?;
+        // we don't use self.key() because we have a partial ResultItem and it'll panic,
+        // we need to take a small detour to get the key here
+        let keyhandle = self.as_ref().key();
+
+        let key = self.store().get(keyhandle).expect("key must exist");
+        state.serialize_field("key", &key.id())?;
         state.serialize_field("value", self.as_ref().value())?;
         state.end()
     }
