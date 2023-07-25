@@ -6,11 +6,9 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
-use crate::annotation::Annotation;
-use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
-use crate::annotationstore::AnnotationStore;
+use crate::annotationdataset::AnnotationDataSet;
 use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::{DataOperator, DataValue};
+use crate::datavalue::DataValue;
 use crate::error::StamError;
 use crate::store::*;
 use crate::types::*;

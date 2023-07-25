@@ -8,7 +8,6 @@ use minicbor::{Decode, Encode};
 use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
 
 use crate::annotationdata::{
     AnnotationData, AnnotationDataBuilder, AnnotationDataHandle, AnnotationDataRefWithSet,
@@ -16,8 +15,8 @@ use crate::annotationdata::{
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::config::{Config, Configurable};
-use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::{DataOperator, DataValue};
+use crate::datakey::DataKey;
+use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
 use crate::resources::TextResource;
@@ -26,8 +25,6 @@ use crate::selector::{
     WrappedSelector,
 };
 use crate::store::*;
-use crate::text::Text;
-use crate::textselection::ResultTextSelection;
 use crate::types::*;
 
 type DataVec = Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>; // I also tried SmallVec, makes no noticable difference in memory size or performance

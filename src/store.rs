@@ -730,7 +730,6 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
         T: Storable<StoreType = Self>,
     {
         StoreIter {
-            store: self,
             iter: self.store().iter(),
             count: 0,
             len: self.store().len(),
@@ -873,7 +872,6 @@ pub struct StoreIter<'store, T>
 where
     T: Storable,
 {
-    store: &'store T::StoreType,
     iter: Iter<'store, Option<T>>,
     count: usize,
     len: usize,
@@ -1219,22 +1217,11 @@ where
     }
 }
 
-impl<'a, T, S> WrappedStore<'a, T, S>
-where
-    T: Storable,
-    S: Sized,
-    S: StoreFor<T>,
-{
-    pub fn parent(&self) -> &S {
-        self.parent
-    }
-}
-
 ///////////////////////////////// Any
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-/// `RequestItem` offers various ways of referring to a data structure of type `T` in the core STAM model
+/// `BuildItem` offers various ways of referring to a data structure of type `T` in the core STAM model
 /// It abstracts over public IDs (both owned an and borrowed), handles, and references.
 pub enum BuildItem<'a, T>
 where

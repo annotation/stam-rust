@@ -1,5 +1,4 @@
 use regex::{Regex, RegexSet};
-use std::collections::BTreeSet;
 
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
@@ -10,8 +9,7 @@ use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::text::{FindRegexMatch, Text};
-use crate::textselection::{ResultTextSelection, ResultTextSelectionSet, TextSelectionSet};
-use crate::types::*;
+use crate::textselection::{ResultTextSelectionSet, TextSelectionSet};
 
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.

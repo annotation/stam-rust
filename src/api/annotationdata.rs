@@ -4,11 +4,10 @@ use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKey;
 use crate::datavalue::{DataOperator, DataValue};
-use crate::resources::{TextResource, TextResourceHandle};
+use crate::resources::TextResource;
 use crate::selector::SelectorKind;
 use crate::store::*;
 use std::collections::BTreeSet;
-use std::ops::Deref;
 
 impl<'store> ResultItem<'store, AnnotationData> {
     /// Method to return a reference to the dataset that holds this data

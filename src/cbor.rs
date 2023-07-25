@@ -1,10 +1,9 @@
-use minicbor::{decode::ArrayIterWithCtx, CborLen, Decode, Decoder, Encode, Encoder};
+use minicbor::{decode::ArrayIterWithCtx, CborLen, Encode};
 use smallvec::SmallVec;
 use std::sync::{Arc, RwLock};
 
-use crate::store::*;
+use crate::config::SerializeMode;
 use crate::textselection::TextSelectionHandle;
-use crate::types::*;
 
 // we need these three functions and the CborLen implementation because there is no out of the box support for SmallVec
 // these implementations are not very generic (constrainted to a very particular SmallVec usage), but that's okay as
@@ -57,16 +56,31 @@ pub(crate) fn cbor_len_positionitem_smallvec<Ctx, W: minicbor::encode::Write>(
 // minicbor has no skip property unfortunately, we have to fake it for the 'changed' fields on AnnotationDataSet and TextResource:
 
 pub(crate) fn cbor_decode_changed<'b, Ctx>(
-    d: &mut minicbor::decode::Decoder<'b>,
-    ctx: &mut Ctx,
+    _d: &mut minicbor::decode::Decoder<'b>,
+    _ctx: &mut Ctx,
 ) -> Result<Arc<RwLock<bool>>, minicbor::decode::Error> {
     Ok(Arc::new(RwLock::new(false)))
 }
 
 pub(crate) fn cbor_encode_changed<Ctx, W: minicbor::encode::Write>(
-    v: &Arc<RwLock<bool>>,
-    e: &mut minicbor::encode::Encoder<W>,
-    ctx: &mut Ctx,
+    _v: &Arc<RwLock<bool>>,
+    _e: &mut minicbor::encode::Encoder<W>,
+    _ctx: &mut Ctx,
+) -> Result<(), minicbor::encode::Error<W::Error>> {
+    Ok(())
+}
+
+pub(crate) fn cbor_decode_serialize_mode<'b, Ctx>(
+    _d: &mut minicbor::decode::Decoder<'b>,
+    _ctx: &mut Ctx,
+) -> Result<Arc<RwLock<SerializeMode>>, minicbor::decode::Error> {
+    Ok(Arc::new(RwLock::new(SerializeMode::NoInclude)))
+}
+
+pub(crate) fn cbor_encode_serialize_mode<Ctx, W: minicbor::encode::Write>(
+    _v: &Arc<RwLock<SerializeMode>>,
+    _e: &mut minicbor::encode::Encoder<W>,
+    _ctx: &mut Ctx,
 ) -> Result<(), minicbor::encode::Error<W::Error>> {
     Ok(())
 }

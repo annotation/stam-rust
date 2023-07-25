@@ -1,16 +1,14 @@
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
-use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::StamError;
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::textselection::*;
-use crate::types::*;
 
 type VarHandle = usize;
 
