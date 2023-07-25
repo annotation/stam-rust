@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use stam::{
-    Annotation, AnnotationDataSet, AnnotationHandle, AnnotationStore, BuildItem, Config, Handle,
-    Offset, Regex, SelectorBuilder, StoreFor, Text, TextResource,
+    Annotation, AnnotationBuilder, AnnotationDataSet, AnnotationHandle, AnnotationStore, BuildItem,
+    Config, Handle, Offset, Regex, SelectorBuilder, StoreFor, Text, TextResource,
 };
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
@@ -11,7 +11,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
     //we use the GPL license as input text for benchmarks, since we have it anyway and it contains a fair body of text
     let filename = &format!("{}/LICENSE", CARGO_MANIFEST_DIR);
 
-    let mut store = AnnotationStore::new();
+    let mut store = AnnotationStore::new(Config::default());
 
     let resource_handle = store.add_resource_from_file(filename).unwrap();
     let resource = store.resource(resource_handle).unwrap();
@@ -82,7 +82,7 @@ pub fn bench_textsearch(c: &mut Criterion) {
 }
 
 pub fn bench_storefor(c: &mut Criterion) {
-    let store = AnnotationStore::new()
+    let store = AnnotationStore::new(Config::default())
         .with_id("test")
         .add(TextResource::from_string(
             "testres",
@@ -93,7 +93,7 @@ pub fn bench_storefor(c: &mut Criterion) {
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
         .unwrap()
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A1")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),
@@ -103,7 +103,7 @@ pub fn bench_storefor(c: &mut Criterion) {
         )
         .unwrap()
         .with_annotation(
-            Annotation::builder()
+            AnnotationBuilder::new()
                 .with_id("A2")
                 .with_target(SelectorBuilder::TextSelector(
                     "testres".into(),

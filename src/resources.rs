@@ -429,10 +429,6 @@ impl TextResource {
         }
     }
 
-    pub fn builder() -> TextResourceBuilder {
-        TextResourceBuilder::default()
-    }
-
     /// Create a new TextResource from file, the text will be loaded into memory entirely
     pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {

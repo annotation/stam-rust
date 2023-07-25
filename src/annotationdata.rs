@@ -181,11 +181,6 @@ impl AnnotationData {
         }
     }
 
-    /// Returns an Annotation data builder to build new annotationdata
-    pub fn builder<'a>() -> AnnotationDataBuilder<'a> {
-        AnnotationDataBuilder::default()
-    }
-
     pub fn key(&self) -> DataKeyHandle {
         self.key
     }

@@ -481,7 +481,7 @@ impl AnnotationStore {
     }
 }
 
-impl<'a> Annotation {
+impl Annotation {
     /// Create a new unbounded Annotation instance, you will likely want to use BuildAnnotation::new() instead and pass it to AnnotationStore.build()
     fn new(id: Option<String>, target: Selector, data: DataVec) -> Self {
         Annotation {
@@ -492,14 +492,9 @@ impl<'a> Annotation {
         }
     }
 
-    /// Returns an Annotation builder to build new annotations
-    pub fn builder() -> AnnotationBuilder<'a> {
-        AnnotationBuilder::default()
-    }
-
     /// Iterate over the annotation data, returns tuples of internal IDs for (annotationset,annotationdata)
     /// For a higher-level method, use `WrappedItem<Annotation>::data()` instead.
-    pub fn data(&'a self) -> Iter<'a, (AnnotationDataSetHandle, AnnotationDataHandle)> {
+    pub fn data(&self) -> Iter<(AnnotationDataSetHandle, AnnotationDataHandle)> {
         self.data.iter()
     }
 
