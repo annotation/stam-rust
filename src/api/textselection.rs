@@ -28,11 +28,9 @@ impl<'store> ResultItem<'store, TextSelection> {
         self.as_ref().end()
     }
 
-    pub fn resource(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> ResultItem<'store, TextResource> {
-        self.store().as_resultitem(annotationstore)
+    pub fn resource(&self) -> ResultItem<'store, TextResource> {
+        let rootstore = self.rootstore();
+        self.store().as_resultitem(rootstore, rootstore)
     }
 
     /// Iterates over all annotations that reference this TextSelection, if any.
@@ -69,10 +67,9 @@ impl<'store> ResultItem<'store, TextSelection> {
     pub fn related_text(
         &self,
         operator: TextSelectionOperator,
-        annotationstore: &'store AnnotationStore,
     ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let tset: TextSelectionSet = self.clone().into();
-        self.resource(annotationstore).related_text(operator, tset)
+        self.resource().related_text(operator, tset)
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
@@ -82,12 +79,11 @@ impl<'store> ResultItem<'store, TextSelection> {
     pub fn annotations_by_related_text(
         &self,
         operator: TextSelectionOperator,
-        annotationstore: &'store AnnotationStore,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         let tset: TextSelectionSet = self.clone().into();
-        self.resource(annotationstore)
+        self.resource()
             .related_text(operator, tset)
-            .filter_map(|tsel| tsel.annotations(annotationstore))
+            .filter_map(|tsel| tsel.annotations())
             .flatten()
     }
 }
@@ -99,7 +95,7 @@ impl<'store> ResultTextSelection<'store> {
     pub fn inner(&self) -> &TextSelection {
         match self {
             Self::Bound(item) => item.as_ref(),
-            Self::Unbound(_, item) => item,
+            Self::Unbound(_, _, item) => item,
         }
     }
 
@@ -127,7 +123,7 @@ impl<'store> ResultTextSelection<'store> {
     pub fn begin(&self) -> usize {
         match self {
             Self::Bound(item) => item.as_ref().begin(),
-            Self::Unbound(_, item) => item.begin(),
+            Self::Unbound(_, _, item) => item.begin(),
         }
     }
 
@@ -135,7 +131,7 @@ impl<'store> ResultTextSelection<'store> {
     pub fn end(&self) -> usize {
         match self {
             Self::Bound(item) => item.as_ref().end(),
-            Self::Unbound(_, item) => item.end(),
+            Self::Unbound(_, _, item) => item.end(),
         }
     }
 
@@ -147,11 +143,11 @@ impl<'store> ResultTextSelection<'store> {
         } else {
             let container = match container {
                 Self::Bound(item) => item.as_ref(),
-                Self::Unbound(_, item) => &item,
+                Self::Unbound(_, _, item) => &item,
             };
             match self {
                 Self::Bound(item) => item.as_ref().relative_begin(container),
-                Self::Unbound(_, item) => item.relative_begin(container),
+                Self::Unbound(_, _, item) => item.relative_begin(container),
             }
         }
     }
@@ -161,11 +157,11 @@ impl<'store> ResultTextSelection<'store> {
     pub fn relative_end(&self, container: &ResultTextSelection<'store>) -> Option<usize> {
         let container = match container {
             Self::Bound(item) => item.as_ref(),
-            Self::Unbound(_, item) => &item,
+            Self::Unbound(_, _, item) => &item,
         };
         match self {
             Self::Bound(item) => item.as_ref().relative_end(container),
-            Self::Unbound(_, item) => item.relative_end(container),
+            Self::Unbound(_, _, item) => item.relative_end(container),
         }
     }
 
@@ -174,26 +170,31 @@ impl<'store> ResultTextSelection<'store> {
     pub fn relative_offset(&self, container: &ResultTextSelection<'store>) -> Option<Offset> {
         let container = match container {
             Self::Bound(item) => item.as_ref(),
-            Self::Unbound(_, item) => &item,
+            Self::Unbound(_, _, item) => &item,
         };
         match self {
             Self::Bound(item) => item.as_ref().relative_offset(container),
-            Self::Unbound(_, item) => item.relative_offset(container),
+            Self::Unbound(_, _, item) => item.relative_offset(container),
         }
     }
 
-    pub fn store(&self) -> &'store TextResource {
+    pub(crate) fn store(&self) -> &'store TextResource {
         match self {
             Self::Bound(item) => item.store(),
-            Self::Unbound(store, ..) => store,
+            Self::Unbound(_, store, ..) => store,
         }
     }
 
-    pub fn resource(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> ResultItem<'store, TextResource> {
-        self.store().as_resultitem(annotationstore)
+    pub(crate) fn rootstore(&self) -> &'store AnnotationStore {
+        match self {
+            Self::Bound(item) => item.rootstore(),
+            Self::Unbound(rootstore, ..) => rootstore,
+        }
+    }
+
+    pub fn resource(&self) -> ResultItem<'store, TextResource> {
+        let rootstore = self.rootstore();
+        self.store().as_resultitem(rootstore, rootstore)
     }
 
     pub fn handle(&self) -> Option<TextSelectionHandle> {
@@ -208,16 +209,14 @@ impl<'store> ResultTextSelection<'store> {
             Self::Bound(_) => Err(StamError::AlreadyBound(
                 "Item is bound, can't be taken out!",
             )),
-            Self::Unbound(_store, item) => Ok(item),
+            Self::Unbound(_, _, item) => Ok(item),
         }
     }
 
     /// Iterates over all annotations that are referenced by this TextSelection, if any.
     /// Note that you need to explicitly specify the `AnnotationStore` for this method.
-    pub fn annotations(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    pub fn annotations(&self) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+        let annotationstore = self.rootstore();
         match self {
             Self::Bound(item) => Some(item.annotations(annotationstore)),
             Self::Unbound(..) => None,
@@ -225,7 +224,8 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Returns the number of annotations that reference this text selection
-    pub fn annotations_len(&self, annotationstore: &'store AnnotationStore) -> usize {
+    pub fn annotations_len(&self) -> usize {
+        let annotationstore = self.rootstore();
         match self {
             Self::Bound(item) => item.annotations_len(annotationstore),
             Self::Unbound(..) => 0,
@@ -238,15 +238,14 @@ impl<'store> ResultTextSelection<'store> {
     pub fn related_text(
         &self,
         operator: TextSelectionOperator,
-        annotationstore: &'store AnnotationStore,
     ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let mut tset: TextSelectionSet =
             TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
         tset.add(match self {
             Self::Bound(item) => item.as_ref().clone().into(),
-            Self::Unbound(_, textselection) => textselection.clone(),
+            Self::Unbound(_, _, textselection) => textselection.clone(),
         });
-        self.resource(annotationstore).related_text(operator, tset)
+        self.resource().related_text(operator, tset)
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
@@ -257,17 +256,16 @@ impl<'store> ResultTextSelection<'store> {
     pub fn annotations_by_related_text(
         &self,
         operator: TextSelectionOperator,
-        annotationstore: &'store AnnotationStore,
     ) -> BTreeSet<ResultItem<'store, Annotation>> {
         let mut tset: TextSelectionSet =
             TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
         tset.add(match self {
             Self::Bound(item) => item.as_ref().clone().into(),
-            Self::Unbound(_, textselection) => textselection.clone(),
+            Self::Unbound(_, _, textselection) => textselection.clone(),
         });
-        self.resource(annotationstore)
+        self.resource()
             .related_text(operator, tset)
-            .filter_map(|tsel| tsel.annotations(annotationstore))
+            .filter_map(|tsel| tsel.annotations())
             .flatten()
             .collect()
     }
@@ -279,7 +277,6 @@ impl<'store> ResultTextSelection<'store> {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-        store: &'store AnnotationStore,
     ) -> Option<
         impl Iterator<
                 Item = (
@@ -291,10 +288,11 @@ impl<'store> ResultTextSelection<'store> {
     where
         'a: 'store,
     {
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        if let Some((test_set_handle, test_key_handle)) =
+            self.rootstore().find_data_request_resolver(set, key)
         {
             Some(
-                self.annotations(store)
+                self.annotations()
                     .into_iter()
                     .flatten()
                     .map(move |annotation| {
@@ -315,7 +313,6 @@ impl<'store> ResultTextSelection<'store> {
     /// Both the matching data as well as the matching annotation will be returned in an iterator.
     pub fn data_about(
         &self,
-        store: &'store AnnotationStore,
     ) -> Option<
         impl Iterator<
                 Item = (
@@ -324,7 +321,7 @@ impl<'store> ResultTextSelection<'store> {
                 ),
             > + 'store,
     > {
-        self.find_data_about(false, false, &DataOperator::Any, store)
+        self.find_data_about(false, false, &DataOperator::Any)
     }
 
     /// Test data *about* this text, i.e. data on annotations that refer to this text
@@ -333,12 +330,11 @@ impl<'store> ResultTextSelection<'store> {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-        store: &'store AnnotationStore,
     ) -> bool
     where
         'a: 'store,
     {
-        match self.find_data_about(set, key, value, store) {
+        match self.find_data_about(set, key, value) {
             Some(mut iter) => iter.next().is_some(),
             None => false,
         }
@@ -355,7 +351,6 @@ impl<'store> ResultTextSelection<'store> {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-        store: &'store AnnotationStore,
     ) -> Option<
         impl Iterator<
             Item = (
@@ -370,11 +365,12 @@ impl<'store> ResultTextSelection<'store> {
     where
         'a: 'store,
     {
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        if let Some((test_set_handle, test_key_handle)) =
+            self.rootstore().find_data_request_resolver(set, key)
         {
-            Some(self.related_text(operator, store).map(move |tsel| {
+            Some(self.related_text(operator).map(move |tsel| {
                 let data = tsel
-                    .find_data_about(test_set_handle, test_key_handle, value, store)
+                    .find_data_about(test_set_handle, test_key_handle, value)
                     .into_iter()
                     .flatten()
                     .collect();
@@ -395,15 +391,15 @@ impl<'store> ResultTextSelection<'store> {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-        store: &'store AnnotationStore,
     ) -> Option<impl Iterator<Item = ResultTextSelection<'store>>>
     where
         'a: 'store,
     {
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        if let Some((test_set_handle, test_key_handle)) =
+            self.rootstore().find_data_request_resolver(set, key)
         {
-            Some(self.related_text(operator, store).filter_map(move |tsel| {
-                if tsel.test_data_about(test_set_handle, test_key_handle, value, store) {
+            Some(self.related_text(operator).filter_map(move |tsel| {
+                if tsel.test_data_about(test_set_handle, test_key_handle, value) {
                     Some(tsel)
                 } else {
                     None
@@ -435,6 +431,7 @@ impl<'store> ResultTextSelectionSet<'store> {
         self,
         operator: TextSelectionOperator,
     ) -> impl Iterator<Item = ResultTextSelection<'store>> {
+        let rootstore = self.rootstore();
         let resource = self.resource();
         resource
             .as_ref()
@@ -444,7 +441,9 @@ impl<'store> ResultTextSelectionSet<'store> {
                     .as_ref()
                     .get(ts_handle)
                     .expect("textselection handle must be valid");
-                textselection.as_resultitem(resource.as_ref()).into()
+                textselection
+                    .as_resultitem(resource.as_ref(), rootstore)
+                    .into()
             })
     }
 

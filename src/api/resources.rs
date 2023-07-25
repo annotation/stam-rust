@@ -1,15 +1,10 @@
-use regex::{Regex, RegexSet};
-
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::error::*;
 use crate::resources::TextResource;
-use crate::selector::Offset;
 use crate::store::*;
-use crate::text::{FindNoCaseTextIter, FindRegexIter, FindTextIter, SplitTextIter, Text};
 use crate::textselection::{
     ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
 };
@@ -54,9 +49,10 @@ impl<'store> ResultItem<'store, TextResource> {
     /// This is a double-ended iterator that can be traversed in both directions.
     pub fn textselections(&self) -> impl DoubleEndedIterator<Item = ResultTextSelection<'store>> {
         let resource = self.as_ref();
+        let annotationstore = self.rootstore();
         resource
             .iter()
-            .map(|item| item.as_resultitem(resource).into())
+            .map(|item| item.as_resultitem(resource, annotationstore).into())
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
@@ -68,9 +64,10 @@ impl<'store> ResultItem<'store, TextResource> {
         end: usize,
     ) -> impl DoubleEndedIterator<Item = ResultTextSelection<'store>> {
         let resource = self.as_ref();
+        let annotationstore = self.rootstore();
         resource
             .range(begin, end)
-            .map(|item| item.as_resultitem(resource).into())
+            .map(|item| item.as_resultitem(resource, annotationstore).into())
     }
 
     /// Returns the number of textselections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -87,13 +84,16 @@ impl<'store> ResultItem<'store, TextResource> {
         refset: impl Into<TextSelectionSet>,
     ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let resource = self.as_ref();
+        let annotationstore = self.rootstore();
         resource
             .textselections_by_operator(operator, refset.into())
             .map(|ts_handle| {
                 let textselection: &'store TextSelection = resource
                     .get(ts_handle)
                     .expect("textselection handle must be valid");
-                textselection.as_resultitem(resource).into()
+                textselection
+                    .as_resultitem(resource, annotationstore)
+                    .into()
             })
     }
 
@@ -278,68 +278,5 @@ impl<'store> ResultItem<'store, TextResource> {
             Some(mut iter) => iter.next().is_some(),
             None => false,
         }
-    }
-}
-
-/// this implementation mostly defers directly to the wrapped item, documentation is found on the trait and not repeated here
-impl<'store> Text<'store, 'store> for ResultItem<'store, TextResource> {
-    fn textlen(&self) -> usize {
-        self.as_ref().textlen()
-    }
-
-    fn text(&'store self) -> &'store str {
-        self.as_ref().text()
-    }
-
-    fn text_by_offset(&'store self, offset: &Offset) -> Result<&'store str, StamError> {
-        self.as_ref().text_by_offset(offset)
-    }
-
-    fn absolute_cursor(&self, cursor: usize) -> usize {
-        cursor
-    }
-
-    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
-        self.as_ref().utf8byte(abscursor)
-    }
-
-    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
-        self.as_ref().utf8byte_to_charpos(bytecursor)
-    }
-
-    fn textselection(
-        &'store self,
-        offset: &Offset,
-    ) -> Result<ResultTextSelection<'store>, StamError> {
-        self.as_ref().textselection(offset)
-    }
-
-    fn find_text_regex<'regex>(
-        &'store self,
-        expressions: &'regex [Regex],
-        precompiledset: Option<&RegexSet>,
-        allow_overlap: bool,
-    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
-        self.as_ref()
-            .find_text_regex(expressions, precompiledset, allow_overlap)
-    }
-
-    fn find_text<'fragment>(
-        &'store self,
-        fragment: &'fragment str,
-    ) -> FindTextIter<'store, 'fragment> {
-        self.as_ref().find_text(fragment)
-    }
-
-    fn find_text_nocase(&'store self, fragment: &str) -> FindNoCaseTextIter<'store> {
-        self.as_ref().find_text_nocase(fragment)
-    }
-
-    fn split_text<'b>(&'store self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
-        self.as_ref().split_text(delimiter)
-    }
-
-    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
-        self.as_ref().subslice_utf8_offset(subslice)
     }
 }

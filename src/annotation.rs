@@ -20,10 +20,7 @@ use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
 use crate::resources::TextResource;
-use crate::selector::{
-    AncestorVec, Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelfSelector,
-    WrappedSelector,
-};
+use crate::selector::{Offset, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
 use crate::store::*;
 use crate::types::*;
 
@@ -192,7 +189,7 @@ impl Annotation {
     /// Writes an Annotation to one big STAM JSON string, with appropriate formatting
     pub fn to_json_string(&self, store: &AnnotationStore) -> Result<String, StamError> {
         //note: this function is not invoked during regular serialisation via the store
-        let wrapped: ResultItem<Self> = ResultItem::new(self, store);
+        let wrapped: ResultItem<Self> = ResultItem::new_partial(self, store);
         serde_json::to_string_pretty(&wrapped).map_err(|e| {
             StamError::SerializationError(format!("Writing annotation to string: {}", e))
         })
@@ -361,7 +358,7 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
                 //                v--- this is just a newtype wrapper around WrappedStorable<'a, AnnotationData, AnnotationDataSet>, with a distinct
                 //                     serialize implementation so it also outputs the set
                 let wrappeddata =
-                    AnnotationDataRefWithSet(annotationdata.as_resultitem(annotationset));
+                    AnnotationDataRefWithSet(annotationdata.as_resultitem(annotationset, store));
                 seq.serialize_element(&wrappeddata)?;
             } else {
                 seq.serialize_element(&AnnotationDataRef {
@@ -546,153 +543,6 @@ impl SelfSelector for Annotation {
             ))
         } else {
             Err(StamError::Unbound("Annotation::self_selector()"))
-        }
-    }
-}
-
-//this is exposed in the high-level API:
-
-pub struct TargetIter<'a, T>
-where
-    T: Storable,
-{
-    pub(crate) store: &'a T::StoreType,
-    pub(crate) iter: SelectorIter<'a>,
-    pub(crate) _phantomdata: PhantomData<T>,
-}
-
-impl<'a, T> TargetIter<'a, T>
-where
-    T: Storable,
-{
-    pub fn new(store: &'a T::StoreType, iter: SelectorIter<'a>) -> Self {
-        Self {
-            store,
-            iter,
-            _phantomdata: PhantomData,
-        }
-    }
-}
-
-pub struct TargetIterItem<'store, T>
-where
-    T: Storable,
-{
-    pub(crate) item: ResultItem<'store, T>,
-    pub(crate) selectoriteritem: SelectorIterItem<'store>,
-}
-
-impl<'a, T> Deref for TargetIterItem<'a, T>
-where
-    T: Storable,
-{
-    type Target = ResultItem<'a, T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.item
-    }
-}
-
-impl<'store, T> TargetIterItem<'store, T>
-where
-    T: Storable,
-{
-    pub fn depth(&self) -> usize {
-        self.selectoriteritem.depth()
-    }
-    pub fn selector<'b>(&'b self) -> &'b Cow<'store, Selector> {
-        self.selectoriteritem.selector()
-    }
-    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'store> {
-        self.selectoriteritem.ancestors()
-    }
-    pub fn is_leaf(&self) -> bool {
-        self.selectoriteritem.is_leaf()
-    }
-
-    // some copied methods from ResultItem:
-    pub fn as_ref(&self) -> &'store T {
-        self.item.as_ref()
-    }
-    pub fn handle(&self) -> T::HandleType {
-        self.item.handle()
-    }
-    pub fn id(&self) -> Option<&'store str> {
-        self.item.id()
-    }
-}
-
-impl<'a> Iterator for TargetIter<'a, TextResource> {
-    type Item = TargetIterItem<'a, TextResource>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let selectoritem = self.iter.next();
-            if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
-                    Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
-                        let resource: &TextResource =
-                            self.iter.store.get(*res_id).expect("Resource must exist");
-                        return Some(TargetIterItem {
-                            item: resource.as_resultitem(self.store),
-                            selectoriteritem: selectoritem,
-                        });
-                    }
-                    _ => continue,
-                }
-            } else {
-                return None;
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
-    type Item = TargetIterItem<'a, AnnotationDataSet>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let selectoritem = self.iter.next();
-            if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
-                    Selector::DataSetSelector(set_id) => {
-                        let annotationset: &AnnotationDataSet =
-                            self.iter.store.get(*set_id).expect("Dataset must exist");
-                        return Some(TargetIterItem {
-                            item: annotationset.as_resultitem(self.store),
-                            selectoriteritem: selectoritem,
-                        });
-                    }
-                    _ => continue,
-                }
-            } else {
-                return None;
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for TargetIter<'a, Annotation> {
-    type Item = TargetIterItem<'a, Annotation>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let selectoritem = self.iter.next();
-            if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
-                    Selector::AnnotationSelector(a_id, _) => {
-                        let annotation: &Annotation =
-                            self.iter.store.get(*a_id).expect("Annotation must exist");
-                        return Some(TargetIterItem {
-                            item: annotation.as_resultitem(self.store),
-                            selectoriteritem: selectoritem,
-                        });
-                    }
-                    _ => continue,
-                }
-            } else {
-                return None;
-            }
         }
     }
 }

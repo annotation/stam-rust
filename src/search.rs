@@ -235,7 +235,7 @@ impl<'store> QueryIter<'store> {
                                 .find_data(set.clone(), key.clone(), value)
                                 .into_iter()
                                 .flatten()
-                                .map(|data| data.annotations(store))
+                                .map(|data| data.annotations())
                                 .flatten()
                                 .map(|annotation| annotation.resources())
                                 .flatten()
@@ -311,7 +311,7 @@ impl<'store> QueryIter<'store> {
                                 .find_data(set.clone(), key.clone(), value)
                                 .into_iter()
                                 .flatten()
-                                .map(|data| data.annotations(store))
+                                .map(|data| data.annotations())
                                 .flatten()
                                 .map(|annotation| annotation.textselections().collect()),
                         )),
@@ -548,8 +548,7 @@ impl<'store> TestConstraint<'store, ResultItemSet<'store, TextResource>> for Que
                 Constraint::AnnotationData { set, key, value } => {
                     for annotation in item.annotations_as_metadata() {
                         for data in annotation.data() {
-                            if data.store().as_resultitem(store).test(set) && data.test(key, &value)
-                            {
+                            if data.set().test(set) && data.test(key, &value) {
                                 return true;
                             }
                         }
@@ -615,13 +614,13 @@ impl<'store> TestConstraint<'store, TextSelectionSet> for QueryIter<'store> {
         for item in itemset.iter() {
             //Get a ResultTextSelection (implements higher level API)
             let item = if item.handle().is_some() {
-                ResultTextSelection::Bound(item.as_resultitem(resource))
+                ResultTextSelection::Bound(item.as_resultitem(resource, store))
             } else {
-                ResultTextSelection::Unbound(resource, item.clone())
+                ResultTextSelection::Unbound(store, resource, item.clone())
             };
             match constraint {
                 Constraint::AnnotationData { set, key, value } => {
-                    if let Some(iter) = item.annotations(store) {
+                    if let Some(iter) = item.annotations() {
                         for annotation in iter {
                             for data in annotation.find_data(set, key, value).into_iter().flatten()
                             {

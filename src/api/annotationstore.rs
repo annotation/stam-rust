@@ -8,7 +8,6 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::text::{FindRegexMatch, Text};
 use crate::textselection::{ResultTextSelectionSet, TextSelectionSet};
 
 impl AnnotationStore {
@@ -21,7 +20,7 @@ impl AnnotationStore {
         &self,
         request: impl Request<TextResource>,
     ) -> Option<ResultItem<TextResource>> {
-        self.get(request).map(|x| x.as_resultitem(self)).ok()
+        self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Requests a specific [`AnnotationDataSet`] from the store to be returned by reference.
@@ -33,7 +32,7 @@ impl AnnotationStore {
         &self,
         request: impl Request<AnnotationDataSet>,
     ) -> Option<ResultItem<AnnotationDataSet>> {
-        self.get(request).map(|x| x.as_resultitem(self)).ok()
+        self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Requests a specific [`Annotation`] from the store to be returned by reference.
@@ -42,48 +41,28 @@ impl AnnotationStore {
     /// The item is returned as a fat pointer [`ResultItem<Annotation>']) in an Option.
     /// Returns `None` if it does not exist.
     pub fn annotation(&self, request: impl Request<Annotation>) -> Option<ResultItem<Annotation>> {
-        self.get(request).map(|x| x.as_resultitem(self)).ok()
+        self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
     pub fn resources(&self) -> impl Iterator<Item = ResultItem<TextResource>> {
         self.iter()
-            .map(|item: &TextResource| item.as_resultitem(self))
+            .map(|item: &TextResource| item.as_resultitem(self, self))
     }
 
     /// Returns an iterator over all [`AnnotationDataSet`] instances in the store.
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
     pub fn datasets<'a>(&'a self) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
         self.iter()
-            .map(|item: &AnnotationDataSet| item.as_resultitem(self))
+            .map(|item: &AnnotationDataSet| item.as_resultitem(self, self))
     }
 
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
     pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<Annotation>> {
         self.iter()
-            .map(|item: &Annotation| item.as_resultitem(self))
-    }
-
-    /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// See [`TextResource.find_text_regex()`].
-    /// Note that this method, unlike its counterpart [`TextResource.find_text_regex()`], silently ignores any deeper errors that might occur.
-    pub fn find_text_regex<'store, 'r>(
-        &'store self,
-        expressions: &'r [Regex],
-        precompiledset: &'r Option<RegexSet>,
-        allow_overlap: bool,
-    ) -> impl Iterator<Item = FindRegexMatch<'store, 'r>> {
-        self.resources()
-            .filter_map(move |resource: ResultItem<'store, TextResource>| {
-                //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
-                resource
-                    .as_ref()
-                    .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
-                    .ok() //ignore errors!
-            })
-            .flatten()
+            .map(|item: &Annotation| item.as_resultitem(self, self))
     }
 
     /// internal helper method
@@ -177,7 +156,7 @@ impl AnnotationStore {
         self.datasets()
             .map(|set| {
                 let set = set.as_ref();
-                set.data().map(|item| item.as_resultitem(set))
+                set.data().map(|item| item.as_resultitem(set, self))
             })
             .flatten()
     }
@@ -231,7 +210,7 @@ impl AnnotationStore {
             .into_iter()
             .flatten()
             .map(|data| {
-                data.annotations(self)
+                data.annotations()
                     .map(move |annotation| (annotation, data.clone()))
             })
             .into_iter()
@@ -266,7 +245,7 @@ impl AnnotationStore {
             .into_iter()
             .flatten()
             .map(move |data| {
-                data.annotations(store).map(move |annotation| {
+                data.annotations().map(move |annotation| {
                     let tset: TextSelectionSet = annotation.textselections().collect();
                     (tset.as_resultset(store), annotation, data.clone())
                 })
@@ -301,7 +280,7 @@ impl AnnotationStore {
             .into_iter()
             .flatten()
             .map(|data| {
-                data.resources_as_metadata(self)
+                data.resources_as_metadata()
                     .into_iter()
                     .map(move |resource| (resource, data.clone()))
             })
@@ -335,7 +314,7 @@ impl AnnotationStore {
             .into_iter()
             .flatten()
             .map(|data| {
-                data.datasets(self)
+                data.datasets()
                     .into_iter()
                     .map(move |dataset| (dataset, data.clone()))
             })

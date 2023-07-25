@@ -227,14 +227,14 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                         .unwrap()
                         .as_mut()
                         .unwrap();
-                    let textselection = resource.textselection(offset)?;
+                    let textselection = resource.offset_to_textselection(offset)?;
                     let textselection_handle: TextSelectionHandle =
                         if let Some(textselection_handle) = textselection.handle() {
                             //already exists
                             textselection_handle
                         } else {
                             //new, insert... (it's important never to insert the same one twice!)
-                            resource.insert(textselection.take()?)?
+                            resource.insert(textselection)?
                         };
                     self.textrelationmap
                         .insert(*res_handle, textselection_handle, handle);
@@ -254,7 +254,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
         if multitarget {
             if self.config.dataset_annotation_map {
                 let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self)
+                    .as_resultitem(self, self)
                     .datasets() //high-level method!!!
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
@@ -264,7 +264,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
 
             if self.config.annotation_annotation_map {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self)
+                    .as_resultitem(self, self)
                     .annotations_in_targets(false, false) //high-level method!!!
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
@@ -273,8 +273,8 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             }
 
             let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = annotation
-                .as_resultitem(self)
-                .resources()
+                .as_resultitem(self, self)
+                .resources() //high-level method!!!
                 .map(|targetitem| {
                     let res_handle = targetitem.handle();
                     if self.config.textrelationmap {
@@ -290,7 +290,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                                     item.as_ref().clone(),
                                     handle,
                                 )),
-                                ResultTextSelection::Unbound(_, textselection) => {
+                                ResultTextSelection::Unbound(_, _, textselection) => {
                                     extend_textrelationmap.push((res_handle, textselection, handle))
                                 }
                             },
@@ -454,7 +454,7 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
         for data in self.store.iter() {
             if let Some(data) = data {
-                seq.serialize_element(&data.as_resultitem(self.parent))?;
+                seq.serialize_element(&data.as_resultitem(self.parent, self.parent))?;
             }
         }
         seq.end()
@@ -1180,37 +1180,6 @@ impl AnnotationStore {
             if let Some(annotationset) = annotationset {
                 annotationset.strip_data_ids();
             }
-        }
-    }
-
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
-    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
-    /// instead for those.
-    ///
-    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
-    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
-    pub(crate) fn textselection_by_selector<'b>(
-        &self,
-        selector: &Selector,
-        subselectors: Option<impl Iterator<Item = &'b Selector>>,
-    ) -> Result<ResultTextSelection, StamError> {
-        match selector {
-            Selector::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(*res_id)?;
-                let mut textselection = resource.textselection(offset)?;
-                if let Some(subselectors) = subselectors {
-                    for selector in subselectors {
-                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
-                            //each annotation selector selects a subslice of the previous textselection
-                            textselection = textselection.textselection(&suboffset)?;
-                        }
-                    }
-                }
-                Ok(textselection)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "selector for Annotationstore::textselection() must be a TextSelector",
-            )),
         }
     }
 }

@@ -10,21 +10,21 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     pub fn data(&self) -> impl Iterator<Item = ResultItem<AnnotationData>> {
         self.as_ref()
             .data()
-            .map(|item| item.as_resultitem(self.as_ref()))
+            .map(|item| item.as_resultitem(self.as_ref(), self.rootstore()))
     }
 
     /// Returns an iterator over all keys in this set
     pub fn keys(&self) -> impl Iterator<Item = ResultItem<DataKey>> {
         self.as_ref()
             .keys()
-            .map(|item| item.as_resultitem(self.as_ref()))
+            .map(|item| item.as_resultitem(self.as_ref(), self.rootstore()))
     }
 
     /// Retrieve a key in this set
     pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<DataKey>> {
         self.as_ref()
             .get(key)
-            .map(|x| x.as_resultitem(self.as_ref()))
+            .map(|x| x.as_resultitem(self.as_ref(), self.rootstore()))
             .ok()
     }
 
@@ -40,7 +40,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     ) -> Option<ResultItem<'a, AnnotationData>> {
         self.as_ref()
             .get(annotationdata)
-            .map(|x| x.as_resultitem(self.as_ref()))
+            .map(|x| x.as_resultitem(self.as_ref(), self.rootstore()))
             .ok()
     }
 
@@ -81,11 +81,12 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             }
         };
         let store = self.as_ref();
+        let rootstore = self.rootstore();
         Some(store.data().filter_map(move |annotationdata| {
             if (key_handle.is_none() || key_handle.unwrap() == annotationdata.key())
                 && annotationdata.value().test(&value)
             {
-                Some(annotationdata.as_resultitem(store))
+                Some(annotationdata.as_resultitem(store, rootstore))
             } else {
                 None
             }

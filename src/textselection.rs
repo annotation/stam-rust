@@ -11,13 +11,10 @@ use datasize::DataSize;
 use minicbor::{Decode, Encode};
 use smallvec::SmallVec;
 
-use crate::annotation::{TargetIter, TargetIterItem};
 use crate::annotationstore::AnnotationStore;
 use crate::cbor::*;
-use crate::config::Configurable;
-use crate::error::StamError;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
-use crate::selector::{Offset, Selector};
+use crate::selector::Offset;
 use crate::store::*;
 use crate::text::*;
 use crate::types::*;
@@ -229,376 +226,6 @@ impl TextSelection {
     }
 }
 
-impl<'store, 'slf> Text<'store, 'slf> for ResultItem<'store, TextSelection>
-where
-    'store: 'slf,
-{
-    fn text(&'slf self) -> &'store str {
-        let resource = self.store(); //courtesy of WrappedItem
-        let beginbyte = resource
-            .utf8byte(self.begin())
-            .expect("utf8byte conversion should succeed");
-        let endbyte = resource
-            .utf8byte(self.end())
-            .expect("utf8byte conversion should succeed");
-        &resource.text()[beginbyte..endbyte]
-    }
-
-    fn textlen(&self) -> usize {
-        self.end() - self.begin()
-    }
-
-    /// Returns a string reference to a slice of text as specified by the offset
-    fn text_by_offset(&'slf self, offset: &Offset) -> Result<&'store str, StamError> {
-        let beginbyte =
-            self.utf8byte(self.absolute_cursor(self.beginaligned_cursor(&offset.begin)?))?;
-        let endbyte =
-            self.utf8byte(self.absolute_cursor(self.beginaligned_cursor(&offset.end)?))?;
-        if endbyte < beginbyte {
-            Err(StamError::InvalidOffset(
-                Cursor::BeginAligned(beginbyte),
-                Cursor::BeginAligned(endbyte),
-                "End must be greater than or equal to begin. (Cursor should be interpreted as UTF-8 bytes in this error context only)",
-            ))
-        } else {
-            Ok(&self.text()[beginbyte..endbyte])
-        }
-    }
-
-    /// Finds the utf-8 byte position where the specified text subslice begins
-    /// The returned offset is relative to the TextSelection
-    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
-        let self_begin = self.text().as_ptr() as usize;
-        let sub_begin = subslice.as_ptr() as usize;
-        if sub_begin < self_begin || sub_begin > self_begin.wrapping_add(self.text().len()) {
-            None
-        } else {
-            Some(sub_begin.wrapping_sub(self_begin))
-        }
-    }
-
-    /// This converts a unicode point to utf-8 byte, all in *relative* offsets to this textselection
-    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
-        //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
-        //and can just call this same method on TextResource, which has the proper indices for this
-        let beginbyte = self
-            .store()
-            .subslice_utf8_offset(self.text())
-            .expect("subslice should succeed");
-        Ok(self.store().utf8byte(self.absolute_cursor(abscursor))? - beginbyte)
-    }
-
-    /// This converts utf-8 byte to charpos, all in *relative* offsets to this textselection
-    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
-        //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
-        //and can just call this same method on TextResource, which has the proper indices for this
-        let beginbyte = self
-            .store()
-            .subslice_utf8_offset(self.text())
-            .expect("subslice should succeed");
-        Ok(self
-            .store()
-            .utf8byte_to_charpos(self.absolute_cursor(beginbyte + bytecursor))?
-            - self.begin())
-    }
-
-    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`FindRegexMatch'] struct.
-    ///
-    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
-    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
-    /// the entire expression is returned.
-    ///
-    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
-    ///
-    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
-    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
-    /// false. All of this only matters if you supply multiple regular expressions.
-    ///
-    /// Results are returned in the exact order they are found in the text
-    fn find_text_regex<'regex>(
-        &'slf self,
-        expressions: &'regex [Regex],
-        precompiledset: Option<&RegexSet>,
-        allow_overlap: bool,
-    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
-        debug(self.store().config(), || {
-            format!(
-                "TextSelection::find_text_regex: expressions={:?}",
-                expressions
-            )
-        });
-        let text = self.text();
-        let selectexpressions =
-            find_text_regex_select_expressions(text, expressions, precompiledset)?;
-        //Returns an iterator that does the remainder of the actual searching
-        Ok(FindRegexIter {
-            resource: self.store(),
-            expressions,
-            selectexpressions,
-            matchiters: Vec::new(),
-            nextmatches: Vec::new(),
-            text: self.text(),
-            begincharpos: self.begin(),
-            beginbytepos: self
-                .store()
-                .subslice_utf8_offset(text)
-                .expect("Subslice must be found"),
-            allow_overlap,
-        })
-    }
-
-    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
-    ///
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
-    ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
-    fn find_text<'fragment>(
-        &'slf self,
-        fragment: &'fragment str,
-    ) -> FindTextIter<'store, 'fragment> {
-        FindTextIter {
-            resource: self.store(),
-            fragment,
-            offset: Offset::from(self),
-        }
-    }
-
-    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
-    ///
-    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
-    ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
-    fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
-        FindNoCaseTextIter {
-            resource: self.store(),
-            fragment: fragment.to_lowercase(),
-            offset: Offset::from(self),
-        }
-    }
-
-    fn split_text<'b>(&'slf self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
-        SplitTextIter {
-            resource: self.store(),
-            iter: self.store().text().split(delimiter),
-            byteoffset: self
-                .subslice_utf8_offset(self.text())
-                .expect("subslice must succeed for split_text"),
-        }
-    }
-
-    /// Returns a [`TextSelection'] that corresponds to the offset **WITHIN** the textselection.
-    /// This returns a [`TextSelection`] with absolute coordinates in the resource.
-    ///
-    /// If the textselection is known (i.e. it has associated annotations), it will be returned as such with a handle (borrowed).
-    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
-    ///
-    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store (the [`TextResource`]).
-    ///
-    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections (i.e. those pertaining to annotations) only.
-    fn textselection(
-        &'slf self,
-        offset: &Offset,
-    ) -> Result<ResultTextSelection<'store>, StamError> {
-        let resource = self.store(); //courtesy of WrappedItem
-        let offset = self.absolute_offset(&offset)?; //turns the relative offset into an absolute one (i.e. offsets in TextResource)
-        resource.textselection(&offset)
-    }
-
-    fn absolute_cursor(&self, cursor: usize) -> usize {
-        self.begin() + cursor
-    }
-}
-
-impl<'store, 'slf> Text<'store, 'slf> for ResultTextSelection<'store>
-where
-    'store: 'slf,
-{
-    fn text(&'slf self) -> &'store str {
-        let resource = self.store(); //courtesy of WrappedItem
-        let beginbyte = resource
-            .utf8byte(self.begin())
-            .expect("utf8byte conversion should succeed");
-        let endbyte = resource
-            .utf8byte(self.end())
-            .expect("utf8byte conversion should succeed");
-        &resource.text()[beginbyte..endbyte]
-    }
-
-    fn textlen(&self) -> usize {
-        self.end() - self.begin()
-    }
-
-    /// Returns a string reference to a slice of text as specified by the offset
-    fn text_by_offset(&'slf self, offset: &Offset) -> Result<&'store str, StamError> {
-        let beginbyte =
-            self.utf8byte(self.absolute_cursor(self.beginaligned_cursor(&offset.begin)?))?;
-        let endbyte =
-            self.utf8byte(self.absolute_cursor(self.beginaligned_cursor(&offset.end)?))?;
-        if endbyte < beginbyte {
-            Err(StamError::InvalidOffset(
-                Cursor::BeginAligned(beginbyte),
-                Cursor::BeginAligned(endbyte),
-                "End must be greater than or equal to begin. (Cursor should be interpreted as UTF-8 bytes in this error context only)",
-            ))
-        } else {
-            Ok(&self.text()[beginbyte..endbyte])
-        }
-    }
-
-    /// Finds the utf-8 byte position where the specified text subslice begins
-    /// The returned offset is relative to the TextSelection
-    fn subslice_utf8_offset(&self, subslice: &str) -> Option<usize> {
-        let self_begin = self.text().as_ptr() as usize;
-        let sub_begin = subslice.as_ptr() as usize;
-        if sub_begin < self_begin || sub_begin > self_begin.wrapping_add(self.text().len()) {
-            None
-        } else {
-            Some(sub_begin.wrapping_sub(self_begin))
-        }
-    }
-
-    /// This converts a unicode point to utf-8 byte, all in *relative* offsets to this textselection
-    fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
-        //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
-        //and can just call this same method on TextResource, which has the proper indices for this
-        let beginbyte = self
-            .store()
-            .subslice_utf8_offset(self.text())
-            .expect("subslice should succeed");
-        Ok(self.store().utf8byte(self.absolute_cursor(abscursor))? - beginbyte)
-    }
-
-    /// This converts utf-8 byte to charpos, all in *relative* offsets to this textselection
-    fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
-        //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
-        //and can just call this same method on TextResource, which has the proper indices for this
-        let beginbyte = self
-            .store()
-            .subslice_utf8_offset(self.text())
-            .expect("subslice should succeed");
-        Ok(self
-            .store()
-            .utf8byte_to_charpos(self.absolute_cursor(beginbyte + bytecursor))?
-            - self.begin())
-    }
-
-    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`FindRegexMatch'] struct.
-    ///
-    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
-    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
-    /// the entire expression is returned.
-    ///
-    /// An `offset` can be specified to work on a sub-part rather than the entire text (like an existing TextSelection).
-    ///
-    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
-    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
-    /// false. All of this only matters if you supply multiple regular expressions.
-    ///
-    /// Results are returned in the exact order they are found in the text
-    fn find_text_regex<'regex>(
-        &'slf self,
-        expressions: &'regex [Regex],
-        precompiledset: Option<&RegexSet>,
-        allow_overlap: bool,
-    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
-        debug(self.store().config(), || {
-            format!(
-                "TextSelection::find_text_regex: expressions={:?}",
-                expressions
-            )
-        });
-        let text = self.text();
-        let selectexpressions =
-            find_text_regex_select_expressions(text, expressions, precompiledset)?;
-        //Returns an iterator that does the remainder of the actual searching
-        Ok(FindRegexIter {
-            resource: self.store(),
-            expressions,
-            selectexpressions,
-            matchiters: Vec::new(),
-            nextmatches: Vec::new(),
-            text: self.text(),
-            begincharpos: self.begin(),
-            beginbytepos: self
-                .store()
-                .subslice_utf8_offset(text)
-                .expect("Subslice must be found"),
-            allow_overlap,
-        })
-    }
-
-    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
-    ///
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
-    ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
-    fn find_text<'fragment>(
-        &'slf self,
-        fragment: &'fragment str,
-    ) -> FindTextIter<'store, 'fragment> {
-        FindTextIter {
-            resource: self.store(),
-            fragment,
-            offset: Offset::from(self),
-        }
-    }
-
-    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
-    ///
-    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
-    ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
-    fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
-        FindNoCaseTextIter {
-            resource: self.store(),
-            fragment: fragment.to_lowercase(),
-            offset: Offset::from(self),
-        }
-    }
-
-    fn split_text<'b>(&'slf self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
-        SplitTextIter {
-            resource: self.store(),
-            iter: self.store().text().split(delimiter),
-            byteoffset: self
-                .subslice_utf8_offset(self.text())
-                .expect("subslice must succeed for split_text"),
-        }
-    }
-
-    /// Returns a [`TextSelection'] that corresponds to the offset **WITHIN** the textselection.
-    /// This returns a [`TextSelection`] with absolute coordinates in the resource.
-    ///
-    /// If the textselection is known (i.e. it has associated annotations), it will be returned as such with a handle (borrowed).
-    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
-    ///
-    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store (the [`TextResource`]).
-    ///
-    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections (i.e. those pertaining to annotations) only.
-    fn textselection(
-        &'slf self,
-        offset: &Offset,
-    ) -> Result<ResultTextSelection<'store>, StamError> {
-        let resource = self.store(); //courtesy of WrappedItem
-        let offset = self.absolute_offset(&offset)?; //turns the relative offset into an absolute one (i.e. offsets in TextResource)
-        resource.textselection(&offset)
-    }
-
-    fn absolute_cursor(&self, cursor: usize) -> usize {
-        self.begin() + cursor
-    }
-}
-
 #[derive(Debug, Clone, DataSize, Decode, Encode)]
 #[cbor(transparent)]
 pub(crate) struct PositionIndex(#[n(0)] pub(crate) BTreeMap<usize, PositionIndexItem>);
@@ -761,7 +388,7 @@ impl<'store> From<ResultTextSelection<'store>> for TextSelectionSet {
                 .expect("Resource must have a handle"),
         );
         tset.add(match textselection {
-            ResultTextSelection::Unbound(.., item) => item,
+            ResultTextSelection::Unbound(_, _, item) => item,
             ResultTextSelection::Bound(item) => item.as_ref().clone(),
         });
         tset
@@ -801,7 +428,7 @@ impl<'store> FromIterator<ResultTextSelection<'store>> for TextSelectionSet {
                 first = false;
             }
             tset.add(match item {
-                ResultTextSelection::Unbound(.., item) => item,
+                ResultTextSelection::Unbound(_, _, item) => item,
                 ResultTextSelection::Bound(item) => item.as_ref().clone(),
             });
         }
@@ -2037,47 +1664,20 @@ impl<'store> FindTextSelections<'store> for FindTextSelectionsOwnedIter<'store> 
     }
 }
 
-impl<'a> Iterator for TargetIter<'a, TextSelection> {
-    type Item = TargetIterItem<'a, TextSelection>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let selectoritem = self.iter.next();
-            if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
-                    Selector::InternalTextSelector {
-                        resource,
-                        textselection,
-                    } => {
-                        let resource: &TextResource =
-                            self.iter.store.get(*resource).expect("Resource must exist");
-                        let textselection: &TextSelection = resource
-                            .get(*textselection)
-                            .expect("TextSelection must exist");
-                        return Some(TargetIterItem {
-                            item: textselection.as_resultitem(resource),
-                            selectoriteritem: selectoritem,
-                        });
-                    }
-                    _ => continue,
-                }
-            } else {
-                return None;
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone)] //TODO: reimplement PartialEq
 pub enum ResultTextSelection<'store> {
     Bound(ResultItem<'store, TextSelection>),
-    Unbound(&'store TextResource, TextSelection),
+    Unbound(&'store AnnotationStore, &'store TextResource, TextSelection),
 }
 
 impl<'store> PartialEq for ResultTextSelection<'store> {
     fn eq(&self, other: &Self) -> bool {
-        if self.store() == other.store() {
-            self.inner().eq(other.inner())
+        if std::ptr::eq(self.rootstore(), other.rootstore()) {
+            if std::ptr::eq(self.store(), other.store()) {
+                self.inner().eq(other.inner())
+            } else {
+                false
+            }
         } else {
             false
         }

@@ -13,6 +13,7 @@ use minicbor::{Decode, Encode};
 use nanoid::nanoid;
 use smallvec::{smallvec, SmallVec};
 
+use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;
 use crate::error::StamError;
 use crate::types::*;
@@ -459,15 +460,16 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
 
     /// Returns the item as a ResultItem, i.e. a wrapped reference that includes a reference to
     /// both this item as well as the store that owns it. All high-level API functions are implemented
-    /// on such Result types.
+    /// on such Result types. You should not need to invoke this yourself.
     fn as_resultitem<'store>(
         &'store self,
         store: &'store Self::StoreType,
+        rootstore: &'store AnnotationStore,
     ) -> ResultItem<'store, Self>
     where
         Self: Sized,
     {
-        ResultItem::new(self, store)
+        ResultItem::new(self, store, rootstore)
     }
 
     /// Set the internal ID for an item. May only be called once just after instantiation.
@@ -939,8 +941,14 @@ pub struct ResultItem<'store, T>
 where
     T: Storable,
 {
+    // a reference to the item
     item: &'store T,
+
+    // a reference the store that holds the item
     store: &'store T::StoreType,
+
+    // a reference to the root AnnotationStore, can lead to some duplication if it's the same as store
+    rootstore: Option<&'store AnnotationStore>,
 }
 
 impl<'store, T> Debug for ResultItem<'store, T>
@@ -962,6 +970,7 @@ where
         Self {
             item: self.item,
             store: self.store,
+            rootstore: self.rootstore,
         }
     }
 }
@@ -1004,18 +1013,52 @@ impl<'store, T> ResultItem<'store, T>
 where
     T: Storable,
 {
-    /// Create a new wrapped item. Not public, called by [`StoreFor<T>::as_resultitem()`].
+    /// Create a new result item. Not public, called by [`StoreFor<T>::as_resultitem()`].
     /// will panic if called on an unbound item!
-    pub(crate) fn new(item: &'store T, store: &'store T::StoreType) -> Self {
+    pub(crate) fn new(
+        item: &'store T,
+        store: &'store T::StoreType,
+        rootstore: &'store AnnotationStore,
+    ) -> Self {
         if item.handle().is_none() {
             panic!("can't wrap unbound items");
         }
-        Self { item, store }
+        Self {
+            item,
+            store,
+            rootstore: Some(rootstore),
+        }
+    }
+
+    /// Create a new result item. Not public.
+    /// Partial result items are dangerous as they are not bound to a rootstore, and
+    /// this may cause run-time panics elsewhere.
+    /// Do not return them in the public API!
+    pub(crate) fn new_partial(item: &'store T, store: &'store T::StoreType) -> Self {
+        if item.handle().is_none() {
+            panic!("can't wrap unbound items");
+        }
+        Self {
+            item,
+            store,
+            rootstore: None,
+        }
     }
 
     /// Get the store this item is a direct member of
     pub fn store(&self) -> &'store T::StoreType {
         self.store
+    }
+
+    pub(crate) fn is_partial(&self) -> bool {
+        self.rootstore.is_none()
+    }
+
+    /// Get the underlying AnnotationStore
+    pub fn rootstore(&self) -> &'store AnnotationStore {
+        // This will panic for partial result items!
+        self.rootstore
+            .expect("Got a partial ResultItem, unable to get root annotationstore! This should not happen in the public API.")
     }
 
     /// Returns the contained reference with the original lifetime
@@ -1047,6 +1090,7 @@ where
 {
     items: SmallVec<[&'store T; 1]>,
     store: &'store T::StoreType,
+    rootstore: &'store AnnotationStore,
 }
 
 impl<'store, T> Clone for ResultItemSet<'store, T>
@@ -1057,6 +1101,7 @@ where
         Self {
             items: self.items.clone(),
             store: self.store(),
+            rootstore: self.rootstore(),
         }
     }
 }
@@ -1069,11 +1114,16 @@ where
         Self {
             items: smallvec!(item.as_ref()),
             store: item.store(),
+            rootstore: item.rootstore(),
         }
     }
 
     pub fn store(&self) -> &'store T::StoreType {
         self.store
+    }
+
+    pub fn rootstore(&self) -> &'store AnnotationStore {
+        self.rootstore
     }
 
     pub fn add(&mut self, item: ResultItem<'store, T>) -> bool {
@@ -1089,7 +1139,7 @@ where
         self.items
             .first()
             .expect("there must be an item")
-            .as_resultitem(self.store())
+            .as_resultitem(self.store(), self.rootstore())
     }
 
     /// Collects items from an iterator and return a ResultItemSet.
@@ -1102,6 +1152,7 @@ where
     {
         let mut items: SmallVec<[&'store T; 1]> = SmallVec::new();
         let mut store: Option<&'store T::StoreType> = None;
+        let mut rootstore: Option<&'store AnnotationStore> = None;
         for item in iter {
             if store.is_none() {
                 store = Some(item.store());
@@ -1114,6 +1165,7 @@ where
             Some(Self {
                 items,
                 store: store.unwrap(),
+                rootstore: rootstore.unwrap(),
             })
         }
     }
@@ -1122,7 +1174,7 @@ where
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = ResultItem<'store, T>> + 'a {
         self.items
             .iter()
-            .map(|item| item.as_resultitem(self.store()))
+            .map(|item| item.as_resultitem(self.store(), self.rootstore()))
     }
 }
 
@@ -1134,6 +1186,7 @@ where
         Self {
             items: smallvec!(item.as_ref()),
             store: item.store(),
+            rootstore: item.rootstore(),
         }
     }
 }
@@ -1146,6 +1199,7 @@ where
         Self {
             items: smallvec!(item.as_ref()),
             store: item.store(),
+            rootstore: item.rootstore(),
         }
     }
 }
@@ -1161,6 +1215,7 @@ where
         ResultItemSetIntoIter {
             items: self.items,
             store: self.store,
+            rootstore: self.rootstore,
         }
     }
 }
@@ -1172,6 +1227,7 @@ where
 {
     items: SmallVec<[&'store T; 1]>,
     store: &'store T::StoreType,
+    rootstore: &'store AnnotationStore,
 }
 
 impl<'store, T> Iterator for ResultItemSetIntoIter<'store, T>
@@ -1182,7 +1238,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(item) = self.items.pop() {
-            Some(item.as_resultitem(self.store))
+            Some(item.as_resultitem(self.store, self.rootstore))
         } else {
             None
         }

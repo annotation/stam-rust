@@ -252,7 +252,7 @@ fn store_iter_data() -> Result<(), StamError> {
         assert_eq!(data.value(), &DataValue::String("noun".to_string()));
         assert_eq!(data.value(), "noun"); //shortcut for the same as above (and more efficient without heap allocated string)
         assert_eq!(data.id(), Some("D1"));
-        assert_eq!(data.set(&store).id(), Some("testdataset"));
+        assert_eq!(data.set().id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -312,7 +312,7 @@ fn store_get_text_slice() -> Result<(), StamError> {
 #[test]
 fn store_get_text_selection() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let resource: &TextResource = store.get("testres")?;
+    let resource = store.resource("testres").unwrap();
     let textselection = resource.textselection(&Offset::new(
         Cursor::BeginAligned(0),
         Cursor::BeginAligned(5),
@@ -568,7 +568,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
         assert_eq!(data.key().as_str(), "pos"); //shortcut for the same as above
         assert_eq!(data.value(), &DataValue::String("interjection".to_string()));
         assert_eq!(data.value(), "interjection"); //shortcut for the same as above (and more efficient without heap allocated string)
-        assert_eq!(data.set(&store).id(), Some("testdataset"));
+        assert_eq!(data.set().id(), Some("testdataset"));
     }
     assert_eq!(count, 1);
 
@@ -816,7 +816,7 @@ fn as_resultitem() -> Result<(), StamError> {
     let store = setup_example_2()?;
 
     let annotation: &Annotation = store.get("A1")?;
-    let wrappedannotation = annotation.as_resultitem(&store);
+    let wrappedannotation = annotation.as_resultitem(&store, &store);
 
     assert_eq!(wrappedannotation.id(), Some("A1"));
     let _store2 = wrappedannotation.store();
@@ -948,11 +948,7 @@ fn annotations_by_offset() -> Result<(), StamError> {
         .resource("testres")
         .expect("test: resource must exist");
     let textselection = resource.textselection(&Offset::simple(6, 11))?;
-    let v: Vec<_> = textselection
-        .annotations(&store)
-        .into_iter()
-        .flatten()
-        .collect();
+    let v: Vec<_> = textselection.annotations().into_iter().flatten().collect();
     let a_ref = store.annotation("A1").unwrap();
     assert_eq!(v, vec!(a_ref));
     Ok(())
@@ -1319,7 +1315,14 @@ fn test_read_include() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello world")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text("world") {
         count += 1;
@@ -1333,7 +1336,14 @@ fn test_find_text() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_nocase() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello world")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text_nocase("hello") {
         count += 1;
@@ -1347,7 +1357,14 @@ fn test_find_text_nocase() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello world")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let results = resource
         .find_text_sequence(&["Hello", "world"], |c| !c.is_alphabetic(), true)
         .expect("results must be found");
@@ -1363,7 +1380,14 @@ fn test_find_text_sequence() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence2() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hello, world!");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello, world")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let results = resource
         .find_text_sequence(&["Hello", "world"], |c| !c.is_alphabetic(), true)
         .expect("results must be found");
@@ -1379,7 +1403,14 @@ fn test_find_text_sequence2() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence_nocase() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello world")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let results = resource
         .find_text_sequence(&["hello", "world"], |c| !c.is_alphabetic(), false)
         .expect("results must be found");
@@ -1395,7 +1426,14 @@ fn test_find_text_sequence_nocase() -> Result<(), StamError> {
 
 #[test]
 fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello world")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let results =
         resource.find_text_sequence(&["hello", "world", "hi"], |c| !c.is_alphabetic(), false);
     assert!(results.is_none());
@@ -1404,7 +1442,14 @@ fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
 
 #[test]
 fn test_split_text() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hello world");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello world")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.split_text(" ") {
         count += 1;
@@ -1424,9 +1469,13 @@ fn test_split_text() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string(
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-    );
+        ).build()?
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"eavesdropping").unwrap()], None, true)? {
         count += 1;
@@ -1441,9 +1490,13 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single2() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string(
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-    );
+        ).build()?
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"\b\w{13}\b").unwrap()], None, true)? {
         count += 1;
@@ -1465,9 +1518,13 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string(
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-    );
+        ).build()?
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text_regex(
         &[
@@ -1496,9 +1553,13 @@ fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string(
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-    );
+        ).build()?
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text_regex(
         &[
@@ -1527,9 +1588,13 @@ fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_single_capture() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string(
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-    );
+        ).build()?
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping").unwrap()],
@@ -1548,9 +1613,13 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
 
 #[test]
 fn test_search_text_regex_double_capture() -> Result<(), StamError> {
-    let resource = TextResource::new("testres", Config::default()).with_string(
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-    );
+        ).build()?
+    )?;
+    let resource = store.resource("testres").unwrap();
     let mut count = 0;
     for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping\s(on\s\w+)\b").unwrap()],
@@ -1579,7 +1648,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosInterjection"));
-        assert_eq!(data.set(&store).id(), Some("https://example.org/test/"));
+        assert_eq!(data.set().id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "interjection");
     }
 
@@ -1588,7 +1657,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
         assert_eq!(data.id(), Some("PosNoun"));
-        assert_eq!(data.set(&store).id(), Some("https://example.org/test/"));
+        assert_eq!(data.set().id(), Some("https://example.org/test/"));
         assert_eq!(data.value(), "noun");
     }
 
@@ -1702,7 +1771,7 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
         .find_data("myset", "type", &DataOperator::Equals("header"))
         .into_iter()
         .flatten()
-        .map(|data| data.annotations(&store))
+        .map(|data| data.annotations())
         .flatten()
         .collect();
     assert_eq!(data.len(), 4);
@@ -1803,7 +1872,7 @@ fn test_annotations_by_textselection() -> Result<(), StamError> {
     let mut count_annotations = 0;
     for textselection in resource.textselections() {
         count += 1;
-        if let Some(annotations) = textselection.annotations(&store) {
+        if let Some(annotations) = textselection.annotations() {
             for annotation in annotations {
                 count_annotations += 1;
                 eprintln!("{} {:?}", textselection.text(), annotation.id());
@@ -1839,11 +1908,7 @@ fn test_annotations_by_textselection_none() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let textselection = resource.textselection(&Offset::simple(1, 14))?; //no annotations for this random selection
-    let v: Vec<_> = textselection
-        .annotations(&store)
-        .into_iter()
-        .flatten()
-        .collect();
+    let v: Vec<_> = textselection.annotations().into_iter().flatten().collect();
     assert!(v.is_empty());
     Ok(())
 }
@@ -1854,13 +1919,10 @@ fn test_find_textselections_embedded() -> Result<(), StamError> {
     let phrase1 = store.annotation("Phrase1").unwrap();
     let mut count = 0;
     for reftextsel in phrase1.textselections() {
-        for textsel in reftextsel.related_text(
-            TextSelectionOperator::Embedded {
-                all: false,
-                negate: false,
-            },
-            &store,
-        ) {
+        for textsel in reftextsel.related_text(TextSelectionOperator::Embedded {
+            all: false,
+            negate: false,
+        }) {
             count += 1;
             assert_eq!(textsel.begin(), 0);
             assert_eq!(textsel.end(), 63);
@@ -1909,13 +1971,10 @@ fn test_find_textselections_embeds() -> Result<(), StamError> {
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
     for reftextsel in sentence1.textselections() {
-        for textsel in reftextsel.related_text(
-            TextSelectionOperator::Embeds {
-                all: false,
-                negate: false,
-            },
-            &store,
-        ) {
+        for textsel in reftextsel.related_text(TextSelectionOperator::Embeds {
+            all: false,
+            negate: false,
+        }) {
             count += 1;
             assert_eq!(textsel.begin(), 17);
             assert_eq!(textsel.end(), 40);
@@ -1931,13 +1990,10 @@ fn test_find_annotations_embeds() -> Result<(), StamError> {
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
     for reftextsel in sentence1.textselections() {
-        for annotation in reftextsel.annotations_by_related_text(
-            TextSelectionOperator::Embeds {
-                all: false,
-                negate: false,
-            },
-            &store,
-        ) {
+        for annotation in reftextsel.annotations_by_related_text(TextSelectionOperator::Embeds {
+            all: false,
+            negate: false,
+        }) {
             count += 1;
             assert_eq!(annotation.id(), Some("Phrase1"));
         }
@@ -2070,8 +2126,13 @@ pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle)
     for _ in 0..n {
         text.push('x');
     }
-    let resource_handle =
-        store.insert(TextResource::new("dummy", Config::default()).with_string(text))?;
+    let resource_handle = store.insert(
+        TextResourceBuilder::new()
+            .with_id("dummy")
+            .with_text(text)
+            .build()?,
+    )?;
+    let resource = store.resource(resource_handle).unwrap();
 
     let dataset_handle = store.insert(
         AnnotationDataSet::new(Config::default()).with_data_with_id("type", "bigram", "D1")?,
@@ -2141,13 +2202,10 @@ fn test_textselections_scale_test_overlap() -> Result<(), StamError> {
     //iterate over all textselections unsorted
 
     let mut count = 0;
-    for _textselection in selection.related_text(
-        TextSelectionOperator::Overlaps {
-            all: false,
-            negate: false,
-        },
-        &store,
-    ) {
+    for _textselection in selection.related_text(TextSelectionOperator::Overlaps {
+        all: false,
+        negate: false,
+    }) {
         count += 1;
     }
 

@@ -1,20 +1,18 @@
-use smallvec::SmallVec;
 use std::collections::BTreeSet;
 
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
-use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKey;
 use crate::resources::TextResource;
 use crate::selector::SelectorKind;
 use crate::{store::*, DataOperator};
 
-//TODO: implement reference to rootstore so we don't need to pass AnnotationStore to various methods
 impl<'store> ResultItem<'store, DataKey> {
     /// Method to return a reference to the dataset that holds this key
-    pub fn set(&self, store: &'store AnnotationStore) -> ResultItem<'store, AnnotationDataSet> {
-        self.store().as_resultitem(store)
+    pub fn set(&self) -> ResultItem<'store, AnnotationDataSet> {
+        let rootstore = self.rootstore();
+        self.store().as_resultitem(rootstore, rootstore)
     }
 
     /// Returns the public identifier that identifies the key
@@ -24,6 +22,7 @@ impl<'store> ResultItem<'store, DataKey> {
 
     /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key.
     pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store {
+        let rootstore = self.rootstore();
         let store = self.store();
         store
             .data_by_key(self.handle())
@@ -32,7 +31,7 @@ impl<'store> ResultItem<'store, DataKey> {
             .filter_map(|data_handle| {
                 store
                     .annotationdata(*data_handle)
-                    .map(|d| d.as_resultitem(store))
+                    .map(|d| d.as_resultitem(store, rootstore))
             })
     }
 
@@ -62,7 +61,6 @@ impl<'store> ResultItem<'store, DataKey> {
     /// See `find_data()` for further parameter explanation.
     pub fn annotations_by_data<'a>(
         &self,
-        annotationstore: &'store AnnotationStore,
         value: &'a DataOperator<'a>,
     ) -> impl Iterator<
         Item = (
@@ -75,7 +73,7 @@ impl<'store> ResultItem<'store, DataKey> {
     {
         let set_handle = self.store().handle().expect("set must have handle");
         let key_handle = self.handle();
-        self.annotations(annotationstore)
+        self.annotations()
             .map(move |annotation| {
                 annotation
                     .find_data(set_handle, key_handle, value)
@@ -90,11 +88,9 @@ impl<'store> ResultItem<'store, DataKey> {
     /// Especially useful in combination with a call to  [`AnnotationDataSet.key()`] first.
     ///
     /// (This function internally allocates a temporary buffer to ensure no duplicates are returned)
-    pub fn annotations(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let set_handle = self.store().handle().expect("set must have handle");
+        let annotationstore = self.rootstore();
         annotationstore
             .annotations_by_key(set_handle, self.handle())
             .into_iter()
@@ -104,8 +100,8 @@ impl<'store> ResultItem<'store, DataKey> {
     /// Returns the number of annotations that make use of this key.
     ///  Note: this method has suffix `_count` instead of `_len` because it is not O(1) but does actual counting (O(n) at worst).
     /// (This function internally allocates a temporary buffer to ensure no duplicates are returned)
-    pub fn annotations_count(&self, annotationstore: &'store AnnotationStore) -> usize {
-        annotationstore
+    pub fn annotations_count(&self) -> usize {
+        self.rootstore()
             .annotations_by_key(
                 self.store().handle().expect("set must have handle"),
                 self.handle(),
@@ -124,22 +120,16 @@ impl<'store> ResultItem<'store, DataKey> {
 
     /// Returns an iterator over all text resources that make use of this key via annotations (either as metadata or on text)
     /// (This function allocates a temporary buffer to ensure no duplicates are returned)
-    pub fn resources(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> BTreeSet<ResultItem<'store, TextResource>> {
-        self.annotations(annotationstore)
+    pub fn resources(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+        self.annotations()
             .map(|annotation| annotation.resources().map(|resource| resource.clone()))
             .flatten()
             .collect()
     }
 
     /// Returns resources that make use of this key as metadata (via annotation with a ResourceSelector)
-    pub fn resources_as_metadata(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> BTreeSet<ResultItem<'store, TextResource>> {
-        self.annotations(annotationstore)
+    pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+        self.annotations()
             .map(|annotation| {
                 annotation.resources().filter_map(|resource| {
                     if resource.selector().kind() == SelectorKind::ResourceSelector {
@@ -154,11 +144,8 @@ impl<'store> ResultItem<'store, DataKey> {
     }
 
     /// Returns a set of all text resources that make use of this key via annotations via a ResourceSelector (i.e. as metadata)
-    pub fn resources_on_text(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> BTreeSet<ResultItem<'store, TextResource>> {
-        self.annotations(annotationstore)
+    pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+        self.annotations()
             .map(|annotation| {
                 annotation
                     .resources()
@@ -174,11 +161,8 @@ impl<'store> ResultItem<'store, DataKey> {
     }
 
     /// Returns a set of all data sets that annotations using this key reference via a DataSetSelector (i.e. metadata)
-    pub fn datasets(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> BTreeSet<ResultItem<'store, AnnotationDataSet>> {
-        self.annotations(annotationstore)
+    pub fn datasets(&self) -> BTreeSet<ResultItem<'store, AnnotationDataSet>> {
+        self.annotations()
             .map(|annotation| annotation.datasets().map(|dataset| dataset.clone()))
             .flatten()
             .collect()

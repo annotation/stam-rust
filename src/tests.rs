@@ -670,44 +670,81 @@ fn utf82unicode() {
 }
 
 #[test]
-fn find_text_single() {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
+fn find_text_single() -> Result<(), StamError> {
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hallå världen")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let textselection = resource.find_text("världen").next().unwrap();
     assert_eq!(textselection.begin(), 6);
     assert_eq!(textselection.end(), 13);
+    Ok(())
 }
 
 #[test]
-fn find_text_single2() {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
+fn find_text_single2() -> Result<(), StamError> {
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hallå världen")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let textselection = resource.find_text("Hallå").next().unwrap();
     assert_eq!(textselection.begin(), 0);
     assert_eq!(textselection.end(), 5);
+    Ok(())
 }
 
 #[test]
-fn find_text_multi() {
-    let resource = TextResource::new("testres", Config::default())
-        .with_string("To be or not to be, that's the question");
+fn find_text_multi() -> Result<(), StamError> {
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("To be or not to be, that's the question")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.find_text("be").collect();
     assert_eq!(textselections.len(), 2);
     assert_eq!(textselections[0].begin(), 3);
     assert_eq!(textselections[0].end(), 5);
     assert_eq!(textselections[1].begin(), 16);
     assert_eq!(textselections[1].end(), 18);
+    Ok(())
 }
 
 #[test]
-fn find_text_none() {
-    let resource = TextResource::new("testres", Config::default()).with_string("Hallå världen");
+fn find_text_none() -> Result<(), StamError> {
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hallå världen")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let v: Vec<_> = resource.find_text("blah").collect();
     assert!(v.is_empty());
+    Ok(())
 }
 
 #[test]
-fn split_text() {
-    let resource =
-        TextResource::new("testres", Config::default()).with_string("To be or not to be");
+fn split_text() -> Result<(), StamError> {
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("To be or not to be")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.split_text(" ").collect();
     eprintln!("{:?}", textselections);
     assert_eq!(textselections.len(), 6);
@@ -715,41 +752,71 @@ fn split_text() {
     assert_eq!(textselections[0].end(), 2);
     assert_eq!(textselections[5].begin(), 16);
     assert_eq!(textselections[5].end(), 18);
+    Ok(())
 }
 
 #[test]
-fn split_text_whitespace() {
+fn split_text_whitespace() -> Result<(), StamError> {
     //with leading and trailing 'empty' texts
-    let resource = TextResource::new("testres", Config::default())
-        .with_string("\nTo be or not to be\nthat is the question\n");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("\nTo be or not to be\nthat is the question\n")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.split_text("\n").collect();
     eprintln!("{:?}", textselections);
     assert_eq!(textselections.len(), 4);
+    Ok(())
 }
 
 #[test]
-fn split_text_none() {
+fn split_text_none() -> Result<(), StamError> {
     //with no occurrences at all
-    let resource =
-        TextResource::new("testres", Config::default()).with_string("To be or not to be");
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("To be or not to be")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.split_text("?").collect();
     eprintln!("{:?}", textselections);
     assert_eq!(textselections.len(), 1);
+    Ok(())
 }
 
 #[test]
-fn trim_text() {
-    let resource =
-        TextResource::new("testres", Config::default()).with_string("  To be or not to be   ");
+fn trim_text() -> Result<(), StamError> {
+    let mut store = AnnotationStore::default();
+    store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("  To be or not to be   ")
+            .build()?,
+    )?;
+    let resource = store.resource("testres").unwrap();
     let textselection = resource.trim_text(&[' ']).unwrap();
     assert_eq!(textselection.begin(), 2);
     assert_eq!(textselection.end(), 20);
     assert_eq!(textselection.text(), "To be or not to be");
+    Ok(())
 }
 
 #[test]
-fn textselection_out_of_bounds() {
-    let resource = TextResource::from_string("testres", "Hello world", Config::default());
+fn textselection_out_of_bounds() -> Result<(), StamError> {
+    let mut store = AnnotationStore::default();
+    let handle = store.insert(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text("Hello world")
+            .build()?,
+    )?;
+    let resource = store.resource(handle).unwrap();
     let result = resource.textselection(&Offset::simple(0, 999));
     assert!(result.is_err());
+    Ok(())
 }

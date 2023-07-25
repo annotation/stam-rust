@@ -1,10 +1,13 @@
 use std::marker::PhantomData;
 
-use crate::annotation::{Annotation, TargetIter};
+use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
+use crate::annotationstore::AnnotationStore;
+use crate::api::{FindText, TargetIter};
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
+use crate::error::StamError;
 use crate::resources::TextResource;
 use crate::selector::{Selector, SelectorIter};
 use crate::store::*;
@@ -20,6 +23,7 @@ impl<'store> ResultItem<'store, Annotation> {
         //                                                  ^ -- we track ancestors because it is needed to resolve relative offsets
         TargetIter {
             store: self.store(),
+            rootstore: self.store(),
             iter: selector_iter,
             _phantomdata: PhantomData,
         }
@@ -31,6 +35,7 @@ impl<'store> ResultItem<'store, Annotation> {
             self.as_ref().target().iter(self.store(), true, false);
         TargetIter {
             store: self.store(),
+            rootstore: self.store(),
             iter: selector_iter,
             _phantomdata: PhantomData,
         }
@@ -51,6 +56,7 @@ impl<'store> ResultItem<'store, Annotation> {
                 .iter(self.store(), recursive, track_ancestors);
         TargetIter {
             store: self.store(),
+            rootstore: self.store(),
             iter: selector_iter,
             _phantomdata: PhantomData,
         }
@@ -154,7 +160,7 @@ impl<'store> ResultItem<'store, Annotation> {
                                     .get(*dataset_handle)
                                     .map(|set| {
                                         set.annotationdata(*data_handle)
-                                            .map(|data| data.as_resultitem(set))
+                                            .map(|data| data.as_resultitem(set, store))
                                             .expect("data must exist")
                                     })
                                     .expect("set must exist"),
@@ -297,9 +303,8 @@ impl<'store> ResultItem<'store, Annotation> {
         &self,
         operator: TextSelectionOperator,
     ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        let store = self.store();
         self.related_text(operator)
-            .filter_map(|tsel| tsel.annotations(store))
+            .filter_map(|tsel| tsel.annotations())
             .flatten()
     }
 
@@ -328,12 +333,12 @@ impl<'store> ResultItem<'store, Annotation> {
     where
         'a: 'store,
     {
-        let store = self.store();
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        if let Some((test_set_handle, test_key_handle)) =
+            self.store().find_data_request_resolver(set, key)
         {
             Some(self.related_text(operator).map(move |tsel| {
                 let data = tsel
-                    .find_data_about(test_set_handle, test_key_handle, value, store)
+                    .find_data_about(test_set_handle, test_key_handle, value)
                     .into_iter()
                     .flatten()
                     .collect();
@@ -358,11 +363,11 @@ impl<'store> ResultItem<'store, Annotation> {
     where
         'a: 'store,
     {
-        let store = self.store();
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        if let Some((test_set_handle, test_key_handle)) =
+            self.store().find_data_request_resolver(set, key)
         {
             Some(self.related_text(operator).filter_map(move |tsel| {
-                if tsel.test_data_about(test_set_handle, test_key_handle, value, store) {
+                if tsel.test_data_about(test_set_handle, test_key_handle, value) {
                     Some(tsel)
                 } else {
                     None
@@ -370,6 +375,39 @@ impl<'store> ResultItem<'store, Annotation> {
             }))
         } else {
             None
+        }
+    }
+}
+
+impl AnnotationStore {
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
+    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
+    /// instead for those.
+    ///
+    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
+    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
+    pub(crate) fn textselection_by_selector<'b>(
+        &self,
+        selector: &Selector,
+        subselectors: Option<impl Iterator<Item = &'b Selector>>,
+    ) -> Result<ResultTextSelection, StamError> {
+        match selector {
+            Selector::TextSelector(res_id, offset) => {
+                let resource: &TextResource = self.get(*res_id)?;
+                let mut textselection = resource.as_resultitem(self, self).textselection(offset)?;
+                if let Some(subselectors) = subselectors {
+                    for selector in subselectors {
+                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
+                            //each annotation selector selects a subslice of the previous textselection
+                            textselection = textselection.textselection(&suboffset)?;
+                        }
+                    }
+                }
+                Ok(textselection)
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "selector for Annotationstore::textselection() must be a TextSelector",
+            )),
         }
     }
 }

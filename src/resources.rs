@@ -389,6 +389,11 @@ impl TextResourceBuilder {
         self
     }
 
+    pub fn with_config(mut self, config: Config) -> Self {
+        self.config = config;
+        self
+    }
+
     pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
         self.filename = Some(filename.into());
         self
@@ -413,7 +418,7 @@ impl TextResourceBuilder {
 
 impl TextResource {
     /// Instantiates a new completely empty TextResource
-    pub fn new(id: impl Into<String>, config: Config) -> Self {
+    pub(crate) fn new(id: impl Into<String>, config: Config) -> Self {
         Self {
             id: id.into(),
             intid: None,
@@ -429,7 +434,7 @@ impl TextResource {
     }
 
     /// Create a new TextResource from file, the text will be loaded into memory entirely
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+    pub(crate) fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!(
                 "TextResourceBuilder::from_file: filename={:?} config={:?}",
@@ -443,7 +448,7 @@ impl TextResource {
     /// The use of [`Self.from_file()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
     #[allow(unused_assignments)]
-    pub fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
+    pub(crate) fn with_file(mut self, filename: &str, config: Config) -> Result<Self, StamError> {
         self.check_mutation();
         self = TextResourceBuilder::from_file(filename, config)?.build()?;
         Ok(self)
@@ -452,7 +457,7 @@ impl TextResource {
     /// Sets the filename for writing, will force a write to it when the underlying store is serialized.
     /// *CAUTION*: This method does not load a file so it will overwrite any existing file!
     // Use [`Self.from_file()`] or [`Self.with_file()`] instead to load from file.
-    pub fn with_filename(mut self, filename: &str) -> Self {
+    pub(crate) fn with_filename(mut self, filename: &str) -> Self {
         self.filename = Some(filename.to_string());
         self.mark_changed();
         self
@@ -461,7 +466,7 @@ impl TextResource {
     /// Sets the text of the TextResource from string, kept in memory entirely
     /// The use of [`Self.from_string()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
-    pub fn with_string(mut self, text: impl Into<String>) -> Self {
+    pub(crate) fn with_string(mut self, text: impl Into<String>) -> Self {
         self.check_mutation();
         self.text = text.into();
         self.textlen = self.text.chars().count();
@@ -565,6 +570,28 @@ impl TextResource {
             }
         }
         Ok(None)
+    }
+
+    /// Low-level method to get a textselection, if the text selection is known, its' handle will be set
+    ///  If you don't care about unbound textselection but only known ones, then use `known_textselection()` instead.
+    pub fn offset_to_textselection(&self, offset: &Offset) -> Result<TextSelection, StamError> {
+        let (begin, end) = (
+            self.beginaligned_cursor(&offset.begin)?,
+            self.beginaligned_cursor(&offset.end)?,
+        );
+        let mut handle: Option<TextSelectionHandle> = None;
+        if let Some(beginitem) = self.positionindex.0.get(&begin) {
+            for (end2, gothandle) in beginitem.begin2end.iter() {
+                if *end2 == end {
+                    handle = Some(*gothandle);
+                }
+            }
+        }
+        Ok(TextSelection {
+            intid: handle,
+            begin,
+            end,
+        })
     }
 
     /// Returns an unsorted iterator over all textselections in this resource
@@ -800,110 +827,6 @@ impl<'store> Text<'store, 'store> for TextResource {
                 Cursor::BeginAligned(bytecursor),
                 "TextResource::utf8byte_to_charpos() (cursor value in this error is to be interpreted as a utf-8 byte position in this rare context!!). It is also possible that the UTF-8 byte is not out of bounds but ends up in the middle of a unicodepoint.",
             ))
-        }
-    }
-
-    /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
-    /// exists, the existing one will be returned.
-    /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
-    ///
-    /// The [`TextSelection`] is returned in a fat pointer (`WrappedTextSelection`) that also contains reference to the underlying store.
-    fn textselection(
-        &'store self,
-        offset: &Offset,
-    ) -> Result<ResultTextSelection<'store>, StamError> {
-        match self.known_textselection(offset) {
-            Ok(Some(handle)) => {
-                //existing textselection
-                let textselection: &TextSelection = self.get(handle)?; //shouldn't fail here anymore
-                let wrapped = textselection.as_resultitem(self);
-                Ok(ResultTextSelection::Bound(wrapped))
-            }
-            Ok(None) => {
-                let textselection: TextSelection = self.textselection_by_offset(offset)?;
-                Ok(ResultTextSelection::Unbound(self, textselection))
-            }
-            Err(err) => Err(err), //an error occured, propagate
-        }
-    }
-
-    /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`FindRegexMatch'] struct.
-    ///
-    /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
-    /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
-    /// the entire expression is returned.
-    ///
-    /// The `allow_overlap` parameter determines if the matching expressions are allowed to
-    /// overlap. It you are doing some form of tokenisation, you also likely want this set to
-    /// false. All of this only matters if you supply multiple regular expressions.
-    ///
-    /// Results are returned in the exact order they are found in the text
-    fn find_text_regex<'regex>(
-        &'store self,
-        expressions: &'regex [Regex],
-        precompiledset: Option<&RegexSet>,
-        allow_overlap: bool,
-    ) -> Result<FindRegexIter<'store, 'regex>, StamError> {
-        debug(self.config(), || {
-            format!("find_text_regex: expressions={:?}", expressions)
-        });
-        let selectexpressions =
-            find_text_regex_select_expressions(self.text(), expressions, precompiledset)?;
-        //Returns an iterator that does the remainder of the actual searching
-        Ok(FindRegexIter {
-            resource: self,
-            expressions,
-            selectexpressions,
-            matchiters: Vec::new(),
-            nextmatches: Vec::new(),
-            text: self.text(),
-            begincharpos: 0,
-            beginbytepos: 0,
-            allow_overlap,
-        })
-    }
-
-    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
-    ///
-    /// This search is case sensitive, use [`Self.find_text_nocase()`] to search case insensitive.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
-    ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text()` on that instead.
-    fn find_text<'fragment>(
-        &'store self,
-        fragment: &'fragment str,
-    ) -> FindTextIter<'store, 'fragment> {
-        FindTextIter {
-            resource: self,
-            fragment,
-            offset: Offset::whole(),
-        }
-    }
-
-    /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
-    ///
-    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
-    ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
-    fn find_text_nocase(&'store self, fragment: &str) -> FindNoCaseTextIter<'store> {
-        FindNoCaseTextIter {
-            resource: self,
-            fragment: fragment.to_lowercase(),
-            offset: Offset::whole(),
-        }
-    }
-
-    fn split_text<'b>(&'store self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
-        SplitTextIter {
-            resource: self,
-            iter: self.text().split(delimiter),
-            byteoffset: 0,
         }
     }
 

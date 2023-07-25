@@ -26,7 +26,7 @@ mod csv;
 
 #[cfg(feature = "csv")]
 pub use crate::csv::{FromCsv, ToCsv};
-pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle, TargetIter, TargetIterItem};
+pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
 pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 pub use annotationstore::AnnotationStore;
@@ -45,7 +45,7 @@ pub use selector::{
     Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
 };
 pub use store::{BuildItem, Request, ResultItem, Storable, Store, StoreFor};
-pub use text::{FindRegexIter, FindRegexMatch, Text};
+pub use text::Text;
 pub use textselection::{
     ResultTextSelection, TestTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
 };
