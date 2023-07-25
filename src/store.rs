@@ -951,6 +951,16 @@ where
     rootstore: Option<&'store AnnotationStore>,
 }
 
+#[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
+impl<'store, T> TypeInfo for ResultItem<'store, T>
+where
+    T: Storable + TypeInfo,
+{
+    fn typeinfo() -> Type {
+        T::typeinfo()
+    }
+}
+
 impl<'store, T> Debug for ResultItem<'store, T>
 where
     T: Storable,
