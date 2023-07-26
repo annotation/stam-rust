@@ -3,6 +3,9 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Deref;
 
+mod common;
+use crate::common::*;
+
 use stam::*;
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
@@ -52,118 +55,6 @@ fn sanity_check() -> Result<(), StamError> {
     Ok(())
 }
 
-pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
-    //instantiate with builder pattern
-    let store = AnnotationStore::new(Config::default().with_debug(true))
-        .with_id("test")
-        .add(
-            TextResourceBuilder::new()
-                .with_id("testres")
-                .with_text("Hello world")
-                .build()?,
-        )?
-        .add(
-            AnnotationDataSet::new(Config::default())
-                .with_id("testdataset")
-                .add(DataKey::new("pos"))?
-                .with_data_with_id("pos", "noun", "D1")?,
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A1")
-                .with_target(SelectorBuilder::textselector(
-                    "testres",
-                    Offset::simple(6, 11),
-                ))
-                .with_existing_data("testdataset", "D1"),
-        )?;
-    Ok(store)
-}
-
-pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
-    //instantiate with builder pattern
-    let store = AnnotationStore::default()
-        .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A1")
-                .with_target(SelectorBuilder::textselector(
-                    "testres",
-                    Offset::simple(6, 11),
-                ))
-                .with_data_with_id("testdataset", "pos", "noun", "D1"),
-        )?;
-    Ok(store)
-}
-
-pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
-    //instantiate with builder pattern
-    let store = AnnotationStore::default()
-        .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A1")
-                .with_target(SelectorBuilder::textselector(
-                    "testres",
-                    Offset::simple(6, 11),
-                ))
-                .with_data_with_id("testdataset", "pos", "noun", "D1"),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A2")
-                .with_target(SelectorBuilder::textselector(
-                    "testres",
-                    Offset::simple(0, 5),
-                ))
-                .with_data_with_id("testdataset", "pos", "interjection", "D2"),
-        )?;
-    Ok(store)
-}
-
-pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
-    //this example includes a higher-order annotation with relative offset
-    let store = AnnotationStore::default()
-        .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "I have no special talent. I am only passionately curious. -- Albert Einstein",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("sentence2")
-                .with_target(SelectorBuilder::textselector(
-                    "testres",
-                    Offset::simple(26, 57),
-                ))
-                .with_data("testdataset", "type", "sentence"),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("sentence2word2")
-                .with_target(SelectorBuilder::annotationselector(
-                    "sentence2",
-                    Some(Offset::simple(2, 4)),
-                ))
-                .with_data("testdataset", "type", "word"),
-        )?;
-    Ok(store)
-}
-
 #[test]
 fn instantiation_with_builder_pattern() -> Result<(), StamError> {
     setup_example_1()?;
@@ -171,76 +62,7 @@ fn instantiation_with_builder_pattern() -> Result<(), StamError> {
 }
 
 #[test]
-fn store_resolve_id() -> Result<(), StamError> {
-    let store = setup_example_1()?;
-
-    //this is a bit too contrived
-    let handle: AnnotationHandle =
-        <AnnotationStore as StoreFor<Annotation>>::resolve_id(&store, "A1")?;
-    let _annotation: &Annotation = store.get(handle)?;
-
-    //This is the shortcut if you want an intermediate handle
-    let handle = store.resolve_annotation_id("A1")?;
-    let _annotation: &Annotation = store.get(handle)?;
-
-    //this is the direct method without intermediate handle (still used internally but no longer exposed)
-    let _annotation: &Annotation = store.get("A1")?;
-    Ok(())
-}
-
-#[test]
-fn store_get_by_id() -> Result<(), StamError> {
-    let store = setup_example_1()?;
-
-    //test by public ID
-    let _resource: &TextResource = store.get("testres")?;
-    let dataset: &AnnotationDataSet = store.get("testdataset")?;
-    let _datakey: &DataKey = dataset.get("pos")?;
-    let _annotationdata: &AnnotationData = dataset.get("D1")?;
-    let _annotation: &Annotation = store.get("A1")?;
-    Ok(())
-}
-
-#[test]
-fn store_get_by_id_2() -> Result<(), StamError> {
-    let store = setup_example_2()?;
-
-    //test by public ID
-    let _resource: &TextResource = store.get("testres")?;
-    let dataset: &AnnotationDataSet = store.get("testdataset")?;
-    let _datakey: &DataKey = dataset.get("pos")?;
-    let _annotationdata: &AnnotationData = dataset.get("D1")?;
-    let _annotation: &Annotation = store.get("A1")?;
-    Ok(())
-}
-
-#[test]
-fn store_temp_id() -> Result<(), StamError> {
-    let store = setup_example_1()?;
-
-    let annotation: &Annotation = store.get("A1")?;
-    assert_eq!(annotation.temp_id().unwrap(), "!A0");
-
-    let dataset: &AnnotationDataSet = store.get("testdataset")?;
-    assert_eq!(dataset.temp_id().unwrap(), "!S0");
-    let key: &DataKey = dataset.get("pos")?;
-    assert_eq!(key.temp_id().unwrap(), "!K0");
-
-    let annotation2 = store
-        .annotation("!A0")
-        .expect("resolving via temporary ID should work too");
-    assert_eq!(annotation2.id().unwrap(), "A1");
-
-    let key2 = dataset
-        .key("!K0")
-        .expect("resolving via temporary ID should work too");
-    assert_eq!(key2.id().unwrap(), "pos");
-
-    Ok(())
-}
-
-#[test]
-fn store_iter_data() -> Result<(), StamError> {
+fn annotation_iter_data() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let annotation = store.annotation("A1").unwrap();
 
@@ -263,55 +85,14 @@ fn store_iter_data() -> Result<(), StamError> {
 #[test]
 fn resource_text() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let resource: &TextResource = store.get("testres")?;
+    let resource = store.resource("testres").expect("resource must exist");
     let text = resource.text();
     assert_eq!(text, "Hello world");
     Ok(())
 }
 
 #[test]
-fn store_get_text_slice() -> Result<(), StamError> {
-    let store = setup_example_1()?;
-    let resource: &TextResource = store.get("testres")?;
-    let text = resource.text_by_offset(&Offset::new(
-        Cursor::BeginAligned(0),
-        Cursor::BeginAligned(5),
-    ))?;
-    assert_eq!(text, "Hello", "testing slice 0:5 (1)");
-    let text = resource.text_by_offset(&Offset::simple(0, 5))?; //same as above, shorthand
-    assert_eq!(text, "Hello", "testing slice 0:5 (2)");
-    let text = resource.text_by_offset(&Offset::simple(6, 11))?;
-    assert_eq!(text, "world", "testing slice 6:11");
-    let text =
-        resource.text_by_offset(&Offset::new(Cursor::EndAligned(-5), Cursor::EndAligned(0)))?;
-    assert_eq!(text, "world", "testing slice -5:-0");
-    let text =
-        resource.text_by_offset(&Offset::new(Cursor::EndAligned(-11), Cursor::EndAligned(0)))?;
-    assert_eq!(text, "Hello world", "testing slice -11:-0");
-    let text = resource.text_by_offset(&Offset::new(
-        Cursor::EndAligned(-11),
-        Cursor::EndAligned(-6),
-    ))?;
-    assert_eq!(text, "Hello", "testing slice -11:-6");
-    //these should produce an InvalidOffset error (begin >= end)
-    assert!(
-        resource.text_by_offset(&Offset::simple(11, 7)).is_err(),
-        "testing invalid slice 11:7"
-    );
-    assert!(
-        resource
-            .text_by_offset(&Offset::new(
-                Cursor::EndAligned(-9),
-                Cursor::EndAligned(-11)
-            ))
-            .is_err(),
-        "testing invalid end aligned slice -9:-11"
-    );
-    Ok(())
-}
-
-#[test]
-fn store_get_text_selection() -> Result<(), StamError> {
+fn resource_textselection() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let resource = store.resource("testres").unwrap();
     let textselection = resource.textselection(&Offset::new(
@@ -335,17 +116,18 @@ fn store_get_text_selection() -> Result<(), StamError> {
 }
 
 #[test]
-fn text_selector() -> Result<(), StamError> {
+fn annotation_text() -> Result<(), StamError> {
     let store = setup_example_1()?;
     let annotation = store.annotation("A1").unwrap();
-    let _resource = annotation.resources().next().unwrap();
+    let resource = annotation.resources().next().unwrap();
+    assert_eq!(resource.id(), Some("testres"));
     let text: &str = annotation.text().next().unwrap();
     assert_eq!(text, "world");
     Ok(())
 }
 
 #[test]
-fn annotate() -> Result<(), StamError> {
+fn store_annotate() -> Result<(), StamError> {
     let mut store = setup_example_1()?;
     store.annotate(
         AnnotationBuilder::new()
@@ -367,7 +149,7 @@ fn annotate() -> Result<(), StamError> {
 }
 
 #[test]
-fn annotate_existing_data() -> Result<(), StamError> {
+fn store_annotate_existing_data() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     store.annotate(
         AnnotationBuilder::new()
@@ -387,7 +169,7 @@ fn annotate_existing_data() -> Result<(), StamError> {
 }
 
 #[test]
-fn add_after_borrow() -> Result<(), StamError> {
+fn store_annotate_add_after_borrow() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     let annotation = store.annotation("A1").unwrap();
     let mut count = 0;
@@ -407,7 +189,7 @@ fn add_after_borrow() -> Result<(), StamError> {
 }
 
 #[test]
-fn add_during_borrowproblem() -> Result<(), StamError> {
+fn store_annotate_add_during_borrowproblem() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     let annotation: &Annotation = store.get("A1")?;
     //this is an antipattern!
@@ -422,76 +204,6 @@ fn add_during_borrowproblem() -> Result<(), StamError> {
                 .with_existing_data(dataset, data),
         )?;
     }
-    Ok(())
-}
-
-#[test]
-fn parse_json_annotationdata() -> Result<(), std::io::Error> {
-    let json = r#"{ 
-        "@type": "AnnotationData",
-        "@id": "D2",
-        "key": "pos",
-        "value": {
-            "@type": "String",
-            "value": "verb"
-        }
-    }"#;
-
-    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
-
-    assert_eq!(data.id(), &BuildItem::from("D2"));
-    assert_eq!(data.id(), "D2"); //can also be compared with &str etc
-    assert_eq!(data.key(), &BuildItem::from("pos"));
-    assert_eq!(data.key(), "pos");
-    assert_eq!(data.value(), &DataValue::String("verb".into()));
-    assert_eq!(data.value(), "verb"); //shorter version
-
-    let mut store = setup_example_2().unwrap();
-    let dataset: &mut AnnotationDataSet = store.get_mut("testdataset").unwrap();
-    let datahandle = dataset.build_insert_data(data, true).unwrap();
-
-    let data: &AnnotationData = dataset.get(datahandle).unwrap();
-    let key: &DataKey = dataset.get(data.key()).unwrap();
-
-    assert_eq!(data.id(), Some("D2")); //can also be compared with &str etc
-    assert_eq!(key.id(), Some("pos"));
-    assert_eq!(data.value(), &DataValue::String("verb".into()));
-    assert_eq!(data.value(), "verb"); //shorter version
-
-    Ok(())
-}
-
-#[test]
-fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
-    let data = r#"{ 
-        "@type": "AnnotationData",
-        "@id": "D1",
-        "set": "testdataset"
-    }"#;
-
-    let data: AnnotationDataBuilder = serde_json::from_str(data)?;
-
-    assert_eq!(data.id(), &BuildItem::from("D1"));
-    assert_eq!(data.id(), "D1"); //can also be compared with &str etc
-    assert_eq!(data.dataset(), &BuildItem::from("testdataset"));
-    assert_eq!(data.dataset(), "testdataset");
-
-    let mut store = setup_example_2().unwrap();
-    let dataset: &mut AnnotationDataSet = store.get_mut("testdataset").unwrap();
-    //we already had this annotation, check prior to insert
-    let datahandle1: AnnotationDataHandle = dataset.annotationdata("D1").unwrap().handle().unwrap();
-    //insert (which doesn't really insert in this case) but returns the same existing handle
-    let datahandle2 = dataset.build_insert_data(data, true).unwrap();
-    assert_eq!(datahandle1, datahandle2);
-
-    let data: &AnnotationData = dataset.get(datahandle2).unwrap();
-    let key: &DataKey = dataset.get(data.key()).unwrap();
-
-    assert_eq!(data.id(), Some("D1")); //can also be compared with &str etc
-    assert_eq!(key.id(), Some("pos"));
-    assert_eq!(data.value(), &DataValue::String("noun".into()));
-    assert_eq!(data.value(), "noun"); //shorter version
-
     Ok(())
 }
 
@@ -578,7 +290,7 @@ fn parse_json_annotation() -> Result<(), std::io::Error> {
 }
 
 #[test]
-fn parse_json_annotationset() -> Result<(), StamError> {
+fn parse_json_dataset() -> Result<(), StamError> {
     let json = r#"{ 
         "@type": "AnnotationDataSet",
         "@id": "https://purl.org/dc",
@@ -747,12 +459,12 @@ const EXAMPLE_3_TEMP_ID: &'static str = r#"{
 
 fn example_3_common_tests(store: &AnnotationStore) -> Result<(), StamError> {
     //repeat some common tests
-    let _resource: &TextResource = store.get("testres")?;
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
+    let resource = store.resource("testres").expect("resource must exist");
+    let annotationset = store.dataset("testdataset").expect("dataset must exist");
 
-    let _datakey: &DataKey = annotationset.get("pos")?;
-    let _annotationdata: &AnnotationData = annotationset.get("D1")?;
-    let _annotation: &Annotation = store.get("A1")?;
+    let datakey = annotationset.key("pos").expect("key must exist");
+    let _annotationdata = annotationset.annotationdata("D1").expect("data must exist");
+    let _annotation = store.annotation("A1").expect("annotation must exist");
 
     for key in annotationset.keys() {
         //there is only one so we can test in loop body
@@ -814,40 +526,6 @@ fn parse_json_annotationstore_from_file() -> Result<(), StamError> {
 }
 
 #[test]
-fn as_resultitem() -> Result<(), StamError> {
-    let store = setup_example_2()?;
-
-    let annotation: &Annotation = store.get("A1")?;
-    let wrappedannotation = annotation.as_resultitem(&store, &store);
-
-    assert_eq!(wrappedannotation.id(), Some("A1"));
-    let _store2 = wrappedannotation.store();
-
-    Ok(())
-}
-
-#[test]
-fn serialize_annotationset() -> Result<(), StamError> {
-    let store = setup_example_2()?;
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    serde_json::to_string(&annotationset).expect("serialization");
-    Ok(())
-}
-
-#[test]
-fn serialize_annotationstore() -> Result<(), StamError> {
-    let store = setup_example_2()?;
-    serde_json::to_string(&store).expect("serialization");
-    Ok(())
-}
-
-#[test]
-fn serialize_annotationstore_to_file() -> Result<(), StamError> {
-    let store = setup_example_2()?;
-    store.to_json_file("/tmp/testoutput.stam.json", &Config::default())
-}
-
-#[test]
 fn loop_annotations() -> Result<(), StamError> {
     let store = setup_example_2()?;
     for annotation in store.annotations() {
@@ -868,7 +546,7 @@ fn loop_annotations() -> Result<(), StamError> {
 }
 
 #[test]
-fn textselection() -> Result<(), StamError> {
+fn annotation_textselections() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let sentence = store.annotation("sentence2").unwrap();
     for textselection in sentence.textselections() {
@@ -878,28 +556,9 @@ fn textselection() -> Result<(), StamError> {
 }
 
 #[test]
-fn selectoriter() -> Result<(), StamError> {
+fn annotation_textselections_relative() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let word: &Annotation = store.get("sentence2word2")?;
-    for (i, selectoritem) in word.target().iter(&store, true, true).enumerate() {
-        match i {
-            0 => assert!(selectoritem.ancestors().is_empty()),
-            1 => {
-                assert_eq!(selectoritem.ancestors().len(), 1);
-                assert_eq!(
-                    selectoritem.ancestors().get(0).unwrap().kind(),
-                    SelectorKind::AnnotationSelector
-                );
-            }
-            _ => panic!("expected only two iterations!"),
-        }
-    }
-    Ok(())
-}
-
-#[test]
-fn textselection_relative() -> Result<(), StamError> {
-    let store = setup_example_3()?;
+    //this annotation uses relative position
     let word = store.annotation("sentence2word2").unwrap();
     for textselection in word.textselections() {
         assert_eq!(textselection.text(), "am")
@@ -908,7 +567,7 @@ fn textselection_relative() -> Result<(), StamError> {
 }
 
 #[test]
-fn textselection_relative_endaligned() -> Result<(), StamError> {
+fn annotation_textselections_relative_endaligned() -> Result<(), StamError> {
     let store = setup_example_3()?.with_annotation(
         AnnotationBuilder::new()
             .with_id("sentence2lastword")
@@ -926,7 +585,7 @@ fn textselection_relative_endaligned() -> Result<(), StamError> {
 }
 
 #[test]
-fn existing_textselection() -> Result<(), StamError> {
+fn resource_textselection_existing() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let resource = store
         .resource("testres")
@@ -956,20 +615,6 @@ fn annotations_by_offset() -> Result<(), StamError> {
     Ok(())
 }
 
-/*
-#[test]
-fn annotations_by_offset_lowlevel() -> Result<(), StamError> {
-    let store = setup_example_2()?;
-    let resource: &TextResource = store.get("testres")?;
-    let textselection = resource.textselection(&Offset::simple(6, 11))?;
-    let v: &Vec<_> = store
-        .annotations_by_textselection(resource.handle().unwrap(), textselection.as_ref().unwrap())
-        .expect("some");
-    assert_eq!(v.len(), 1);
-    Ok(())
-}
-*/
-
 #[test]
 fn textselections_by_annotation() -> Result<(), StamError> {
     let store = setup_example_2()?;
@@ -988,8 +633,8 @@ fn textselections_by_annotation() -> Result<(), StamError> {
 #[test]
 fn textselections_by_resource_unsorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
-    let resource: &TextResource = store.get("testres")?;
-    let v: Vec<_> = resource.textselections_unsorted().collect();
+    let resource = store.resource("testres").expect("resource");
+    let v: Vec<_> = resource.as_ref().textselections_unsorted().collect(); //lower-level method
     assert_eq!(v[0].begin(), 6);
     assert_eq!(v[0].end(), 11);
     assert_eq!(v[1].begin(), 0);
@@ -1001,74 +646,11 @@ fn textselections_by_resource_unsorted() -> Result<(), StamError> {
 #[test]
 fn textselections_by_resource_sorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
-    let resource: &TextResource = store.get("testres")?;
-    let v: Vec<_> = resource.iter().collect();
+    let resource = store.resource("testres").expect("resource");
+    let v: Vec<_> = resource.textselections().collect();
     assert_eq!(v.len(), 2);
     assert_eq!(v[0].begin(), 0);
     assert_eq!(v[0].end(), 5);
-    Ok(())
-}
-
-#[test]
-fn positionindex() -> Result<(), StamError> {
-    let store = setup_example_4()?;
-    let resource: &TextResource = store.get("testres")?;
-    let v: Vec<&usize> = resource.positions(PositionMode::Both).collect();
-    assert_eq!(v.len(), 4);
-    assert_eq!(v[0], &0);
-    assert_eq!(v[1], &5);
-    assert_eq!(v[2], &6);
-    assert_eq!(v[3], &11);
-    let v2: Vec<_> = resource
-        .position(0)
-        .unwrap()
-        .iter_begin2end()
-        .collect::<Vec<_>>();
-    assert_eq!(v2.len(), 1);
-    assert_eq!(v2[0].0, 5);
-    let v2: Vec<_> = resource
-        .position(6)
-        .unwrap()
-        .iter_begin2end()
-        .collect::<Vec<_>>();
-    assert_eq!(v2.len(), 1);
-    assert_eq!(v2[0].0, 11);
-    Ok(())
-}
-
-#[test]
-fn positionindex_mode_begins() -> Result<(), StamError> {
-    let store = setup_example_4()?;
-    let resource: &TextResource = store.get("testres")?;
-    let v: Vec<&usize> = resource.positions(PositionMode::Begin).collect();
-    assert_eq!(v.len(), 2);
-    assert_eq!(v[0], &0);
-    assert_eq!(v[1], &6);
-    let v2: Vec<_> = resource
-        .position(0)
-        .unwrap()
-        .iter_begin2end()
-        .collect::<Vec<_>>();
-    assert_eq!(v2.len(), 1);
-    assert_eq!(v2[0].0, 5);
-    let v2: Vec<_> = resource
-        .position(6)
-        .unwrap()
-        .iter_begin2end()
-        .collect::<Vec<_>>();
-    assert_eq!(v2.len(), 1);
-    assert_eq!(v2[0].0, 11);
-    Ok(())
-}
-
-#[test]
-fn textselections_by_resource_range() -> Result<(), StamError> {
-    let store = setup_example_4()?;
-    let resource: &TextResource = store.get("testres")?;
-    let v: Vec<_> = resource.range(6, 11).collect();
-    assert_eq!(v.len(), 1);
-    assert_eq!(v[0].begin(), 6);
-    assert_eq!(v[0].end(), 11);
     Ok(())
 }
 
@@ -1086,18 +668,7 @@ fn text_by_annotation() -> Result<(), StamError> {
 }
 
 #[test]
-fn data_by_value_low() -> Result<(), StamError> {
-    let store = setup_example_2()?;
-    let annotationset: &AnnotationDataSet = store.get("testdataset")?;
-    let annotationdata: Option<&AnnotationData> =
-        annotationset.data_by_value("pos", &"noun".into());
-    assert!(annotationdata.is_some());
-    assert_eq!(annotationdata.unwrap().id(), Some("D1"));
-    Ok(())
-}
-
-#[test]
-fn data_by_value_high() -> Result<(), StamError> {
+fn data_by_value() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let dataset = store.dataset("testdataset").unwrap();
     let key = dataset.key("pos").unwrap();
@@ -1141,6 +712,19 @@ fn find_data_by_key() -> Result<(), StamError> {
 }
 
 #[test]
+fn find_data_by_key_2() -> Result<(), StamError> {
+    let store = setup_example_3()?;
+    let dataset = store.dataset("testdataset").unwrap();
+    let key = dataset.key("type").unwrap();
+    let mut count = 0;
+    for _ in key.find_data(&DataOperator::Any) {
+        count += 1;
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
 fn find_data_all() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let annotationset = store.dataset("testdataset").unwrap();
@@ -1156,25 +740,16 @@ fn find_data_all() -> Result<(), StamError> {
     Ok(())
 }
 
-pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::default()
-        .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("WordAnnotation")
-                .with_target(SelectorBuilder::multiselector([
-                    SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
-                    SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
-                ]))
-                .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
-        )?;
-    Ok(store)
+#[test]
+fn find_data_all_2() -> Result<(), StamError> {
+    let store = setup_example_3()?;
+    let annotationset = store.dataset("testdataset").unwrap();
+    let mut count = 0;
+    for _ in annotationset.data() {
+        count += 1;
+    }
+    assert_eq!(count, 2);
+    Ok(())
 }
 
 #[test]
@@ -1193,102 +768,9 @@ fn test_multiselector_iter() -> Result<(), StamError> {
     Ok(())
 }
 
-pub fn setup_example_multiselector2() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::default()
-        .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A1")
-                .with_target(SelectorBuilder::textselector(
-                    "testres",
-                    Offset::simple(6, 11),
-                ))
-                .with_data_with_id("testdataset", "pos", "noun", "D1"),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A2")
-                .with_target(SelectorBuilder::textselector(
-                    "testres",
-                    Offset::simple(0, 5),
-                ))
-                .with_data_with_id("testdataset", "pos", "interjection", "D2"),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("WordAnnotation")
-                .with_target(SelectorBuilder::multiselector([
-                    SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
-                    SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
-                ]))
-                .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("AllPosAnnotation")
-                .with_target(SelectorBuilder::multiselector(vec![
-                    SelectorBuilder::annotationselector("A1", Some(Offset::whole())),
-                    SelectorBuilder::annotationselector("A2", Some(Offset::whole())),
-                ]))
-                .with_data_with_id("testdataset", "hastype", "pos", "AllPosAnnotationData"),
-        )?;
-    Ok(store)
-}
-
-#[test]
-fn test_multiselector2_creation_and_sanity() -> Result<(), StamError> {
-    let mut store = setup_example_multiselector2()?;
-
-    //annotate existing data (just to test sanity)
-    store.annotate(
-        AnnotationBuilder::new()
-            .with_target(SelectorBuilder::textselector(
-                "testres",
-                Offset::simple(0, 5),
-            ))
-            .with_data(
-                "testdataset",
-                "pos",
-                DataValue::String("greeting".to_string()),
-            ),
-    )?;
-
-    //sanity check
-    let resource: &TextResource = store.get("testres")?;
-    let v: Vec<&usize> = resource.positions(PositionMode::Begin).collect();
-    assert_eq!(v.len(), 2);
-    assert_eq!(v[0], &0);
-    assert_eq!(v[1], &6);
-    let v2: Vec<_> = resource
-        .position(0)
-        .unwrap()
-        .iter_begin2end()
-        .collect::<Vec<_>>();
-    assert_eq!(v2.len(), 1);
-    assert_eq!(v2[0].0, 5);
-    let v2: Vec<_> = resource
-        .position(6)
-        .unwrap()
-        .iter_begin2end()
-        .collect::<Vec<_>>();
-    assert_eq!(v2.len(), 1);
-    assert_eq!(v2[0].0, 11);
-
-    let v3: Vec<_> = resource.textselections_unsorted().collect();
-    assert_eq!(v3.len(), 2);
-
-    Ok(())
-}
-
 #[test]
 fn test_multiselector2_iter() -> Result<(), StamError> {
-    let store = setup_example_multiselector2()?;
+    let store = setup_example_multiselector_2()?;
     let annotation = store.annotation("WordAnnotation").unwrap();
     let result: Vec<&str> = annotation.text().collect();
     assert_eq!(result[0], "Hello");
@@ -1687,83 +1169,6 @@ fn parse_csv() -> Result<(), StamError> {
     Ok(())
 }
 
-const EXAMPLE5_TEXT: &str = "
-Article 1
-
-All human beings are born free and equal in dignity and rights. They are endowed with reason and conscience and should act towards one another in a spirit of brotherhood.
-
-Article 2
-
-Everyone is entitled to all the rights and freedoms set forth in this Declaration, without distinction of any kind, such as race, colour, sex, language, religion, political or other opinion, national or social origin, property, birth or other status. Furthermore, no distinction shall be made on the basis of the political, jurisdictional or international status of the country or territory to which a person belongs, whether it be independent, trust, non-self-governing or under any other limitation of sovereignty.
-
-Article 3
-
-Everyone has the right to life, liberty and security of person.
-
-Article 4
-
-No one shall be held in slavery or servitude; slavery and the slave trade shall be prohibited in all their forms.
-";
-
-pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::default()
-        .with_id("example5")
-        .add(TextResource::from_string(
-            "humanrights",
-            EXAMPLE5_TEXT,
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?;
-    Ok(store)
-}
-
-pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
-    let store = AnnotationStore::default()
-        .with_id("example6")
-        .add(TextResource::from_string(
-            "humanrights",
-            "All human beings are born free and equal in dignity and rights.",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
-        .with_annotation(AnnotationBuilder::new().with_id("Sentence1").with_target(
-            SelectorBuilder::textselector("humanrights", Offset::whole()),
-        ))?
-        .with_annotation(AnnotationBuilder::new().with_id("Phrase1").with_target(
-            SelectorBuilder::textselector(
-                "humanrights",
-                Offset::simple(17, 40), //"are born free and equal"
-            ),
-        ))?;
-
-    Ok(store)
-}
-
-pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle, StamError> {
-    store.annotate(AnnotationBuilder::new().with_id("Phrase2").with_target(
-        SelectorBuilder::textselector("humanrights", Offset::simple(4, 25)), //"human beings are born",
-    ))?;
-    store.annotate(AnnotationBuilder::new().with_id("Phrase3").with_target(
-        SelectorBuilder::textselector("humanrights", Offset::simple(44, 62)), //"dignity and rights",
-    ))
-}
-
-pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
-    let resource = store.resource("humanrights").unwrap();
-    let resources: Vec<_> = resource
-        .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, true)?
-        .into_iter()
-        .map(|foundmatch| {
-            let offset: Offset = foundmatch.textselections().first().unwrap().deref().into();
-            AnnotationBuilder::new()
-                .with_target(SelectorBuilder::textselector(resource.handle(), offset))
-                .with_data("myset", "type", "header")
-        })
-        .collect();
-    store.annotate_from_iter(resources)?;
-    Ok(())
-}
-
 #[test]
 fn test_annotate_regex_single2() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
@@ -1777,91 +1182,6 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
         .flatten()
         .collect();
     assert_eq!(data.len(), 4);
-    Ok(())
-}
-
-#[test]
-fn test_lifetime_sanity_resources() -> Result<(), StamError> {
-    let store = setup_example_5()?;
-    //Gather references to resources in a vec, to ensure their lifetimes remain valid after the iterator
-    let result: Vec<&TextResource> = store
-        .resources()
-        .map(|resource| resource.as_ref())
-        .collect();
-    assert_eq!(result.len(), 1);
-    Ok(())
-}
-
-#[test]
-fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
-    let store = setup_example_5()?;
-    //Gather references to resources and their textselections in a vec, to ensure their lifetimes remain valid after the iterator
-    let result: Vec<(&TextResource, Vec<&TextSelection>)> = store
-        .resources()
-        .map(|resource| {
-            (
-                resource.as_ref(),
-                resource
-                    .as_ref()
-                    .textselections_unsorted()
-                    .map(|textselection| textselection)
-                    .collect(),
-            )
-        })
-        .collect();
-    assert_eq!(result.len(), 1);
-    Ok(())
-}
-
-#[test]
-fn test_lifetime_sanity_annotationdata() -> Result<(), StamError> {
-    let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
-    //Gather references to annotations and their data in a vec, to ensure their lifetimes remain valid after the iterator
-    let result: Vec<(&Annotation, Vec<&AnnotationData>)> = store
-        .annotations()
-        .map(|annotation| {
-            (
-                annotation.as_ref(),
-                annotation.data().map(|data| data.as_ref()).collect(),
-            )
-        })
-        .collect();
-    assert!(!result.is_empty());
-    Ok(())
-}
-
-#[test]
-fn test_lifetime_sanity_keys() -> Result<(), StamError> {
-    let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
-    let result: Vec<(&AnnotationDataSet, Vec<&DataKey>)> = store
-        .datasets()
-        .map(|annotationset| {
-            (
-                annotationset.as_ref(),
-                annotationset.as_ref().keys().map(|key| key).collect(),
-            )
-        })
-        .collect();
-    assert!(!result.is_empty());
-    Ok(())
-}
-
-#[test]
-fn test_lifetime_sanity_annotationdata2() -> Result<(), StamError> {
-    let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
-    //Gather references to annotations and their data in a vec, to ensure their lifetimes remain valid after the iterator
-    let mut result: Vec<(&Annotation, Vec<&AnnotationData>)> = Vec::new();
-    for annotation in store.annotations() {
-        let mut subresult: Vec<&AnnotationData> = Vec::new();
-        for data in annotation.data() {
-            subresult.push(data.as_ref())
-        }
-        result.push((annotation.as_ref(), subresult));
-    }
-    assert!(!result.is_empty());
     Ok(())
 }
 
