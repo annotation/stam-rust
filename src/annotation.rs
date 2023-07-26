@@ -459,15 +459,19 @@ impl AnnotationStore {
         self.insert(Annotation::new(public_id, target, data))
     }
 
-    /// Builds and inserts using multiple annotation builders
-    pub fn annotate_from_iter<'a, I>(&mut self, builders: I) -> Result<(), StamError>
+    /// Builds and inserts using multiple annotation builders. Returns the handles in a vector.
+    pub fn annotate_from_iter<'a, I>(
+        &mut self,
+        builders: I,
+    ) -> Result<Vec<AnnotationHandle>, StamError>
     where
         I: IntoIterator<Item = AnnotationBuilder<'a>>,
     {
+        let mut handles = Vec::new();
         for builder in builders {
-            self.annotate(builder)?;
+            handles.push(self.annotate(builder)?);
         }
-        Ok(())
+        Ok(handles)
     }
 }
 
