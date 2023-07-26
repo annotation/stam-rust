@@ -512,7 +512,7 @@ fn test_lifetime_sanity_textselections() -> Result<(), StamError> {
 #[test]
 fn test_lifetime_sanity_annotationdata() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
+    annotate_regex_for_example_6(&mut store)?;
     //Gather references to annotations and their data in a vec, to ensure their lifetimes remain valid after the iterator
     let result: Vec<(&Annotation, Vec<&AnnotationData>)> = store
         .annotations()
@@ -530,7 +530,7 @@ fn test_lifetime_sanity_annotationdata() -> Result<(), StamError> {
 #[test]
 fn test_lifetime_sanity_keys() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
+    annotate_regex_for_example_6(&mut store)?;
     let result: Vec<(&AnnotationDataSet, Vec<&DataKey>)> = store
         .datasets()
         .map(|annotationset| {
@@ -547,7 +547,7 @@ fn test_lifetime_sanity_keys() -> Result<(), StamError> {
 #[test]
 fn test_lifetime_sanity_annotationdata2() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
+    annotate_regex_for_example_6(&mut store)?;
     //Gather references to annotations and their data in a vec, to ensure their lifetimes remain valid after the iterator
     let mut result: Vec<(&Annotation, Vec<&AnnotationData>)> = Vec::new();
     for annotation in store.annotations() {

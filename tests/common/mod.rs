@@ -223,29 +223,50 @@ pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
             Config::default(),
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
-        .with_annotation(AnnotationBuilder::new().with_id("Sentence1").with_target(
-            SelectorBuilder::textselector("humanrights", Offset::whole()),
-        ))?
-        .with_annotation(AnnotationBuilder::new().with_id("Phrase1").with_target(
-            SelectorBuilder::textselector(
-                "humanrights",
-                Offset::simple(17, 40), //"are born free and equal"
-            ),
-        ))?;
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Sentence1")
+                .with_target(SelectorBuilder::textselector(
+                    "humanrights",
+                    Offset::whole(),
+                ))
+                .with_data("myset", "type", "sentence"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Phrase1")
+                .with_target(SelectorBuilder::textselector(
+                    "humanrights",
+                    Offset::simple(17, 40), //"are born free and equal"
+                ))
+                .with_data("myset", "type", "phrase"),
+        )?;
 
     Ok(store)
 }
 
-pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle, StamError> {
-    store.annotate(AnnotationBuilder::new().with_id("Phrase2").with_target(
-        SelectorBuilder::textselector("humanrights", Offset::simple(4, 25)), //"human beings are born",
-    ))?;
-    store.annotate(AnnotationBuilder::new().with_id("Phrase3").with_target(
-        SelectorBuilder::textselector("humanrights", Offset::simple(44, 62)), //"dignity and rights",
-    ))
+pub fn annotate_phrases_for_example_6(
+    store: &mut AnnotationStore,
+) -> Result<AnnotationHandle, StamError> {
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("Phrase2")
+            .with_target(
+                SelectorBuilder::textselector("humanrights", Offset::simple(4, 25)), //"human beings are born",
+            )
+            .with_data("myset", "type", "phrase"),
+    )?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("Phrase3")
+            .with_target(
+                SelectorBuilder::textselector("humanrights", Offset::simple(44, 62)), //"dignity and rights",
+            )
+            .with_data("myset", "type", "phrase"),
+    )
 }
 
-pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
+pub fn annotate_regex_for_example_6(store: &mut AnnotationStore) -> Result<(), StamError> {
     let resource = store.resource("humanrights").unwrap();
     let annotations: Vec<_> = resource
         .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, true)?
@@ -261,10 +282,164 @@ pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
     Ok(())
 }
 
+pub fn setup_example_6b() -> Result<AnnotationStore, StamError> {
+    // variant of example 6 (full version)
+    // tree of annotations with larger annotations before smaller ones
+    // using annotationselectors to point from smaller ones to relative offsets in the larger ones
+
+    let mut store = AnnotationStore::default()
+        .with_id("example6")
+        .add(TextResource::from_string(
+            "humanrights",
+            "All human beings are born free and equal in dignity and rights.",
+            Config::default(),
+        ))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Sentence1")
+                .with_target(SelectorBuilder::textselector(
+                    "humanrights",
+                    Offset::whole(),
+                ))
+                .with_data("myset", "type", "sentence"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Phrase1")
+                .with_target(SelectorBuilder::annotationselector(
+                    "Sentence1",
+                    Some(Offset::simple(17, 40)), //"are born free and equal"
+                ))
+                .with_data("myset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Phrase2")
+                .with_target(
+                    SelectorBuilder::annotationselector("Sentence1", Some(Offset::simple(4, 25))), //"human beings are born",
+                )
+                .with_data("myset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("Phrase3")
+                .with_target(
+                    SelectorBuilder::annotationselector("Sentence1", Some(Offset::simple(44, 62))), //"dignity and rights",
+                )
+                .with_data("myset", "type", "phrase"),
+        )?;
+
+    let resource = store.resource("humanrights").expect("resource must exist");
+    let annotations: Vec<_> = resource
+        .split_text(" ")
+        .filter_map(|word| {
+            let word = word.trim_text_with(|x| x.is_ascii_punctuation()).unwrap();
+            if !word.is_empty() {
+                let sentence = store.annotation("Sentence1").unwrap();
+                let builder = AnnotationBuilder::new()
+                    .with_target(SelectorBuilder::annotationselector(
+                        sentence.handle(),
+                        word.relative_offset(&sentence.textselections().next().unwrap()),
+                    ))
+                    .with_data("myset", "type", "word");
+                Some(builder)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    store.annotate_from_iter(annotations)?;
+
+    Ok(store)
+}
+
+pub fn setup_example_6c() -> Result<AnnotationStore, StamError> {
+    // variant of example 6 (full version)
+    // tree of annotations with smaller annotations before larger ones
+    // using composite selectors to form larger ones from smaller ones
+
+    //starts the same
+    let mut store = AnnotationStore::default()
+        .with_id("example6")
+        .add(TextResource::from_string(
+            "humanrights",
+            "All human beings are born free and equal in dignity and rights.",
+            Config::default(),
+        ))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?;
+
+    //we first annotate the words before anything else, the handles are returned in a vector:
+    let words = annotate_words(&mut store, "humanrights")?;
+
+    //then we form a sentence over all the words (we have only one sentence here anyway)
+    let sentence = AnnotationBuilder::new()
+        .with_id("Sentence1")
+        .with_data("myset", "type", "sentence")
+        .with_target(SelectorBuilder::CompositeSelector({
+            let mut tokens: Vec<_> = words
+                .iter()
+                .map(|annotation| {
+                    SelectorBuilder::annotationselector(*annotation, Some(Offset::whole()))
+                })
+                .collect();
+            //the final punctuation is added directly on the text, we're allowed to mix in a CompositeSelector
+            tokens.push(SelectorBuilder::textselector(
+                "humanrights",
+                Offset::new(Cursor::EndAligned(-1), Cursor::EndAligned(0)),
+            ));
+            tokens
+        }));
+    store.annotate(sentence)?;
+
+    //Now we add the phrases, they point to the words too
+    let phrase1 = AnnotationBuilder::new()
+        .with_id("Phrase1")
+        .with_data("myset", "type", "phrase")
+        .with_target(SelectorBuilder::CompositeSelector(
+            words[3..8] //we know which words to select
+                .iter()
+                .map(|annotation| {
+                    SelectorBuilder::annotationselector(*annotation, Some(Offset::whole()))
+                })
+                .collect(),
+        ));
+    store.annotate(phrase1)?;
+
+    let phrase2 = AnnotationBuilder::new()
+        .with_id("Phrase2")
+        .with_data("myset", "type", "phrase")
+        .with_target(SelectorBuilder::CompositeSelector(
+            words[1..5] //we know which words to select
+                .iter()
+                .map(|annotation| {
+                    SelectorBuilder::annotationselector(*annotation, Some(Offset::whole()))
+                })
+                .collect(),
+        ));
+    store.annotate(phrase2)?;
+
+    let phrase3 = AnnotationBuilder::new()
+        .with_id("Phrase3")
+        .with_data("myset", "type", "phrase")
+        .with_target(SelectorBuilder::CompositeSelector(
+            words[9..] //we know which words to select
+                .iter()
+                .map(|annotation| {
+                    SelectorBuilder::annotationselector(*annotation, Some(Offset::whole()))
+                })
+                .collect(),
+        ));
+    store.annotate(phrase3)?;
+
+    Ok(store)
+}
+
 pub fn annotate_words(
     store: &mut AnnotationStore,
     resource: impl Request<TextResource>,
-) -> Result<(), StamError> {
+) -> Result<Vec<AnnotationHandle>, StamError> {
     let resource = store.resource(resource).expect("resource");
 
     //this is a very basic tokeniser:
@@ -283,6 +458,5 @@ pub fn annotate_words(
         })
         .collect();
 
-    store.annotate_from_iter(annotations)?;
-    Ok(())
+    store.annotate_from_iter(annotations)
 }

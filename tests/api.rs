@@ -1172,7 +1172,7 @@ fn parse_csv() -> Result<(), StamError> {
 #[test]
 fn annotate_regex_single2() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
+    annotate_regex_for_example_6(&mut store)?;
 
     let data: Vec<_> = store
         .find_data("myset", "type", &DataOperator::Equals("header"))
@@ -1186,9 +1186,9 @@ fn annotate_regex_single2() -> Result<(), StamError> {
 }
 
 #[test]
-fn _annotations_by_textselection() -> Result<(), StamError> {
+fn annotations_by_textselection() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
-    annotate_regex(&mut store)?;
+    annotate_regex_for_example_6(&mut store)?;
     let resource = store.resource("humanrights").unwrap();
     let mut count = 0;
     let mut count_annotations = 0;
@@ -1209,8 +1209,10 @@ fn _annotations_by_textselection() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_example6_sanity() -> Result<(), StamError> {
-    let store = setup_example_6()?;
+fn test_example_6_full() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    annotate_phrases_for_example_6(&mut store)?;
+    annotate_words(&mut store, "humanrights")?;
     let resource = store.resource("humanrights").unwrap();
     assert_eq!(
         resource.text(),
@@ -1218,10 +1220,59 @@ fn test_example6_sanity() -> Result<(), StamError> {
     );
     let sentence = store.annotation("Sentence1").unwrap();
     assert_eq!(
-        sentence.text().next().unwrap(),
+        sentence.text_simple(),
+        Some("All human beings are born free and equal in dignity and rights.")
+    );
+    let phrase1 = store.annotation("Phrase1").unwrap();
+    assert_eq!(phrase1.text_simple(), Some("are born free and equal"));
+    let phrase2 = store.annotation("Phrase2").unwrap();
+    assert_eq!(phrase2.text_simple(), Some("human beings are born"));
+    let phrase3 = store.annotation("Phrase3").unwrap();
+    assert_eq!(phrase3.text_simple(), Some("dignity and rights"));
+    Ok(())
+}
+
+#[test]
+fn test_example_6b() -> Result<(), StamError> {
+    let store = setup_example_6b()?;
+    let resource = store.resource("humanrights").unwrap();
+    assert_eq!(
+        resource.text(),
         "All human beings are born free and equal in dignity and rights."
     );
+    let sentence = store.annotation("Sentence1").unwrap();
+    assert_eq!(
+        sentence.text_simple(),
+        Some("All human beings are born free and equal in dignity and rights.")
+    );
+    let phrase1 = store.annotation("Phrase1").unwrap();
+    assert_eq!(phrase1.text_simple(), Some("are born free and equal"));
+    let phrase2 = store.annotation("Phrase2").unwrap();
+    assert_eq!(phrase2.text_simple(), Some("human beings are born"));
+    let phrase3 = store.annotation("Phrase3").unwrap();
+    assert_eq!(phrase3.text_simple(), Some("dignity and rights"));
+    Ok(())
+}
 
+#[test]
+fn test_example_6c() -> Result<(), StamError> {
+    let store = setup_example_6c()?;
+    let resource = store.resource("humanrights").unwrap();
+    assert_eq!(
+        resource.text(),
+        "All human beings are born free and equal in dignity and rights."
+    );
+    let sentence = store.annotation("Sentence1").unwrap();
+    assert_eq!(
+        sentence.text_join(" "),
+        "All human beings are born free and equal in dignity and rights ." // <-- note the tokenisation!
+    );
+    let phrase1 = store.annotation("Phrase1").unwrap();
+    assert_eq!(phrase1.text_join(" "), "are born free and equal");
+    let phrase2 = store.annotation("Phrase2").unwrap();
+    assert_eq!(phrase2.text_join(" "), "human beings are born");
+    let phrase3 = store.annotation("Phrase3").unwrap();
+    assert_eq!(phrase3.text_join(" "), "dignity and rights");
     Ok(())
 }
 
@@ -1331,7 +1382,7 @@ fn annotations_by_related_text_embeds_2() -> Result<(), StamError> {
 #[test]
 fn annotations_by_related_text_overlaps() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
-    setup_example_6b(&mut store)?;
+    annotate_phrases_for_example_6(&mut store)?;
     let phrase = store.annotation("Phrase1").unwrap();
     let annotations: Vec<_> = phrase
         .annotations_by_related_text(TextSelectionOperator::overlaps())
@@ -1349,7 +1400,7 @@ fn annotations_by_related_text_overlaps() -> Result<(), StamError> {
 #[test]
 fn annotations_by_related_text_overlaps_2() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
-    setup_example_6b(&mut store)?;
+    annotate_phrases_for_example_6(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
         .annotations_by_related_text(TextSelectionOperator::overlaps())
@@ -1367,7 +1418,7 @@ fn annotations_by_related_text_overlaps_2() -> Result<(), StamError> {
 #[test]
 fn annotations_by_related_text_before() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
-    setup_example_6b(&mut store)?;
+    annotate_phrases_for_example_6(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
         .annotations_by_related_text(TextSelectionOperator::before())
@@ -1382,7 +1433,7 @@ fn annotations_by_related_text_before() -> Result<(), StamError> {
 #[test]
 fn annotations_by_related_text_after() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
-    setup_example_6b(&mut store)?;
+    annotate_phrases_for_example_6(&mut store)?;
     let phrase = store.annotation("Phrase3").unwrap();
     let annotations: Vec<_> = phrase
         .annotations_by_related_text(TextSelectionOperator::after())
@@ -1402,7 +1453,7 @@ fn related_text_with_data() -> Result<(), StamError> {
     // Given annotation type=phrase, get the text of all annotations type=word embedded in that phrase
 
     let mut store = setup_example_6()?;
-    setup_example_6b(&mut store)?;
+    annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
     let text: Vec<_> = phrase
@@ -1425,18 +1476,18 @@ fn related_text_with_data_2() -> Result<(), StamError> {
     // Given annotation type=phrase, get the text of all annotations type=word that come before in that phrase
 
     let mut store = setup_example_6()?;
-    setup_example_6b(&mut store)?;
+    annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
     let text: Vec<_> = phrase
         .related_text_with_data(
-            TextSelectionOperator::after(),
+            TextSelectionOperator::after(), //phrase AFTER result, so result before phrase
             "myset",
             "type",
             &DataOperator::Equals("word"),
         )
         .into_iter() //work away the Option<>
-        .flatten() //..
+        .flatten()
         .map(|(text, _)| text.text()) //grab only the textual content
         .collect();
     assert_eq!(
