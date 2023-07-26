@@ -249,14 +249,14 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`ResultItem<TextSelection>`]).
+    /// are in a specific relation with the current one. Returns a set of annotations.
+    /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
     /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
     /// The annotations are returned in textual order.
     pub fn annotations_by_related_text(
         &self,
         operator: TextSelectionOperator,
-    ) -> BTreeSet<ResultItem<'store, Annotation>> {
+    ) -> Vec<ResultItem<'store, Annotation>> {
         let mut tset: TextSelectionSet =
             TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
         tset.add(match self {
@@ -267,7 +267,39 @@ impl<'store> ResultTextSelection<'store> {
             .related_text(operator, tset)
             .filter_map(|tsel| tsel.annotations())
             .flatten()
-            .collect()
+            .textual_order()
+    }
+
+    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
+    /// are in a specific relation with the current one *and* that match specific data. Returns a set of annotations.
+    /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
+    /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
+    /// The annotations are returned in textual order.
+    pub fn annotations_by_related_text_matching_data<'a>(
+        &self,
+        operator: TextSelectionOperator,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Vec<ResultItem<'store, Annotation>>
+    where
+        'a: 'store,
+    {
+        if let Some((test_set_handle, test_key_handle)) =
+            self.rootstore().find_data_request_resolver(set, key)
+        {
+            self.related_text(operator)
+                .map(move |tsel| {
+                    tsel.find_data_about(test_set_handle, test_key_handle, value)
+                        .into_iter()
+                        .flatten()
+                        .map(|(_data, annotation)| annotation)
+                })
+                .flatten()
+                .textual_order()
+        } else {
+            Vec::new()
+        }
     }
 
     /// Search for data *about* this text, i.e. data on annotations that refer to this text.

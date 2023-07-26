@@ -14,6 +14,8 @@ use crate::store::*;
 use crate::text::Text;
 use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
 
+use crate::api::textselection::SortTextualOrder;
+
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references
     /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
@@ -329,6 +331,38 @@ impl<'store> ResultItem<'store, Annotation> {
         self.related_text(operator)
             .filter_map(|tsel| tsel.annotations())
             .flatten()
+    }
+
+    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
+    /// are in a specific relation with the current one *and* that match specific data. Returns a set of annotations.
+    /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
+    /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
+    /// The annotations are returned in textual order.
+    pub fn annotations_by_related_text_matching_data<'a>(
+        &self,
+        operator: TextSelectionOperator,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Vec<ResultItem<'store, Annotation>>
+    where
+        'a: 'store,
+    {
+        if let Some((test_set_handle, test_key_handle)) =
+            self.rootstore().find_data_request_resolver(set, key)
+        {
+            self.related_text(operator)
+                .map(move |tsel| {
+                    tsel.find_data_about(test_set_handle, test_key_handle, value)
+                        .into_iter()
+                        .flatten()
+                        .map(|(_data, annotation)| annotation)
+                })
+                .flatten()
+                .textual_order()
+        } else {
+            Vec::new()
+        }
     }
 
     /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.

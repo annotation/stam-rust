@@ -1464,7 +1464,7 @@ fn related_text_with_data() -> Result<(), StamError> {
             &DataOperator::Equals("word"),
         )
         .into_iter() //work away the Option<>
-        .flatten() //..
+        .flatten() // --^
         .map(|(text, _)| text.text()) //grab only the textual content
         .collect();
     assert_eq!(text, &["dignity", "and", "rights"]);
@@ -1487,13 +1487,201 @@ fn related_text_with_data_2() -> Result<(), StamError> {
             &DataOperator::Equals("word"),
         )
         .into_iter() //work away the Option<>
-        .flatten()
+        .flatten() // --^
         .map(|(text, _)| text.text()) //grab only the textual content
         .collect();
     assert_eq!(
         text,
         &["All", "human", "beings", "are", "born", "free", "and", "equal", "in"]
     );
+    Ok(())
+}
+
+#[test]
+fn related_text_with_data_3() -> Result<(), StamError> {
+    // Given annotation type=phrase, get the text of all annotations type=word that come before in that phrase
+
+    let store = setup_example_6b()?; //<--- used different example! rest of code is the same
+    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let text: Vec<_> = phrase
+        .related_text_with_data(
+            TextSelectionOperator::after(), //phrase AFTER result, so result before phrase
+            "myset",
+            "type",
+            &DataOperator::Equals("word"),
+        )
+        .into_iter() //work away the Option<>
+        .flatten() // --^
+        .map(|(text, _)| text.text()) //grab only the textual content
+        .collect();
+    assert_eq!(
+        text,
+        &["All", "human", "beings", "are", "born", "free", "and", "equal", "in"]
+    );
+    Ok(())
+}
+
+#[test]
+fn related_text_with_data_4() -> Result<(), StamError> {
+    // Given annotation type=phrase, get the text of all annotations type=word that come before in that phrase
+
+    let store = setup_example_6c()?; //<--- used different example! rest of code is the same
+    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let text: Vec<_> = phrase
+        .related_text_with_data(
+            TextSelectionOperator::after(), //phrase AFTER result, so result before phrase
+            "myset",
+            "type",
+            &DataOperator::Equals("word"),
+        )
+        .into_iter() //work away the Option<>
+        .flatten() // --^
+        .map(|(text, _)| text.text()) //grab only the textual content
+        .collect();
+    assert_eq!(
+        text,
+        &["All", "human", "beings", "are", "born", "free", "and", "equal", "in"]
+    );
+    Ok(())
+}
+
+#[test]
+fn annotations_in_targets() -> Result<(), StamError> {
+    //Get the 2nd word in the sentence
+
+    let store = setup_example_6c()?; //<--- used different example! rest of code is the same
+    let sentence = store.annotation("Sentence1").unwrap();
+    //get the 2nd word in the sentence
+    let secondword = sentence
+        .annotations_in_targets(false, false)
+        .nth(1)
+        .unwrap();
+    assert_eq!(secondword.text_simple(), Some("human"));
+    Ok(())
+}
+
+#[test]
+fn related_text_with_data_5() -> Result<(), StamError> {
+    //Get the 2nd word in the sentence
+
+    let mut store = setup_example_6()?;
+    annotate_phrases_for_example_6(&mut store)?;
+    annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
+    let sentence = store.annotation("Sentence1").unwrap();
+
+    //get the 2nd word in the sentence
+    let secondword = sentence
+        .related_text_with_data(
+            TextSelectionOperator::embeds(),
+            "myset",
+            "type",
+            &DataOperator::Equals("word"),
+        )
+        .into_iter() //<-- work away the option
+        .flatten() // --^
+        .map(|(textselection, _)| textselection) // get rid of the data we don't use
+        .nth(1)
+        .unwrap();
+
+    assert_eq!(secondword.text(), "human");
+    Ok(())
+}
+
+#[test]
+fn find_data_about() -> Result<(), StamError> {
+    let store = setup_example_6c()?;
+    let sentence = store.annotation("Sentence1").unwrap();
+    //get the 2nd word in the sentence
+    let secondword = sentence
+        .annotations_in_targets(false, false)
+        .nth(1)
+        .unwrap();
+    assert_eq!(secondword.text_simple(), Some("human"));
+
+    //now find the phrase this word belongs to:
+    let mut count = 0;
+    for (_data, phrase) in secondword
+        .find_data_about("myset", "type", &DataOperator::Equals("phrase"))
+        .into_iter() //<-- work away the option
+        .flatten()
+    {
+        count += 1;
+        //we can test in body because we only have one:
+        assert_eq!(phrase.id(), Some("Phrase2"));
+        assert_eq!(phrase.text_join(" "), "human beings are born");
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn find_data_about_2() -> Result<(), StamError> {
+    let store = setup_example_6c()?;
+    let sentence = store.annotation("Sentence1").unwrap();
+    //get the 2nd word in the sentence
+    let secondword = sentence
+        .annotations_in_targets(false, false)
+        .nth(1)
+        .unwrap();
+    assert_eq!(secondword.text_simple(), Some("human"));
+
+    //now find the phrase this word belongs to:
+    let mut count = 0;
+    for (data, annotation) in secondword
+        .find_data_about("myset", "type", &DataOperator::Any)
+        .into_iter() //<-- work away the option
+        .flatten()
+    {
+        count += 1;
+        //we can get a phrase or a sentence in our example:
+        if data.value() == "phrase" {
+            assert_eq!(annotation.id(), Some("Phrase2"));
+            assert_eq!(annotation.text_join(" "), "human beings are born");
+        } else {
+            assert_eq!(annotation.id(), Some("Sentence1"));
+        }
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
+fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
+    let mut store = setup_example_6()?; //note: not the same as the previous two!
+    annotate_phrases_for_example_6(&mut store)?;
+    annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
+    let sentence = store.annotation("Sentence1").unwrap();
+
+    //get the 2nd word in the sentence
+    let secondword = sentence
+        .related_text_with_data(
+            TextSelectionOperator::embeds(),
+            "myset",
+            "type",
+            &DataOperator::Equals("word"),
+        )
+        .into_iter() //<-- work away the option
+        .flatten() // --^
+        .map(|(textselection, _)| textselection) // get rid of the data we don't use
+        .nth(1)
+        .unwrap();
+
+    assert_eq!(secondword.text(), "human");
+
+    //now find the phrase this word belongs to:
+    let mut count = 0;
+    for phrase in secondword.annotations_by_related_text_matching_data(
+        TextSelectionOperator::embedded(),
+        "myset",
+        "type",
+        &DataOperator::Equals("phrase"),
+    ) {
+        count += 1;
+        //we can test in body because we only have one:
+        assert_eq!(phrase.id(), Some("Phrase2"));
+        assert_eq!(phrase.text_simple(), Some("human beings are born"));
+    }
+    assert_eq!(count, 1);
     Ok(())
 }
 
