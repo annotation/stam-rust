@@ -1921,10 +1921,7 @@ fn test_find_textselections_embedded() -> Result<(), StamError> {
     let phrase1 = store.annotation("Phrase1").unwrap();
     let mut count = 0;
     for reftextsel in phrase1.textselections() {
-        for textsel in reftextsel.related_text(TextSelectionOperator::Embedded {
-            all: false,
-            negate: false,
-        }) {
+        for textsel in reftextsel.related_text(TextSelectionOperator::embedded()) {
             count += 1;
             assert_eq!(textsel.begin(), 0);
             assert_eq!(textsel.end(), 63);
@@ -1973,10 +1970,7 @@ fn test_find_textselections_embeds() -> Result<(), StamError> {
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
     for reftextsel in sentence1.textselections() {
-        for textsel in reftextsel.related_text(TextSelectionOperator::Embeds {
-            all: false,
-            negate: false,
-        }) {
+        for textsel in reftextsel.related_text(TextSelectionOperator::embeds()) {
             count += 1;
             assert_eq!(textsel.begin(), 17);
             assert_eq!(textsel.end(), 40);
@@ -1992,10 +1986,7 @@ fn test_find_annotations_embeds() -> Result<(), StamError> {
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
     for reftextsel in sentence1.textselections() {
-        for annotation in reftextsel.annotations_by_related_text(TextSelectionOperator::Embeds {
-            all: false,
-            negate: false,
-        }) {
+        for annotation in reftextsel.annotations_by_related_text(TextSelectionOperator::embeds()) {
             count += 1;
             assert_eq!(annotation.id(), Some("Phrase1"));
         }
@@ -2009,10 +2000,7 @@ fn test_find_annotations_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence = store.annotation("Sentence1").unwrap();
     let mut count = 0;
-    for annotation in sentence.annotations_by_related_text(TextSelectionOperator::Embeds {
-        all: false,
-        negate: false,
-    }) {
+    for annotation in sentence.annotations_by_related_text(TextSelectionOperator::embeds()) {
         count += 1;
         assert_eq!(annotation.id(), Some("Phrase1"));
     }
@@ -2026,10 +2014,7 @@ fn test_find_annotations_overlaps() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase1").unwrap();
     let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::Overlaps {
-            all: false,
-            negate: false,
-        })
+        .annotations_by_related_text(TextSelectionOperator::overlaps())
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -2047,10 +2032,7 @@ fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::Overlaps {
-            all: false,
-            negate: false,
-        })
+        .annotations_by_related_text(TextSelectionOperator::overlaps())
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -2068,10 +2050,7 @@ fn test_find_annotations_precedes() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::Before {
-            all: false,
-            negate: false,
-        })
+        .annotations_by_related_text(TextSelectionOperator::before())
         .collect();
     assert_eq!(annotations.len(), 1);
     assert!(annotations
@@ -2086,10 +2065,7 @@ fn test_find_annotations_succeeds() -> Result<(), StamError> {
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase3").unwrap();
     let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::After {
-            all: false,
-            negate: false,
-        })
+        .annotations_by_related_text(TextSelectionOperator::after())
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -2204,10 +2180,7 @@ fn test_textselections_scale_test_overlap() -> Result<(), StamError> {
     //iterate over all textselections unsorted
 
     let mut count = 0;
-    for _textselection in selection.related_text(TextSelectionOperator::Overlaps {
-        all: false,
-        negate: false,
-    }) {
+    for _textselection in selection.related_text(TextSelectionOperator::overlaps()) {
         count += 1;
     }
 
