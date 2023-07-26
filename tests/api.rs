@@ -14,11 +14,11 @@ const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
 fn instantiation_naive() -> Result<(), StamError> {
     let mut store = AnnotationStore::default().with_id("test");
 
-    let _res_intid = store.insert(TextResource::from_string(
+    store.insert(TextResource::from_string(
         "testres",
         "Hello world",
         Config::default(),
-    ));
+    ))?;
 
     let mut dataset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
     dataset.insert(DataKey::new("pos"))?;
@@ -33,11 +33,11 @@ fn sanity_check() -> Result<(), StamError> {
     let mut store = AnnotationStore::default().with_id("test");
 
     // Insert a text resource into the store
-    let _res_handle = store.insert(TextResource::from_string(
+    store.insert(TextResource::from_string(
         "testres",
         "Hello world",
         Config::default(),
-    ));
+    ))?;
 
     // Create a dataset with one key and insert it into the store
     let mut dataset = AnnotationDataSet::new(Config::default()).with_id("testdataset");
@@ -45,11 +45,11 @@ fn sanity_check() -> Result<(), StamError> {
     let set_handle = store.insert(dataset)?;
 
     //get by handle (internal id)
-    let dataset: &AnnotationDataSet = store.get(set_handle)?;
+    let dataset = store.dataset(set_handle).expect("dataset");
     assert_eq!(dataset.id(), Some("testdataset"));
 
     //get by directly by id
-    let resource: &TextResource = store.get("testres")?;
+    let resource = store.resource("testres").expect("resource");
     assert_eq!(resource.id(), Some("testres"));
     assert_eq!(resource.textlen(), 11);
     Ok(())
