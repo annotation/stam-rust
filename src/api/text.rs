@@ -142,6 +142,34 @@ where
         ))
     }
 
+    /// Trims all occurrences of any character `chars` that pass the supplied function, from both the beginning and end of the text,
+    /// returning a smaller TextSelection. No text is modified.
+    fn trim_text_with<F>(&'slf self, f: F) -> Result<ResultTextSelection<'store>, StamError>
+    where
+        F: Fn(char) -> bool,
+    {
+        let mut trimbegin = 0;
+        let mut trimend = 0;
+        for c in self.text().chars() {
+            if f(c) {
+                trimbegin += 1;
+            } else {
+                break;
+            }
+        }
+        for c in self.text().chars().rev() {
+            if f(c) {
+                trimend -= 1;
+            } else {
+                break;
+            }
+        }
+        self.textselection(&Offset::new(
+            Cursor::BeginAligned(trimbegin),
+            Cursor::EndAligned(trimend),
+        ))
+    }
+
     /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
     /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
