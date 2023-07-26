@@ -98,6 +98,30 @@ impl<'store> ResultItem<'store, Annotation> {
             .map(|textselection| textselection.text())
     }
 
+    /// If this annotation refers to a single simple text slice,
+    /// this returns it. If not contains no text or multiple text references, it returns None.
+    pub fn text_simple(&self) -> Option<&'store str> {
+        let mut iter = self.text();
+        let text = iter.next();
+        if let None = iter.next() {
+            return text;
+        } else {
+            None
+        }
+    }
+
+    /// Returns all underlying text for this annotation concatenated
+    pub fn text_join(&self, delimiter: &str) -> String {
+        let mut s = String::new();
+        for slice in self.text() {
+            if !s.is_empty() {
+                s += delimiter;
+            }
+            s += slice;
+        }
+        s
+    }
+
     /// Returns the (single!) resource the annotation points to. Only works for TextSelector,
     /// ResourceSelector and AnnotationSelector, and not for complex selectors.
     pub fn resource(&self) -> Option<ResultItem<'store, TextResource>> {
