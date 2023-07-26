@@ -1399,6 +1399,8 @@ fn annotations_by_related_text_after() -> Result<(), StamError> {
 
 #[test]
 fn related_text_with_data() -> Result<(), StamError> {
+    // Given annotation type=phrase, get the text of all annotations type=word embedded in that phrase
+
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
@@ -1415,6 +1417,32 @@ fn related_text_with_data() -> Result<(), StamError> {
         .map(|(text, _)| text.text()) //grab only the textual content
         .collect();
     assert_eq!(text, &["dignity", "and", "rights"]);
+    Ok(())
+}
+
+#[test]
+fn related_text_with_data_2() -> Result<(), StamError> {
+    // Given annotation type=phrase, get the text of all annotations type=word that come before in that phrase
+
+    let mut store = setup_example_6()?;
+    setup_example_6b(&mut store)?;
+    annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
+    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let text: Vec<_> = phrase
+        .related_text_with_data(
+            TextSelectionOperator::after(),
+            "myset",
+            "type",
+            &DataOperator::Equals("word"),
+        )
+        .into_iter() //work away the Option<>
+        .flatten() //..
+        .map(|(text, _)| text.text()) //grab only the textual content
+        .collect();
+    assert_eq!(
+        text,
+        &["All", "human", "beings", "are", "born", "free", "and", "equal", "in"]
+    );
     Ok(())
 }
 
