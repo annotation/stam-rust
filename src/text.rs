@@ -30,6 +30,10 @@ where
         }
     }
 
+    fn is_empty(&'slf self) -> bool {
+        self.text().is_empty()
+    }
+
     /// Converts a unicode character position to a UTF-8 byte position
     fn utf8byte(&'slf self, abscursor: usize) -> Result<usize, StamError>;
 

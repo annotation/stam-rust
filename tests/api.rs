@@ -1365,7 +1365,7 @@ fn annotations_by_related_text_overlaps_2() -> Result<(), StamError> {
 }
 
 #[test]
-fn annotations_by_related_text_precedes() -> Result<(), StamError> {
+fn annotations_by_related_text_before() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
@@ -1380,7 +1380,7 @@ fn annotations_by_related_text_precedes() -> Result<(), StamError> {
 }
 
 #[test]
-fn annotations_by_related_text_succeeds() -> Result<(), StamError> {
+fn annotations_by_related_text_after() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase3").unwrap();
@@ -1394,6 +1394,27 @@ fn annotations_by_related_text_succeeds() -> Result<(), StamError> {
     assert!(annotations
         .iter()
         .any(|annotation| annotation.id().unwrap() == "Phrase2"));
+    Ok(())
+}
+
+#[test]
+fn related_text_with_data() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    setup_example_6b(&mut store)?;
+    annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
+    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let text: Vec<_> = phrase
+        .related_text_with_data(
+            TextSelectionOperator::embeds(),
+            "myset",
+            "type",
+            &DataOperator::Equals("word"),
+        )
+        .into_iter() //work away the Option<>
+        .flatten() //..
+        .map(|(text, _)| text.text()) //grab only the textual content
+        .collect();
+    assert_eq!(text, &["dignity", "and", "rights"]);
     Ok(())
 }
 

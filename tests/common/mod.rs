@@ -247,7 +247,7 @@ pub fn setup_example_6b(store: &mut AnnotationStore) -> Result<AnnotationHandle,
 
 pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
     let resource = store.resource("humanrights").unwrap();
-    let resources: Vec<_> = resource
+    let annotations: Vec<_> = resource
         .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, true)?
         .into_iter()
         .map(|foundmatch| {
@@ -257,6 +257,32 @@ pub fn annotate_regex(store: &mut AnnotationStore) -> Result<(), StamError> {
                 .with_data("myset", "type", "header")
         })
         .collect();
-    store.annotate_from_iter(resources)?;
+    store.annotate_from_iter(annotations)?;
+    Ok(())
+}
+
+pub fn annotate_words(
+    store: &mut AnnotationStore,
+    resource: impl Request<TextResource>,
+) -> Result<(), StamError> {
+    let resource = store.resource(resource).expect("resource");
+
+    //this is a very basic tokeniser:
+    let annotations: Vec<_> = resource
+        .split_text(" ")
+        .filter_map(|word| {
+            let word = word.trim_text_with(|x| x.is_ascii_punctuation()).unwrap();
+            if !word.is_empty() {
+                let builder = AnnotationBuilder::new()
+                    .with_target(SelectorBuilder::textselector(resource.handle(), &word))
+                    .with_data("myset", "type", "word");
+                Some(builder)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    store.annotate_from_iter(annotations)?;
     Ok(())
 }
