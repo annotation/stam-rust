@@ -588,6 +588,90 @@ impl TextSelectionOperator {
         }
     }
 
+    pub fn equals() -> Self {
+        Self::Equals {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn overlaps() -> Self {
+        Self::Overlaps {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn embeds() -> Self {
+        Self::Embeds {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn embedded() -> Self {
+        Self::Embedded {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn before() -> Self {
+        Self::Before {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn after() -> Self {
+        Self::After {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn precedes() -> Self {
+        Self::Precedes {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn succeeds() -> Self {
+        Self::Succeeds {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn samebegin() -> Self {
+        Self::SameBegin {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn sameend() -> Self {
+        Self::SameEnd {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn samerange() -> Self {
+        Self::SameRange {
+            all: false,
+            negate: false,
+        }
+    }
+
+    pub fn inset() -> Self {
+        Self::InSet {
+            all: false,
+            negate: false,
+        }
+    }
+
     pub fn toggle_negate(&self) -> Self {
         match self {
             Self::Equals { all, negate } => Self::Equals {
@@ -1663,7 +1747,7 @@ impl<'store> FindTextSelections<'store> for FindTextSelectionsOwnedIter<'store> 
     }
 }
 
-#[derive(Debug, Clone)] //TODO: reimplement PartialEq
+#[derive(Debug, Clone)]
 pub enum ResultTextSelection<'store> {
     Bound(ResultItem<'store, TextSelection>),
     Unbound(&'store AnnotationStore, &'store TextResource, TextSelection),

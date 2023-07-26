@@ -296,6 +296,8 @@ impl<'store> ResultItem<'store, Annotation> {
     /// are in a specific relation with the text selections of the current one. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultTextSelection`]).
     /// If you are interested in the text selections only, use [`Self.related_text`] instead.
+    ///
+    /// Note: this may return the current annotation again if it is referenced by related text!
     pub fn annotations_by_related_text(
         &self,
         operator: TextSelectionOperator,
