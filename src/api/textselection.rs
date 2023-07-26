@@ -368,13 +368,17 @@ impl<'store> ResultTextSelection<'store> {
         if let Some((test_set_handle, test_key_handle)) =
             self.rootstore().find_data_request_resolver(set, key)
         {
-            Some(self.related_text(operator).map(move |tsel| {
-                let data = tsel
-                    .find_data_about(test_set_handle, test_key_handle, value)
-                    .into_iter()
-                    .flatten()
-                    .collect();
-                (tsel.clone(), data)
+            Some(self.related_text(operator).filter_map(move |tsel| {
+                if let Some(iter) = tsel.find_data_about(test_set_handle, test_key_handle, value) {
+                    let data: Vec<_> = iter.collect();
+                    if data.is_empty() {
+                        None
+                    } else {
+                        Some((tsel.clone(), data))
+                    }
+                } else {
+                    None
+                }
             }))
         } else {
             None
