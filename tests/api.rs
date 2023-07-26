@@ -753,13 +753,13 @@ fn find_data_all_2() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_multiselector_creation() -> Result<(), StamError> {
+fn multiselector_creation() -> Result<(), StamError> {
     let _store = setup_example_multiselector()?;
     Ok(())
 }
 
 #[test]
-fn test_multiselector_iter() -> Result<(), StamError> {
+fn multiselector_iter() -> Result<(), StamError> {
     let store = setup_example_multiselector()?;
     let annotation = store.annotation("WordAnnotation").unwrap();
     let result: Vec<&str> = annotation.text().collect();
@@ -769,7 +769,7 @@ fn test_multiselector_iter() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_multiselector2_iter() -> Result<(), StamError> {
+fn multiselector2_iter() -> Result<(), StamError> {
     let store = setup_example_multiselector_2()?;
     let annotation = store.annotation("WordAnnotation").unwrap();
     let result: Vec<&str> = annotation.text().collect();
@@ -779,7 +779,7 @@ fn test_multiselector2_iter() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_read_single() -> Result<(), StamError> {
+fn read_single() -> Result<(), StamError> {
     AnnotationStore::from_file(
         &format!("{}/tests/singletest.store.stam.json", CARGO_MANIFEST_DIR),
         Config::default(),
@@ -798,7 +798,7 @@ fn test_read_include() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_text() -> Result<(), StamError> {
+fn find_text() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
     store.insert(
         TextResourceBuilder::new()
@@ -819,7 +819,7 @@ fn test_find_text() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_text_nocase() -> Result<(), StamError> {
+fn find_text_nocase() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
     store.insert(
         TextResourceBuilder::new()
@@ -840,7 +840,7 @@ fn test_find_text_nocase() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_text_sequence() -> Result<(), StamError> {
+fn find_text_sequence() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
     store.insert(
         TextResourceBuilder::new()
@@ -863,7 +863,7 @@ fn test_find_text_sequence() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_text_sequence2() -> Result<(), StamError> {
+fn find_text_sequence2() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
     store.insert(
         TextResourceBuilder::new()
@@ -886,7 +886,7 @@ fn test_find_text_sequence2() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_text_sequence_nocase() -> Result<(), StamError> {
+fn find_text_sequence_nocase() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
     store.insert(
         TextResourceBuilder::new()
@@ -1170,7 +1170,7 @@ fn parse_csv() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_annotate_regex_single2() -> Result<(), StamError> {
+fn annotate_regex_single2() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
     annotate_regex(&mut store)?;
 
@@ -1186,7 +1186,7 @@ fn test_annotate_regex_single2() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_annotations_by_textselection() -> Result<(), StamError> {
+fn _annotations_by_textselection() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
     annotate_regex(&mut store)?;
     let resource = store.resource("humanrights").unwrap();
@@ -1226,7 +1226,7 @@ fn test_example6_sanity() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_annotations_by_textselection_none() -> Result<(), StamError> {
+fn annotations_by_textselection_none() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let textselection = resource.textselection(&Offset::simple(1, 14))?; //no annotations for this random selection
@@ -1236,7 +1236,7 @@ fn test_annotations_by_textselection_none() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_textselections_embedded() -> Result<(), StamError> {
+fn related_text_embedded() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let phrase1 = store.annotation("Phrase1").unwrap();
     let mut count = 0;
@@ -1252,7 +1252,7 @@ fn test_find_textselections_embedded() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_textselectioniter_range_exact() -> Result<(), StamError> {
+fn textselections_in_range_exact() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let mut count = 0;
@@ -1266,7 +1266,7 @@ fn test_textselectioniter_range_exact() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_textselectioniter_range_bigger() -> Result<(), StamError> {
+fn textselections_in_range_bigger() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let mut count = 0;
@@ -1285,7 +1285,7 @@ fn test_textselectioniter_range_bigger() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_textselections_embeds() -> Result<(), StamError> {
+fn related_text_embeds() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
@@ -1301,7 +1301,7 @@ fn test_find_textselections_embeds() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_annotations_embeds() -> Result<(), StamError> {
+fn annotations_by_related_text_embeds() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence1 = store.annotation("Sentence1").unwrap();
     let mut count = 0;
@@ -1316,7 +1316,7 @@ fn test_find_annotations_embeds() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_annotations_embeds_2() -> Result<(), StamError> {
+fn annotations_by_related_text_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence = store.annotation("Sentence1").unwrap();
     let mut count = 0;
@@ -1329,7 +1329,7 @@ fn test_find_annotations_embeds_2() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_annotations_overlaps() -> Result<(), StamError> {
+fn annotations_by_related_text_overlaps() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase1").unwrap();
@@ -1347,7 +1347,7 @@ fn test_find_annotations_overlaps() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
+fn annotations_by_related_text_overlaps_2() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
@@ -1365,7 +1365,7 @@ fn test_find_annotations_overlaps_2() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_annotations_precedes() -> Result<(), StamError> {
+fn annotations_by_related_text_precedes() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
@@ -1380,7 +1380,7 @@ fn test_find_annotations_precedes() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_find_annotations_succeeds() -> Result<(), StamError> {
+fn annotations_by_related_text_succeeds() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     setup_example_6b(&mut store)?;
     let phrase = store.annotation("Phrase3").unwrap();
@@ -1398,7 +1398,7 @@ fn test_find_annotations_succeeds() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_textselections_relative_offset() -> Result<(), StamError> {
+fn annotations_by_related_text_relative_offset() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence1 = store
         .annotation("Sentence1")
@@ -1450,7 +1450,7 @@ pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle)
 }
 
 #[test]
-fn test_textselections_scale_unsorted_iter() -> Result<(), StamError> {
+fn resource_textselections_scale_unsorted_iter() -> Result<(), StamError> {
     let n = 100000;
     let (store, resource_handle) = setup_example_7(n)?;
 
@@ -1469,7 +1469,7 @@ fn test_textselections_scale_unsorted_iter() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_textselections_scale_sorted_iter() -> Result<(), StamError> {
+fn resource_textselections_scale_sorted_iter() -> Result<(), StamError> {
     let n = 100000;
     let (store, resource_handle) = setup_example_7(n)?;
 
@@ -1488,7 +1488,7 @@ fn test_textselections_scale_sorted_iter() -> Result<(), StamError> {
 }
 
 #[test]
-fn test_textselections_scale_test_overlap() -> Result<(), StamError> {
+fn resource_textselections_scale_test_overlap() -> Result<(), StamError> {
     let n = 100000;
     let (store, resource_handle) = setup_example_7(n)?;
 
