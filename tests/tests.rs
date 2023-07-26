@@ -56,11 +56,12 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
     let store = AnnotationStore::new(Config::default().with_debug(true))
         .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
+        .add(
+            TextResourceBuilder::new()
+                .with_id("testres")
+                .with_text("Hello world")
+                .build()?,
+        )?
         .add(
             AnnotationDataSet::new(Config::default())
                 .with_id("testdataset")
@@ -409,6 +410,7 @@ fn add_after_borrow() -> Result<(), StamError> {
 fn add_during_borrowproblem() -> Result<(), StamError> {
     let mut store = setup_example_2()?;
     let annotation: &Annotation = store.get("A1")?;
+    //this is an antipattern!
     //                                 V---- here we clone the annotation to prevent a borrow problem (cannot borrow `store` as mutable because it is also borrowed as immutable (annotation)), this is relatively low-cost
     for (dataset, data) in annotation.clone().data() {
         store.annotate(

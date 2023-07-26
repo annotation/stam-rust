@@ -572,7 +572,7 @@ impl TextResource {
         })
     }
 
-    /// Returns an unsorted iterator over all textselections in this resource
+    /// Low-level method returning an unsorted iterator over all textselections in this resource
     /// Use this only if order doesn't matter for. For a sorted version, use [`Self::iter()`] or [`Self::range()`] instead.
     pub fn textselections_unsorted(&self) -> impl Iterator<Item = &TextSelection> {
         self.store()
@@ -641,8 +641,8 @@ impl TextResource {
     }
 
     /// Returns a text selection by offset.
-    /// This is a lower-level method that does not check if the text selection exists, use [`textselection()`]. instead.
-    // this is deliberately NOT part of HasText if applied to e.g. TextSelection it would yield TextSelections with relative offsets
+    /// This is a lower-level method that does not check if the text selection exists, use [`textselection_by_offset()`] or the higher level [`textselection()`] instead (the latter calls back to here).
+    // this is deliberately NOT part of the Text trait; if applied to e.g. TextSelection it would yield TextSelections with relative offsets
     pub(crate) fn textselection_by_offset_unchecked(
         &self,
         offset: &Offset,
