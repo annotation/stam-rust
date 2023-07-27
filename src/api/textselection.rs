@@ -185,7 +185,7 @@ impl<'store> ResultTextSelection<'store> {
         }
     }
 
-    pub(crate) fn rootstore(&self) -> &'store AnnotationStore {
+    pub fn rootstore(&self) -> &'store AnnotationStore {
         match self {
             Self::Bound(item) => item.rootstore(),
             Self::Unbound(rootstore, ..) => rootstore,
