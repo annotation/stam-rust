@@ -431,7 +431,7 @@ impl TextResource {
     }
 
     /// Create a new TextResource from file, the text will be loaded into memory entirely
-    pub(crate) fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
+    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!(
                 "TextResourceBuilder::from_file: filename={:?} config={:?}",
@@ -444,7 +444,7 @@ impl TextResource {
     /// Sets the text of the TextResource from string, kept in memory entirely
     /// The use of [`Self.from_string()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
-    pub(crate) fn with_string(mut self, text: impl Into<String>) -> Self {
+    pub fn with_string(mut self, text: impl Into<String>) -> Self {
         self.check_mutation();
         self.text = text.into();
         self.textlen = self.text.chars().count();

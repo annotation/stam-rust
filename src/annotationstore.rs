@@ -854,7 +854,7 @@ impl AnnotationStore {
 
     /// Propagate the entire configuration to all children, will overwrite customized configurations
     fn propagate_full_config(&mut self) {
-        if self.resources_len() > 0 || self.annotationsets_len() > 0 {
+        if self.resources_len() > 0 || self.datasets_len() > 0 {
             let config = self.config().clone();
             for resource in self.resources.iter_mut() {
                 if let Some(resource) = resource.as_mut() {
@@ -943,7 +943,7 @@ impl AnnotationStore {
     }
 
     /// Returns the number of datasets in the store (deletions are not substracted)
-    pub fn annotationsets_len(&self) -> usize {
+    pub fn datasets_len(&self) -> usize {
         self.annotationsets.len()
     }
 
