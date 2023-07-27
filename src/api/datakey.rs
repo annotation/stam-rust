@@ -35,6 +35,7 @@ impl<'store> ResultItem<'store, DataKey> {
             })
     }
 
+    /// Searches for data for this data key
     pub fn find_data<'a>(
         &self,
         value: &'a DataOperator<'a>,
@@ -49,6 +50,11 @@ impl<'store> ResultItem<'store, DataKey> {
                 None
             }
         })
+    }
+
+    /// Tests for the presence of data for this data key
+    pub fn test_data<'a>(&self, value: &'a DataOperator<'a>) -> bool {
+        self.data().any(|data| data.test(false, value))
     }
 
     /// Searches for annotations by data.
