@@ -275,7 +275,7 @@ impl<'store> ResultTextSelection<'store> {
     /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
     /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
     /// The annotations are returned in textual order.
-    pub fn annotations_by_related_text_matching_data<'a>(
+    pub fn annotations_by_related_text_and_data<'a>(
         &self,
         operator: TextSelectionOperator,
         set: impl Request<AnnotationDataSet>,
@@ -418,7 +418,7 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
-    /// This returns the matching text, not the data.
+    /// This returns the matching text, not the data. Use [`Self.related_text_with_data()`] if you want the data as well.
     /// It effectively combines `related_text()` with `test_data_about()` on its results, into a single method.
     /// See these methods for further parameter explanation.
     pub fn related_text_test_data<'a>(

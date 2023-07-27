@@ -338,7 +338,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
     /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
     /// The annotations are returned in textual order.
-    pub fn annotations_by_related_text_matching_data<'a>(
+    pub fn annotations_by_related_text_and_data<'a>(
         &self,
         operator: TextSelectionOperator,
         set: impl Request<AnnotationDataSet>,

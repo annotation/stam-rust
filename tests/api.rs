@@ -1670,7 +1670,7 @@ fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
 
     //now find the phrase this word belongs to:
     let mut count = 0;
-    for phrase in secondword.annotations_by_related_text_matching_data(
+    for phrase in secondword.annotations_by_related_text_and_data(
         TextSelectionOperator::embedded(),
         "myset",
         "type",
