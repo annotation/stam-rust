@@ -6,7 +6,7 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::resources::TextResource;
-use crate::selector::Offset;
+use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
 use crate::textselection::{
     ResultTextSelection, ResultTextSelectionSet, TextSelection, TextSelectionHandle,
@@ -14,7 +14,6 @@ use crate::textselection::{
 };
 
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
 
 impl<'store> ResultItem<'store, TextSelection> {
     pub fn wrap(self) -> ResultTextSelection<'store> {
@@ -167,14 +166,18 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Returns the offset of this text selection in another. Returns None if they are not embedded.
     /// This also checks whether the textselections pertain to the same resource. Returns None otherwise.
-    pub fn relative_offset(&self, container: &ResultTextSelection<'store>) -> Option<Offset> {
+    pub fn relative_offset(
+        &self,
+        container: &ResultTextSelection<'store>,
+        offsetmode: OffsetMode,
+    ) -> Option<Offset> {
         let container = match container {
             Self::Bound(item) => item.as_ref(),
             Self::Unbound(_, _, item) => &item,
         };
         match self {
-            Self::Bound(item) => item.as_ref().relative_offset(container),
-            Self::Unbound(_, _, item) => item.relative_offset(container),
+            Self::Bound(item) => item.as_ref().relative_offset(container, offsetmode),
+            Self::Unbound(_, _, item) => item.relative_offset(container, offsetmode),
         }
     }
 

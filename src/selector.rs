@@ -14,6 +14,7 @@ use crate::resources::{TextResource, TextResourceHandle};
 use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
 use crate::store::*;
+use crate::text::Text;
 
 /// Text selection offset. Specifies begin and end offsets to select a range of a text, via two [`Cursor`] instances.
 /// The end-point is non-inclusive.
@@ -79,6 +80,10 @@ impl Offset {
             StamError::SerializationError(format!("Writing textselection to string: {}", e))
         })
     }
+
+    pub fn mode(&self) -> OffsetMode {
+        self.into()
+    }
 }
 
 impl Default for Offset {
@@ -104,6 +109,51 @@ impl Serialize for Offset {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode,DataSize)]
+pub enum OffsetMode {
+    #[n(0)]
+    BeginBegin,
+    #[n(1)]
+    BeginEnd,
+    #[n(2)]
+    EndEnd,
+    #[n(3)]
+    EndBegin,
+}
+
+impl Default for OffsetMode {
+    fn default() -> Self {
+        Self::BeginBegin
+    }
+}
+
+impl From<&Offset> for OffsetMode {
+    fn from(offset: &Offset) -> OffsetMode {
+        match offset.begin {
+            Cursor::BeginAligned(_) => {
+                match offset.end {
+                    Cursor::BeginAligned(_) => {
+                        Self::BeginBegin
+                    },
+                    Cursor::EndAligned(_) => {
+                        Self::BeginEnd
+                    }
+                }
+            },
+            Cursor::EndAligned(_) => {
+                match offset.end {
+                    Cursor::BeginAligned(_) => {
+                        Self::EndBegin
+                    },
+                    Cursor::EndAligned(_) => {
+                        Self::EndEnd
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// A `Selector` identifies the target of an annotation and the part of the
 /// target that the annotation applies to. Selectors can be considered the labelled edges of the graph model, tying all nodes together.
 /// There are multiple types of selectors, all captured in this enum.
@@ -114,13 +164,15 @@ impl Serialize for Offset {
 /// transparently.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum Selector {
-    /// Refers to the [`TextResource`] (as owned by the AnnotationStore) an an offset in it
+    /// Refers to the [`TextResource`] and a [`TextSelection`] within
     #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
     TextSelector(
         #[n(0)]
         TextResourceHandle,
         #[n(1)]
-        Offset
+        TextSelectionHandle,
+        #[n(2)]
+        OffsetMode, //this allows us to know what kind of offset to compute on serialisation
     ),
 
     /// Refers to an [`Annotation`] (as owned by the AnnotationStore) and optionally a *relative* text selection offset in it
@@ -129,7 +181,7 @@ pub enum Selector {
         #[n(0)]
         AnnotationHandle, 
         #[n(1)]
-        Option<Offset>
+        Option<(TextResourceHandle, TextSelectionHandle, OffsetMode)>
     ),
 
     /// Refers to a [`TextResource`] as a whole (as opposed to a text fragment inside it), as owned by an AnnotationStore.
@@ -184,30 +236,11 @@ pub enum Selector {
         Vec<Selector>
     ),
 
-    /// Internal selector pointing directly to a TextSelection, exposed as TextSelector to the outside world
-    #[n(50)]
-    InternalTextSelector {
-        #[n(0)]
-        resource: TextResourceHandle,
-        #[n(1)]
-        textselection: TextSelectionHandle,
-    },
-    /// Internal selector pointing directly to a TextSelection and an Annotation, exposed as AnnotationSelector to the outside world
-    /// This can only be used for annotations that select the entire text of the underlying annotation (no subslices)
-    #[n(51)]
-    InternalAnnotationTextSelector {
-        #[n(0)]
-        annotation: AnnotationHandle,
-        #[n(1)]
-        resource: TextResourceHandle,
-        #[n(2)]
-        textselection: TextSelectionHandle,
-    },
 
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
-    /// Conserved memory by pointing to a internal ID range
+    /// Conserves memory by pointing to a internal ID range
     #[n(52)]
-    InternalRangedTextSelector {
+    RangedTextSelector {
         #[n(0)]
         resource: TextResourceHandle,
         #[n(1)]
@@ -215,37 +248,20 @@ pub enum Selector {
         #[n(2)]
         end: TextSelectionHandle,
     },
+
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
-    /// Conserved memory by pointing to a internal ID range
+    /// Conserves memory by pointing to a internal ID range
     #[n(53)]
-    InternalRangedAnnotationSelector {
+    RangedAnnotationSelector {
         #[n(0)]
         begin: AnnotationHandle,
         #[n(1)]
         end: AnnotationHandle,
     },
-    /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
-    /// Conserved memory by pointing to a internal ID range
-    #[n(54)]
-    InternalRangedResourceSelector {
-        #[n(0)]
-        begin: TextResourceHandle,
-        #[n(1)]
-        end: TextResourceHandle,
-    },
-    /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
-    /// Conserved memory by pointing to a internal ID range
-    #[n(55)]
-    InternalRangedDataSetSelector {
-        #[n(0)]
-        begin: AnnotationDataSetHandle,
-        #[n(1)]
-        end: AnnotationDataSetHandle,
-    },
 }
 
 impl Selector {
-    /// Returns a [`SelectorKind`]
+    /// Returns a [`SelectorKind`] identifying the type of selector
     pub fn kind(&self) -> SelectorKind {
         self.into()
     }
@@ -275,12 +291,85 @@ impl Selector {
 
     /// Returns all subselectors. Use ['iter()`] instead if you want an iterator
     /// with more functionality.
-    pub fn subselectors(&self) -> Option<&Vec<Selector>> {
+    pub fn subselectors(&self) -> Option<&[Selector]> {
         match self {
             Selector::MultiSelector(v) | Selector::CompositeSelector(v) | Selector::DirectionalSelector(v) => Some(v),
             _ => None,
         }
     }   
+
+    /// Returns the textselection this selector points at, if any
+    pub fn textselection<'store>(&self, store: &'store AnnotationStore) -> Option<&'store TextSelection> {
+        match self {
+            Selector::TextSelector(res_handle,tsel_handle,_) | Selector::AnnotationSelector(_, Some((res_handle,tsel_handle,_))) => {
+                let resource: &TextResource = store.get(*res_handle).expect("handle must be valid");
+                let textselection: &TextSelection = resource.get(*tsel_handle).expect("handle must be valid");
+                Some(textselection)
+            }
+            _ => None
+        }
+    }
+
+    /// Returns the textselection handle this selector points at, if any
+    pub fn textselection_handle(&self) -> Option<TextSelectionHandle> {
+        match self {
+            Selector::TextSelector(res_handle,tsel_handle,_) | Selector::AnnotationSelector(_, Some((res_handle,tsel_handle,_))) => {
+                Some(*tsel_handle)
+            }
+            _ => None
+        }
+    }
+
+    /// Returns the handle of the resource this selector points at, if any
+    pub fn resource_handle(&self) -> Option<TextResourceHandle> {
+        match self {
+            Selector::ResourceSelector(res_handle) | Selector::TextSelector(res_handle,_,_) | Selector::AnnotationSelector(_, Some((res_handle,_,_))) => {
+                Some(*res_handle)
+            }
+            _ => None
+        }
+    }
+
+
+    //Returns the associated offset if the selector carries one
+    pub fn offset(&self, store: &AnnotationStore) -> Option<Offset> {
+        match self {
+            Selector::TextSelector(res_handle,tsel_handle,offsetmode) => {
+                let resource: &TextResource = store.get(*res_handle).expect("handle must be valid");
+                let textselection: &TextSelection = resource.get(*tsel_handle).expect("handle must be valid");
+                match offsetmode {
+                    OffsetMode::BeginBegin => //this is the easy one, the From<TextSelection> trait provides it:
+                        Some(textselection.into()),
+                    OffsetMode::BeginEnd => {
+                        let begin = textselection.begin();
+                        let end: isize = textselection.end() as isize - resource.textlen() as isize;
+                        Some(Offset::new(Cursor::BeginAligned(begin), Cursor::EndAligned(end)))
+                    }
+                    OffsetMode::EndBegin => { 
+                        let begin: isize = textselection.begin() as isize - resource.textlen() as isize;
+                        let end = textselection.end();
+                        Some(Offset::new(Cursor::EndAligned(begin), Cursor::BeginAligned(end)))
+                    }
+                    OffsetMode::EndEnd => {
+                        let begin: isize = textselection.begin() as isize - resource.textlen() as isize;
+                        let end: isize = textselection.end() as isize - resource.textlen() as isize;
+                        Some(Offset::new(Cursor::EndAligned(begin), Cursor::EndAligned(end)))
+                    }
+                }
+            }
+            Selector::AnnotationSelector(annotation_handle, Some((res_handle, tsel_handle, offsetmode))) => {
+                let resource: &TextResource = store.get(*res_handle).expect("handle must be valid");
+                let textselection: &TextSelection = resource.get(*tsel_handle).expect("handle must be valid");
+                let target: &Annotation = store.get(*annotation_handle).expect("handle must be valid");
+                if let Some(parent_textselection) = target.target().textselection(store) {
+                    textselection.relative_offset(parent_textselection, *offsetmode)
+                } else {
+                    None
+                }
+            }
+            _ => None
+        }
+    }
 }
 
 impl DataSize for Selector {
@@ -291,8 +380,8 @@ impl DataSize for Selector {
     #[inline]
     fn estimate_heap_size(&self) -> usize {
         match self {
-            Self::TextSelector(handle, offset) => 8 + data_size(handle) + data_size(offset),
-            Self::AnnotationSelector(handle, offset) => 8 + data_size(handle) + data_size(offset),
+            Self::TextSelector(handle, handle2 ,mode) => 8 + data_size(handle) + data_size(handle2) + data_size(mode),
+            Self::AnnotationSelector(handle, handle2) => 8 + data_size(handle) + data_size(handle2),
             Self::ResourceSelector(handle) => 8 + data_size(handle),
             Self::DataSetSelector(handle) => 8 + data_size(handle),
             Self::MultiSelector(v) => 8 + data_size(v),
@@ -363,28 +452,17 @@ impl From<&Selector> for SelectorKind {
         match selector {
             Selector::ResourceSelector(_) => Self::ResourceSelector,
             Selector::AnnotationSelector(_, _) => Self::AnnotationSelector,
-            Selector::TextSelector(_, _) => Self::TextSelector,
+            Selector::TextSelector(_, _,_) => Self::TextSelector,
             Selector::DataSetSelector(_) => Self::DataSetSelector,
             Selector::MultiSelector(_) => Self::MultiSelector,
             Selector::CompositeSelector(_) => Self::CompositeSelector,
             Selector::DirectionalSelector(_) => Self::DirectionalSelector,
-            Selector::InternalTextSelector {
-                resource: _,
-                textselection: _,
-            } => Self::TextSelector,
-            Selector::InternalAnnotationTextSelector {
-                annotation: _,
-                resource: _,
-                textselection: _,
-            } => Self::AnnotationSelector,
-            Selector::InternalRangedTextSelector {
+            Selector::RangedTextSelector {
                 resource: _,
                 begin: _,
                 end: _,
             }
-            | Selector::InternalRangedAnnotationSelector { begin: _, end: _ }
-            | Selector::InternalRangedResourceSelector { begin: _, end: _ }
-            | Selector::InternalRangedDataSetSelector { begin: _, end: _ } => {
+            | Selector::RangedAnnotationSelector { begin: _, end: _ } => {
                 Self::InternalRangedSelector
             }
         }
@@ -521,7 +599,7 @@ impl<'a> From<SelectorJson> for SelectorBuilder<'a> {
 /// This trait is implemented by types that can return a Selector to themselves
 pub trait SelfSelector {
     /// Returns a selector that points to this resource
-    fn selector(&self) -> Result<Selector, StamError>;
+    fn to_selector(&self) -> Result<Selector, StamError>;
 }
 
 
@@ -603,7 +681,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 }
                 state.end()
             }
-            Selector::TextSelector(res_handle, offset) => {
+            Selector::TextSelector(res_handle, tsel_handl, offsetmode) => {
                 let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
@@ -613,7 +691,8 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 } else {
                     state.serialize_field("resource", &textresource.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                state.serialize_field("offset", offset)?;
+                let offset: Offset = self.selector.offset(self.store()).expect("must have offset");
+                state.serialize_field("offset", &offset)?;
                 state.end()
             }
             Selector::DataSetSelector(dataset_handle) => {
@@ -629,7 +708,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 }
                 state.end()
             }
-            Selector::AnnotationSelector(annotation_handle, offset) => {
+            Selector::AnnotationSelector(annotation_handle, _) => {
                 let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
                 let annotation = annotation.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
@@ -639,48 +718,9 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 } else {
                     state.serialize_field("annotation", &annotation.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
-                if let Some(offset) = offset {
-                    state.serialize_field("offset", offset)?;
+                if let Some(offset) = self.selector.offset(self.store()) {
+                    state.serialize_field("offset", &offset)?;
                 }
-                state.end()
-            }
-            Selector::InternalAnnotationTextSelector {
-                annotation: annotation_handle,
-                resource: _res_handle,
-                textselection: _textselection_handle,
-            } => {
-                let annotation: Result<&Annotation, _> = self.store().get(*annotation_handle);
-                let annotation = annotation.map_err(serde::ser::Error::custom)?;
-
-                let mut state = serializer.serialize_struct("Selector", 3)?;
-                state.serialize_field("@type", "AnnotationSelector")?;
-                if let Some(id) = annotation.id() {
-                    state.serialize_field("annotation", &id)?;
-                } else {
-                    state.serialize_field("annotation", &annotation.temp_id().map_err(serde::ser::Error::custom)?)?;
-                }
-                state.serialize_field("offset", &Offset::whole())?;
-                state.end()
-            }
-            Selector::InternalTextSelector {
-                resource: res_handle,
-                textselection: textselection_handle,
-            } => {
-                let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
-                let textresource = textresource.map_err(serde::ser::Error::custom)?;
-                let textselection: &TextSelection = textresource
-                    .get(*textselection_handle)
-                    .map_err(serde::ser::Error::custom)?;
-
-                let mut state = serializer.serialize_struct("Selector", 3)?;
-                state.serialize_field("@type", "TextSelector")?;
-                if let Some(id) = textresource.id() {
-                    state.serialize_field("resource", &id)?;
-                } else {
-                    state.serialize_field("resource", &textresource.temp_id().map_err(serde::ser::Error::custom)?)?;
-                }
-                let offset: Offset = textselection.into();
-                state.serialize_field("offset", &offset)?;
                 state.end()
             }
             Selector::MultiSelector(subselectors) => {
@@ -713,14 +753,13 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 state.serialize_field("selectors", &subselectors)?;
                 state.end()
             }
-            Selector::InternalRangedTextSelector {
+            Selector::RangedTextSelector {
                 resource: _,
                 begin: _,
                 end: _,
             } 
-            | Selector::InternalRangedAnnotationSelector { begin: _, end: _ }
-            | Selector::InternalRangedDataSetSelector { begin: _, end: _ }
-            | Selector::InternalRangedResourceSelector { begin: _, end: _ } => {
+            | Selector::RangedAnnotationSelector { begin: _, end: _ }
+            => {
                 Err(serde::ser::Error::custom(
                     "Internal Ranged selectors can not be serialized directly, they can be serialized only when under a complex selector",
                 ))
@@ -770,7 +809,7 @@ pub struct SelectorIter<'a> {
 
 pub struct SelectorIterItem<'a> {
     ancestors: AncestorVec<'a>,
-    selector: Cow<'a, Selector>, //we use Cow because we may return create new owned selectors on the fly (like with ranged internal selectors)
+    selector: Cow<'a, Selector>, //we use Cow because we may return newly created owned selectors on the fly (like with ranged internal selectors)
     depth: usize,
     leaf: bool,
 }
@@ -801,17 +840,17 @@ impl<'a> SelectorIter<'a> {
                 SmallVec::new()
             },
             selector: match selector {
-                Selector::InternalRangedResourceSelector {..} => {
-                    Cow::Owned(Selector::ResourceSelector(TextResourceHandle::new(self.cursor_in_range)))
+                Selector::RangedAnnotationSelector {..} => {
+                    let handle = AnnotationHandle::new(self.cursor_in_range);
+                    let annotation: &Annotation = self.store.get(handle).expect("annotation handle must be valid");
+                    if let (Some(textselection_handle), Some(resource_handle)) = (annotation.target().textselection_handle(), annotation.target().resource_handle()) {
+                        Cow::Owned(Selector::AnnotationSelector(handle, Some((resource_handle, textselection_handle, OffsetMode::default()))))
+                    } else {
+                        Cow::Owned(Selector::AnnotationSelector(handle, None))
+                    }
                 }
-                Selector::InternalRangedDataSetSelector {..} => {
-                    Cow::Owned(Selector::DataSetSelector(AnnotationDataSetHandle::new(self.cursor_in_range)))
-                }
-                Selector::InternalRangedAnnotationSelector {..} => {
-                    Cow::Owned(Selector::AnnotationSelector(AnnotationHandle::new(self.cursor_in_range), Some(Offset::whole())))
-                }
-                Selector::InternalRangedTextSelector { resource, .. } => {
-                    Cow::Owned(Selector::InternalTextSelector {resource:*resource, textselection: TextSelectionHandle::new(self.cursor_in_range)} )
+                Selector::RangedTextSelector { resource, .. } => {
+                    Cow::Owned(Selector::TextSelector(*resource, TextSelectionHandle::new(self.cursor_in_range), OffsetMode::default()) )
                 }
                 _ => {
                     unreachable!()
@@ -833,7 +872,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                     let mut leaf = true;
                     match self.selector {
                         //  higher-order annotation, appends to the subiterstack
-                        Selector::AnnotationSelector(a_handle, _) | Selector::InternalAnnotationTextSelector { annotation: a_handle, .. }=> {
+                        Selector::AnnotationSelector(a_handle, _) => {
                             if self.recurse_annotation {
                                 leaf = false;
                                 let annotation: &Annotation = self
@@ -886,9 +925,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 });
                             }
                         }
-                        // internal ranged selector, these return a result immediately
-                        // some duplication because each begin/end has different parameter types even though it looks the same
-                        Selector::InternalRangedResourceSelector { begin , end } => {
+                        Selector::RangedAnnotationSelector { begin, end } => {
                             if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
@@ -899,29 +936,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 return Some(result);
                             }
                         }
-                        Selector::InternalRangedDataSetSelector { begin, end } => {
-                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
-                                //we're done with this iterator
-                                self.done = true; //this flags that we have processed this selector
-                                return None;
-                            } else {
-                                let result = self.get_internal_ranged_item(self.selector);
-                                self.cursor_in_range += 1;
-                                return Some(result);
-                            }
-                        }
-                        Selector::InternalRangedAnnotationSelector { begin, end } => {
-                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
-                                //we're done with this iterator
-                                self.done = true; //this flags that we have processed this selector
-                                return None;
-                            } else {
-                                let result = self.get_internal_ranged_item(self.selector);
-                                self.cursor_in_range += 1;
-                                return Some(result);
-                            }
-                        }
-                        Selector::InternalRangedTextSelector { resource: _, begin, end } => {
+                        Selector::RangedTextSelector { resource: _, begin, end } => {
                             if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
@@ -933,8 +948,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                             }
                         },
                         // simple selectors fall back to the default behaviour after this match clause
-                        Selector::TextSelector(_, _) => {},
-                        Selector::InternalTextSelector {..} => {},
+                        Selector::TextSelector(_, _,_) => {},
                         Selector::DataSetSelector(_) => {}
                         Selector::ResourceSelector(_) => {}
                     };

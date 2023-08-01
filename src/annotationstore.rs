@@ -215,27 +215,10 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                     }
                 }
             }
-            Selector::TextSelector(res_handle, offset) => {
+            Selector::TextSelector(res_handle, textselection_handle, _) => {
                 if self.config.textrelationmap {
-                    // note: a normal self.get() doesn't cut it here because of the borrow checker
-                    //       now at least the borrow checker knows self.resources is distinct from self and self.annotations
-                    let resource: &mut TextResource = self
-                        .resources
-                        .get_mut(res_handle.as_usize())
-                        .unwrap()
-                        .as_mut()
-                        .unwrap();
-                    let textselection = resource.textselection_by_offset(offset)?;
-                    let textselection_handle: TextSelectionHandle =
-                        if let Some(textselection_handle) = textselection.handle() {
-                            //already exists
-                            textselection_handle
-                        } else {
-                            //new, insert... (it's important never to insert the same one twice!)
-                            resource.insert(textselection)?
-                        };
                     self.textrelationmap
-                        .insert(*res_handle, textselection_handle, handle);
+                        .insert(*res_handle, *textselection_handle, handle);
                 }
             }
             _ => {
@@ -245,7 +228,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
 
         //intermediate structure to gather text relations that should later be added to the reverse index
         let mut extend_textrelationmap: SmallVec<
-            [(TextResourceHandle, TextSelection, AnnotationHandle); 1],
+            [(TextResourceHandle, TextSelectionHandle, AnnotationHandle); 1],
         > = SmallVec::new();
 
         // if needed, we handle more complex situations where there are multiple targets
@@ -276,22 +259,16 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                 .map(|targetitem| {
                     let res_handle = targetitem.handle();
                     if self.config.textrelationmap {
-                        //process relative offset (note that this essentially duplicates 'iter_target_textselection` but
-                        //it allows us to combine two things in one and save an iteration.
-                        match self.textselection_by_selector(
-                            targetitem.selector(),
-                            Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
-                        ) {
-                            Ok(textselection) => match textselection {
-                                ResultTextSelection::Bound(item) => extend_textrelationmap.push((
-                                    res_handle,
-                                    item.as_ref().clone(),
+                        match self.textselection_by_selector(targetitem.selector()) {
+                            Ok((resource, textselection)) => {
+                                extend_textrelationmap.push((
+                                    resource.handle().expect("resource handle must be valid"),
+                                    textselection
+                                        .handle()
+                                        .expect("textselection handle must be valid"),
                                     handle,
-                                )),
-                                ResultTextSelection::Unbound(_, _, textselection) => {
-                                    extend_textrelationmap.push((res_handle, textselection, handle))
-                                }
-                            },
+                                ));
+                            }
                             Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
                         }
                     }
@@ -305,42 +282,9 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             }
 
             if self.config.textrelationmap {
-                //now we add the gathered textselection to the textrelationmap
-                self.textrelationmap.extend(
-                    extend_textrelationmap
-                        .iter()
-                        .map(|(res_handle, textselection, handle)| {
-                            let resource: &mut TextResource = self
-                                .resources
-                                .get_mut(res_handle.as_usize())
-                                .unwrap()
-                                .as_mut()
-                                .unwrap();
-                            let textselection_handle: TextSelectionHandle =
-                                if let Some(textselection_handle) = textselection.handle() {
-                                    //we already have handle, don't insert anew
-                                    textselection_handle
-                                } else {
-                                    match resource.known_textselection(&textselection.into()) {
-                                        Ok(Some(found_textselectionhandle)) => {
-                                            //we have just been inserted and found a handle
-                                            found_textselectionhandle
-                                        }
-                                        Ok(None) => {
-                                            //new, insert... (it's important never to insert the same one twice!)
-                                            resource
-                                                .insert(*textselection)
-                                                .expect("insertion should succeed")
-                                        }
-                                        Err(err) => {
-                                            panic!("Error resolving textselection: {}", err)
-                                        }
-                                    }
-                                };
-                            (*res_handle, textselection_handle, *handle)
-                        })
-                        .into_iter(),
-                );
+                //now we add the gathered textselection to the textrelationmap (we needed this buffer because we couldn't have a mutable and immutable reference at once before)
+                self.textrelationmap
+                    .extend(extend_textrelationmap.into_iter());
             }
         }
 
@@ -948,6 +892,7 @@ impl AnnotationStore {
     }
 
     /// Builds a [`Selector`] based on its [`SelectorBuilder`], this will produce an error if the selected resource does not exist.
+    /// This is a low-level method that you shouldn't need to call yourself.
     pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
         match item {
             SelectorBuilder::ResourceSelector(id) => {
@@ -955,14 +900,61 @@ impl AnnotationStore {
                 Ok(Selector::ResourceSelector(resource.handle_or_err()?))
             }
             SelectorBuilder::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(res_id)?;
-                Ok(Selector::TextSelector(resource.handle_or_err()?, offset))
+                let resource: &mut TextResource = self.get_mut(res_id)?;
+                let textselection = resource.textselection_by_offset(&offset)?;
+                let textselection_handle: TextSelectionHandle =
+                    if let Some(textselection_handle) = textselection.handle() {
+                        //we already have a handle so the textselection already exists
+                        textselection_handle
+                    } else {
+                        //new, insert... (it's important never to insert the same one twice!)
+                        resource.insert(textselection)?
+                    };
+                //note: insertion into reverse indices will happen after annotation insertion
+                Ok(Selector::TextSelector(
+                    resource.handle_or_err()?,
+                    textselection_handle,
+                    offset.mode(),
+                ))
             }
             SelectorBuilder::AnnotationSelector(a_id, offset) => {
-                let annotation: &Annotation = self.get(a_id)?;
+                if let Some(offset) = offset {
+                    let target_annotation: &Annotation = self.get(&a_id)?;
+                    let target_annotation_handle = target_annotation.handle_or_err()?;
+                    if let Some(parent_textselection) =
+                        target_annotation.target().textselection(self)
+                    {
+                        let resource_handle = target_annotation
+                            .target()
+                            .resource_handle()
+                            .expect("selector must have resource");
+                        let textselection =
+                            parent_textselection.textselection_by_offset(&offset)?;
+                        let resource: &mut TextResource = self.get_mut(resource_handle)?;
+                        let textselection_handle = if let Some(textselection_handle) =
+                            resource.known_textselection(&textselection.into())?
+                        {
+                            //we already have a handle so the textselection already exists
+                            textselection_handle
+                        } else {
+                            //new, insert... (it's important never to insert the same one twice!)
+                            resource.insert(textselection)?
+                        };
+                        eprintln!("DEBUG: inserted {:?}", textselection_handle);
+                        return Ok(Selector::AnnotationSelector(
+                            target_annotation_handle,
+                            Some((
+                                resource.handle_or_err()?,
+                                textselection_handle,
+                                offset.mode(),
+                            )),
+                        ));
+                    }
+                }
+                let target_annotation: &Annotation = self.get(&a_id)?;
                 Ok(Selector::AnnotationSelector(
-                    annotation.handle_or_err()?,
-                    offset,
+                    target_annotation.handle_or_err()?,
+                    None,
                 ))
             }
             SelectorBuilder::DataSetSelector(id) => {
@@ -1005,6 +997,28 @@ impl AnnotationStore {
                 }
                 Ok(Selector::CompositeSelector(new_v))
             }
+        }
+    }
+
+    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
+    /// complex selectors.
+    ///
+    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
+    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
+    pub(crate) fn textselection_by_selector<'b>(
+        &self,
+        selector: &Selector,
+    ) -> Result<(&TextResource, &TextSelection), StamError> {
+        match selector {
+            Selector::TextSelector(res_handle, tsel_handle, _)
+            | Selector::AnnotationSelector(_, Some((res_handle, tsel_handle, _))) => {
+                let resource: &TextResource = self.get(*res_handle)?;
+                let textselection: &TextSelection = resource.get(*tsel_handle)?;
+                Ok((resource, textselection))
+            }
+            _ => Err(StamError::WrongSelectorType(
+                "selector for Annotationstore::textselection() must be a TextSelector",
+            )),
         }
     }
 

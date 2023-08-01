@@ -77,40 +77,40 @@ impl<'a> AnnotationCsv<'a> {
         }
     }
 
-    fn set_beginoffset(selector: &Selector) -> String {
+    fn set_beginoffset(selector: &Selector, store: &AnnotationStore) -> String {
         if selector.is_complex() {
             let mut out: String = String::new();
             if let Some(subselectors) = selector.subselectors() {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
-                    out += Self::set_beginoffset(subselector).as_str();
+                    out += Self::set_beginoffset(subselector, store).as_str();
                 }
             }
             out
         } else {
-            match selector {
-                Selector::TextSelector(_, offset)
-                | Selector::AnnotationSelector(_, Some(offset)) => format!("{}", offset.begin),
-                _ => String::new(),
+            if let Some(offset) = selector.offset(store) {
+                format!("{}", offset.begin)
+            } else {
+                String::new()
             }
         }
     }
 
-    fn set_endoffset(selector: &Selector) -> String {
+    fn set_endoffset(selector: &Selector, store: &AnnotationStore) -> String {
         if selector.is_complex() {
             let mut out: String = String::new();
             if let Some(subselectors) = selector.subselectors() {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
-                    out += Self::set_endoffset(subselector).as_str();
+                    out += Self::set_endoffset(subselector, store).as_str();
                 }
             }
             out
         } else {
-            match selector {
-                Selector::TextSelector(_, offset)
-                | Selector::AnnotationSelector(_, Some(offset)) => format!("{}", offset.end),
-                _ => String::new(),
+            if let Some(offset) = selector.offset(store) {
+                format!("{}", offset.end)
+            } else {
+                String::new()
             }
         }
     }
@@ -122,7 +122,7 @@ impl<'a> AnnotationCsv<'a> {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
                     match subselector {
-                        Selector::ResourceSelector(res) | Selector::TextSelector(res, _) => {
+                        Selector::ResourceSelector(res) | Selector::TextSelector(res, _, _) => {
                             let res: &TextResource = store.get(*res).expect("resource must exist");
                             out += res.id().expect("resource must have an id");
                         }
@@ -133,7 +133,7 @@ impl<'a> AnnotationCsv<'a> {
             Cow::Owned(out)
         } else {
             match selector {
-                Selector::ResourceSelector(res) | Selector::TextSelector(res, _) => {
+                Selector::ResourceSelector(res) | Selector::TextSelector(res, _, _) => {
                     let res: &TextResource = store.get(*res).expect("resource must exist");
                     Cow::Borrowed(res.id().expect("resource must have an id"))
                 }
@@ -428,8 +428,11 @@ where
                                 annotation.as_ref().target(),
                                 self,
                             ),
-                            begin: AnnotationCsv::set_beginoffset(annotation.as_ref().target()),
-                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target()),
+                            begin: AnnotationCsv::set_beginoffset(
+                                annotation.as_ref().target(),
+                                self,
+                            ),
+                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target(), self),
                         }
                     } else if annotation.as_ref().len() == 1 {
                         //only one data item, we needn't make any copies
@@ -464,8 +467,11 @@ where
                                 annotation.as_ref().target(),
                                 self,
                             ),
-                            begin: AnnotationCsv::set_beginoffset(annotation.as_ref().target()),
-                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target()),
+                            begin: AnnotationCsv::set_beginoffset(
+                                annotation.as_ref().target(),
+                                self,
+                            ),
+                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target(), self),
                         }
                     } else {
                         let mut data_ids = String::new();
@@ -509,8 +515,11 @@ where
                                 annotation.as_ref().target(),
                                 self,
                             ),
-                            begin: AnnotationCsv::set_beginoffset(annotation.as_ref().target()),
-                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target()),
+                            begin: AnnotationCsv::set_beginoffset(
+                                annotation.as_ref().target(),
+                                self,
+                            ),
+                            end: AnnotationCsv::set_endoffset(annotation.as_ref().target(), self),
                         }
                     };
                     writer.serialize(out).map_err(|e| {

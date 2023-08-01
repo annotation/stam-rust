@@ -16,7 +16,9 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
-use crate::selector::{Offset, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
+use crate::selector::{
+    Offset, OffsetMode, Selector, SelectorBuilder, SelfSelector, WrappedSelector,
+};
 use crate::store::*;
 use crate::types::*;
 
@@ -535,12 +537,19 @@ impl<'a> From<AnnotationJson<'a>> for AnnotationBuilder<'a> {
 
 impl SelfSelector for Annotation {
     /// Returns a selector to this resource
-    fn selector(&self) -> Result<Selector, StamError> {
+    fn to_selector(&self) -> Result<Selector, StamError> {
         if let Some(handle) = self.handle() {
-            Ok(Selector::AnnotationSelector(
-                handle,
-                Some(Offset::default()),
-            ))
+            if let (Some(res_handle), Some(tsel_handle)) = (
+                self.target().resource_handle(),
+                self.target().textselection_handle(),
+            ) {
+                Ok(Selector::AnnotationSelector(
+                    handle,
+                    Some((res_handle, tsel_handle, OffsetMode::default())),
+                ))
+            } else {
+                Ok(Selector::AnnotationSelector(handle, None))
+            }
         } else {
             Err(StamError::Unbound("Annotation::self_selector()"))
         }

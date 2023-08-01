@@ -262,6 +262,31 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 }
 
 #[test]
+fn parse_json_textselector() -> Result<(), std::io::Error> {
+    let data = r#"{ 
+        "@type": "TextSelector",
+        "resource": "testres",
+        "offset": {
+            "begin": {
+                "@type": "BeginAlignedCursor",
+                "value": 0
+            },
+            "end": {
+                "@type": "BeginAlignedCursor",
+                "value": 5
+            }
+        }
+    }"#;
+
+    let builder: SelectorBuilder = serde_json::from_str(data)?;
+
+    let mut store = setup_example_2().unwrap();
+    let selector = store.selector(builder).unwrap();
+    assert_eq!(selector.offset(&store).unwrap(), Offset::simple(0, 5));
+    Ok(())
+}
+
+#[test]
 fn as_resultitem() -> Result<(), StamError> {
     let store = setup_example_2()?;
 

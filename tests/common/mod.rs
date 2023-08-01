@@ -340,7 +340,10 @@ pub fn setup_example_6b() -> Result<AnnotationStore, StamError> {
                 let builder = AnnotationBuilder::new()
                     .with_target(SelectorBuilder::annotationselector(
                         sentence.handle(),
-                        word.relative_offset(&sentence.textselections().next().unwrap()),
+                        word.relative_offset(
+                            &sentence.textselections().next().unwrap(),
+                            OffsetMode::default(),
+                        ),
                     ))
                     .with_data("myset", "type", "word");
                 Some(builder)

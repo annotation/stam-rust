@@ -926,7 +926,7 @@ impl private::StoreCallbacks<TextSelection> for TextResource {
 
 impl SelfSelector for TextResource {
     /// Returns a selector to this resource
-    fn selector(&self) -> Result<Selector, StamError> {
+    fn to_selector(&self) -> Result<Selector, StamError> {
         if let Some(intid) = self.handle() {
             Ok(Selector::ResourceSelector(intid))
         } else {

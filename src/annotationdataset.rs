@@ -322,7 +322,7 @@ impl ChangeMarker for AnnotationDataSet {
 
 impl SelfSelector for AnnotationDataSet {
     /// Returns a selector to this resource
-    fn selector(&self) -> Result<Selector, StamError> {
+    fn to_selector(&self) -> Result<Selector, StamError> {
         if let Some(intid) = self.handle() {
             Ok(Selector::DataSetSelector(intid))
         } else {

@@ -12,17 +12,18 @@ use crate::resources::TextResource;
 use crate::selector::{Selector, SelectorIter};
 use crate::store::*;
 use crate::text::Text;
-use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
+use crate::textselection::{
+    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
+};
 
 use crate::api::textselection::SortTextualOrder;
 
 impl<'store> ResultItem<'store, Annotation> {
-    /// Returns an iterator over the resources that this annotation (by its target selector) references
+    /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
     pub fn resources(&self) -> TargetIter<'store, TextResource> {
         let selector_iter: SelectorIter<'store> =
-            self.as_ref().target().iter(self.store(), true, true);
-        //                                                  ^ -- we track ancestors because it is needed to resolve relative offsets
+            self.as_ref().target().iter(self.store(), true, false);
         TargetIter {
             store: self.store(),
             iter: selector_iter,
@@ -82,13 +83,19 @@ impl<'store> ResultItem<'store, Annotation> {
     /// They are returned in the exact order as they were selected.
     pub fn textselections(&self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'store {
         let store = self.store();
-        self.resources().filter_map(|targetitem| {
-            //process offset relative offset
+        let selector_iter: SelectorIter<'store> = self.as_ref().target().iter(store, false, false);
+        //                                                                           ^-- no recursion!!!
+        let iter: TargetIter<'store, TextResource> = TargetIter {
+            store,
+            iter: selector_iter,
+            _phantomdata: PhantomData,
+        };
+        iter.filter_map(|resource_targetitem| {
             store
-                .textselection_by_selector(
-                    targetitem.selector(),
-                    Some(targetitem.ancestors().iter().map(|x| x.as_ref())),
-                )
+                .textselection_by_selector(resource_targetitem.selector())
+                .map(|(resource, textselection)| {
+                    ResultTextSelection::Bound(textselection.as_resultitem(resource, store))
+                })
                 .ok() //ignores errors!
         })
     }
@@ -128,10 +135,13 @@ impl<'store> ResultItem<'store, Annotation> {
     /// ResourceSelector and AnnotationSelector, and not for complex selectors.
     pub fn resource(&self) -> Option<ResultItem<'store, TextResource>> {
         match self.as_ref().target() {
-            Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
+            Selector::TextSelector(res_id, _, _)
+            | Selector::ResourceSelector(res_id)
+            | Selector::AnnotationSelector(_, Some((res_id, _, _))) => {
                 self.store().resource(*res_id)
             }
             Selector::AnnotationSelector(a_id, _) => {
+                //still needed for targeted annotations with a ResourceSelector rather than a textselector
                 if let Some(annotation) = self.store().annotation(*a_id) {
                     annotation.resource()
                 } else {
@@ -436,39 +446,6 @@ impl<'store> ResultItem<'store, Annotation> {
             }))
         } else {
             None
-        }
-    }
-}
-
-impl AnnotationStore {
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
-    /// complex selectors, use for instance [`AnnotationStore::textselections_by_annotation`]
-    /// instead for those.
-    ///
-    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
-    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
-    pub(crate) fn textselection_by_selector<'b>(
-        &self,
-        selector: &Selector,
-        subselectors: Option<impl Iterator<Item = &'b Selector>>,
-    ) -> Result<ResultTextSelection, StamError> {
-        match selector {
-            Selector::TextSelector(res_id, offset) => {
-                let resource: &TextResource = self.get(*res_id)?;
-                let mut textselection = resource.as_resultitem(self, self).textselection(offset)?;
-                if let Some(subselectors) = subselectors {
-                    for selector in subselectors {
-                        if let Selector::AnnotationSelector(_a_id, Some(suboffset)) = selector {
-                            //each annotation selector selects a subslice of the previous textselection
-                            textselection = textselection.textselection(&suboffset)?;
-                        }
-                    }
-                }
-                Ok(textselection)
-            }
-            _ => Err(StamError::WrongSelectorType(
-                "selector for Annotationstore::textselection() must be a TextSelector",
-            )),
         }
     }
 }

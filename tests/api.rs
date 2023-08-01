@@ -208,37 +208,6 @@ fn store_annotate_add_during_borrowproblem() -> Result<(), StamError> {
 }
 
 #[test]
-fn parse_json_textselector() -> Result<(), std::io::Error> {
-    let data = r#"{ 
-        "@type": "TextSelector",
-        "resource": "testres",
-        "offset": {
-            "begin": {
-                "@type": "BeginAlignedCursor",
-                "value": 0
-            },
-            "end": {
-                "@type": "BeginAlignedCursor",
-                "value": 5
-            }
-        }
-    }"#;
-
-    let builder: SelectorBuilder = serde_json::from_str(data)?;
-
-    let mut store = setup_example_2().unwrap();
-    let selector = store.selector(builder).unwrap();
-    assert_eq!(
-        selector,
-        Selector::TextSelector(
-            store.resolve_resource_id("testres").unwrap(),
-            Offset::simple(0, 5)
-        )
-    );
-    Ok(())
-}
-
-#[test]
 fn parse_json_annotation() -> Result<(), std::io::Error> {
     let data = r#"{ 
         "@type": "Annotation",
@@ -1700,7 +1669,9 @@ fn annotations_by_related_text_relative_offset() -> Result<(), StamError> {
         .textselections()
         .next()
         .unwrap();
-    let offset = phrase1.relative_offset(&sentence1).unwrap();
+    let offset = phrase1
+        .relative_offset(&sentence1, OffsetMode::default())
+        .unwrap();
     assert_eq!(offset.begin, Cursor::BeginAligned(17)); //happens to be the same as absolute offset since Sentence1 covers all..
     assert_eq!(offset.end, Cursor::BeginAligned(40));
     Ok(())

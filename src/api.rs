@@ -108,7 +108,9 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
             let selectoritem = self.iter.next();
             if let Some(selectoritem) = selectoritem {
                 match selectoritem.selector().as_ref() {
-                    Selector::TextSelector(res_id, _) | Selector::ResourceSelector(res_id) => {
+                    Selector::TextSelector(res_id, _, _)
+                    | Selector::ResourceSelector(res_id)
+                    | Selector::AnnotationSelector(_, Some((res_id, _, _))) => {
                         let resource: &TextResource =
                             self.iter.store.get(*res_id).expect("Resource must exist");
                         return Some(TargetIterItem {
@@ -163,37 +165,6 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
                             self.iter.store.get(*a_id).expect("Annotation must exist");
                         return Some(TargetIterItem {
                             item: annotation.as_resultitem(self.store, self.iter.store),
-                            selectoriteritem: selectoritem,
-                        });
-                    }
-                    _ => continue,
-                }
-            } else {
-                return None;
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for TargetIter<'a, TextSelection> {
-    type Item = TargetIterItem<'a, TextSelection>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let selectoritem = self.iter.next();
-            if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
-                    Selector::InternalTextSelector {
-                        resource,
-                        textselection,
-                    } => {
-                        let resource: &TextResource =
-                            self.iter.store.get(*resource).expect("Resource must exist");
-                        let textselection: &TextSelection = resource
-                            .get(*textselection)
-                            .expect("TextSelection must exist");
-                        return Some(TargetIterItem {
-                            item: textselection.as_resultitem(resource, self.iter.store),
                             selectoriteritem: selectoritem,
                         });
                     }

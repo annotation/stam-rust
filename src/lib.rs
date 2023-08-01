@@ -41,7 +41,8 @@ pub use resources::{
     PositionMode, TextResource, TextResourceBuilder, TextResourceHandle, TextSelectionIter,
 };
 pub use selector::{
-    Offset, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind, SelfSelector,
+    Offset, OffsetMode, Selector, SelectorBuilder, SelectorIter, SelectorIterItem, SelectorKind,
+    SelfSelector,
 };
 pub use store::{BuildItem, Request, ResultItem, Storable, Store, StoreFor};
 pub use text::Text;

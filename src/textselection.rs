@@ -12,8 +12,9 @@ use smallvec::SmallVec;
 
 use crate::annotationstore::AnnotationStore;
 use crate::cbor::*;
+use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
-use crate::selector::Offset;
+use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
 use crate::text::*;
 use crate::types::*;
@@ -212,16 +213,119 @@ impl TextSelection {
         }
     }
 
-    /// Returns the offset of this text selection in another. Returns None if they are not embedded.
+    /// Returns the begin cursor of this text selection in another, as an end aligned cursor. Returns None if they are not embedded.
     /// **Note:** this does *NOT* check whether the textselections pertain to the same resource, that is up to the caller.
-    pub fn relative_offset(&self, container: &TextSelection) -> Option<Offset> {
-        if let (Some(begin), Some(end)) =
-            (self.relative_begin(container), self.relative_end(container))
-        {
-            Some(Offset::simple(begin, end))
+    fn relative_begin_endaligned(&self, container: &TextSelection) -> Option<isize> {
+        if self.begin() >= container.begin() {
+            let beginaligned = self.begin() - container.begin();
+            let containerlen = container.end() as isize - container.begin() as isize;
+            Some(containerlen - beginaligned as isize)
         } else {
             None
         }
+    }
+
+    /// Returns the begin cursor of this text selection in another, as an end aligned cursor. Returns None if they are not embedded.
+    /// **Note:** this does *NOT* check whether the textselections pertain to the same resource, that is up to the caller.
+    fn relative_end_endaligned(&self, container: &TextSelection) -> Option<isize> {
+        if self.end() <= container.end() {
+            let beginaligned = self.end() - container.begin();
+            let containerlen = container.end() as isize - container.begin() as isize;
+            Some(containerlen - beginaligned as isize)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the offset of this text selection in another. Returns None if they are not embedded.
+    /// **Note:** this does *NOT* check whether the textselections pertain to the same resource, that is up to the caller.
+    pub fn relative_offset(
+        &self,
+        container: &TextSelection,
+        offsetmode: OffsetMode,
+    ) -> Option<Offset> {
+        match offsetmode {
+            OffsetMode::BeginBegin => {
+                if let (Some(begin), Some(end)) =
+                    (self.relative_begin(container), self.relative_end(container))
+                {
+                    Some(Offset::simple(begin, end))
+                } else {
+                    None
+                }
+            }
+            OffsetMode::BeginEnd => {
+                if let (Some(begin), Some(end)) = (
+                    self.relative_begin(container),
+                    self.relative_end_endaligned(container),
+                ) {
+                    Some(Offset::new(
+                        Cursor::BeginAligned(begin),
+                        Cursor::EndAligned(end),
+                    ))
+                } else {
+                    None
+                }
+            }
+            OffsetMode::EndEnd => {
+                if let (Some(begin), Some(end)) = (
+                    self.relative_begin_endaligned(container),
+                    self.relative_end_endaligned(container),
+                ) {
+                    Some(Offset::new(
+                        Cursor::EndAligned(begin),
+                        Cursor::EndAligned(end),
+                    ))
+                } else {
+                    None
+                }
+            }
+            OffsetMode::EndBegin => {
+                if let (Some(begin), Some(end)) = (
+                    self.relative_begin_endaligned(container),
+                    self.relative_end(container),
+                ) {
+                    Some(Offset::new(
+                        Cursor::EndAligned(begin),
+                        Cursor::BeginAligned(end),
+                    ))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    /// Resolves a relative cursor to a relative begin aligned cursor, resolving all end-aligned positions
+    fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
+        let textlen = self.end() - self.begin();
+        match *cursor {
+            Cursor::BeginAligned(cursor) => Ok(cursor),
+            Cursor::EndAligned(cursor) => {
+                if cursor.abs() as usize > textlen {
+                    Err(StamError::CursorOutOfBounds(
+                        Cursor::EndAligned(cursor),
+                        "TextResource::beginaligned_cursor(): end aligned cursor ends up before the beginning",
+                    ))
+                } else {
+                    Ok(textlen - cursor.abs() as usize)
+                }
+            }
+        }
+    }
+
+    /// Low-level method to get a textselection inside the current one
+    /// Note: this is a low level method and will always return an unbound textselection!
+    pub fn textselection_by_offset(&self, offset: &Offset) -> Result<TextSelection, StamError> {
+        let (begin, end) = (
+            self.begin + self.beginaligned_cursor(&offset.begin)?,
+            self.begin + self.beginaligned_cursor(&offset.end)?,
+        );
+        Ok(TextSelection {
+            intid: None,
+            begin,
+            end,
+        })
     }
 }
 
