@@ -20,12 +20,13 @@ use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
+use smallvec::SmallVec;
+
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::resources::TextResource;
 use crate::selector::{AncestorVec, Selector, SelectorIter, SelectorIterItem};
 use crate::store::*;
-use crate::textselection::TextSelection;
 
 // This root module contains some common structures used by multiple parts of the higher-level API.
 // See api/* for the high-level API implementations for each STAM object.
@@ -36,6 +37,8 @@ where
 {
     pub(crate) store: &'a T::StoreType,
     pub(crate) iter: SelectorIter<'a>,
+    pub(crate) history: SmallVec<[&'a T; 3]>,
+    pub(crate) allow_duplicates: bool,
     pub(crate) _phantomdata: PhantomData<T>,
 }
 
@@ -43,10 +46,12 @@ impl<'a, T> TargetIter<'a, T>
 where
     T: Storable,
 {
-    pub fn new(store: &'a T::StoreType, iter: SelectorIter<'a>) -> Self {
+    pub fn new(store: &'a T::StoreType, iter: SelectorIter<'a>, allow_duplicates: bool) -> Self {
         Self {
             store,
             iter,
+            history: SmallVec::new(),
+            allow_duplicates,
             _phantomdata: PhantomData,
         }
     }
@@ -113,6 +118,12 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
                     | Selector::AnnotationSelector(_, Some((res_id, _, _))) => {
                         let resource: &TextResource =
                             self.iter.store.get(*res_id).expect("Resource must exist");
+                        if !self.allow_duplicates {
+                            if self.history.contains(&resource) {
+                                continue;
+                            }
+                            self.history.push(resource);
+                        }
                         return Some(TargetIterItem {
                             item: resource.as_resultitem(self.store, self.iter.store),
                             selectoriteritem: selectoritem,
@@ -138,6 +149,12 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
                     Selector::DataSetSelector(set_id) => {
                         let annotationset: &AnnotationDataSet =
                             self.iter.store.get(*set_id).expect("Dataset must exist");
+                        if !self.allow_duplicates {
+                            if self.history.contains(&annotationset) {
+                                continue;
+                            }
+                            self.history.push(annotationset);
+                        }
                         return Some(TargetIterItem {
                             item: annotationset.as_resultitem(self.store, self.iter.store),
                             selectoriteritem: selectoritem,
@@ -163,6 +180,12 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
                     Selector::AnnotationSelector(a_id, _) => {
                         let annotation: &Annotation =
                             self.iter.store.get(*a_id).expect("Annotation must exist");
+                        if !self.allow_duplicates {
+                            if self.history.contains(&annotation) {
+                                continue;
+                            }
+                            self.history.push(annotation);
+                        }
                         return Some(TargetIterItem {
                             item: annotation.as_resultitem(self.store, self.iter.store),
                             selectoriteritem: selectoritem,

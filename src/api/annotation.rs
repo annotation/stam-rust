@@ -20,32 +20,28 @@ use crate::api::textselection::SortTextualOrder;
 
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
+    /// This returns no duplicates even if a resource is referenced multiple times.
     /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
     pub fn resources(&self) -> TargetIter<'store, TextResource> {
         let selector_iter: SelectorIter<'store> =
             self.as_ref().target().iter(self.store(), true, false);
-        TargetIter {
-            store: self.store(),
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
+        //                                            ^--- recurse
+        TargetIter::new(self.store(), selector_iter, false)
     }
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references
+    /// This returns no duplicates even if a dataset is referenced multiple times.
     pub fn datasets(&self) -> TargetIter<'store, AnnotationDataSet> {
         let selector_iter: SelectorIter<'store> =
             self.as_ref().target().iter(self.store(), true, false);
-        TargetIter {
-            store: self.store(),
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
+        //                                            ^--- recurse
+        TargetIter::new(self.store(), selector_iter, false)
     }
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
     ///
-    /// This does no sorting, if you want results in textual order, add `.textual_order()`
+    /// This does no sorting, if you want results in textual order, add `.textual_order()`. Duplicates are already handled.
     pub fn annotations_in_targets(
         &self,
         recursive: bool,
@@ -55,11 +51,7 @@ impl<'store> ResultItem<'store, Annotation> {
             self.as_ref()
                 .target()
                 .iter(self.store(), recursive, track_ancestors);
-        TargetIter {
-            store: self.store(),
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        }
+        TargetIter::new(self.store(), selector_iter, false)
     }
 
     /// Iterates over all the annotations that reference this annotation, if any
@@ -84,12 +76,9 @@ impl<'store> ResultItem<'store, Annotation> {
     pub fn textselections(&self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'store {
         let store = self.store();
         let selector_iter: SelectorIter<'store> = self.as_ref().target().iter(store, false, false);
-        //                                                                           ^-- no recursion!!!
-        let iter: TargetIter<'store, TextResource> = TargetIter {
-            store,
-            iter: selector_iter,
-            _phantomdata: PhantomData,
-        };
+        //                                                                           ^-- no recursion!!! essential, otherwise you get the text from the leaf nodes whereas intermediate AnnotationSelector already know the full target textselection
+        let iter: TargetIter<'store, TextResource> = TargetIter::new(store, selector_iter, true);
+        //                                                                                 ^-- allow duplication, essential, because we may have multiple textselection in the same resource, and will use selector() to check that
         iter.filter_map(|resource_targetitem| {
             store
                 .textselection_by_selector(resource_targetitem.selector())

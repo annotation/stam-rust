@@ -940,7 +940,6 @@ impl AnnotationStore {
                             //new, insert... (it's important never to insert the same one twice!)
                             resource.insert(textselection)?
                         };
-                        eprintln!("DEBUG: inserted {:?}", textselection_handle);
                         return Ok(Selector::AnnotationSelector(
                             target_annotation_handle,
                             Some((
