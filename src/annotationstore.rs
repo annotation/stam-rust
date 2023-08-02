@@ -4,7 +4,7 @@ use sealed::sealed;
 use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -21,7 +21,7 @@ use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
 use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
-use crate::selector::{Offset, Selector, SelectorBuilder};
+use crate::selector::{Offset, OffsetMode, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::textselection::{ResultTextSelection, TextSelection, TextSelectionHandle};
 use crate::types::*;
@@ -209,7 +209,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             Selector::AnnotationSelector(a_handle, offset) => {
                 if self.config.annotation_annotation_map {
                     if offset.is_some() {
-                        multitarget = true;
+                        multitarget = true; //we also want to populate the textrelationmap, this is handled in the multitarget block
                     } else {
                         self.annotation_annotation_map.insert(*a_handle, handle);
                     }
@@ -258,18 +258,18 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                 .resources() //high-level method!!!
                 .map(|targetitem| {
                     let res_handle = targetitem.handle();
+                    //combine two steps in one to save an iteration
                     if self.config.textrelationmap {
-                        match self.textselection_by_selector(targetitem.selector()) {
-                            Ok((resource, textselection)) => {
-                                extend_textrelationmap.push((
-                                    resource.handle().expect("resource handle must be valid"),
-                                    textselection
-                                        .handle()
-                                        .expect("textselection handle must be valid"),
-                                    handle,
-                                ));
-                            }
-                            Err(err) => panic!("Error resolving relative text: {}", err), //TODO: panic is too strong here! handle more nicely
+                        for (resource, textselection) in
+                            self.textselections_by_selector(targetitem.selector())
+                        {
+                            extend_textrelationmap.push((
+                                resource.handle().expect("resource handle must be valid"),
+                                textselection
+                                    .handle()
+                                    .expect("textselection handle must be valid"),
+                                handle,
+                            ));
                         }
                     }
                     (res_handle, handle)
@@ -960,64 +960,214 @@ impl AnnotationStore {
                 let resource: &AnnotationDataSet = self.get(id)?;
                 Ok(Selector::DataSetSelector(resource.handle_or_err()?))
             }
-            SelectorBuilder::MultiSelector(v) => {
-                let mut new_v = Vec::with_capacity(v.len());
-                for builder in v {
-                    if builder.is_complex() {
-                        return Err(StamError::WrongSelectorType(
-                            "Complex selectors may not be nested",
-                        ));
-                    }
-                    new_v.push(self.selector(builder)?);
-                }
-                Ok(Selector::MultiSelector(new_v))
-            }
+            SelectorBuilder::MultiSelector(v) => Ok(Selector::MultiSelector(self.subselectors(v)?)),
             SelectorBuilder::DirectionalSelector(v) => {
-                let mut new_v = Vec::with_capacity(v.len());
-                for builder in v {
-                    if builder.is_complex() {
-                        return Err(StamError::WrongSelectorType(
-                            "Complex selectors may not be nested",
-                        ));
-                    }
-                    new_v.push(self.selector(builder)?);
-                }
-                Ok(Selector::DirectionalSelector(new_v))
+                Ok(Selector::DirectionalSelector(self.subselectors(v)?))
             }
             SelectorBuilder::CompositeSelector(v) => {
-                let mut new_v = Vec::with_capacity(v.len());
-                for builder in v {
-                    if builder.is_complex() {
-                        return Err(StamError::WrongSelectorType(
-                            "Complex selectors may not be nested",
-                        ));
-                    }
-                    new_v.push(self.selector(builder)?);
-                }
-                Ok(Selector::CompositeSelector(new_v))
+                Ok(Selector::CompositeSelector(self.subselectors(v)?))
             }
         }
     }
 
-    /// Retrieve a [`TextSelection`] given a specific TextSelector. Does not work with other more
-    /// complex selectors.
-    ///
-    /// If multiple AnnotationSelectors are involved, they can be passed as subselectors
-    /// and will further refine the TextSelection, but this is usually not invoked directly but via [`AnnotationStore::textselections_by_annotation`]
-    pub(crate) fn textselection_by_selector<'b>(
-        &self,
+    /// Auxiliary function for `selector() `
+    pub(crate) fn subselectors(
+        &mut self,
+        builders: Vec<SelectorBuilder>,
+    ) -> Result<Vec<Selector>, StamError> {
+        let mut results = Vec::with_capacity(builders.len());
+        for builder in builders {
+            if builder.is_complex() {
+                return Err(StamError::WrongSelectorType(
+                    "Complex selectors may not be nested",
+                ));
+            }
+            let selector = self.selector(builder)?;
+
+            //we may be able to merge things into an internal ranged selector, conserving memory
+            if let Some(last) = results.last_mut() {
+                let mut substitute: Option<Selector> = None;
+                match (&last, &selector) {
+                    (
+                        Selector::TextSelector(res, tsel, OffsetMode::BeginBegin),
+                        Selector::TextSelector(res2, tsel2, OffsetMode::BeginBegin),
+                    ) => {
+                        if res == res2 && tsel2.as_usize() == tsel.as_usize() + 1 {
+                            substitute = Some(Selector::RangedTextSelector {
+                                resource: *res,
+                                begin: *tsel,
+                                end: *tsel2,
+                            });
+                        }
+                    }
+                    (
+                        Selector::RangedTextSelector {
+                            resource,
+                            begin,
+                            end,
+                        },
+                        Selector::TextSelector(res2, tsel2, OffsetMode::BeginBegin),
+                    ) => {
+                        if resource == res2 && tsel2.as_usize() == end.as_usize() + 1 {
+                            substitute = Some(Selector::RangedTextSelector {
+                                resource: *resource,
+                                begin: *begin,
+                                end: *tsel2,
+                            });
+                        }
+                    }
+                    (
+                        Selector::AnnotationSelector(annotation, None),
+                        Selector::AnnotationSelector(annotation2, None),
+                    ) => {
+                        if annotation2.as_usize() == annotation.as_usize() + 1 {
+                            substitute = Some(Selector::RangedAnnotationSelector {
+                                begin: *annotation,
+                                end: *annotation2,
+                                with_text: false,
+                            });
+                        }
+                    }
+                    (
+                        Selector::RangedAnnotationSelector {
+                            begin,
+                            end,
+                            with_text: false,
+                        },
+                        Selector::AnnotationSelector(annotation, None),
+                    ) => {
+                        if annotation.as_usize() == end.as_usize() + 1 {
+                            substitute = Some(Selector::RangedAnnotationSelector {
+                                begin: *begin,
+                                end: *annotation,
+                                with_text: false,
+                            });
+                        }
+                    }
+                    (
+                        Selector::AnnotationSelector(annotation, Some(_)),
+                        Selector::AnnotationSelector(annotation2, Some(_)),
+                    ) => {
+                        if annotation2.as_usize() == annotation.as_usize() + 1 {
+                            //we can only merge annotations that reference the entire underlying annotation's text and not a subpart of it
+                            if let (Some(offset), Some(offset2)) = (
+                                last.offset_with_mode(self, Some(OffsetMode::BeginEnd)),
+                                selector.offset_with_mode(self, Some(OffsetMode::BeginEnd)),
+                            ) {
+                                if offset.begin == Cursor::BeginAligned(0)
+                                    && offset2.begin == Cursor::BeginAligned(0)
+                                    && offset.end == Cursor::EndAligned(0)
+                                    && offset2.end == Cursor::EndAligned(0)
+                                {
+                                    substitute = Some(Selector::RangedAnnotationSelector {
+                                        begin: *annotation,
+                                        end: *annotation2,
+                                        with_text: true,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    (
+                        Selector::RangedAnnotationSelector {
+                            begin,
+                            end,
+                            with_text: true,
+                        },
+                        Selector::AnnotationSelector(annotation, Some(_)),
+                    ) => {
+                        if annotation.as_usize() == end.as_usize() + 1 {
+                            //we can only merge annotations that reference the entire underlying annotation's text and not a subpart of it
+                            if let Some(offset) =
+                                selector.offset_with_mode(self, Some(OffsetMode::BeginEnd))
+                            {
+                                if offset.begin == Cursor::BeginAligned(0)
+                                    && offset.end == Cursor::EndAligned(0)
+                                {
+                                    substitute = Some(Selector::RangedAnnotationSelector {
+                                        begin: *begin,
+                                        end: *annotation,
+                                        with_text: true,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        //nothing to do for others, not mergable
+                    }
+                }
+                if let Some(substitute) = substitute {
+                    *last = substitute;
+                    continue; //prevent reaching the push below
+                }
+            }
+            results.push(selector);
+        }
+        Ok(results)
+    }
+
+    /// Retrieve  [`TextSelection`] given a specific selector.
+    pub(crate) fn textselections_by_selector<'store>(
+        &'store self,
         selector: &Selector,
-    ) -> Result<(&TextResource, &TextSelection), StamError> {
+    ) -> SmallVec<[(&'store TextResource, &'store TextSelection); 2]> {
         match selector {
             Selector::TextSelector(res_handle, tsel_handle, _)
             | Selector::AnnotationSelector(_, Some((res_handle, tsel_handle, _))) => {
-                let resource: &TextResource = self.get(*res_handle)?;
-                let textselection: &TextSelection = resource.get(*tsel_handle)?;
-                Ok((resource, textselection))
+                let resource: &TextResource = self.get(*res_handle).expect("handle must be valid");
+                let textselection: &TextSelection =
+                    resource.get(*tsel_handle).expect("handle must be valid");
+                smallvec!((resource, textselection))
             }
-            _ => Err(StamError::WrongSelectorType(
-                "selector for Annotationstore::textselection() must be a TextSelector",
-            )),
+            Selector::RangedTextSelector {
+                resource,
+                begin,
+                end,
+            } => {
+                let mut results = SmallVec::with_capacity(end.as_usize() - begin.as_usize());
+                let resource: &TextResource = self.get(*resource).expect("handle must be valid");
+                for i in begin.as_usize()..=end.as_usize() {
+                    let textselection: &TextSelection = resource
+                        .get(TextSelectionHandle::new(i))
+                        .expect("handle must be valid");
+                    results.push((resource, textselection));
+                }
+                results
+            }
+            Selector::RangedAnnotationSelector {
+                begin,
+                end,
+                with_text: true,
+            } => {
+                let mut results = SmallVec::with_capacity(end.as_usize() - begin.as_usize());
+                for i in begin.as_usize()..=end.as_usize() {
+                    let annotation: &Annotation = self
+                        .get(AnnotationHandle::new(i))
+                        .expect("handle must be valid");
+                    if let (Some(res_handle), Some(tsel_handle)) = (
+                        annotation.target().resource_handle(),
+                        annotation.target().textselection_handle(),
+                    ) {
+                        let resource: &TextResource =
+                            self.get(res_handle).expect("handle must be valid");
+                        let textselection: &TextSelection =
+                            resource.get(tsel_handle).expect("handle must be valid");
+                        results.push((resource, textselection));
+                    }
+                }
+                results
+            }
+            Selector::MultiSelector(subselectors)
+            | Selector::CompositeSelector(subselectors)
+            | Selector::DirectionalSelector(subselectors) => {
+                let mut results = SmallVec::with_capacity(subselectors.len());
+                for subselector in subselectors {
+                    results.extend(self.textselections_by_selector(subselector).into_iter())
+                }
+                results
+            }
+            _ => SmallVec::new(),
         }
     }
 

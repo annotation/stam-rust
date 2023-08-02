@@ -722,16 +722,34 @@ fn find_data_all_2() -> Result<(), StamError> {
 }
 
 #[test]
-fn multiselector_creation() -> Result<(), StamError> {
-    let _store = setup_example_multiselector()?;
+fn multiselector_creation_notranged() -> Result<(), StamError> {
+    let _store = setup_example_multiselector_notranged()?;
     Ok(())
 }
 
 #[test]
-fn multiselector_iter() -> Result<(), StamError> {
-    let store = setup_example_multiselector()?;
+fn multiselector_creation_ranged() -> Result<(), StamError> {
+    let _store = setup_example_multiselector_ranged()?;
+    Ok(())
+}
+
+#[test]
+fn multiselector_iter_notranged() -> Result<(), StamError> {
+    let store = setup_example_multiselector_notranged()?;
     let annotation = store.annotation("WordAnnotation").unwrap();
     let result: Vec<&str> = annotation.text().collect();
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[0], "Hello");
+    assert_eq!(result[1], "world");
+    Ok(())
+}
+
+#[test]
+fn multiselector_iter_ranged() -> Result<(), StamError> {
+    let store = setup_example_multiselector_ranged()?;
+    let annotation = store.annotation("WordAnnotation").unwrap();
+    let result: Vec<&str> = annotation.text().collect();
+    assert_eq!(result.len(), 2);
     assert_eq!(result[0], "Hello");
     assert_eq!(result[1], "world");
     Ok(())
@@ -742,6 +760,7 @@ fn multiselector2_iter() -> Result<(), StamError> {
     let store = setup_example_multiselector_2()?;
     let annotation = store.annotation("WordAnnotation").unwrap();
     let result: Vec<&str> = annotation.text().collect();
+    assert_eq!(result.len(), 2);
     assert_eq!(result[0], "Hello");
     assert_eq!(result[1], "world");
     Ok(())
@@ -1565,7 +1584,11 @@ fn find_data_about() -> Result<(), StamError> {
         .annotations_in_targets(false, false)
         .nth(1)
         .unwrap();
-    assert_eq!(secondword.text_simple(), Some("human"));
+    assert_eq!(
+        secondword.text_simple(),
+        Some("human"),
+        "testing the second word in the sentence"
+    );
 
     //now find the phrase this word belongs to:
     let mut count = 0;
@@ -1576,7 +1599,11 @@ fn find_data_about() -> Result<(), StamError> {
     {
         count += 1;
         //we can test in body because we only have one:
-        assert_eq!(phrase.id(), Some("Phrase2"));
+        assert_eq!(
+            phrase.id(),
+            Some("Phrase2"),
+            "testing whether we got the right phrase"
+        );
         assert_eq!(phrase.text_join(" "), "human beings are born");
     }
     assert_eq!(count, 1);
@@ -1592,7 +1619,11 @@ fn find_data_about_2() -> Result<(), StamError> {
         .annotations_in_targets(false, false)
         .nth(1)
         .unwrap();
-    assert_eq!(secondword.text_simple(), Some("human"));
+    assert_eq!(
+        secondword.text_simple(),
+        Some("human"),
+        "testing the second word in the sentence"
+    );
 
     //now find the phrase this word belongs to:
     let mut count = 0;
@@ -1604,7 +1635,11 @@ fn find_data_about_2() -> Result<(), StamError> {
         count += 1;
         //we can get a phrase or a sentence in our example:
         if data.value() == "phrase" {
-            assert_eq!(annotation.id(), Some("Phrase2"));
+            assert_eq!(
+                annotation.id(),
+                Some("Phrase2"),
+                "testing whether we got the right phrase"
+            );
             assert_eq!(annotation.text_join(" "), "human beings are born");
         } else {
             assert_eq!(annotation.id(), Some("Sentence1"));

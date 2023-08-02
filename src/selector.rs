@@ -238,7 +238,7 @@ pub enum Selector {
 
 
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
-    /// Conserves memory by pointing to a internal ID range
+    // Conserves memory by pointing to a internal ID range, end is inclusive
     #[n(52)]
     RangedTextSelector {
         #[n(0)]
@@ -250,13 +250,15 @@ pub enum Selector {
     },
 
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
-    /// Conserves memory by pointing to a internal ID range
+    /// Conserves memory by pointing to a internal ID range, end is inclusive
     #[n(53)]
     RangedAnnotationSelector {
         #[n(0)]
         begin: AnnotationHandle,
         #[n(1)]
         end: AnnotationHandle,
+        #[n(2)]
+        with_text: bool, //if set, each individual AnnotationSelector will get a Offset::whole(), otherwise it gets no text reference
     },
 }
 
@@ -331,10 +333,21 @@ impl Selector {
     }
 
 
-    //Returns the associated offset if the selector carries one
+    /// Returns the associated offset if the selector carries one
     pub fn offset(&self, store: &AnnotationStore) -> Option<Offset> {
+        self.offset_with_mode(store, None)
+}
+
+    /// Returns the associated offset if the selector carries one
+    /// You may set `override_mode` if you want to override the OffsetMode rather than take it from the selector
+    pub fn offset_with_mode(&self, store: &AnnotationStore, override_mode: Option<OffsetMode>) -> Option<Offset> {
         match self {
             Selector::TextSelector(res_handle,tsel_handle,offsetmode) => {
+                let offsetmode = if let Some(override_mode) = override_mode {
+                    override_mode 
+                } else {
+                    *offsetmode
+                };
                 let resource: &TextResource = store.get(*res_handle).expect("handle must be valid");
                 let textselection: &TextSelection = resource.get(*tsel_handle).expect("handle must be valid");
                 match offsetmode {
@@ -358,11 +371,16 @@ impl Selector {
                 }
             }
             Selector::AnnotationSelector(annotation_handle, Some((res_handle, tsel_handle, offsetmode))) => {
+                let offsetmode = if let Some(override_mode) = override_mode {
+                    override_mode 
+                } else {
+                    *offsetmode
+                };
                 let resource: &TextResource = store.get(*res_handle).expect("handle must be valid");
                 let textselection: &TextSelection = resource.get(*tsel_handle).expect("handle must be valid");
                 let target: &Annotation = store.get(*annotation_handle).expect("handle must be valid");
                 if let Some(parent_textselection) = target.target().textselection(store) {
-                    textselection.relative_offset(parent_textselection, *offsetmode)
+                    textselection.relative_offset(parent_textselection, offsetmode)
                 } else {
                     None
                 }
@@ -458,11 +476,9 @@ impl From<&Selector> for SelectorKind {
             Selector::CompositeSelector(_) => Self::CompositeSelector,
             Selector::DirectionalSelector(_) => Self::DirectionalSelector,
             Selector::RangedTextSelector {
-                resource: _,
-                begin: _,
-                end: _,
+                ..
             }
-            | Selector::RangedAnnotationSelector { begin: _, end: _ } => {
+            | Selector::RangedAnnotationSelector { .. } => {
                 Self::InternalRangedSelector
             }
         }
@@ -753,12 +769,8 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 state.serialize_field("selectors", &subselectors)?;
                 state.end()
             }
-            Selector::RangedTextSelector {
-                resource: _,
-                begin: _,
-                end: _,
-            } 
-            | Selector::RangedAnnotationSelector { begin: _, end: _ }
+            Selector::RangedTextSelector { .. } 
+            | Selector::RangedAnnotationSelector { .. }
             => {
                 Err(serde::ser::Error::custom(
                     "Internal Ranged selectors can not be serialized directly, they can be serialized only when under a complex selector",
@@ -800,8 +812,11 @@ pub struct SelectorIter<'a> {
     done: bool,
     ancestors: AncestorVec<'a>,
     subiterstack: Vec<SelectorIter<'a>>,
-    cursor_in_range: usize, //used to track iteration of InternalRangedSelectors
+    ///used to track iteration of InternalRangedSelectors, starts at 0 (not begin)
+    cursor_in_range: usize,
+    /// follow AnnotationSelectors recursively
     recurse_annotation: bool,
+    /// provide a full path to all ancestors (rarely used and has a fair degree of overhead)
     track_ancestors: bool,
     pub(crate) store: &'a AnnotationStore,
     pub(crate) depth: usize,
@@ -835,22 +850,26 @@ impl<'a> SelectorIter<'a> {
     fn get_internal_ranged_item(&self, selector: &'a Selector) -> SelectorIterItem<'a> {
         SelectorIterItem {
             ancestors: if self.track_ancestors {
-                self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
+                self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive (but we hardly use track_ancestors anyway)
             } else {
                 SmallVec::new()
             },
             selector: match selector {
-                Selector::RangedAnnotationSelector {..} => {
-                    let handle = AnnotationHandle::new(self.cursor_in_range);
-                    let annotation: &Annotation = self.store.get(handle).expect("annotation handle must be valid");
-                    if let (Some(textselection_handle), Some(resource_handle)) = (annotation.target().textselection_handle(), annotation.target().resource_handle()) {
-                        Cow::Owned(Selector::AnnotationSelector(handle, Some((resource_handle, textselection_handle, OffsetMode::default()))))
+                Selector::RangedAnnotationSelector { begin, with_text, .. } => {
+                    let handle = AnnotationHandle::new(begin.as_usize() + self.cursor_in_range);
+                    if *with_text {
+                        let annotation: &Annotation = self.store.get(handle).expect("annotation handle must be valid");
+                        if let (Some(textselection_handle), Some(resource_handle)) = (annotation.target().textselection_handle(), annotation.target().resource_handle()) {
+                            Cow::Owned(Selector::AnnotationSelector(handle, Some((resource_handle, textselection_handle, OffsetMode::default()))))
+                        } else {
+                            Cow::Owned(Selector::AnnotationSelector(handle, None))
+                        }
                     } else {
-                        Cow::Owned(Selector::AnnotationSelector(handle, None))
+                            Cow::Owned(Selector::AnnotationSelector(handle, None))
                     }
                 }
-                Selector::RangedTextSelector { resource, .. } => {
-                    Cow::Owned(Selector::TextSelector(*resource, TextSelectionHandle::new(self.cursor_in_range), OffsetMode::default()) )
+                Selector::RangedTextSelector { resource, begin, .. } => {
+                    Cow::Owned(Selector::TextSelector(*resource, TextSelectionHandle::new(begin.as_usize() + self.cursor_in_range), OffsetMode::default()) )
                 }
                 _ => {
                     unreachable!()
@@ -882,7 +901,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 self.subiterstack.push(SelectorIter {
                                     selector: annotation.target(),
                                     ancestors: if self.track_ancestors {
-                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
+                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive (but we hardly use track_ancestors anyway)
                                         ancestors.push(Cow::Borrowed(&self.selector));
                                         ancestors
                                     } else {
@@ -908,7 +927,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 self.subiterstack.push(SelectorIter {
                                     selector: subselector,
                                     ancestors: if self.track_ancestors {
-                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive
+                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive (but we hardly use track_ancestors anyway)
                                         ancestors.push(Cow::Borrowed(subselector));
                                         ancestors
                                     } else {
@@ -925,7 +944,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 });
                             }
                         }
-                        Selector::RangedAnnotationSelector { begin, end } => {
+                        Selector::RangedAnnotationSelector { begin, end, with_text } => {
                             if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector

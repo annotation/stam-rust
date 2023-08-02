@@ -114,8 +114,35 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
         )?;
     Ok(store)
 }
+pub fn setup_example_multiselector_notranged() -> Result<AnnotationStore, StamError> {
+    let store = AnnotationStore::default()
+        .with_id("test")
+        .add(TextResource::from_string(
+            "testres",
+            "Hello world",
+            Config::default(),
+        ))?
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_annotation(AnnotationBuilder::new().with_id("A1").with_target(
+            SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
+        ))?
+        .with_annotation(AnnotationBuilder::new().with_id("A2").with_target(
+            SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
+        ))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("WordAnnotation")
+                .with_target(SelectorBuilder::multiselector([
+                    //because of the way we already constructed earlier annotations, this will NOT be an internal ranged selector
+                    SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
+                    SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
+                ]))
+                .with_data_with_id("testdataset", "type", "word", "WordAnnotationData"),
+        )?;
+    Ok(store)
+}
 
-pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
+pub fn setup_example_multiselector_ranged() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::default()
         .with_id("test")
         .add(TextResource::from_string(
@@ -128,6 +155,7 @@ pub fn setup_example_multiselector() -> Result<AnnotationStore, StamError> {
             AnnotationBuilder::new()
                 .with_id("WordAnnotation")
                 .with_target(SelectorBuilder::multiselector([
+                    //this translates to an internal ranged selector internally!
                     SelectorBuilder::textselector("testres", Offset::simple(0, 5)),
                     SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
                 ]))
@@ -401,7 +429,7 @@ pub fn setup_example_6c() -> Result<AnnotationStore, StamError> {
         .with_id("Phrase1")
         .with_data("myset", "type", "phrase")
         .with_target(SelectorBuilder::CompositeSelector(
-            words[3..8] //we know which words to select
+            words[3..8] //we know which words to select ("are born free and equal")
                 .iter()
                 .map(|annotation| {
                     SelectorBuilder::annotationselector(*annotation, Some(Offset::whole()))
@@ -414,7 +442,7 @@ pub fn setup_example_6c() -> Result<AnnotationStore, StamError> {
         .with_id("Phrase2")
         .with_data("myset", "type", "phrase")
         .with_target(SelectorBuilder::CompositeSelector(
-            words[1..5] //we know which words to select
+            words[1..5] //we know which words to select ("human beings are born")
                 .iter()
                 .map(|annotation| {
                     SelectorBuilder::annotationselector(*annotation, Some(Offset::whole()))

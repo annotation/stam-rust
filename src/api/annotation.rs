@@ -75,18 +75,12 @@ impl<'store> ResultItem<'store, Annotation> {
     /// They are returned in the exact order as they were selected.
     pub fn textselections(&self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'store {
         let store = self.store();
-        let selector_iter: SelectorIter<'store> = self.as_ref().target().iter(store, false, false);
-        //                                                                           ^-- no recursion!!! essential, otherwise you get the text from the leaf nodes whereas intermediate AnnotationSelector already know the full target textselection
-        let iter: TargetIter<'store, TextResource> = TargetIter::new(store, selector_iter, true);
-        //                                                                                 ^-- allow duplication, essential, because we may have multiple textselection in the same resource, and will use selector() to check that
-        iter.filter_map(|resource_targetitem| {
-            store
-                .textselection_by_selector(resource_targetitem.selector())
-                .map(|(resource, textselection)| {
-                    ResultTextSelection::Bound(textselection.as_resultitem(resource, store))
-                })
-                .ok() //ignores errors!
-        })
+        store
+            .textselections_by_selector(self.as_ref().target())
+            .into_iter()
+            .map(|(resource, textselection)| {
+                ResultTextSelection::Bound(textselection.as_resultitem(resource, store))
+            })
     }
 
     /// Iterates over all text slices this annotation refers to
