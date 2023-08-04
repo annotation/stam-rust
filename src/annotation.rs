@@ -16,9 +16,7 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
-use crate::selector::{
-    Offset, OffsetMode, Selector, SelectorBuilder, SelfSelector, WrappedSelector,
-};
+use crate::selector::{OffsetMode, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
 use crate::store::*;
 use crate::types::*;
 
@@ -151,33 +149,14 @@ impl PartialEq<Annotation> for Annotation {
 pub struct AnnotationBuilder<'a> {
     pub(crate) id: BuildItem<'a, Annotation>,
     pub(crate) data: Vec<AnnotationDataBuilder<'a>>,
-    pub(crate) target: WithAnnotationTarget<'a>,
-}
-
-#[derive(Debug)]
-pub(crate) enum WithAnnotationTarget<'a> {
-    Unset,
-    FromSelector(Selector),
-    FromSelectorBuilder(SelectorBuilder<'a>),
-}
-
-impl<'a> From<Selector> for WithAnnotationTarget<'a> {
-    fn from(other: Selector) -> Self {
-        Self::FromSelector(other)
-    }
-}
-
-impl<'a> From<SelectorBuilder<'a>> for WithAnnotationTarget<'a> {
-    fn from(other: SelectorBuilder<'a>) -> Self {
-        Self::FromSelectorBuilder(other)
-    }
+    pub(crate) target: Option<SelectorBuilder<'a>>,
 }
 
 impl<'a> Default for AnnotationBuilder<'a> {
     fn default() -> Self {
         Self {
             id: BuildItem::None,
-            target: WithAnnotationTarget::Unset,
+            target: None,
             data: Vec::new(),
         }
     }
@@ -204,18 +183,11 @@ impl<'a> AnnotationBuilder<'a> {
         self
     }
 
-    /// Sets the annotation target using an already existing selector
-    /// Use [`Self.with_target()`] or one of the `target_` shortcut methods instead if you still need to build the target selector
-    pub fn with_selector(mut self, selector: Selector) -> Self {
-        self.target = WithAnnotationTarget::FromSelector(selector);
-        self
-    }
-
     /// Set the target to be a [`crate::resources::TextResource`]. Creates a [`Selector::ResourceSelector`]
     /// Sets the annotation target. Instantiates a new selector. Use [`Self.with_target()`] instead if you already have
     /// a selector. Under the hood, this will invoke `select()` to obtain a selector.
     pub fn with_target(mut self, selector: SelectorBuilder<'a>) -> Self {
-        self.target = WithAnnotationTarget::FromSelectorBuilder(selector);
+        self.target = Some(selector);
         self
     }
 
@@ -429,20 +401,10 @@ impl AnnotationStore {
         });
         // Create the target selector if needed
         // If the selector fails, the annotate() fails with an error
-        let target = match builder.target {
-            WithAnnotationTarget::Unset => {
-                //No target was set at all! An annotation must have a target
-                return Err(StamError::NoTarget(""));
-            }
-            WithAnnotationTarget::FromSelector(s) => {
-                //We are given a selector directly, good
-                s
-            }
-            WithAnnotationTarget::FromSelectorBuilder(s) => {
-                //We are given a builder for a selector, obtain the actual selector
-                self.selector(s)?
-            }
-        };
+        if builder.target.is_none() {
+            return Err(StamError::NoTarget(""));
+        }
+        let target = self.selector(builder.target.unwrap())?;
 
         // Convert AnnotationDataBuilder into AnnotationData that is ready to be stored
         let mut data = DataVec::with_capacity(builder.data.len());
@@ -530,7 +492,7 @@ impl<'a> From<AnnotationJson<'a>> for AnnotationBuilder<'a> {
         Self {
             id: helper.id.into(),
             data: helper.data,
-            target: WithAnnotationTarget::FromSelectorBuilder(helper.target),
+            target: Some(helper.target),
         }
     }
 }
