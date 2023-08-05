@@ -1549,6 +1549,17 @@ fn annotations_in_targets() -> Result<(), StamError> {
 }
 
 #[test]
+fn annotations_in_targets_len() -> Result<(), StamError> {
+    //test the number of targets
+
+    let store = setup_example_6c()?; //<--- used different example! rest of code is the same
+    let sentence = store.annotation("Sentence1").unwrap();
+    let words: Vec<_> = sentence.annotations_in_targets(false, false).collect();
+    assert_eq!(words.len(), 13, "number of targets returned");
+    Ok(())
+}
+
+#[test]
 fn related_text_with_data_5() -> Result<(), StamError> {
     //Get the 2nd word in the sentence
 
