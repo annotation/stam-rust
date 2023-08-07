@@ -62,13 +62,21 @@ struct AnnotationCsv<'a> {
 }
 
 impl<'a> AnnotationCsv<'a> {
-    fn set_selectortype(selector: &Selector) -> Cow<'a, str> {
+    fn set_selectortype(selector: &Selector, store: &AnnotationStore) -> Cow<'a, str> {
         if selector.is_complex() {
             let mut selectortype: String = selector.kind().as_str().to_string();
             if let Some(subselectors) = selector.subselectors() {
                 for subselector in subselectors {
                     selectortype.push(';'); //delimiter
-                    selectortype += subselector.kind().as_str();
+                    if let Selector::RangedTextSelector { .. }
+                    | Selector::RangedAnnotationSelector { .. } = subselector
+                    {
+                        for subselector in subselector.iter(store, false, false) {
+                            selectortype += subselector.selector().kind().as_str();
+                        }
+                    } else {
+                        selectortype += subselector.kind().as_str();
+                    }
                 }
             }
             Cow::Owned(selectortype)
@@ -83,7 +91,15 @@ impl<'a> AnnotationCsv<'a> {
             if let Some(subselectors) = selector.subselectors() {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
-                    out += Self::set_beginoffset(subselector, store).as_str();
+                    if let Selector::RangedTextSelector { .. }
+                    | Selector::RangedAnnotationSelector { .. } = subselector
+                    {
+                        for subselector in subselector.iter(store, false, false) {
+                            out += Self::set_beginoffset(subselector.selector(), store).as_str();
+                        }
+                    } else {
+                        out += Self::set_beginoffset(subselector, store).as_str();
+                    }
                 }
             }
             out
@@ -102,7 +118,15 @@ impl<'a> AnnotationCsv<'a> {
             if let Some(subselectors) = selector.subselectors() {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
-                    out += Self::set_endoffset(subselector, store).as_str();
+                    if let Selector::RangedTextSelector { .. }
+                    | Selector::RangedAnnotationSelector { .. } = subselector
+                    {
+                        for subselector in subselector.iter(store, false, false) {
+                            out += Self::set_endoffset(subselector.selector(), store).as_str();
+                        }
+                    } else {
+                        out += Self::set_endoffset(subselector, store).as_str();
+                    }
                 }
             }
             out
@@ -122,6 +146,11 @@ impl<'a> AnnotationCsv<'a> {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
                     match subselector {
+                        Selector::RangedTextSelector { .. } => {
+                            for subselector in subselector.iter(store, false, false) {
+                                out += &Self::set_targetresource(subselector.selector(), store);
+                            }
+                        }
                         Selector::ResourceSelector(res) | Selector::TextSelector(res, _, _) => {
                             let res: &TextResource = store.get(*res).expect("resource must exist");
                             out += res.id().expect("resource must have an id");
@@ -182,6 +211,11 @@ impl<'a> AnnotationCsv<'a> {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
                     match subselector {
+                        Selector::RangedAnnotationSelector { .. } => {
+                            for subselector in subselector.iter(store, false, false) {
+                                out += &Self::set_targetannotation(subselector.selector(), store);
+                            }
+                        }
                         Selector::AnnotationSelector(ann, _) => {
                             let ann: &Annotation = store.get(*ann).expect("annotation must exist");
                             if let Some(id) = ann.id() {
@@ -433,6 +467,7 @@ where
                             set_ids: Cow::Borrowed(""),
                             selectortype: AnnotationCsv::set_selectortype(
                                 annotation.as_ref().target(),
+                                self,
                             ),
                             targetdataset: AnnotationCsv::set_targetdataset(
                                 annotation.as_ref().target(),
@@ -470,6 +505,7 @@ where
                             },
                             selectortype: AnnotationCsv::set_selectortype(
                                 annotation.as_ref().target(),
+                                self,
                             ),
                             targetdataset: AnnotationCsv::set_targetdataset(
                                 annotation.as_ref().target(),
@@ -516,6 +552,7 @@ where
                             set_ids: Cow::Owned(set_ids),
                             selectortype: AnnotationCsv::set_selectortype(
                                 annotation.as_ref().target(),
+                                self,
                             ),
                             targetdataset: AnnotationCsv::set_targetdataset(
                                 annotation.as_ref().target(),

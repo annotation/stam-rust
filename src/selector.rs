@@ -446,6 +446,7 @@ impl SelectorKind {
             _ => false,
         }
     }
+
 }
 
 impl TryFrom<&str> for SelectorKind {
