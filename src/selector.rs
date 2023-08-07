@@ -405,7 +405,8 @@ impl DataSize for Selector {
             Self::MultiSelector(v) => 8 + data_size(v),
             Self::CompositeSelector(v) => 8 + data_size(v),
             Self::DirectionalSelector(v) => 8 + data_size(v),
-            _ => unimplemented!(),
+            Self::RangedTextSelector { resource, begin, end } => 8 + data_size(resource) + data_size(begin) + data_size(end),
+            Self::RangedAnnotationSelector { begin, end, with_text } => 8 + data_size(with_text) + data_size(begin) + data_size(end),
         }
     }
 }
