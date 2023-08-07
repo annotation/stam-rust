@@ -410,7 +410,13 @@ where
                 for annotation in self.annotations() {
                     let out = if annotation.as_ref().len() == 0 {
                         AnnotationCsv {
-                            id: annotation.id().map(|x| Cow::Borrowed(x)),
+                            id: if let Some(id) = annotation.id() {
+                                Some(Cow::Borrowed(id))
+                            } else {
+                                Some(Cow::Owned(
+                                    annotation.as_ref().temp_id().expect("temp id must succeed"),
+                                ))
+                            },
                             data_ids: Cow::Borrowed(""),
                             set_ids: Cow::Borrowed(""),
                             selectortype: AnnotationCsv::set_selectortype(
@@ -437,21 +443,19 @@ where
                     } else if annotation.as_ref().len() == 1 {
                         //only one data item, we needn't make any copies
                         let data = annotation.data().next().unwrap();
-                        if data.id().is_none() {
-                            return Err(StamError::SerializationError(format!(
-                                "AnnotationData must have a public id for csv serialization",
-                            )));
-                        }
                         let set = data.store();
-                        if set.id().is_none() {
-                            return Err(StamError::SerializationError(format!(
-                                "AnnotationDataSet must have a public id for csv serialization",
-                            )));
-                        }
                         AnnotationCsv {
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
-                            data_ids: Cow::Owned(data.id().unwrap().into()),
-                            set_ids: Cow::Borrowed(set.id().unwrap()),
+                            data_ids: if let Some(id) = data.id() {
+                                Cow::Borrowed(id)
+                            } else {
+                                Cow::Owned(data.as_ref().temp_id().expect("temp id must succeed"))
+                            },
+                            set_ids: if let Some(id) = set.id() {
+                                Cow::Borrowed(id)
+                            } else {
+                                Cow::Owned(set.temp_id().expect("temp id must succeed"))
+                            },
                             selectortype: AnnotationCsv::set_selectortype(
                                 annotation.as_ref().target(),
                             ),
@@ -478,23 +482,21 @@ where
                         let mut set_ids = String::new();
                         //get data via high-level method
                         for data in annotation.data() {
-                            if data.id().is_none() {
-                                return Err(StamError::SerializationError(format!(
-                                    "AnnotationData must have a public id for csv serialization",
-                                )));
-                            }
                             let set = data.store();
-                            if set.id().is_none() {
-                                return Err(StamError::SerializationError(format!(
-                                    "AnnotationDataSet must have a public id for csv serialization",
-                                )));
-                            }
                             if !data_ids.is_empty() {
                                 data_ids.push(';');
                                 set_ids.push(';');
                             }
-                            data_ids += data.id().unwrap();
-                            set_ids += set.id().unwrap();
+                            if let Some(id) = data.id() {
+                                data_ids += id;
+                            } else {
+                                data_ids += &data.as_ref().temp_id().expect("temp id must succeed");
+                            };
+                            if let Some(id) = set.id() {
+                                set_ids += id;
+                            } else {
+                                set_ids += &set.temp_id().expect("temp id must succeed");
+                            };
                         }
                         AnnotationCsv {
                             id: annotation.id().map(|x| Cow::Borrowed(x)),
@@ -562,15 +564,14 @@ impl ToCsv for AnnotationDataSet {
                 })?;
         }
         for data in self.data() {
-            if data.id().is_none() {
-                return Err(StamError::SerializationError(format!(
-                    "All AnnotationData must have a public ID for CSV serialization to work",
-                )));
-            }
             let key = self.get(data.key())?;
             writer
                 .serialize(AnnotationDataCsv {
-                    id: data.id().map(|x| Cow::Borrowed(x)),
+                    id: if let Some(id) = data.id() {
+                        Some(Cow::Borrowed(id))
+                    } else {
+                        Some(Cow::Owned(data.temp_id().expect("temp id must succeed")))
+                    },
                     key: key
                         .id()
                         .map(|x| Cow::Borrowed(x))
