@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::slice::Iter;
 
 use datasize::DataSize;
@@ -7,7 +8,7 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 
 use crate::annotationdata::{
-    AnnotationData, AnnotationDataBuilder, AnnotationDataHandle, AnnotationDataRefWithSet,
+    AnnotationData, AnnotationDataBuilder, AnnotationDataHandle, AnnotationDataRefImpliedSet,
 };
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
@@ -298,7 +299,7 @@ struct AnnotationDataRefSerializer<'a, 'b> {
 }
 
 struct AnnotationDataRef<'a> {
-    id: &'a str,
+    id: Cow<'a, str>,
     set: &'a str,
 }
 
@@ -330,23 +331,30 @@ impl<'a, 'b> Serialize for AnnotationDataRefSerializer<'a, 'b> {
             let annotationdata: &AnnotationData = annotationset
                 .get(*datahandle)
                 .map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
+            /*
             if annotationdata.id().is_none() {
                 //AnnotationData has no ID, we can't make a reference, therefore we serialize the whole thing (may lead to redundancy in the output)
                 //                v--- this is just a newtype wrapper around WrappedStorable<'a, AnnotationData, AnnotationDataSet>, with a distinct
                 //                     serialize implementation so it also outputs the set
                 let wrappeddata =
-                    AnnotationDataRefWithSet(annotationdata.as_resultitem(annotationset, store));
+                    AnnotationDataRefImpliedSet(annotationdata.as_resultitem(annotationset, store));
                 seq.serialize_element(&wrappeddata)?;
-            } else {
-                seq.serialize_element(&AnnotationDataRef {
-                    id: annotationdata.id().unwrap(),
-                    set: annotationset.id().ok_or_else(|| {
-                        serde::ser::Error::custom(
-                            "AnnotationDataSet must have a public ID if it is to be serialized",
-                        )
-                    })?,
-                })?;
-            }
+            } else {*/
+
+            seq.serialize_element(&AnnotationDataRef {
+                id: if let Some(id) = annotationdata.id() {
+                    Cow::Borrowed(id)
+                } else {
+                    Cow::Owned(annotationdata.temp_id().expect("temp_id must succeed"))
+                },
+                set: annotationset.id().ok_or_else(|| {
+                    serde::ser::Error::custom(
+                        "AnnotationDataSet must have a public ID if it is to be serialized",
+                    )
+                })?,
+            })?;
+
+            //}
         }
         seq.end()
     }

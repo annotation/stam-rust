@@ -146,16 +146,23 @@ impl<'a> Serialize for ResultItem<'a, AnnotationData> {
 }
 
 // This is just a newtype wrapping the one above, and used if one explicitly wants to serialize a set (needed if serialized from Annotation context)
-pub(crate) struct AnnotationDataRefWithSet<'a>(pub(crate) ResultItem<'a, AnnotationData>);
+pub(crate) struct AnnotationDataRefImpliedSet<'a>(pub(crate) ResultItem<'a, AnnotationData>);
 
-impl<'a> Serialize for AnnotationDataRefWithSet<'a> {
+impl<'a> Serialize for AnnotationDataRefImpliedSet<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut state = serializer.serialize_struct("AnnotationData", 2)?;
         state.serialize_field("@type", "AnnotationData")?;
-        state.serialize_field("@id", &self.0.id())?;
+        if let Some(id) = self.0.id() {
+            state.serialize_field("@id", id)?;
+        } else {
+            state.serialize_field(
+                "@id",
+                &self.0.as_ref().temp_id().expect("temp_id must succeed"),
+            )?;
+        }
         state.serialize_field("key", &self.0.key().id())?;
         state.serialize_field("value", self.0.as_ref().value())?;
         state.end()
