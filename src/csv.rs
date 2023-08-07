@@ -164,7 +164,11 @@ impl<'a> AnnotationCsv<'a> {
                 Selector::DataSetSelector(dataset) => {
                     let dataset: &AnnotationDataSet =
                         store.get(*dataset).expect("dataset must exist");
-                    Cow::Borrowed(dataset.id().expect("dataset must have an id"))
+                    if let Some(id) = dataset.id() {
+                        Cow::Borrowed(id)
+                    } else {
+                        Cow::Owned(dataset.temp_id().expect("temp_id must succeed"))
+                    }
                 }
                 _ => Cow::Borrowed(""),
             }
@@ -180,7 +184,11 @@ impl<'a> AnnotationCsv<'a> {
                     match subselector {
                         Selector::AnnotationSelector(ann, _) => {
                             let ann: &Annotation = store.get(*ann).expect("annotation must exist");
-                            out += ann.id().expect("annotation must have an id");
+                            if let Some(id) = ann.id() {
+                                out += id;
+                            } else {
+                                out += &ann.temp_id().expect("temp_id must succeed");
+                            }
                         }
                         _ => {}
                     }
@@ -191,7 +199,11 @@ impl<'a> AnnotationCsv<'a> {
             match selector {
                 Selector::AnnotationSelector(ann, _) => {
                     let ann: &Annotation = store.get(*ann).expect("annotation must exist");
-                    Cow::Borrowed(ann.id().expect("annotation must have an id"))
+                    if let Some(id) = ann.id() {
+                        Cow::Borrowed(id)
+                    } else {
+                        Cow::Owned(ann.temp_id().expect("temp_id must succeed"))
+                    }
                 }
                 _ => Cow::Borrowed(""),
             }
