@@ -1555,7 +1555,7 @@ fn annotations_in_targets_len() -> Result<(), StamError> {
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
     let sentence = store.annotation("Sentence1").unwrap();
     let words: Vec<_> = sentence.annotations_in_targets(false, false).collect();
-    assert_eq!(words.len(), 13, "number of targets returned");
+    assert_eq!(words.len(), 12, "number of targets returned"); //the final punctuation is not included because it's not selected via AnnotationSelector but via a TextSelector
     Ok(())
 }
 

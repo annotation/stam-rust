@@ -57,6 +57,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct TargetIterItem<'store, T>
 where
     T: Storable,

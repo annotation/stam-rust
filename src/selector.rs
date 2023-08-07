@@ -822,6 +822,7 @@ pub struct SelectorIter<'a> {
     pub(crate) depth: usize,
 }
 
+#[derive(Debug)]
 pub struct SelectorIterItem<'a> {
     ancestors: AncestorVec<'a>,
     selector: Cow<'a, Selector>, //we use Cow because we may return newly created owned selectors on the fly (like with ranged internal selectors)
@@ -944,8 +945,8 @@ impl<'a> Iterator for SelectorIter<'a> {
                                 });
                             }
                         }
-                        Selector::RangedAnnotationSelector { begin, end, with_text } => {
-                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
+                        Selector::RangedAnnotationSelector { begin, end, .. } => {
+                            if begin.as_usize() + self.cursor_in_range > end.as_usize() { //end is inclusive
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
                                 return None;
@@ -956,7 +957,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                             }
                         }
                         Selector::RangedTextSelector { resource: _, begin, end } => {
-                            if begin.as_usize() + self.cursor_in_range >= end.as_usize() {
+                            if begin.as_usize() + self.cursor_in_range > end.as_usize() { //end is inclusive
                                 //we're done with this iterator
                                 self.done = true; //this flags that we have processed this selector
                                 return None;
