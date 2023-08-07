@@ -71,7 +71,10 @@ impl<'a> AnnotationCsv<'a> {
                     if let Selector::RangedTextSelector { .. }
                     | Selector::RangedAnnotationSelector { .. } = subselector
                     {
-                        for subselector in subselector.iter(store, false, false) {
+                        for (i, subselector) in subselector.iter(store, false, false).enumerate() {
+                            if i > 0 {
+                                selectortype.push(';');
+                            }
                             selectortype += subselector.selector().kind().as_str();
                         }
                     } else {
@@ -94,7 +97,10 @@ impl<'a> AnnotationCsv<'a> {
                     if let Selector::RangedTextSelector { .. }
                     | Selector::RangedAnnotationSelector { .. } = subselector
                     {
-                        for subselector in subselector.iter(store, false, false) {
+                        for (i, subselector) in subselector.iter(store, false, false).enumerate() {
+                            if i > 0 {
+                                out.push(';');
+                            }
                             out += Self::set_beginoffset(subselector.selector(), store).as_str();
                         }
                     } else {
@@ -121,7 +127,10 @@ impl<'a> AnnotationCsv<'a> {
                     if let Selector::RangedTextSelector { .. }
                     | Selector::RangedAnnotationSelector { .. } = subselector
                     {
-                        for subselector in subselector.iter(store, false, false) {
+                        for (i, subselector) in subselector.iter(store, false, false).enumerate() {
+                            if i > 0 {
+                                out.push(';');
+                            }
                             out += Self::set_endoffset(subselector.selector(), store).as_str();
                         }
                     } else {
@@ -147,7 +156,12 @@ impl<'a> AnnotationCsv<'a> {
                     out.push(';'); //delimiter
                     match subselector {
                         Selector::RangedTextSelector { .. } => {
-                            for subselector in subselector.iter(store, false, false) {
+                            for (i, subselector) in
+                                subselector.iter(store, false, false).enumerate()
+                            {
+                                if i > 0 {
+                                    out.push(';');
+                                }
                                 out += &Self::set_targetresource(subselector.selector(), store);
                             }
                         }
@@ -212,7 +226,12 @@ impl<'a> AnnotationCsv<'a> {
                     out.push(';'); //delimiter
                     match subselector {
                         Selector::RangedAnnotationSelector { .. } => {
-                            for subselector in subselector.iter(store, false, false) {
+                            for (i, subselector) in
+                                subselector.iter(store, false, false).enumerate()
+                            {
+                                if i > 0 {
+                                    out.push(';');
+                                }
                                 out += &Self::set_targetannotation(subselector.selector(), store);
                             }
                         }
