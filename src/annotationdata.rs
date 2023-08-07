@@ -128,6 +128,11 @@ impl<'a> Serialize for ResultItem<'a, AnnotationData> {
         state.serialize_field("@type", "AnnotationData")?;
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
+        } else {
+            state.serialize_field(
+                "@id",
+                &self.as_ref().temp_id().expect("temp_id must succeed"),
+            )?;
         }
         // we don't use self.key() because we have a partial ResultItem and it'll panic,
         // we need to take a small detour to get the key here

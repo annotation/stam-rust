@@ -274,7 +274,14 @@ impl<'a> Serialize for ResultItem<'a, Annotation> {
     {
         let mut state = serializer.serialize_struct("Annotation", 2)?;
         state.serialize_field("@type", "Annotation")?;
-        state.serialize_field("@id", &self.id())?;
+        if let Some(id) = self.id() {
+            state.serialize_field("@id", id)?;
+        } else {
+            state.serialize_field(
+                "@id",
+                &self.as_ref().temp_id().expect("temp_id must succeed"),
+            )?;
+        }
         // we need to wrap the selector in a smart pointer so it has a reference to the annotation store
         // only as a smart pointer can it be serialized (because it needs to look up the resource IDs)
         let target = WrappedSelector::new(&self.as_ref().target(), &self.store());
