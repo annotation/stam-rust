@@ -48,6 +48,7 @@ pub use store::{BuildItem, Request, ResultItem, Storable, Store, StoreFor};
 pub use text::Text;
 pub use textselection::{
     ResultTextSelection, TestTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
+    TextSelectionSetIntoIter, TextSelectionSetIter,
 };
 pub use types::*;
 

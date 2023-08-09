@@ -436,6 +436,12 @@ pub struct ResultTextSelectionSet<'store> {
     pub(crate) rootstore: &'store AnnotationStore,
 }
 
+impl<'store> ResultTextSelectionSet<'store> {
+    pub fn as_ref(&self) -> &TextSelectionSet {
+        &self.tset
+    }
+}
+
 pub struct TextSelectionSetIntoIter {
     tset: TextSelectionSet,
     cursor: Option<usize>,
