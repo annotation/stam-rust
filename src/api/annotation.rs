@@ -145,11 +145,10 @@ impl<'store> ResultItem<'store, Annotation> {
     /// To search for any value, `value` can must be explicitly set to `DataOperator::Any` to return all values.
     ///
     /// Value is a DataOperator that can apply a data test to the value. Use `DataOperator::Equals` to search
-    /// for an exact value. As a shortcut, you can pass `"value".into()`  to the automatically conver into an equality
+    /// for an exact value. As a shortcut, you can pass `"value".into()`  to the automatically convert into an equality
     /// DataOperator.
     ///
     /// Example call to retrieve all data indiscriminately: `annotation.data(false,false, DataOperator::Any)`
-    ///  .. or just use the alias function `data_all()`.
     ///
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
     ///       search for keys if you don't know their set.
@@ -262,6 +261,69 @@ impl<'store> ResultItem<'store, Annotation> {
             )
         } else {
             None
+        }
+    }
+
+    /// Search for data in annotations targeted by this one (i.e. via an AnnotationSelector).
+    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`],
+    /// or with annotations that target the instance in question, which can be searched with [`Self.find_data_about()`].
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn find_data_in_targets<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+        recursive: bool,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, AnnotationData>,
+                    ResultItem<'store, Annotation>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            Some(
+                self.annotations_in_targets(recursive, false)
+                    .map(move |annotation| {
+                        annotation
+                            .find_data(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(move |data| (data, annotation.clone()))
+                    })
+                    .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Search for data in annotations targeted this one (i.e. via an AnnotationSelector).
+    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`],
+    /// or with annotations that target the instance in question, which can be searched with [`Self.find_data_about()`].
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn test_data_in_targets<'a>(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+        recursive: bool,
+    ) -> bool {
+        let store = self.store();
+        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
+        {
+            self.annotations_in_targets(recursive, false)
+                .any(move |annotation| {
+                    annotation.test_data(test_set_handle, test_key_handle, value)
+                })
+        } else {
+            false
         }
     }
 
