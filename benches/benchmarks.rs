@@ -163,5 +163,88 @@ pub fn bench_storefor(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_textsearch, bench_storefor);
+pub fn bench_scale(c: &mut Criterion) {
+    let mut store = AnnotationStore::new(Config::default()).with_id("test");
+
+    //artificial text with 100,000 Xs
+    let mut text = String::with_capacity(100000);
+    for _ in 0..100000 {
+        text.push('X');
+    }
+
+    store = store
+        .add(TextResource::from_string(
+            "testres",
+            text,
+            Config::default(),
+        ))
+        .unwrap()
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
+        .unwrap();
+
+    for i in 0..100000 {
+        store = store
+            .with_annotation(
+                AnnotationBuilder::new()
+                    .with_target(SelectorBuilder::TextSelector(
+                        "testres".into(),
+                        Offset::simple(i, i + 1),
+                    ))
+                    .with_id(format!("A{}", i))
+                    .with_data("testdataset", "type", "X")
+                    .with_data("testdataset", "n", i),
+            )
+            .unwrap();
+    }
+
+    let item: BuildItem<Annotation> = BuildItem::from(50000);
+    let handle: AnnotationHandle = AnnotationHandle::new(50000);
+    let id: BuildItem<Annotation> = BuildItem::from("A50000");
+
+    c.bench_function("scale_get_by_handle", |b| {
+        b.iter(|| {
+            black_box(store.get(&item)).ok();
+        })
+    });
+
+    c.bench_function("scale_get_by_handle_unchecked", |b| {
+        b.iter(|| {
+            black_box(unsafe {
+                <AnnotationStore as StoreFor<Annotation>>::get_unchecked(&store, handle)
+            });
+        })
+    });
+
+    c.bench_function("scale_get_by_idref", |b| {
+        b.iter(|| {
+            black_box(store.get(&id)).ok();
+        })
+    });
+
+    c.bench_function("scale_get_wrapped_by_handle", |b| {
+        b.iter(|| {
+            black_box(store.annotation(&item));
+        })
+    });
+
+    c.bench_function("scale_get_wrapped_by_id", |b| {
+        b.iter(|| {
+            black_box(store.annotation(&id));
+        })
+    });
+
+    c.bench_function("scale_find_data", |b| {
+        b.iter(|| {
+            black_box(
+                store
+                    .find_data("testdataset", "n", &DataOperator::EqualsInt(50000))
+                    .into_iter()
+                    .flatten()
+                    .count(),
+            );
+        })
+    });
+}
+
+criterion_group!(benches, bench_textsearch, bench_storefor, bench_scale);
 criterion_main!(benches);
