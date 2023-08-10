@@ -2,7 +2,8 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use stam::{
     Annotation, AnnotationBuilder, AnnotationDataSet, AnnotationHandle, AnnotationStore, BuildItem,
-    Config, FindText, Handle, Offset, Regex, SelectorBuilder, StoreFor, Text, TextResource,
+    Config, DataOperator, FindText, Handle, Offset, Regex, SelectorBuilder, StoreFor, Text,
+    TextResource,
 };
 
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
@@ -146,6 +147,18 @@ pub fn bench_storefor(c: &mut Criterion) {
     c.bench_function("store_get_wrapped_by_id", |b| {
         b.iter(|| {
             black_box(store.annotation(&id));
+        })
+    });
+
+    c.bench_function("store_find_data", |b| {
+        b.iter(|| {
+            black_box(
+                store
+                    .find_data("testdataset", "pos", &DataOperator::Equals("noun"))
+                    .into_iter()
+                    .flatten()
+                    .count(),
+            );
         })
     });
 }
