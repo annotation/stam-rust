@@ -196,4 +196,22 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             None => false,
         }
     }
+
+    /// Search for annotations *about* this dataset, satisfying certain exact data that is already known.
+    /// For a higher-level variant, see `find_data_about`, this method is more efficient.
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn annotations_by_data_about(
+        &self,
+        data: ResultItem<'store, AnnotationData>,
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+        self.annotations()
+            .filter(move |annotation| annotation.has_data(&data))
+    }
+
+    /// Tests if the resource has certain data in annotations that reference this dataset, returns a boolean.
+    /// If you don't have a data instance yet, use `test_data_about()` instead.
+    /// This method is much more efficient than `test_data_about()`.
+    pub fn has_data_about(&self, data: ResultItem<'store, AnnotationData>) -> bool {
+        self.annotations_by_data_about(data).next().is_some()
+    }
 }

@@ -479,6 +479,10 @@ impl Annotation {
         self.data.get(index)
     }
 
+    pub fn has_data(&self, set: AnnotationDataSetHandle, handle: AnnotationDataHandle) -> bool {
+        self.data.contains(&(set, handle))
+    }
+
     /// Returns the number of annotation data items
     pub fn len(&self) -> usize {
         self.data.len()

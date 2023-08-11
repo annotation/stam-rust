@@ -1513,8 +1513,8 @@ impl AnnotationStore {
 
     /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
     ///
-    /// This is a low-lever function, use [`ResultItem<Annotation>.annotations_reverse()`] instead.
-    /// Use [`ResultItem<annotation>.annotations()`] if you are looking for the annotations that an annotation points at.
+    /// This is a low-level function, use [`ResultItem<Annotation>.annotations()`] instead.
+    /// Use [`ResultItem<annotation>.annotations_in_targets()`] if you are looking for the annotations that an annotation points at.
     pub(crate) fn annotations_by_annotation_reverse(
         &self,
         annotation_handle: AnnotationHandle,

@@ -207,10 +207,11 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Tests if the annotation has certain data, returns a boolean.
-    /// If you want to actually retrieve the data, use `data()` instead.
+    /// If you already have an AnnotationData instance, use `has_data()` instead, it is much more efficient.
+    /// If you want to actually retrieve the data, use `find_data()` instead.
     ///
-    /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    /// Provide `set` and `key` , if set to a boolean (false or true), all sets and keys will be searched.
+    /// Value is a DataOperator. It can be set to `DataOperator::Any` to return all values.
     ///
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
     ///       search for keys if you don't know their set.
@@ -224,6 +225,13 @@ impl<'store> ResultItem<'store, Annotation> {
             Some(mut iter) => iter.next().is_some(),
             None => false,
         }
+    }
+
+    /// Tests if the annotation has certain data, returns a boolean.
+    /// If you don't have a data instance yet, use `test_data()` instead.
+    /// If you do, this method is much more efficient than `test_data()`.
+    pub fn has_data(&self, data: &ResultItem<AnnotationData>) -> bool {
+        self.as_ref().has_data(data.set().handle(), data.handle())
     }
 
     /// Search for data *about* this annotation, i.e. data on other annotation that refer to this one.
@@ -262,6 +270,24 @@ impl<'store> ResultItem<'store, Annotation> {
         } else {
             None
         }
+    }
+
+    /// Search for annotations *about* this annotation, satisfying certain exact data that is already known.
+    /// For a higher-level variant, see `find_data_about`, this method is more efficient.
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn annotations_by_data_about(
+        &self,
+        data: ResultItem<'store, AnnotationData>,
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+        self.annotations()
+            .filter(move |annotation| annotation.has_data(&data))
+    }
+
+    /// Tests if the annotation has certain data in other annotatations that reference this one, returns a boolean.
+    /// If you don't have a data instance yet, use `test_data_about()` instead.
+    /// This method is much more efficient than `test_data_about()`.
+    pub fn has_data_about(&self, data: ResultItem<'store, AnnotationData>) -> bool {
+        self.annotations_by_data_about(data).next().is_some()
     }
 
     /// Search for data in annotations targeted by this one (i.e. via an AnnotationSelector).
