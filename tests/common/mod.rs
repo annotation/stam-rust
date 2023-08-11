@@ -491,3 +491,68 @@ pub fn annotate_words(
 
     store.annotate_from_iter(annotations)
 }
+
+pub fn setup_example_7(n: usize) -> Result<AnnotationStore, StamError> {
+    let mut store = AnnotationStore::new(Config::default()).with_id("test");
+
+    //artificial text with 100,000 Xs
+    let mut text = String::with_capacity(n);
+    for _ in 0..n {
+        text.push('X');
+    }
+    store = store
+        .add(TextResource::from_string(
+            "testres",
+            text,
+            Config::default(),
+        ))
+        .unwrap()
+        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
+        .unwrap();
+
+    for i in 0..n {
+        store = store
+            .with_annotation(
+                AnnotationBuilder::new()
+                    .with_target(SelectorBuilder::textselector(
+                        "testres",
+                        Offset::simple(i, i + 1),
+                    ))
+                    .with_id(format!("A{}", i))
+                    .with_data("testdataset", "type", "X")
+                    .with_data("testdataset", "n", i),
+            )
+            .unwrap();
+    }
+
+    for i in 0..n - 1 {
+        store = store
+            .with_annotation(
+                AnnotationBuilder::new()
+                    .with_target(SelectorBuilder::textselector(
+                        "testres",
+                        Offset::simple(i, i + 2),
+                    ))
+                    .with_id(format!("B{}", i))
+                    .with_data("testdataset", "type", "bigram"),
+            )
+            .unwrap();
+
+        let left = store.annotation(format!("A{}", i)).unwrap().handle();
+        let right = store.annotation(format!("A{}", i + 1)).unwrap().handle();
+
+        store = store
+            .with_annotation(
+                AnnotationBuilder::new()
+                    .with_target(SelectorBuilder::compositeselector([
+                        SelectorBuilder::annotationselector(left, Some(Offset::whole())),
+                        SelectorBuilder::annotationselector(right, Some(Offset::whole())),
+                    ]))
+                    .with_id(format!("C{}", i))
+                    .with_data("testdataset", "type", "composite_bigram"),
+            )
+            .unwrap();
+    }
+
+    Ok(store)
+}

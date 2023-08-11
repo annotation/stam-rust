@@ -6,6 +6,9 @@ use stam::{
     TextResource,
 };
 
+mod common;
+use crate::common::*;
+
 const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
 
 pub fn bench_textsearch(c: &mut Criterion) {
@@ -164,41 +167,12 @@ pub fn bench_storefor(c: &mut Criterion) {
 }
 
 pub fn bench_scale(c: &mut Criterion) {
-    let mut store = AnnotationStore::new(Config::default()).with_id("test");
+    const N: usize = 100000;
 
-    //artificial text with 100,000 Xs
-    let mut text = String::with_capacity(100000);
-    for _ in 0..100000 {
-        text.push('X');
-    }
+    let store = setup_example_7(N).unwrap();
 
-    store = store
-        .add(TextResource::from_string(
-            "testres",
-            text,
-            Config::default(),
-        ))
-        .unwrap()
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
-        .unwrap();
-
-    for i in 0..100000 {
-        store = store
-            .with_annotation(
-                AnnotationBuilder::new()
-                    .with_target(SelectorBuilder::TextSelector(
-                        "testres".into(),
-                        Offset::simple(i, i + 1),
-                    ))
-                    .with_id(format!("A{}", i))
-                    .with_data("testdataset", "type", "X")
-                    .with_data("testdataset", "n", i),
-            )
-            .unwrap();
-    }
-
-    let item: BuildItem<Annotation> = BuildItem::from(50000);
-    let handle: AnnotationHandle = AnnotationHandle::new(50000);
+    let item: BuildItem<Annotation> = BuildItem::from(N / 2);
+    let handle: AnnotationHandle = AnnotationHandle::new(N / 2);
     let id: BuildItem<Annotation> = BuildItem::from("A50000");
 
     c.bench_function("scale_get_by_handle", |b| {
