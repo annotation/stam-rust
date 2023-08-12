@@ -21,7 +21,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     }
 
     /// Retrieve a key in this set
-    pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<DataKey>> {
+    pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<'store, DataKey>> {
         self.as_ref()
             .get(key)
             .map(|x| x.as_resultitem(self.as_ref(), self.rootstore()))
@@ -34,10 +34,10 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// ([`WrappedItem<AnnotationData>`]) that also contains reference to the store and which is
     /// immediately implements various methods for working with the type. If you need a more
     /// performant low-level method, use `StoreFor<T>::get()` instead.
-    pub fn annotationdata<'a>(
-        &'a self,
+    pub fn annotationdata(
+        &self,
         annotationdata: impl Request<AnnotationData>,
-    ) -> Option<ResultItem<'a, AnnotationData>> {
+    ) -> Option<ResultItem<'store, AnnotationData>> {
         self.as_ref()
             .get(annotationdata)
             .map(|x| x.as_resultitem(self.as_ref(), self.rootstore()))
