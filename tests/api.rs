@@ -1723,36 +1723,7 @@ fn annotations_by_related_text_relative_offset() -> Result<(), StamError> {
     Ok(())
 }
 
-pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle), StamError> {
-    let mut store = AnnotationStore::default();
-    let mut text = String::with_capacity(n);
-    for _ in 0..n {
-        text.push('x');
-    }
-    let resource_handle = store.insert(
-        TextResourceBuilder::new()
-            .with_id("dummy")
-            .with_text(text)
-            .build()?,
-    )?;
-    let resource = store.resource(resource_handle).unwrap();
-
-    let dataset_handle = store.insert(
-        AnnotationDataSet::new(Config::default()).with_data_with_id("type", "bigram", "D1")?,
-    )?;
-
-    for x in 0..n - 2 {
-        store.annotate(
-            AnnotationBuilder::new()
-                .with_target(SelectorBuilder::textselector(
-                    resource_handle,
-                    Offset::simple(x, x + 2),
-                ))
-                .with_existing_data(BuildItem::Handle(dataset_handle), "D1"),
-        )?;
-    }
-    Ok((store, resource_handle))
-}
+pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle), StamError> {}
 
 #[test]
 fn resource_textselections_scale_unsorted_iter() -> Result<(), StamError> {
