@@ -24,6 +24,7 @@ nanoid = "0.4.0"
 csv = "1.2.2"
 datasize = { version = "0.2.14", features = ["smallvec-types"] }
 minicbor = { version = "0.19.1", features = ["derive","std" ] }
+rayon = "1.7.0"
 
 [features]
 default = ["csv"]

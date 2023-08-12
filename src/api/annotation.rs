@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::marker::PhantomData;
 
 use crate::annotation::Annotation;
@@ -63,6 +64,25 @@ impl<'store> ResultItem<'store, Annotation> {
         self.store()
             .annotations_by_annotation_reverse(self.handle())
             .into_iter()
+            .flatten()
+            .map(|a_handle| {
+                store
+                    .annotation(*a_handle)
+                    .expect("annotation handle must be valid")
+            })
+    }
+
+    /// Iterates over all the annotations that reference this annotation, if any, in parallel.
+    /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets_par()`] instead.
+    ///
+    /// This does no sorting nor deduplication, if you want results in textual order, add `.textual_order()`
+    pub fn annotations_par(
+        &self,
+    ) -> impl ParallelIterator<Item = ResultItem<'store, Annotation>> + 'store {
+        let store = self.store();
+        self.store()
+            .annotations_by_annotation_reverse(self.handle())
+            .into_par_iter()
             .flatten()
             .map(|a_handle| {
                 store
