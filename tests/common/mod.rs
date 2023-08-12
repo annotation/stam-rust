@@ -511,47 +511,55 @@ pub fn setup_example_7(n: usize) -> Result<AnnotationStore, StamError> {
         .unwrap();
 
     for i in 0..n {
-        store = store
-            .with_annotation(
-                AnnotationBuilder::new()
-                    .with_target(SelectorBuilder::textselector(
-                        "testres",
-                        Offset::simple(i, i + 1),
-                    ))
-                    .with_id(format!("A{}", i))
-                    .with_data("testdataset", "type", "X")
-                    .with_data("testdataset", "n", i),
-            )
-            .unwrap();
+        store.annotate(
+            AnnotationBuilder::new()
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
+                    Offset::simple(i, i + 1),
+                ))
+                .with_id(format!("A{}", i))
+                .with_data("testdataset", "type", "X")
+                .with_data("testdataset", "n", i),
+        )?;
+
+        store.annotate(
+            AnnotationBuilder::new()
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
+                    Offset::simple(i, i + 1),
+                ))
+                .with_id(format!("P{}", i))
+                .with_data(
+                    "testdataset",
+                    "parity",
+                    if i % 2 == 0 { "even" } else { "odd" },
+                ),
+        )?;
     }
 
     for i in 0..n - 1 {
-        store = store
-            .with_annotation(
-                AnnotationBuilder::new()
-                    .with_target(SelectorBuilder::textselector(
-                        "testres",
-                        Offset::simple(i, i + 2),
-                    ))
-                    .with_id(format!("B{}", i))
-                    .with_data("testdataset", "type", "bigram"),
-            )
-            .unwrap();
+        store.annotate(
+            AnnotationBuilder::new()
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
+                    Offset::simple(i, i + 2),
+                ))
+                .with_id(format!("B{}", i))
+                .with_data("testdataset", "type", "bigram"),
+        )?;
 
         let left = store.annotation(format!("A{}", i)).unwrap().handle();
         let right = store.annotation(format!("A{}", i + 1)).unwrap().handle();
 
-        store = store
-            .with_annotation(
-                AnnotationBuilder::new()
-                    .with_target(SelectorBuilder::compositeselector([
-                        SelectorBuilder::annotationselector(left, Some(Offset::whole())),
-                        SelectorBuilder::annotationselector(right, Some(Offset::whole())),
-                    ]))
-                    .with_id(format!("C{}", i))
-                    .with_data("testdataset", "type", "composite_bigram"),
-            )
-            .unwrap();
+        store.annotate(
+            AnnotationBuilder::new()
+                .with_target(SelectorBuilder::compositeselector([
+                    SelectorBuilder::annotationselector(left, Some(Offset::whole())),
+                    SelectorBuilder::annotationselector(right, Some(Offset::whole())),
+                ]))
+                .with_id(format!("C{}", i))
+                .with_data("testdataset", "type", "composite_bigram"),
+        )?;
     }
 
     Ok(store)

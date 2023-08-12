@@ -273,8 +273,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Search for annotations *about* this annotation, satisfying certain exact data that is already known.
-    /// For a higher-level variant, see `find_data_about`, this method is more efficient.
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    /// For a higher-level variant, see `find_data_about`, but that method is less efficient than this one.
     pub fn annotations_by_data_about(
         &self,
         data: ResultItem<'store, AnnotationData>,

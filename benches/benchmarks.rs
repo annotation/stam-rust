@@ -218,6 +218,69 @@ pub fn bench_scale(c: &mut Criterion) {
             );
         })
     });
+
+    c.bench_function("scale_find_data_2", |b| {
+        let dataset = store.dataset("testdataset").unwrap();
+        let key_n = dataset.key("n").unwrap();
+        b.iter(|| {
+            black_box(
+                store
+                    .find_data(
+                        dataset.handle(),
+                        key_n.handle(),
+                        &DataOperator::EqualsInt(50000),
+                    )
+                    .into_iter()
+                    .flatten()
+                    .count(),
+            );
+        })
+    });
+
+    c.bench_function("scale_find_data_about", |b| {
+        let annotation = store.annotation("A50000").unwrap();
+        b.iter(|| {
+            black_box(
+                annotation
+                    .find_data_about("testdataset", "type", &DataOperator::Equals("bigram"))
+                    .into_iter()
+                    .flatten()
+                    .count(),
+            );
+        })
+    });
+
+    c.bench_function("scale_find_data_about_2", |b| {
+        let annotation = store.annotation("A50000").unwrap();
+        let dataset = store.dataset("testdataset").unwrap();
+        let key_type = dataset.key("type").unwrap();
+        b.iter(|| {
+            black_box(
+                annotation
+                    .find_data_about(
+                        dataset.handle(),
+                        key_type.handle(),
+                        &DataOperator::Equals("bigram"),
+                    )
+                    .into_iter()
+                    .flatten()
+                    .count(),
+            );
+        })
+    });
+
+    c.bench_function("scale_annotations_by_data_about", |b| {
+        let annotation = store.annotation("A50000").unwrap();
+        let dataset = store.dataset("testdataset").unwrap();
+        let key_type = dataset.key("type").unwrap();
+        let data = key_type
+            .find_data(&DataOperator::Equals("bigram"))
+            .next()
+            .unwrap();
+        b.iter(|| {
+            black_box(annotation.annotations_by_data_about(data.clone()).count());
+        })
+    });
 }
 
 criterion_group!(benches, bench_textsearch, bench_storefor, bench_scale);
