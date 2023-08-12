@@ -349,7 +349,7 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 
-    /// Search for data in annotations targeted this one (i.e. via an AnnotationSelector).
+    /// Tests for data in annotations targeted by this one (i.e. via an AnnotationSelector).
     /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`],
     /// or with annotations that target the instance in question, which can be searched with [`Self.find_data_about()`].
     /// Both the matching data as well as the matching annotation will be returned in an iterator.
@@ -370,6 +370,23 @@ impl<'store> ResultItem<'store, Annotation> {
         } else {
             false
         }
+    }
+
+    /// Tests for data in annotations targeted by this one (i.e. via an AnnotationSelector).
+    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`],
+    /// or with annotations that target the instance in question, which can be searched with [`Self.find_data_about()`].
+    /// Both the matching data as well as the matching annotation will be returned in an iterator.
+    pub fn has_data_in_targets<'a>(
+        &self,
+        data: &ResultItem<'store, AnnotationData>,
+        recursive: bool,
+    ) -> bool {
+        self.annotations_in_targets(recursive, false)
+            .any(move |annotation| {
+                annotation
+                    .as_ref()
+                    .has_data(data.set().handle(), data.handle())
+            })
     }
 
     /// Shortcut method to get all data *about* this annotation, i.e. data on other annotation that refer to this one.
