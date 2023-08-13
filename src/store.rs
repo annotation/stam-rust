@@ -98,6 +98,8 @@ pub(crate) struct RelationMap<A, B> {
     pub(crate) data: Vec<Vec<B>>,
     #[n(1)]
     _marker: PhantomData<A>, //zero-size, only needed to bind generic A
+    #[n(2)]
+    pub(crate) ready: bool,
 }
 
 impl<A, B> Default for RelationMap<A, B>
@@ -109,6 +111,7 @@ where
         Self {
             data: Vec::new(),
             _marker: PhantomData,
+            ready: false,
         }
     }
 }
@@ -129,6 +132,7 @@ where
             self.data.resize_with(x.as_usize() + 1, Default::default);
         }
         self.data[x.as_usize()].push(y);
+        self.ready = false;
     }
 
     /// Remove a relation from the map
@@ -142,6 +146,11 @@ where
 
     pub fn get(&self, x: A) -> Option<&Vec<B>> {
         self.data.get(x.as_usize())
+    }
+
+    /// is this map ready for querying? if not, you need to call finish() first.
+    pub fn ready(&self) -> bool {
+        self.ready
     }
 
     pub fn totalcount(&self) -> usize {
@@ -161,13 +170,15 @@ where
         self.data.len()
     }
 
-    pub fn shrink_to_fit(&mut self, recursive: bool) {
-        if recursive {
-            for element in self.data.iter_mut() {
-                element.shrink_to_fit();
-            }
+    /// Sorts and shrinks the data structure
+    pub fn finish(&mut self) {
+        for element in self.data.iter_mut() {
+            element.shrink_to_fit();
+            element.sort_unstable();
+            element.dedup();
         }
         self.data.shrink_to_fit();
+        self.ready = true;
     }
 
     /// Returns a new reindexed map, copies all contents, not the most efficient
@@ -209,6 +220,8 @@ where
     /// The actual map
     #[n(0)]
     pub(crate) data: BTreeMap<A, Vec<B>>,
+    #[n(1)]
+    pub(crate) ready: bool,
 }
 
 impl<A, B> Default for RelationBTreeMap<A, B>
@@ -219,6 +232,7 @@ where
     fn default() -> Self {
         Self {
             data: BTreeMap::new(),
+            ready: false,
         }
     }
 }
@@ -239,6 +253,7 @@ where
         } else {
             self.data.insert(x, vec![y]);
         }
+        self.ready = false;
     }
 
     /// Remove a relation from the map
@@ -252,6 +267,11 @@ where
 
     pub fn get(&self, x: A) -> Option<&Vec<B>> {
         self.data.get(&x)
+    }
+
+    /// is this map ready for querying? if not, you need to call finish() first.
+    pub fn ready(&self) -> bool {
+        self.ready
     }
 
     pub fn totalcount(&self) -> usize {
@@ -271,12 +291,14 @@ where
         self.data.len()
     }
 
-    pub fn shrink_to_fit(&mut self, recursive: bool) {
-        if recursive {
-            for element in self.data.values_mut() {
-                element.shrink_to_fit();
-            }
+    /// Sorts and shrinks the data structure
+    pub(crate) fn finish(&mut self) {
+        for element in self.data.values_mut() {
+            element.shrink_to_fit();
+            element.sort_unstable();
+            element.dedup();
         }
+        self.ready = true;
     }
 
     /// Returns a new reindexed map, copies all contents, not the most efficient
@@ -289,6 +311,7 @@ where
                 newmap.insert(handle_a, handle_b);
             }
         }
+        newmap.finish();
         newmap
     }
 }
@@ -315,6 +338,8 @@ pub(crate) struct TripleRelationMap<A, B, C> {
     pub(crate) data: Vec<RelationMap<B, C>>,
     #[n(1)]
     _marker: PhantomData<A>,
+    #[n(2)]
+    pub(crate) ready: bool,
 }
 
 impl<A, B, C> Default for TripleRelationMap<A, B, C> {
@@ -322,6 +347,7 @@ impl<A, B, C> Default for TripleRelationMap<A, B, C> {
         Self {
             data: Vec::new(),
             _marker: PhantomData,
+            ready: false,
         }
     }
 }
@@ -342,6 +368,7 @@ where
             self.data.resize_with(x.as_usize() + 1, Default::default);
         }
         self.data[x.as_usize()].insert(y, z);
+        self.ready = false;
     }
 
     pub fn get(&self, x: A, y: B) -> Option<&Vec<C>> {
@@ -350,6 +377,11 @@ where
         } else {
             None
         }
+    }
+
+    /// is this map ready for querying? if not, you need to call finish() first.
+    pub fn ready(&self) -> bool {
+        self.ready
     }
 
     pub fn totalcount(&self) -> usize {
@@ -378,13 +410,13 @@ where
         self.data.len()
     }
 
-    pub fn shrink_to_fit(&mut self, recursive: bool) {
-        if recursive {
-            for element in self.data.iter_mut() {
-                element.shrink_to_fit(recursive);
-            }
+    /// Sorts and shrinks the data structure
+    pub fn finish(&mut self) {
+        for element in self.data.iter_mut() {
+            element.finish();
         }
         self.data.shrink_to_fit();
+        self.ready = true;
     }
 
     /// Returns a new reindexed map, copies all contents, not the most efficient

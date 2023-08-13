@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
-use crate::annotationdata::AnnotationDataHandle;
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetHandle, DeserializeAnnotationDataSet,
 };
@@ -80,6 +80,13 @@ pub struct AnnotationStore {
     /// Reverse index for annotations that reference other annotations
     #[n(104)]
     pub(crate) annotation_annotation_map: RelationBTreeMap<AnnotationHandle, AnnotationHandle>,
+
+    /// Secondary reverse indices, these are relations that can already be resolved with the primary resolved indices,
+    /// but are more efficient to have an extra map.
+    /// Reverse index for AnnotationDataSet => DataKey => Annotation
+    #[n(105)]
+    pub(crate) dataset_key_annotation_map:
+        TripleRelationMap<AnnotationDataSetHandle, DataKeyHandle, AnnotationHandle>,
 
     /// path associated with this store
     #[n(200)]
@@ -188,9 +195,15 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             format!("StoreFor<Annotation in AnnotationStore>.inserted: Indexing annotation")
         });
 
-        for (dataset, data) in annotation.data() {
+        for (dataset_handle, data_handle) in annotation.data() {
             self.dataset_data_annotation_map
-                .insert(*dataset, *data, handle);
+                .insert(*dataset_handle, *data_handle, handle);
+
+            let dataset: &AnnotationDataSet = self.get(*dataset_handle)?;
+            let data: &AnnotationData = dataset.get(*data_handle)?;
+
+            self.dataset_key_annotation_map
+                .insert(*dataset_handle, data.key(), handle); // note: a key->annotation pair may end up multiple times in the map if multiple data items exist, we go for quick insertion and optimize later
         }
 
         let mut multitarget = false;
@@ -1245,30 +1258,33 @@ impl AnnotationStore {
         )
     }
 
-    /// Re-allocates data structures to minimize memory consumption
-    pub fn shrink_to_fit(&mut self, recursive: bool) {
-        if recursive {
-            for resource in self.resources.iter_mut() {
-                if let Some(resource) = resource {
-                    resource.shrink_to_fit();
-                }
+    /// Call this when you finish adding annotations and before you start search operations.
+    /// It will optimize (sort and shrink) data structures for efficient search.
+    pub fn finish(&mut self) {
+        for resource in self.resources.iter_mut() {
+            if let Some(resource) = resource {
+                resource.shrink_to_fit();
             }
-            for annotationset in self.annotationsets.iter_mut() {
-                if let Some(annotationset) = annotationset {
-                    annotationset.shrink_to_fit();
-                }
+        }
+        for annotationset in self.annotationsets.iter_mut() {
+            if let Some(annotationset) = annotationset {
+                annotationset.shrink_to_fit();
             }
         }
         self.annotationsets.shrink_to_fit();
         self.resources.shrink_to_fit();
         self.annotations.shrink_to_fit();
-        self.annotation_annotation_map.shrink_to_fit(true);
-        self.dataset_annotation_map.shrink_to_fit(true);
-        self.resource_annotation_map.shrink_to_fit(true);
+        self.annotation_annotation_map.finish();
+        if !self.dataset_annotation_map.ready() {
+            self.dataset_annotation_map.finish();
+        }
+        if !self.resource_annotation_map.ready() {
+            self.resource_annotation_map.finish();
+        }
         self.dataset_idmap.shrink_to_fit();
         self.annotation_idmap.shrink_to_fit();
         self.resource_idmap.shrink_to_fit();
-        self.textrelationmap.shrink_to_fit(true);
+        self.textrelationmap.finish();
     }
 
     /// This reindexes all elements, effectively performing garbage collection
@@ -1419,21 +1435,20 @@ impl AnnotationStore {
     /// This is a low-level method, use [`ResultItem<TextResource>.annotations()`] instead for higher-level access.
     ///
     /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
-    pub(crate) fn annotations_by_resource<'store>(
-        &'store self,
+    pub(crate) fn annotations_by_resource(
+        &self,
         resource_handle: TextResourceHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + 'store> {
+    ) -> BTreeSet<AnnotationHandle> {
         if let Some(textselection_annotationmap) =
             self.textrelationmap.data.get(resource_handle.as_usize())
         {
-            Some(
-                textselection_annotationmap
-                    .data
-                    .iter()
-                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
-            )
+            textselection_annotationmap
+                .data
+                .iter()
+                .flat_map(|v| v.iter().copied()) //copies only the handles (cheap)
+                .collect() //BTreeSet ensures there are no duplicates
         } else {
-            None
+            BTreeSet::new()
         }
     }
 
@@ -1567,27 +1582,45 @@ impl AnnotationStore {
     }
 
     /// Find all annotations referenced by key
-    /// This allocates and returns a set because it needs to ensure there are no duplicates
     /// This is a low-level method.
     pub(crate) fn annotations_by_key(
         &self,
         dataset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
-    ) -> BTreeSet<AnnotationHandle> {
-        let dataset: Option<&AnnotationDataSet> = self.get(dataset_handle).ok();
-        if let Some(dataset) = dataset {
-            if let Some(data) = dataset.data_by_key(datakey_handle) {
-                data.iter()
-                    .filter_map(move |dataitem| {
-                        self.annotations_by_data_indexlookup(dataset_handle, *dataitem)
-                    })
-                    .flat_map(|v| v.iter().copied()) //(only the handles are copied)
-                    .collect()
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.dataset_key_annotation_map
+            .get(dataset_handle, datakey_handle)
+    }
+
+    //TODO: use this method or remove it again
+    pub(crate) fn intersect_annotations_by_key(
+        &self,
+        dataset_handle: AnnotationDataSetHandle,
+        datakey_handle: DataKeyHandle,
+        iter: impl Iterator<Item = AnnotationHandle>,
+    ) -> Vec<AnnotationHandle> {
+        if let Some(v) = self
+            .dataset_key_annotation_map
+            .get(dataset_handle, datakey_handle)
+        {
+            let mut results = Vec::with_capacity(std::cmp::min(v.len(), iter.size_hint().0));
+            if self.dataset_key_annotation_map.ready() {
+                for annotation in iter {
+                    if let Ok(_) = v.binary_search(&annotation) {
+                        results.push(annotation);
+                    }
+                }
             } else {
-                BTreeSet::new()
+                for annotation in iter {
+                    if v.contains(&annotation) {
+                        //much less efficient!
+                        results.push(annotation);
+                    }
+                }
             }
+            results
         } else {
-            BTreeSet::new()
+            Vec::new()
         }
     }
 }

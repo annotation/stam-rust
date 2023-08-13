@@ -32,7 +32,6 @@ impl<'store> ResultItem<'store, TextResource> {
         store
             .annotations_by_resource(self.handle())
             .into_iter()
-            .flatten()
             .filter_map(|a_handle| store.annotation(a_handle))
     }
 
