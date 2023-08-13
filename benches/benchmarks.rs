@@ -5,6 +5,7 @@ use stam::{
     Config, DataOperator, FindText, Handle, Offset, Regex, SelectorBuilder, StoreFor, Text,
     TextResource,
 };
+use std::time::{Duration, SystemTime};
 
 mod common;
 use crate::common::*;
@@ -169,7 +170,10 @@ pub fn bench_storefor(c: &mut Criterion) {
 pub fn bench_scale(c: &mut Criterion) {
     const N: usize = 100000;
 
+    let begin = SystemTime::now();
     let store = setup_example_7(N).unwrap();
+    let duration = SystemTime::now().duration_since(begin).unwrap();
+    eprintln!("Building example 7 data took {:?}", duration);
 
     let item: BuildItem<Annotation> = BuildItem::from(N / 2);
     let handle: AnnotationHandle = AnnotationHandle::new(N / 2);
