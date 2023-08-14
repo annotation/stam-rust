@@ -28,8 +28,8 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
-    /// The iterator returns the annoations as [`WrappedItem<Annotation>`].
-    /// Especially useful in combination with a call to  [`WrappedItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
+    /// The iterator returns the annoations as [`ResultItem<Annotation>`].
+    /// Especially useful in combination with a call to  [`ResultItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();

@@ -100,7 +100,8 @@ impl<'store> ResultItem<'store, DataKey> {
         annotationstore
             .annotations_by_key(set_handle, self.handle())
             .into_iter()
-            .filter_map(|a_handle| annotationstore.annotation(a_handle))
+            .flatten()
+            .filter_map(|a_handle| annotationstore.annotation(*a_handle))
     }
 
     /// Returns the number of annotations that make use of this key.
@@ -112,7 +113,8 @@ impl<'store> ResultItem<'store, DataKey> {
                 self.store().handle().expect("set must have handle"),
                 self.handle(),
             )
-            .len()
+            .map(|x| x.len())
+            .unwrap_or(0)
     }
 
     /// Tests whether two DataKeys are the same

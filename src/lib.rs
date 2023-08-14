@@ -55,3 +55,88 @@ pub use types::*;
 pub use regex::{Regex, RegexSet};
 
 mod tests;
+
+use std::borrow::Cow;
+
+// Lazy iterator computing an intersection
+pub(crate) struct IntersectionIter<'a, T>
+where
+    T: Ord,
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    left: Cow<'a, [T]>,
+    left_sorted: bool,
+    left_cursor: usize,
+    right: Cow<'a, [T]>,
+    right_sorted: bool,
+    right_cursor: usize,
+}
+
+impl<'a, T> IntersectionIter<'a, T>
+where
+    T: Ord,
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    pub(crate) fn new(
+        left: Cow<'a, [T]>,
+        left_sorted: bool,
+        right: Cow<'a, [T]>,
+        right_sorted: bool,
+    ) -> Self {
+        if (!right_sorted && left_sorted)
+            || (right_sorted && left_sorted && right.len() < left.len())
+        {
+            //swap positions according to these conditions:
+            //  - always prefer sorted in right position
+            //  - if both are sorted, prefer shortest one in left position
+            Self {
+                left: right,
+                right: left,
+                left_sorted: right_sorted,
+                right_sorted: left_sorted,
+                left_cursor: 0,
+                right_cursor: 0,
+            }
+        } else {
+            Self {
+                left,
+                right,
+                left_sorted,
+                right_sorted,
+                left_cursor: 0,
+                right_cursor: 0,
+            }
+        }
+    }
+}
+
+impl<'a, T> Iterator for IntersectionIter<'a, T>
+where
+    T: Ord + Copy,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(item) = self.left.get(self.left_cursor) {
+                if self.right_sorted {
+                    if let Ok(index) = &self.right[self.right_cursor..].binary_search(&item) {
+                        self.left_cursor += 1;
+                        if self.left_sorted {
+                            // the left is sorted so we can all discount 'lesser than' items from the right side
+                            // in subsequent iterations by moving the cursor ahead
+                            self.right_cursor = *index;
+                        }
+                        return Some(*item);
+                    }
+                } else {
+                    if self.right.contains(&item) {
+                        return Some(*item);
+                    }
+                }
+                self.left_cursor += 1;
+            } else {
+                return None;
+            }
+        }
+    }
+}

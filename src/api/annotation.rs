@@ -1,7 +1,10 @@
 use rayon::prelude::*;
+use smallvec::{smallvec, SmallVec};
+use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
-use crate::annotation::Annotation;
+use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
@@ -16,6 +19,7 @@ use crate::text::Text;
 use crate::textselection::{
     ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
 };
+use crate::IntersectionIter;
 
 use crate::api::textselection::SortTextualOrder;
 
@@ -297,9 +301,75 @@ impl<'store> ResultItem<'store, Annotation> {
     pub fn annotations_by_data_about(
         &self,
         data: ResultItem<'store, AnnotationData>,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+    ) -> AnnotationsIter<'store> {
+        let annotations = self
+            .store()
+            .annotations_by_annotation_reverse(self.handle());
+        let data_annotations = self
+            .store()
+            .annotations_by_data_indexlookup(data.set().handle(), data.handle());
+        if let (Some(annotations), Some(data_annotations)) = (annotations, data_annotations) {
+            AnnotationsIter {
+                store: self.store(),
+                iter: Some(IntersectionIter::new(
+                    Cow::Borrowed(data_annotations),
+                    self.store().annotation_annotation_map.ready(),
+                    Cow::Borrowed(annotations),
+                    self.store().dataset_data_annotation_map.ready(),
+                )),
+                cursor: 0,
+            }
+        } else {
+            //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
+            AnnotationsIter {
+                store: self.store(),
+                iter: None,
+                cursor: 0,
+            }
+        }
+
+        /*
         self.annotations()
             .filter(move |annotation| annotation.has_data(&data))
+                */
+    }
+
+    /// Search for annotations *about* this annotation, satisfying multiple exact data that are already known.
+    /// For a higher-level variant, see `find_data_about`, but that method is less efficient than this one.
+    pub fn annotations_by_more_data_about(
+        &self,
+        data: impl Iterator<Item = ResultItem<'store, AnnotationData>>,
+    ) -> AnnotationsIter<'store> {
+        let annotations = self
+            .store()
+            .annotations_by_annotation_reverse(self.handle());
+        let mut data_annotations: Vec<_> = Vec::new();
+        for data in data {
+            data_annotations.extend(
+                self.store()
+                    .annotations_by_data_indexlookup(data.set().handle(), data.handle())
+                    .map(|v| v.iter().copied())
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+        data_annotations.sort_unstable();
+        data_annotations.dedup();
+
+        AnnotationsIter {
+            store: self.store(),
+            iter: if let Some(annotations) = annotations {
+                Some(IntersectionIter::new(
+                    Cow::Owned(data_annotations),
+                    self.store().annotation_annotation_map.ready(),
+                    Cow::Borrowed(annotations),
+                    self.store().dataset_data_annotation_map.ready(),
+                ))
+            } else {
+                None
+            },
+            cursor: 0,
+        }
     }
 
     /// Tests if the annotation has certain data in other annotatations that reference this one, returns a boolean.
@@ -554,5 +624,24 @@ impl<'store> ResultItem<'store, Annotation> {
         } else {
             None
         }
+    }
+}
+
+pub struct AnnotationsIter<'a> {
+    iter: Option<IntersectionIter<'a, AnnotationHandle>>,
+    cursor: usize,
+    store: &'a AnnotationStore,
+}
+
+impl<'a> Iterator for AnnotationsIter<'a> {
+    type Item = ResultItem<'a, Annotation>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(iter) = self.iter.as_mut() {
+            if let Some(item) = iter.next() {
+                return Some(self.store.annotation(item).expect("annotation must exist"));
+            }
+        }
+        None
     }
 }

@@ -524,6 +524,7 @@ impl AnnotationStore {
                 .with_resolve_temp_ids(config.strip_temp_ids()),
             dataset_data_annotation_map: TripleRelationMap::new(),
             dataset_annotation_map: RelationMap::new(),
+            dataset_key_annotation_map: TripleRelationMap::new(),
             resource_annotation_map: RelationMap::new(),
             annotation_annotation_map: RelationBTreeMap::new(),
             textrelationmap: TripleRelationMap::new(),
@@ -804,7 +805,7 @@ impl AnnotationStore {
         store.config.debug = config.debug;
         store.config.shrink_to_fit = config.shrink_to_fit;
         if config.shrink_to_fit() {
-            store.shrink_to_fit(true);
+            store.finish();
         }
         Ok(store)
     }
@@ -1268,7 +1269,7 @@ impl AnnotationStore {
         }
         for annotationset in self.annotationsets.iter_mut() {
             if let Some(annotationset) = annotationset {
-                annotationset.shrink_to_fit();
+                annotationset.finish();
             }
         }
         self.annotationsets.shrink_to_fit();
@@ -1709,7 +1710,7 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
         }
 
         if self.store.config.shrink_to_fit {
-            self.store.shrink_to_fit(true);
+            self.store.finish();
         }
 
         Ok(())

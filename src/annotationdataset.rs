@@ -650,10 +650,10 @@ impl AnnotationDataSet {
         data_size(self)
     }
 
-    pub fn shrink_to_fit(&mut self) {
+    pub fn finish(&mut self) {
         self.keys.shrink_to_fit();
         self.data.shrink_to_fit();
-        self.key_data_map.shrink_to_fit(true);
+        self.key_data_map.finish();
         self.data_idmap.shrink_to_fit();
         self.key_idmap.shrink_to_fit();
     }

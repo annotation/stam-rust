@@ -561,6 +561,7 @@ pub fn setup_example_7(n: usize) -> Result<AnnotationStore, StamError> {
                 .with_data("testdataset", "type", "composite_bigram"),
         )?;
     }
+    store.finish();
 
     Ok(store)
 }

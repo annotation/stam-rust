@@ -1051,7 +1051,7 @@ impl FromCsv for AnnotationStore {
             store.filename = Some(PathBuf::from(filename));
         }
         if store.config().shrink_to_fit {
-            store.shrink_to_fit(true);
+            store.finish();
         }
         Ok(store)
     }
