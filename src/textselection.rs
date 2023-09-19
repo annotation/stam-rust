@@ -1695,9 +1695,15 @@ trait FindTextSelections<'store> {
             TextSelectionOperator::After { .. } | TextSelectionOperator::Succeeds { .. } => {
                 self.resource().range(0, reftextselection.begin())
             }
-            TextSelectionOperator::Before { .. } | TextSelectionOperator::Precedes { .. } => self
+            /*TextSelectionOperator::Succeeds { .. } => self
+            .resource()
+            .range(reftextselection.begin(), reftextselection.begin() + 1),*/ //this requires support for backward iteration in this trait
+            TextSelectionOperator::Before { .. } => self
                 .resource()
                 .range(reftextselection.end(), self.resource().textlen()),
+            TextSelectionOperator::Precedes { .. } => self
+                .resource()
+                .range(reftextselection.end(), reftextselection.end() + 1),
             TextSelectionOperator::Overlaps { .. } | TextSelectionOperator::Embedded { .. } => {
                 //this is more efficient for reference text selections at the beginning of a text than at the end
                 //(we could reverse the iterator to more efficiently find fragments more at the end, but then we have bookkeeping to do to store and finally revert
@@ -1769,7 +1775,7 @@ trait FindTextSelections<'store> {
                 // The relationship A <operator> B (A=store, B=ref) must hold for each item in A with ANY item in B, all matches are immediately returned
                 // note: negation is considered by the test() and self.new_textseliter() methods
                 if self.textseliter().is_none() {
-                    //sets the iterastor for TextSelections in the store to iterator over,
+                    //sets the iterator for TextSelections in the store to iterator over,
                     //which we prefer to keep as small as possible (based on the operator)
                     self.set_textseliter(self.new_textseliter(&reftextselection));
                 }
