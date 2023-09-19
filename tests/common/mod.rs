@@ -493,6 +493,8 @@ pub fn annotate_words(
 }
 
 pub fn setup_example_7(n: usize) -> Result<AnnotationStore, StamError> {
+    //note: this is very slow when not compiled with optimisations if n gets large!!
+
     let mut store = AnnotationStore::new(Config::default()).with_id("test");
 
     //artificial text with 100,000 Xs

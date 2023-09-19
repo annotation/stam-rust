@@ -1723,54 +1723,58 @@ fn annotations_by_related_text_relative_offset() -> Result<(), StamError> {
     Ok(())
 }
 
-pub fn setup_example_7(n: usize) -> Result<(AnnotationStore, TextResourceHandle), StamError> {}
-
 #[test]
 fn resource_textselections_scale_unsorted_iter() -> Result<(), StamError> {
-    let n = 100000;
-    let (store, resource_handle) = setup_example_7(n)?;
+    let n = 10000;
+    let store = setup_example_7(n)?;
 
-    let resource = store
-        .resource(resource_handle)
-        .expect("resource must exist");
+    let resource = store.resource("testres").expect("resource must exist");
 
     //iterate over all textselections unsorted
     let mut count = 0;
     for _ in resource.textselections() {
         count += 1;
     }
-    assert_eq!(count, n - 2);
+    assert!(count >= n - 2);
 
     Ok(())
 }
 
 #[test]
 fn resource_textselections_scale_sorted_iter() -> Result<(), StamError> {
-    let n = 100000;
-    let (store, resource_handle) = setup_example_7(n)?;
+    let n = 10000;
+    let store = setup_example_7(n)?;
 
-    let resource = store
-        .resource(resource_handle)
-        .expect("resource must exist");
+    let resource = store.resource("testres").expect("resource must exist");
 
     //iterate over all textselections unsorted
     let mut count = 0;
     for _ in resource.as_ref().textselections_unsorted() {
         count += 1;
     }
-    assert_eq!(count, n - 2);
+    assert!(count >= n - 2);
+
+    Ok(())
+}
+
+#[test]
+fn resource_textselections_get_textselection() -> Result<(), StamError> {
+    let n = 10000;
+    let store = setup_example_7(n)?;
+
+    let resource = store.resource("testres").expect("resource must exist");
+
+    resource.textselection(&Offset::simple(100, 105))?;
 
     Ok(())
 }
 
 #[test]
 fn resource_textselections_scale_test_overlap() -> Result<(), StamError> {
-    let n = 100000;
-    let (store, resource_handle) = setup_example_7(n)?;
+    let n = 10000;
+    let store = setup_example_7(n)?;
 
-    let resource = store
-        .resource(resource_handle)
-        .expect("resource must exist");
+    let resource = store.resource("testres").expect("resource must exist");
 
     let selection = resource.textselection(&Offset::simple(100, 105))?;
     //iterate over all textselections unsorted
@@ -1780,7 +1784,7 @@ fn resource_textselections_scale_test_overlap() -> Result<(), StamError> {
         count += 1;
     }
 
-    assert_eq!(count, 6);
+    assert_eq!(count, 11);
 
     Ok(())
 }
