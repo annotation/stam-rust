@@ -937,6 +937,10 @@ impl TextSelectionSet {
         }
     }
 
+    pub fn has_handle(&self, handle: TextSelectionHandle) -> bool {
+        self.data.iter().any(|t| t.handle() == Some(handle))
+    }
+
     pub fn get(&self, index: usize) -> Option<&TextSelection> {
         self.data.get(index)
     }
@@ -1559,68 +1563,33 @@ impl Extend<TextSelection> for TextSelectionSet {
 impl TextResource {
     /// Apply a [`TextSelectionOperator`] to find text selections
     /// This is a low-level method. Use [`ResultItem<TextResource>::find_textselections()`] instead.
-    pub(crate) fn textselections_by_operator_ref<'store, 'q>(
-        &'store self,
-        operator: TextSelectionOperator,
-        refset: &'q TextSelectionSet,
-    ) -> FindTextSelectionsIter<'store, 'q> {
-        FindTextSelectionsIter {
-            resource: self,
-            operator,
-            refset,
-            index: 0,
-            textseliter: None,
-            buffer: VecDeque::new(),
-            drain_buffer: false,
-        }
-    }
-
-    /// Apply a [`TextSelectionOperator`] to find text selections
-    /// This is a low-level method. Use [`ResultItem<TextResource>::find_textselections()`] instead.
     pub(crate) fn textselections_by_operator<'store>(
         &'store self,
         operator: TextSelectionOperator,
         refset: TextSelectionSet,
-    ) -> FindTextSelectionsOwnedIter<'store> {
-        FindTextSelectionsOwnedIter {
+    ) -> FindTextSelectionsIter<'store> {
+        FindTextSelectionsIter {
             resource: self,
             operator,
             refset,
-            index: 0,
-            textseliter: None,
+            textseliter_index: 0,
+            textseliters: Vec::new(),
             buffer: VecDeque::new(),
             drain_buffer: false,
         }
     }
 }
 
-/// Iterator that finds text selections. This iterator borrows the [`TextSelectionSet'] that is being compared against, use [`FindTextSelectionsOwnedIter'] for an owned variant.
-pub struct FindTextSelectionsIter<'store, 'q> {
-    resource: &'store TextResource,
-    operator: TextSelectionOperator,
-    refset: &'q TextSelectionSet,
-
-    //Iterator over the reference text selections in the operator (first-level)
-    index: usize,
-
-    /// Iterator over TextSelections in self (second-level)
-    textseliter: Option<TextSelectionIter<'store>>,
-
-    buffer: VecDeque<TextSelectionHandle>,
-
-    // once bufferiter is set, we simply drain the buffer
-    drain_buffer: bool,
-}
-
-/// Iterator that finds text selections. This iterator owns the [`TextSelectionSet'] that is being compared against. Use [`FindTextSelectionsIter'] for an borrowed variant.
-pub struct FindTextSelectionsOwnedIter<'store> {
+/// Iterator that finds text selections. This iterator owns the [`TextSelectionSet'] that is being compared against.
+pub struct FindTextSelectionsIter<'store> {
     resource: &'store TextResource,
     operator: TextSelectionOperator,
     refset: TextSelectionSet,
-    index: usize,
 
     /// Iterator over TextSelections in self (second-level)
-    textseliter: Option<TextSelectionIter<'store>>,
+    /// The boolean represents direction of the iterator (forward=true,backwards=false)
+    textseliters: Vec<(TextSelectionIter<'store>, bool)>,
+    textseliter_index: usize,
 
     buffer: VecDeque<TextSelectionHandle>,
 
@@ -1628,238 +1597,202 @@ pub struct FindTextSelectionsOwnedIter<'store> {
     drain_buffer: bool,
 }
 
-impl<'store, 'q> Iterator for FindTextSelectionsIter<'store, 'q> {
+impl<'store> Iterator for FindTextSelectionsIter<'store> {
     type Item = TextSelectionHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.drain_buffer {
-            self.buffer.pop_front()
-        } else {
-            loop {
-                match self.next_textselection() {
-                    (None, false) => {
-                        self.update();
-                        return None;
-                    }
-                    (result, false) => return result,
-                    (_, true) => continue, //loop
-                }
-            }
-        }
-    }
-}
-
-impl<'store> Iterator for FindTextSelectionsOwnedIter<'store> {
-    type Item = TextSelectionHandle;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.drain_buffer {
-            self.buffer.pop_front()
-        } else {
-            loop {
-                match self.next_textselection() {
-                    (None, false) => {
-                        self.update();
-                        return None;
-                    }
-                    (result, false) => return result,
-                    (_, true) => continue, //loop
-                }
+        loop {
+            if self.drain_buffer {
+                return self.buffer.pop_front();
+            } else if let Some(result) = self.next_textselection() {
+                //this will eventually set self.drain_buffer = true and trigger the stop condition once the buffer is empty
+                return Some(result);
             }
         }
     }
 }
 
 /// Private trait implementing the actual behaviour for [`FindTextSelectionsIter`]
-trait FindTextSelections<'store> {
-    //getters:
-
-    fn buffer(&mut self) -> &mut VecDeque<TextSelectionHandle>;
-    fn set_drain_buffer(&mut self);
-    fn resource(&self) -> &'store TextResource;
-    fn operator(&self) -> &TextSelectionOperator;
-    fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>>;
-    fn reftextselection(&self) -> Option<TextSelection>;
-    fn set_textseliter(&mut self, iter: TextSelectionIter<'store>);
-    fn update(&mut self);
-
+impl<'store> FindTextSelectionsIter<'store> {
     /// This method returns an iterator over TextSelections in the resource
     /// It attempts to return the smallest sliced iterator possible, depending
     /// on the operator
     /// The reference text selection is always in the subject position for the associated [`TextSelectionOperator`] (`operator()`)
-    fn new_textseliter(&self, reftextselection: &TextSelection) -> TextSelectionIter<'store> {
-        match self.operator() {
-            TextSelectionOperator::Embeds { .. } => self
-                .resource()
-                .range(reftextselection.begin(), reftextselection.end()),
-            TextSelectionOperator::After { .. } | TextSelectionOperator::Succeeds { .. } => {
-                self.resource().range(0, reftextselection.begin())
+    /// The boolean returns the direction of iteration (true = forward, false = backwards)
+    fn init_textseliters(&mut self) {
+        match self.operator {
+            TextSelectionOperator::Embeds { .. } => {
+                for reftextselection in self.refset.iter() {
+                    self.textseliters.push((
+                        self.resource
+                            .range(reftextselection.begin(), reftextselection.end()),
+                        true,
+                    ));
+                }
             }
-            /*TextSelectionOperator::Succeeds { .. } => self
-            .resource()
-            .range(reftextselection.begin(), reftextselection.begin() + 1),*/ //this requires support for backward iteration in this trait
-            TextSelectionOperator::Before { .. } => self
-                .resource()
-                .range(reftextselection.end(), self.resource().textlen()),
-            TextSelectionOperator::Precedes { .. } => self
-                .resource()
-                .range(reftextselection.end(), reftextselection.end() + 1),
+            TextSelectionOperator::SameBegin { .. } => {
+                self.textseliters.push((
+                    self.resource.range(
+                        self.refset.begin().unwrap(),
+                        self.refset.begin().unwrap() + 1,
+                    ),
+                    true,
+                ));
+            }
+            TextSelectionOperator::SameEnd { .. } => {
+                self.textseliters.push((
+                    self.resource
+                        .range(self.refset.end().unwrap(), self.refset.end().unwrap() + 1),
+                    false, //search backwards! end must be in range above
+                ));
+            }
+            TextSelectionOperator::After { .. } => {
+                //self comes after found items, so find items before self:
+                self.textseliters
+                    .push((self.resource.range(0, self.refset.begin().unwrap()), true));
+            }
+            TextSelectionOperator::Succeeds { .. } => {
+                self.textseliters.push((
+                    self.resource.range(
+                        self.refset.begin().unwrap(),
+                        self.refset.begin().unwrap() + 1,
+                    ),
+                    false, //search backwards!! end must be in range above
+                ));
+            }
+            TextSelectionOperator::Before { .. } => {
+                //self comes before found items, so find items after self:
+                self.textseliters.push((
+                    self.resource
+                        .range(self.refset.end().unwrap(), self.resource.textlen()),
+                    true,
+                ));
+            }
+            TextSelectionOperator::Precedes { .. } => {
+                self.textseliters.push((
+                    self.resource
+                        .range(self.refset.end().unwrap(), self.refset.end().unwrap() + 1),
+                    true,
+                ));
+            }
             TextSelectionOperator::Overlaps { .. } | TextSelectionOperator::Embedded { .. } => {
                 //this is more efficient for reference text selections at the beginning of a text than at the end
                 //(we could reverse the iterator to more efficiently find fragments more at the end, but then we have bookkeeping to do to store and finally revert
                 //the results, as they need to be returned in textual order)
-                self.resource().range(0, reftextselection.end())
+                let halfway = self.resource.textlen() / 2;
+                for reftextselection in self.refset.iter() {
+                    if reftextselection.begin() <= halfway {
+                        self.textseliters
+                            .push((self.resource.range(0, reftextselection.end()), true));
+                    } else {
+                        self.textseliters.push((
+                            self.resource
+                                .range(reftextselection.end(), self.resource.textlen()),
+                            false, //search backwards!!
+                        ));
+                    }
+                }
             }
-            _ => self.resource().iter(), //return the maximum slice
-        }
-    }
-
-    /// aux function for buffering
-    fn update_buffer(&mut self, buffer2: Vec<TextSelectionHandle>) {
-        if self.buffer().is_empty() {
-            //initial population of buffer
-            *self.buffer() = buffer2.into_iter().collect();
-        } else {
-            //remove items from buffer that are not in buffer2  (I want to use Vec::drain_filter() here but that's nightly-only still)
-            *self.buffer() = self
-                .buffer()
-                .iter()
-                .filter(|handle| buffer2.contains(handle))
-                .map(|x| *x)
-                .collect();
-        }
-        //if the buffer is still empty, it will never be filled and we move on to the draining stage (will which immediately return None becasue there is nothing)
-        if self.buffer().is_empty() {
-            self.set_drain_buffer()
+            _ => {
+                self.textseliters.push((self.resource.iter(), true)); //return the maximum slice
+            }
         }
     }
 
     /// Main function invoked from calling iterator's next() method
     /// Returns the next textselection (if any) and a boolean indicating whether to recurse further
-    fn next_textselection(&mut self) -> (Option<TextSelectionHandle>, bool) {
-        //                              ^--- indicates whether caller should recurse immediately or not
-        if let Some(reftextselection) = self.reftextselection() {
-            if let TextSelectionOperator::Equals {
-                negate: false,
-                all: false,
-            } = self.operator()
-            {
-                //this operator is handled separately, we don't need a secondary iterator (texteliter) for it at all
+    /// If this function returns None, the caller function will loop/recurse
+    /// Internally this may iterate backwards over a double ended iterator (but results will be reversed and ordered again)
+    fn next_textselection(&mut self) -> Option<TextSelectionHandle> {
+        if let TextSelectionOperator::Equals {
+            negate: false,
+            all: false,
+        } = self.operator
+        {
+            // this operator is handled separately, we don't need a secondary iterator (textseliter) for it at all
+            // we just find the exact selections by offset
+            for reftextselection in self.refset.iter() {
                 if let Ok(Some(handle)) = self
-                    .resource()
-                    .known_textselection(&Offset::from(&reftextselection))
+                    .resource
+                    .known_textselection(&Offset::from(reftextselection))
                 {
-                    return (Some(handle), false);
-                } else {
-                    return (None, false);
-                }
-            };
-
-            if self.operator().all() {
-                // --------  the 'all' modifier is on ---------
-                // The relationship A <operator> B (A=store, B=ref) must hold for each item in A with ALL items in B, otherwise NONE will be returned
-                // note: negation is considered by the test() and self.new_textseliter() methods
-                let mut buffer2: Vec<TextSelectionHandle> = Vec::new();
-                for textselection in self.new_textseliter(&reftextselection) {
-                    if textselection.handle() != reftextselection.handle()
-                        && reftextselection.test(self.operator(), textselection)
-                    {
-                        //do not include the item itself
-                        buffer2.push(textselection.handle().unwrap())
-                    }
-                }
-                self.update_buffer(buffer2);
-                (None, true) //signal recurse
-            } else {
-                //------ normal behaviour ----------
-                // The relationship A <operator> B (A=store, B=ref) must hold for each item in A with ANY item in B, all matches are immediately returned
-                // note: negation is considered by the test() and self.new_textseliter() methods
-                if self.textseliter().is_none() {
-                    //sets the iterator for TextSelections in the store to iterator over,
-                    //which we prefer to keep as small as possible (based on the operator)
-                    self.set_textseliter(self.new_textseliter(&reftextselection));
-                }
-                if let Some(textselection) = self.textseliter().as_mut().unwrap().next() {
-                    if textselection.handle() != reftextselection.handle() //do not include the item itself
-                        && reftextselection.test(self.operator(), textselection)
-                    {
-                        return (Some(textselection.handle().unwrap()), false);
+                    if self.refset.len() == 1 {
+                        //shortcut without buffer
+                        self.drain_buffer = true;
+                        return Some(handle);
+                    } else {
+                        self.buffer.push_back(handle);
                     }
                 } else {
-                    return (None, false);
+                    //all in refset must be found, or none are returned at all
+                    self.drain_buffer = true;
+                    return None;
                 }
-                //else:
-                (None, true) //signal recurse
             }
+            self.drain_buffer = true;
+            None //triggers normal looping behaviour
         } else {
-            if self.operator().all() {
-                //This is for the *All variants  that use a buffer:
-                //iteration done, start draining buffer stage
-                self.set_drain_buffer();
-                (None, true) //signal recurse
-            } else {
-                (None, false) //all done
+            //------ normal behaviour ----------
+            // The relationship A <operator> B (A=store, B=ref) must hold for each item in A with ANY item in B, all matches are immediately returned
+            // note: negation is considered by the test() and self.new_textseliter() methods
+            // note: the 'all' property has no impact on item collection as done by FindTextSelectionsIter, items in B are considered one by one
+            if self.textseliters.is_empty() {
+                //sets the iterator for TextSelections in the store to iterate over,
+                //which we prefer to keep as small as possible (based on the operator)
+                self.init_textseliters();
             }
+            let forward = self.textseliters.get_mut(self.textseliter_index).unwrap().1;
+            if forward {
+                if let Some(textselection) = self
+                    .textseliters
+                    .get_mut(self.textseliter_index)
+                    .unwrap()
+                    .0
+                    .next()
+                {
+                    if self.refset.test(&self.operator, textselection)
+                        && !self.refset.has_handle(textselection.handle().unwrap())
+                    //       ^------ do not include the item itself
+                    {
+                        if !self.buffer.is_empty() {
+                            //we've already used the buffer, so we'll have to keep doing it otherwise results are not in proper order
+                            self.buffer.push_back(textselection.handle().unwrap());
+                        } else {
+                            return Some(textselection.handle().unwrap());
+                        }
+                    }
+                } else {
+                    self.next_iterator();
+                }
+            } else {
+                //------ reverse iteration ----------
+                while let Some(textselection) = self
+                    .textseliters
+                    .get_mut(self.textseliter_index)
+                    .as_mut()
+                    .unwrap()
+                    .0
+                    .next_back()
+                {
+                    if self.refset.test(&self.operator, textselection)
+                        && !self.refset.has_handle(textselection.handle().unwrap())
+                    //       ^------ do not include the item itself
+                    {
+                        self.buffer.push_front(textselection.handle().unwrap())
+                    }
+                }
+                self.next_iterator();
+            }
+            None //triggers normal looping behaviour
         }
     }
-}
 
-impl<'store, 'q> FindTextSelections<'store> for FindTextSelectionsIter<'store, 'q> {
-    fn buffer(&mut self) -> &mut VecDeque<TextSelectionHandle> {
-        &mut self.buffer
-    }
-    fn set_drain_buffer(&mut self) {
-        self.drain_buffer = true;
-    }
-    fn resource(&self) -> &'store TextResource {
-        self.resource
-    }
-    fn operator(&self) -> &TextSelectionOperator {
-        &self.operator
-    }
-    fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>> {
-        self.textseliter.as_mut()
-    }
-    fn update(&mut self) {
-        self.textseliter = None;
-        self.index += 1;
-    }
-
-    fn reftextselection(&self) -> Option<TextSelection> {
-        let result = self.refset.get(self.index).map(|x| x.clone());
-        result
-    }
-    fn set_textseliter(&mut self, iter: TextSelectionIter<'store>) {
-        self.textseliter = Some(iter);
-    }
-}
-
-impl<'store> FindTextSelections<'store> for FindTextSelectionsOwnedIter<'store> {
-    fn buffer(&mut self) -> &mut VecDeque<TextSelectionHandle> {
-        &mut self.buffer
-    }
-    fn set_drain_buffer(&mut self) {
-        self.drain_buffer = true;
-    }
-    fn resource(&self) -> &'store TextResource {
-        self.resource
-    }
-    fn operator(&self) -> &TextSelectionOperator {
-        &self.operator
-    }
-    fn textseliter(&mut self) -> Option<&mut TextSelectionIter<'store>> {
-        self.textseliter.as_mut()
-    }
-    fn update(&mut self) {
-        self.textseliter = None;
-        self.index += 1;
-    }
-    fn reftextselection(&self) -> Option<TextSelection> {
-        let result = self.refset.get(self.index).map(|x| x.clone());
-        result
-    }
-    fn set_textseliter(&mut self, iter: TextSelectionIter<'store>) {
-        self.textseliter = Some(iter);
+    fn next_iterator(&mut self) {
+        self.textseliter_index += 1;
+        if self.textseliter_index >= self.textseliters.len() {
+            //no more iterators, trigger buffer draining
+            self.drain_buffer = true;
+        }
     }
 }
 
