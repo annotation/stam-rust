@@ -334,6 +334,42 @@ impl<'store> ResultItem<'store, Annotation> {
                 */
     }
 
+    /// Search for annotations *about* this annotation, satisfying certain exact data that is already known.
+    /// For a higher-level variant, see `find_data_about`, but that method is less efficient than this one.
+    pub fn annotations_by_data_in_targets(
+        &self,
+        data: ResultItem<'store, AnnotationData>,
+        recursive: bool,
+    ) -> AnnotationsIter<'store> {
+        let mut annotations: Vec<_> = self
+            .annotations_in_targets(recursive, false) //too high level
+            .map(|x| x.handle())
+            .collect();
+        annotations.sort_unstable();
+        let data_annotations = self
+            .store()
+            .annotations_by_data_indexlookup(data.set().handle(), data.handle());
+        if let Some(data_annotations) = data_annotations {
+            AnnotationsIter {
+                store: self.store(),
+                iter: Some(IntersectionIter::new(
+                    Cow::Borrowed(data_annotations),
+                    self.store().annotation_annotation_map.ready(),
+                    Cow::Owned(annotations),
+                    self.store().dataset_data_annotation_map.ready(),
+                )),
+                cursor: 0,
+            }
+        } else {
+            //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
+            AnnotationsIter {
+                store: self.store(),
+                iter: None,
+                cursor: 0,
+            }
+        }
+    }
+
     /// Search for annotations *about* this annotation, satisfying multiple exact data that are already known.
     /// For a higher-level variant, see `find_data_about`, but that method is less efficient than this one.
     pub fn annotations_by_more_data_about(
