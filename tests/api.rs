@@ -1724,7 +1724,7 @@ fn annotations_by_related_text_relative_offset() -> Result<(), StamError> {
 }
 
 #[test]
-fn resource_textselections_scale_unsorted_iter() -> Result<(), StamError> {
+fn ex7_resource_textselections_scale_unsorted_iter() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
@@ -1741,7 +1741,7 @@ fn resource_textselections_scale_unsorted_iter() -> Result<(), StamError> {
 }
 
 #[test]
-fn resource_textselections_scale_sorted_iter() -> Result<(), StamError> {
+fn ex7_resource_textselections_scale_sorted_iter() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
@@ -1758,7 +1758,7 @@ fn resource_textselections_scale_sorted_iter() -> Result<(), StamError> {
 }
 
 #[test]
-fn resource_textselections_get_textselection() -> Result<(), StamError> {
+fn ex7_resource_textselection() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
@@ -1770,7 +1770,7 @@ fn resource_textselections_get_textselection() -> Result<(), StamError> {
 }
 
 #[test]
-fn resource_textselections_scale_test_overlap() -> Result<(), StamError> {
+fn ex7_textselections_scale_test_overlap() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
@@ -1780,11 +1780,96 @@ fn resource_textselections_scale_test_overlap() -> Result<(), StamError> {
     //iterate over all textselections unsorted
 
     let mut count = 0;
-    for _textselection in selection.related_text(TextSelectionOperator::overlaps()) {
+    for textselection in selection.related_text(TextSelectionOperator::overlaps()) {
+        eprintln!("Overlaps: {:?}", textselection);
         count += 1;
     }
 
     assert_eq!(count, 11);
+
+    Ok(())
+}
+
+#[test]
+fn ex7_textselections_scale_test_embeds() -> Result<(), StamError> {
+    let n = 10000;
+    let store = setup_example_7(n)?;
+
+    let resource = store.resource("testres").expect("resource must exist");
+
+    let selection = resource.textselection(&Offset::simple(100, 105))?;
+    //iterate over all textselections unsorted
+
+    let mut count = 0;
+    for textselection in selection.related_text(TextSelectionOperator::embeds()) {
+        eprintln!("Embeds: {:?}", textselection);
+        count += 1;
+    }
+
+    assert_eq!(count, 9);
+
+    Ok(())
+}
+
+#[test]
+fn ex7_textselections_scale_test_embedded() -> Result<(), StamError> {
+    let n = 10000;
+    let store = setup_example_7(n)?;
+
+    let resource = store.resource("testres").expect("resource must exist");
+
+    let selection = resource.textselection(&Offset::simple(100, 101))?;
+    //iterate over all textselections unsorted
+
+    let mut count = 0;
+    for textselection in selection.related_text(TextSelectionOperator::embedded()) {
+        eprintln!("Embedded: {:?}", textselection);
+        count += 1;
+    }
+
+    assert_eq!(count, 2);
+
+    Ok(())
+}
+
+#[test]
+fn ex7_textselections_scale_test_precedes() -> Result<(), StamError> {
+    let n = 10000;
+    let store = setup_example_7(n)?;
+
+    let resource = store.resource("testres").expect("resource must exist");
+
+    let selection = resource.textselection(&Offset::simple(100, 101))?;
+    //iterate over all textselections unsorted
+
+    let mut count = 0;
+    for textselection in selection.related_text(TextSelectionOperator::precedes()) {
+        eprintln!("Precedes: {:?}", textselection);
+        count += 1;
+    }
+
+    assert_eq!(count, 2);
+
+    Ok(())
+}
+
+#[test]
+fn ex7_textselections_scale_test_succeeds() -> Result<(), StamError> {
+    let n = 10000;
+    let store = setup_example_7(n)?;
+
+    let resource = store.resource("testres").expect("resource must exist");
+
+    let selection = resource.textselection(&Offset::simple(100, 101))?;
+    //iterate over all textselections unsorted
+
+    let mut count = 0;
+    for textselection in selection.related_text(TextSelectionOperator::succeeds()) {
+        eprintln!("Succeeds: {:?}", textselection);
+        count += 1;
+    }
+
+    assert_eq!(count, 2);
 
     Ok(())
 }

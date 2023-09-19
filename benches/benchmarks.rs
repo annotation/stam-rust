@@ -3,7 +3,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use stam::{
     Annotation, AnnotationBuilder, AnnotationDataSet, AnnotationHandle, AnnotationStore, BuildItem,
     Config, DataOperator, FindText, Handle, Offset, Regex, SelectorBuilder, StoreFor, Text,
-    TextResource,
+    TextResource, TextSelectionOperator,
 };
 use std::time::{Duration, SystemTime};
 
@@ -283,6 +283,66 @@ pub fn bench_scale(c: &mut Criterion) {
             .unwrap();
         b.iter(|| {
             black_box(annotation.annotations_by_data_about(data.clone()).count());
+        })
+    });
+
+    c.bench_function("scale_textselections_overlap", |b| {
+        let resource = store.resource("testres").unwrap();
+        let selection = resource.textselection(&Offset::simple(100, 101)).unwrap();
+        b.iter(|| {
+            black_box(
+                selection
+                    .related_text(TextSelectionOperator::overlaps())
+                    .count(),
+            );
+        })
+    });
+
+    c.bench_function("scale_textselections_embeds", |b| {
+        let resource = store.resource("testres").unwrap();
+        let selection = resource.textselection(&Offset::simple(100, 101)).unwrap();
+        b.iter(|| {
+            black_box(
+                selection
+                    .related_text(TextSelectionOperator::embeds())
+                    .count(),
+            );
+        })
+    });
+
+    c.bench_function("scale_textselections_embedded", |b| {
+        let resource = store.resource("testres").unwrap();
+        let selection = resource.textselection(&Offset::simple(100, 101)).unwrap();
+        b.iter(|| {
+            black_box(
+                selection
+                    .related_text(TextSelectionOperator::embedded())
+                    .count(),
+            );
+        })
+    });
+
+    c.bench_function("scale_textselections_precedes", |b| {
+        let resource = store.resource("testres").unwrap();
+        let selection = resource.textselection(&Offset::simple(100, 101)).unwrap();
+        b.iter(|| {
+            black_box(
+                selection
+                    .related_text(TextSelectionOperator::precedes())
+                    .count(),
+            );
+        })
+    });
+
+    c.bench_function("scale_textselections_succeeds", |b| {
+        let resource = store.resource("testres").unwrap();
+        let selection = resource.textselection(&Offset::simple(100, 101)).unwrap();
+        b.iter(|| {
+            black_box(
+                selection
+                    .related_text(TextSelectionOperator::succeeds())
+                    .count(),
+            );
         })
     });
 }
