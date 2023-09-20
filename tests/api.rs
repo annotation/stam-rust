@@ -1685,12 +1685,16 @@ fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
 
     //now find the phrase this word belongs to:
     let mut count = 0;
-    for phrase in secondword.annotations_by_related_text_and_data(
-        TextSelectionOperator::embedded(),
-        "myset",
-        "type",
-        &DataOperator::Equals("phrase"),
-    ) {
+    for phrase in secondword
+        .annotations_by_related_text_and_data(
+            TextSelectionOperator::embedded(),
+            "myset",
+            "type",
+            &DataOperator::Equals("phrase"),
+        )
+        .into_iter()
+        .flatten()
+    {
         count += 1;
         //we can test in body because we only have one:
         assert_eq!(phrase.id(), Some("Phrase2"));

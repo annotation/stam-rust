@@ -461,24 +461,25 @@ impl<'store> ResultItem<'store, Annotation> {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-    ) -> Vec<ResultItem<'store, Annotation>>
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store>
     where
         'a: 'store,
     {
         if let Some((test_set_handle, test_key_handle)) =
             self.rootstore().find_data_request_resolver(set, key)
         {
-            self.related_text(operator)
-                .map(move |tsel| {
-                    tsel.find_data_about(test_set_handle, test_key_handle, value)
-                        .into_iter()
-                        .flatten()
-                        .map(|(_data, annotation)| annotation)
-                })
-                .flatten()
-                .textual_order()
+            Some(
+                self.related_text(operator)
+                    .map(move |tsel| {
+                        tsel.find_data_about(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(|(_data, annotation)| annotation)
+                    })
+                    .flatten(),
+            )
         } else {
-            Vec::new()
+            None
         }
     }
 

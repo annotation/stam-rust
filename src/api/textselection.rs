@@ -217,7 +217,6 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Iterates over all annotations that are referenced by this TextSelection, if any.
-    /// Note that you need to explicitly specify the `AnnotationStore` for this method.
     pub fn annotations(&self) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let annotationstore = self.rootstore();
         match self {
@@ -259,7 +258,7 @@ impl<'store> ResultTextSelection<'store> {
     pub fn annotations_by_related_text(
         &self,
         operator: TextSelectionOperator,
-    ) -> Vec<ResultItem<'store, Annotation>> {
+    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let mut tset: TextSelectionSet =
             TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
         tset.add(match self {
@@ -270,7 +269,6 @@ impl<'store> ResultTextSelection<'store> {
             .related_text(operator, tset)
             .filter_map(|tsel| tsel.annotations())
             .flatten()
-            .textual_order()
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
@@ -284,24 +282,25 @@ impl<'store> ResultTextSelection<'store> {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-    ) -> Vec<ResultItem<'store, Annotation>>
+    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store>
     where
         'a: 'store,
     {
         if let Some((test_set_handle, test_key_handle)) =
             self.rootstore().find_data_request_resolver(set, key)
         {
-            self.related_text(operator)
-                .map(move |tsel| {
-                    tsel.find_data_about(test_set_handle, test_key_handle, value)
-                        .into_iter()
-                        .flatten()
-                        .map(|(_data, annotation)| annotation)
-                })
-                .flatten()
-                .textual_order()
+            Some(
+                self.related_text(operator)
+                    .map(move |tsel| {
+                        tsel.find_data_about(test_set_handle, test_key_handle, value)
+                            .into_iter()
+                            .flatten()
+                            .map(|(_data, annotation)| annotation)
+                    })
+                    .flatten(),
+            )
         } else {
-            Vec::new()
+            None
         }
     }
 
