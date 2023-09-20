@@ -96,6 +96,7 @@ pub(crate) struct RelationMap<A, B> {
     /// The actual map
     #[n(0)]
     pub(crate) data: Vec<Vec<B>>,
+    //                   ^-- a Vec is sufficient, we don't need a BTreeSet; the way these maps are used as reverse indices, items are always inserted in sorted order
     #[n(1)]
     _marker: PhantomData<A>, //zero-size, only needed to bind generic A
 }
@@ -209,6 +210,7 @@ where
     /// The actual map
     #[n(0)]
     pub(crate) data: BTreeMap<A, Vec<B>>,
+    //                           ^-- a Vec is sufficient, we don't need a BTreeSet; the way these maps are used as reverse indices, items are always inserted in sorted order
 }
 
 impl<A, B> Default for RelationBTreeMap<A, B>

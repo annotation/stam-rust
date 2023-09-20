@@ -67,6 +67,7 @@ pub struct AnnotationDataSet {
     data_idmap: IdMap<AnnotationDataHandle>,
 
     #[n(8)]
+    /// Map data keys to all their values. Sorted by definition due to the way it is constructed.
     key_data_map: RelationMap<DataKeyHandle, AnnotationDataHandle>,
 
     /// Configuration

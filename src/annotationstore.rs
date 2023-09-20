@@ -58,6 +58,7 @@ pub struct AnnotationStore {
 
     //reverse indices:
     /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores IntIds.
+    /// The map is always sorted due to how it is constructed, no explicit sorting needed
     #[n(100)]
     pub(crate) dataset_data_annotation_map:
         TripleRelationMap<AnnotationDataSetHandle, AnnotationDataHandle, AnnotationHandle>,
@@ -66,19 +67,24 @@ pub struct AnnotationStore {
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
     //
     /// This is the reverse index for text, it maps TextResource => TextSelection => Annotation
+    /// The map is always sorted due to how it is constructed, no explicit sorting needed
     #[n(101)]
     pub(crate) textrelationmap:
         TripleRelationMap<TextResourceHandle, TextSelectionHandle, AnnotationHandle>,
 
     /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
+    /// The map is always sorted due to how it is constructed, no explicit sorting needed
     #[n(102)]
     pub(crate) resource_annotation_map: RelationMap<TextResourceHandle, AnnotationHandle>,
 
     /// Reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
+    /// The map is always sorted due to how it is constructed, no explicit sorting needed
     #[n(103)]
     pub(crate) dataset_annotation_map: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
 
     /// Reverse index for annotations that reference other annotations
+    /// The map is always sorted due to how it is constructed, no explicit sorting needed
+    /// The choice for a BTreeMap here is more for memory-reduction (key may be sparse)
     #[n(104)]
     pub(crate) annotation_annotation_map: RelationBTreeMap<AnnotationHandle, AnnotationHandle>,
 
