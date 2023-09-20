@@ -17,6 +17,7 @@ pub use text::*;
 pub use textselection::*;
 
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -64,6 +65,34 @@ where
 {
     pub(crate) item: ResultItem<'store, T>,
     pub(crate) selectoriteritem: SelectorIterItem<'store>,
+}
+
+impl<'store, T> PartialEq for TargetIterItem<'store, T>
+where
+    T: Storable,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.item == other.item
+    }
+}
+impl<'store, T> Eq for TargetIterItem<'store, T> where T: Storable {}
+impl<'store, T> PartialOrd for TargetIterItem<'store, T>
+where
+    T: Storable,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.item.cmp(&other.item))
+    }
+}
+
+impl<'store, T> Ord for TargetIterItem<'store, T>
+where
+    T: Storable,
+{
+    // this  determines the canonical ordering for text selections (applied offsets)
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.item.cmp(&other.item)
+    }
 }
 
 impl<'a, T> Deref for TargetIterItem<'a, T>

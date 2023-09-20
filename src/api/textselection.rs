@@ -2,6 +2,7 @@ use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
+use crate::api::TargetIterItem;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
@@ -12,8 +13,8 @@ use crate::textselection::{
     ResultTextSelection, ResultTextSelectionSet, TextSelection, TextSelectionHandle,
     TextSelectionOperator, TextSelectionSet,
 };
-
 use std::cmp::Ordering;
+use std::ops::Deref;
 
 impl<'store> ResultItem<'store, TextSelection> {
     pub fn wrap(self) -> ResultTextSelection<'store> {
@@ -514,29 +515,46 @@ where
     fn textual_order(&mut self) -> Vec<T>;
 }
 
+fn compare_annotation<'store>(
+    a: &ResultItem<'store, Annotation>,
+    b: &ResultItem<'store, Annotation>,
+) -> Ordering {
+    let tset_a: TextSelectionSet = a.textselections().collect();
+    let tset_b: TextSelectionSet = b.textselections().collect();
+    if tset_a.is_empty() && tset_b.is_empty() {
+        //compare by handle
+        a.handle().cmp(&b.handle())
+    } else if tset_a.is_empty() {
+        Ordering::Greater
+    } else if tset_b.is_empty() {
+        Ordering::Less
+    } else {
+        tset_a
+            .partial_cmp(&tset_b)
+            .expect("textual_order() can only be applied if annotations reference text!")
+        //should never occur because I tested for this already
+    }
+}
+
 impl<'store, I> SortTextualOrder<ResultItem<'store, Annotation>> for I
 where
     I: Iterator<Item = ResultItem<'store, Annotation>>,
 {
     fn textual_order(&mut self) -> Vec<ResultItem<'store, Annotation>> {
         let mut v: Vec<_> = self.collect();
-        v.sort_unstable_by(|a, b| {
-            let tset_a: TextSelectionSet = a.textselections().collect();
-            let tset_b: TextSelectionSet = b.textselections().collect();
-            if tset_a.is_empty() && tset_b.is_empty() {
-                //compare by handle
-                a.handle().cmp(&b.handle())
-            } else if tset_a.is_empty() {
-                Ordering::Greater
-            } else if tset_b.is_empty() {
-                Ordering::Less
-            } else {
-                tset_a
-                    .partial_cmp(&tset_b)
-                    .expect("textual_order() can only be applied if annotations reference text!")
-                //should never occur because I tested for this already
-            }
-        });
+        v.sort_unstable_by(compare_annotation);
+        v.dedup();
+        v
+    }
+}
+
+impl<'store, I> SortTextualOrder<TargetIterItem<'store, Annotation>> for I
+where
+    I: Iterator<Item = TargetIterItem<'store, Annotation>>,
+{
+    fn textual_order(&mut self) -> Vec<TargetIterItem<'store, Annotation>> {
+        let mut v: Vec<_> = self.collect();
+        v.sort_unstable_by(|a, b| compare_annotation(a.deref(), b.deref()));
         v.dedup();
         v
     }
