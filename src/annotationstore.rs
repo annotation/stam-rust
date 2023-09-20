@@ -5,6 +5,7 @@ use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
+use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -960,12 +961,14 @@ impl AnnotationStore {
                 let resource: &AnnotationDataSet = self.get(id)?;
                 Ok(Selector::DataSetSelector(resource.handle_or_err()?))
             }
-            SelectorBuilder::MultiSelector(v) => Ok(Selector::MultiSelector(self.subselectors(v)?)),
+            SelectorBuilder::MultiSelector(v) => {
+                Ok(Selector::MultiSelector(self.subselectors(v, true)?))
+            }
             SelectorBuilder::DirectionalSelector(v) => {
-                Ok(Selector::DirectionalSelector(self.subselectors(v)?))
+                Ok(Selector::DirectionalSelector(self.subselectors(v, false)?))
             }
             SelectorBuilder::CompositeSelector(v) => {
-                Ok(Selector::CompositeSelector(self.subselectors(v)?))
+                Ok(Selector::CompositeSelector(self.subselectors(v, true)?))
             }
         }
     }
@@ -974,8 +977,9 @@ impl AnnotationStore {
     pub(crate) fn subselectors(
         &mut self,
         builders: Vec<SelectorBuilder>,
+        textual_order: bool,
     ) -> Result<Vec<Selector>, StamError> {
-        let mut results = Vec::with_capacity(builders.len());
+        let mut tmp = Vec::with_capacity(builders.len());
         for builder in builders {
             if builder.is_complex() {
                 return Err(StamError::WrongSelectorType(
@@ -983,8 +987,74 @@ impl AnnotationStore {
                 ));
             }
             let selector = self.selector(builder)?;
+            tmp.push(selector);
+        }
+        if tmp.len() == 1 {
+            //shortcut (but in this edge-case there's little point of a complex selector at all)
+            return Ok(tmp);
+        }
 
+        if textual_order {
+            tmp.sort_unstable_by(|a, b| match (a, b) {
+                (Selector::TextSelector(res, tsel, _), Selector::TextSelector(res2, tsel2, _))
+                | (
+                    Selector::AnnotationSelector(_, Some((res, tsel, _))),
+                    Selector::AnnotationSelector(_, Some((res2, tsel2, _))),
+                )
+                | (
+                    Selector::AnnotationSelector(_, Some((res, tsel, _))),
+                    Selector::TextSelector(res2, tsel2, _),
+                )
+                | (
+                    Selector::TextSelector(res, tsel, _),
+                    Selector::AnnotationSelector(_, Some((res2, tsel2, _))),
+                ) => {
+                    if res == res2 {
+                        let resource: &TextResource =
+                            self.get(*res).expect("resource must resolve");
+                        let textselection: &TextSelection =
+                            resource.get(*tsel).expect("textselection must resolve");
+                        let textselection2: &TextSelection =
+                            resource.get(*tsel2).expect("textselection must resolve");
+                        textselection.cmp(textselection2)
+                    } else {
+                        res.cmp(res2)
+                    }
+                }
+                (
+                    Selector::AnnotationSelector(annotation, None),
+                    Selector::AnnotationSelector(annotation2, None),
+                ) => annotation.cmp(annotation2),
+                (
+                    Selector::AnnotationSelector(_, None),
+                    Selector::AnnotationSelector(_, Some(_)),
+                ) => Ordering::Greater,
+                (
+                    Selector::AnnotationSelector(_, Some(_)),
+                    Selector::AnnotationSelector(_, None),
+                ) => Ordering::Less,
+                (Selector::ResourceSelector(res), Selector::ResourceSelector(res2)) => {
+                    res.cmp(res2)
+                }
+                (Selector::DataSetSelector(dataset), Selector::DataSetSelector(dataset2)) => {
+                    dataset.cmp(dataset2)
+                }
+                //some canonical ordering for selectors
+                (Selector::TextSelector(..), _) => Ordering::Less,
+                (_, Selector::TextSelector(..)) => Ordering::Greater,
+                (Selector::ResourceSelector(..), _) => Ordering::Less,
+                (_, Selector::ResourceSelector(..)) => Ordering::Greater,
+                (Selector::DataSetSelector(..), _) => Ordering::Less,
+                (_, Selector::DataSetSelector(..)) => Ordering::Greater,
+                // catch-all for anything that shouldn't occur at this point anyway:
+                (a, b) => panic!("Unable to compare order for selector {:?} vs {:?}", a, b),
+            });
+        }
+
+        let mut results = Vec::with_capacity(tmp.len());
+        for selector in tmp {
             //we may be able to merge things into an internal ranged selector, conserving memory
+            //we also need to ensure selectors are inserted in textual order
             if let Some(last) = results.last_mut() {
                 let mut substitute: Option<Selector> = None;
                 match (&last, &selector) {

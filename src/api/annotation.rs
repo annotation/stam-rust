@@ -41,8 +41,7 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
-    ///
-    /// This does no sorting, if you want results in textual order, add `.textual_order()`. Duplicates are already handled.
+    /// Results will be in textual order.
     pub fn annotations_in_targets(
         &self,
         recursive: bool,
@@ -58,7 +57,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Iterates over all the annotations that reference this annotation, if any
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     ///
-    /// This does no sorting nor deduplication, if you want results in textual order, add `.textual_order()`
+    /// Note: This does no sorting nor deduplication, if you want results in textual order without duplicates, add `.textual_order()`
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         self.store()
@@ -73,9 +72,8 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all the annotations that reference this annotation, if any, in parallel.
-    /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets_par()`] instead.
     ///
-    /// This does no sorting nor deduplication, if you want results in textual order, add `.textual_order()`
+    /// Note: This does no sorting nor deduplication!
     pub fn annotations_par(
         &self,
     ) -> impl ParallelIterator<Item = ResultItem<'store, Annotation>> + 'store {
@@ -92,7 +90,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
-    /// They are returned in the exact order as they were selected.
+    /// They are returned in textual order, or in case if a DirectionSelector is involved, in the exact order as they were selected.
     pub fn textselections(&self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'store {
         let store = self.store();
         store
@@ -104,7 +102,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all text slices this annotation refers to
-    /// They are returned in the exact order as they were selected.
+    /// They are returned in textual order, or in case if a DirectionSelector is involved, in the exact order as they were selected.
     pub fn text(&self) -> impl Iterator<Item = &'store str> {
         self.textselections()
             .map(|textselection| textselection.text())
