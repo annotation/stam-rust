@@ -485,7 +485,6 @@ impl<'store> ResultTextSelectionSet<'store> {
     /// are in a specific relation with the current text selection set. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultItem<TextSelection>`]).
     /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
-    /// This variant consumes the TextSelectionSet, use `find_textselections_ref()` for a borrowed version.
     pub fn related_text(
         self,
         operator: TextSelectionOperator,
@@ -505,36 +504,6 @@ impl<'store> ResultTextSelectionSet<'store> {
                     .into()
             })
     }
-
-    /*
-    /// Applies a [`TextSelectionOperator`] to find all other text selections that
-    /// are in a specific relation with the current text selection set. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`ResultItem<TextSelection>`]).
-    /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
-    /// This variant borrows the TextSelectionSet, use `find_textselections()` for an owned version that consumes the set.
-    pub fn find_textselections_ref(
-        &self,
-        operator: TextSelectionOperator,
-        annotationstore: &'store AnnotationStore,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, TextSelection>> + 'store> {
-        if let Some(resource) = annotationstore.resource(self.resource()) {
-            Some(
-                resource
-                    .as_ref()
-                    .textselections_by_operator_ref(operator, self)
-                    .map(move |ts_handle| {
-                        let textselection: &'store TextSelection = resource
-                            .as_ref()
-                            .get(ts_handle)
-                            .expect("textselection handle must be valid");
-                        textselection.as_resultitem(resource.as_ref())
-                    }),
-            )
-        } else {
-            None
-        }
-    }
-    */
 }
 
 pub trait SortTextualOrder<T>

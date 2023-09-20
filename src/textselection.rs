@@ -1561,7 +1561,7 @@ impl Extend<TextSelection> for TextSelectionSet {
 }
 
 impl TextResource {
-    /// Apply a [`TextSelectionOperator`] to find text selections
+    /// Apply a [`TextSelectionOperator`] to find text selections. Iterates over them in textual order.
     /// This is a low-level method. Use [`ResultItem<TextResource>::find_textselections()`] instead.
     pub(crate) fn textselections_by_operator<'store>(
         &'store self,

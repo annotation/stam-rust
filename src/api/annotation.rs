@@ -423,7 +423,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
-    /// are in a specific relation with the text relations pertaining to the annotations. Returns an iterator over the [`TextSelection`] instances.
+    /// are in a specific relation with the text relations pertaining to the annotations. Returns an iterator over the [`TextSelection`] instances, in textual order.
     /// (as [`ResultTextSelection`]).
     /// If you are interested in the annotations associated with the found text selections, then use [`Self.annotations_by_related_text()`] instead.
     pub fn related_text(
@@ -436,7 +436,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the text selections of the current one. Returns an iterator over the [`TextSelection`] instances.
+    /// are in a specific relation with the text selections of the current one. Returns an iterator over the [`Annotation`] instances, in textual order.
     /// (as [`ResultTextSelection`]).
     /// If you are interested in the text selections only, use [`Self.related_text`] instead.
     ///
