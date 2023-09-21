@@ -797,7 +797,6 @@ impl Selector {
             recurse_annotation,
             store,
             done: false,
-            depth: 0,
         }
     }
 }
@@ -812,27 +811,17 @@ pub struct SelectorIter<'a> {
     /// follow AnnotationSelectors recursively
     recurse_annotation: bool,
     pub(crate) store: &'a AnnotationStore,
-    pub(crate) depth: usize,
 }
 
 #[derive(Debug)]
 pub struct SelectorIterItem<'a> {
     selector: Cow<'a, Selector>, //we use Cow because we may return newly created owned selectors on the fly (like with ranged internal selectors)
-    depth: usize,
-    leaf: bool,
 }
 
 
 impl<'a> SelectorIterItem<'a> {
-    pub fn depth(&self) -> usize {
-        self.depth
-    }
-
     pub fn selector<'b>(&'b self) -> &'b Cow<'a,Selector> {
         &self.selector
-    }
-    pub fn is_leaf(&self) -> bool {
-        self.leaf
     }
 }
 
@@ -860,8 +849,6 @@ impl<'a> SelectorIter<'a> {
                     unreachable!()
                 }
             },
-            depth: self.depth,
-            leaf: true,
         }
     }
 }
@@ -891,7 +878,6 @@ impl<'a> Iterator for SelectorIter<'a> {
                                     recurse_annotation: self.recurse_annotation,
                                     store: self.store,
                                     done: false,
-                                    depth: self.depth + 1,
                                 });
                             }
                         }
@@ -909,7 +895,6 @@ impl<'a> Iterator for SelectorIter<'a> {
                                     recurse_annotation: self.recurse_annotation,
                                     store: self.store,
                                     done: false,
-                                    depth: self.depth + 1,
                                 });
                             }
                         }
@@ -943,8 +928,6 @@ impl<'a> Iterator for SelectorIter<'a> {
                     self.done = true; //this flags that we have processed the selector
                     return Some(SelectorIterItem {
                         selector: Cow::Borrowed(self.selector),
-                        depth: self.depth,
-                        leaf,
                     });
                 } else {
                     return None;
