@@ -68,6 +68,9 @@ where
     itersource_sorted: bool,
     sources: SmallVec<[IntersectionSource<'a, T>; 2]>,
     cursors: SmallVec<[usize; 2]>,
+
+    /// indicates that no results can be expected anymore
+    abort: bool,
 }
 
 pub(crate) struct IntersectionSource<'a, T>
@@ -90,6 +93,7 @@ where
             itersource_sorted: false,
             sources: SmallVec::new(),
             cursors: SmallVec::new(),
+            abort: false,
         };
         iter.with(source, sorted)
     }
@@ -100,10 +104,16 @@ where
             itersource_sorted: sorted,
             sources: SmallVec::new(),
             cursors: SmallVec::new(),
+            abort: false,
         }
     }
 
     pub(crate) fn with(mut self, data: Cow<'a, [T]>, sorted: bool) -> Self {
+        if data.is_empty() {
+            //don't bother, empty data invalidates the whole iterator
+            self.abort = true;
+            return self;
+        }
         let source = IntersectionSource { data, sorted };
         if self.sources.is_empty() {
             self.sources.push(source);
@@ -139,7 +149,7 @@ where
     T: Ord,
     [T]: ToOwned<Owned = Vec<T>>,
 {
-    fn test_sources(&self, item: T, left_sorted: bool, offset: usize) -> Option<T> {
+    fn test_sources(&mut self, item: T, left_sorted: bool, offset: usize) -> Option<T> {
         if self.sources[offset..].is_empty() {
             //only one source
             if offset == 1 {
@@ -155,18 +165,27 @@ where
                 };
                 if right.sorted {
                     //binary search
-                    if let Ok(index) = right.data[self.cursors[i]..].binary_search(&item) {
-                        if left_sorted {
-                            // the left is sorted so we can discount 'lesser than' items from the right side
-                            // in subsequent iterations by moving the cursor ahead
-                            // this is an extra optimisation
-                            self.cursors[i] = index;
+                    match right.data[self.cursors[i]..].binary_search(&item) {
+                        Ok(index) => {
+                            if left_sorted {
+                                // the left is sorted so we can discount 'lesser than' items from the right side
+                                // in subsequent iterations by moving the cursor ahead
+                                // this is an extra optimisation
+                                self.cursors[i] = index;
+                            }
+                            //item found! continue with next source to ensure item is also in there
+                            continue;
                         }
-                        //item found! continue with next source to ensure item is also in there
-                        continue;
-                    } else {
-                        found = false;
-                        break;
+                        Err(index) => {
+                            found = false;
+                            if left_sorted && index == right.data.len() {
+                                // because the left hand side is sorted and we're at the end of this right array,
+                                // we can abort the whole IntersectionIter, no more results will be found
+                                // this is an extra optimisation
+                                self.abort = true;
+                            }
+                            break;
+                        }
                     }
                 } else {
                     //linear search
@@ -193,9 +212,13 @@ where
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(itersource) = self.itersource.as_mut() {
+        if self.abort {
+            return None;
+        } else if let Some(itersource) = self.itersource.as_mut() {
             loop {
-                if let Some(item) = itersource.next() {
+                if self.abort {
+                    return None;
+                } else if let Some(item) = itersource.next() {
                     let result = self.test_sources(item, self.itersource_sorted, 0);
                     if result.is_some() {
                         return result;
@@ -208,7 +231,9 @@ where
         } else {
             loop {
                 let left = self.sources.get(0).unwrap();
-                if let Some(item) = left.data.get(self.cursors[0]).copied() {
+                if self.abort {
+                    return None;
+                } else if let Some(item) = left.data.get(self.cursors[0]).copied() {
                     let result = self.test_sources(item, left.sorted, 1);
                     if result.is_some() {
                         return result;
