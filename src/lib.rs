@@ -64,6 +64,8 @@ where
     T: Ord,
     [T]: ToOwned<Owned = Vec<T>>,
 {
+    itersource: Option<Box<dyn Iterator<Item = T>>>,
+    itersource_sorted: bool,
     sources: SmallVec<[IntersectionSource<'a, T>; 2]>,
     cursors: SmallVec<[usize; 2]>,
 }
@@ -84,10 +86,21 @@ where
 {
     pub(crate) fn new(source: Cow<'a, [T]>, sorted: bool) -> Self {
         let mut iter = Self {
+            itersource: None,
+            itersource_sorted: false,
             sources: SmallVec::new(),
             cursors: SmallVec::new(),
         };
         iter.with(source, sorted)
+    }
+
+    pub(crate) fn new_with_iterator(itersource: Box<dyn Iterator<Item = T>>, sorted: bool) -> Self {
+        Self {
+            itersource: Some(itersource),
+            itersource_sorted: sorted,
+            sources: SmallVec::new(),
+            cursors: SmallVec::new(),
+        }
     }
 
     pub(crate) fn with(mut self, data: Cow<'a, [T]>, sorted: bool) -> Self {
@@ -121,58 +134,90 @@ where
     }
 }
 
+impl<'a, T> IntersectionIter<'a, T>
+where
+    T: Ord,
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn test_sources(&self, item: T, left_sorted: bool, offset: usize) -> Option<T> {
+        if self.sources[offset..].is_empty() {
+            //only one source
+            if offset == 1 {
+                self.cursors[0] += 1;
+            }
+            return Some(item);
+        } else {
+            let mut found = true; //falsify
+            for (i, right) in self.sources.iter().enumerate() {
+                if i == 0 {
+                    //the first item is the left iter
+                    continue;
+                };
+                if right.sorted {
+                    //binary search
+                    if let Ok(index) = right.data[self.cursors[i]..].binary_search(&item) {
+                        if left_sorted {
+                            // the left is sorted so we can discount 'lesser than' items from the right side
+                            // in subsequent iterations by moving the cursor ahead
+                            // this is an extra optimisation
+                            self.cursors[i] = index;
+                        }
+                        //item found! continue with next source to ensure item is also in there
+                        continue;
+                    } else {
+                        found = false;
+                        break;
+                    }
+                } else {
+                    //linear search
+                    if !right.data.contains(&item) {
+                        found = false;
+                        break;
+                    }
+                }
+            }
+            if found {
+                if offset == 1 {
+                    self.cursors[0] += 1;
+                }
+                return Some(item);
+            }
+        }
+        None
+    }
+}
+
 impl<'a, T> Iterator for IntersectionIter<'a, T>
 where
     T: Ord + Copy,
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let left = self.sources.get(0).unwrap();
-            if let Some(item) = left.data.get(self.cursors[0]).copied() {
-                if self.sources[1..].is_empty() {
-                    //only one source
-                    self.cursors[0] += 1;
-                    return Some(item);
+        if let Some(itersource) = self.itersource.as_mut() {
+            loop {
+                if let Some(item) = itersource.next() {
+                    let result = self.test_sources(item, self.itersource_sorted, 0);
+                    if result.is_some() {
+                        return result;
+                    }
+                    //no results found, continue with next item
                 } else {
-                    let mut found = true; //falsify
-                    for (i, right) in self.sources.iter().enumerate() {
-                        if i == 0 {
-                            //the first item is the left iter
-                            continue;
-                        };
-                        if right.sorted {
-                            //binary search
-                            if let Ok(index) = right.data[self.cursors[i]..].binary_search(&item) {
-                                if left.sorted {
-                                    // the left is sorted so we can discount 'lesser than' items from the right side
-                                    // in subsequent iterations by moving the cursor ahead
-                                    // this is an extra optimisation
-                                    self.cursors[i] = index;
-                                }
-                                //item found! continue with next source to ensure item is also in there
-                                continue;
-                            } else {
-                                found = false;
-                                break;
-                            }
-                        } else {
-                            //linear search
-                            if !right.data.contains(&item) {
-                                found = false;
-                                break;
-                            }
-                        }
-                    }
-                    if found {
-                        self.cursors[0] += 1;
-                        return Some(item);
-                    }
+                    return None;
                 }
-                //no results found, continue with next item
-                self.cursors[0] += 1;
-            } else {
-                return None;
+            }
+        } else {
+            loop {
+                let left = self.sources.get(0).unwrap();
+                if let Some(item) = left.data.get(self.cursors[0]).copied() {
+                    let result = self.test_sources(item, left.sorted, 1);
+                    if result.is_some() {
+                        return result;
+                    }
+                    //no results found, continue with next item
+                    self.cursors[0] += 1;
+                } else {
+                    return None;
+                }
             }
         }
     }
