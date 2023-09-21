@@ -75,7 +75,7 @@ impl<'a> AnnotationCsv<'a> {
                             if i > 0 {
                                 selectortype.push(';');
                             }
-                            selectortype += subselector.selector().kind().as_str();
+                            selectortype += subselector.as_ref().kind().as_str();
                         }
                     } else {
                         selectortype += subselector.kind().as_str();
@@ -101,7 +101,7 @@ impl<'a> AnnotationCsv<'a> {
                             if i > 0 {
                                 out.push(';');
                             }
-                            out += Self::set_beginoffset(subselector.selector(), store).as_str();
+                            out += Self::set_beginoffset(subselector.as_ref(), store).as_str();
                         }
                     } else {
                         out += Self::set_beginoffset(subselector, store).as_str();
@@ -131,7 +131,7 @@ impl<'a> AnnotationCsv<'a> {
                             if i > 0 {
                                 out.push(';');
                             }
-                            out += Self::set_endoffset(subselector.selector(), store).as_str();
+                            out += Self::set_endoffset(subselector.as_ref(), store).as_str();
                         }
                     } else {
                         out += Self::set_endoffset(subselector, store).as_str();
@@ -160,7 +160,7 @@ impl<'a> AnnotationCsv<'a> {
                                 if i > 0 {
                                     out.push(';');
                                 }
-                                out += &Self::set_targetresource(subselector.selector(), store);
+                                out += &Self::set_targetresource(subselector.as_ref(), store);
                             }
                         }
                         Selector::ResourceSelector(res) | Selector::TextSelector(res, _, _) => {
@@ -228,7 +228,7 @@ impl<'a> AnnotationCsv<'a> {
                                 if i > 0 {
                                     out.push(';');
                                 }
-                                out += &Self::set_targetannotation(subselector.selector(), store);
+                                out += &Self::set_targetannotation(subselector.as_ref(), store);
                             }
                         }
                         Selector::AnnotationSelector(ann, _) => {

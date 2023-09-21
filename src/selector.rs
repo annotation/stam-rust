@@ -670,7 +670,7 @@ impl<'a> Serialize for WrappedSelectors<'a> {
                 //we have an internal ranged selector
                 for subselector in subselector.iter(self.store, false) {
                     let wrappedselector = WrappedSelector {
-                        selector: &subselector.selector,
+                        selector: &subselector,
                         store: self.store,
                     };
                     seq.serialize_element(&wrappedselector)?;
@@ -813,48 +813,35 @@ pub struct SelectorIter<'a> {
     pub(crate) store: &'a AnnotationStore,
 }
 
-#[derive(Debug)]
-pub struct SelectorIterItem<'a> {
-    selector: Cow<'a, Selector>, //we use Cow because we may return newly created owned selectors on the fly (like with ranged internal selectors)
-}
-
-
-impl<'a> SelectorIterItem<'a> {
-    pub fn selector<'b>(&'b self) -> &'b Cow<'a,Selector> {
-        &self.selector
-    }
-}
 
 impl<'a> SelectorIter<'a> {
-    fn get_internal_ranged_item(&self, selector: &'a Selector) -> SelectorIterItem<'a> {
-        SelectorIterItem {
-            selector: match selector {
-                Selector::RangedAnnotationSelector { begin, with_text, .. } => {
-                    let handle = AnnotationHandle::new(begin.as_usize() + self.cursor_in_range);
-                    if *with_text {
-                        let annotation: &Annotation = self.store.get(handle).expect("annotation handle must be valid");
-                        if let (Some(textselection_handle), Some(resource_handle)) = (annotation.target().textselection_handle(), annotation.target().resource_handle()) {
-                            Cow::Owned(Selector::AnnotationSelector(handle, Some((resource_handle, textselection_handle, OffsetMode::default()))))
-                        } else {
-                            Cow::Owned(Selector::AnnotationSelector(handle, None))
-                        }
+    fn get_internal_ranged_item(&self, selector: &'a Selector) -> Cow<'a,Selector> {
+        match selector {
+            Selector::RangedAnnotationSelector { begin, with_text, .. } => {
+                let handle = AnnotationHandle::new(begin.as_usize() + self.cursor_in_range);
+                if *with_text {
+                    let annotation: &Annotation = self.store.get(handle).expect("annotation handle must be valid");
+                    if let (Some(textselection_handle), Some(resource_handle)) = (annotation.target().textselection_handle(), annotation.target().resource_handle()) {
+                        Cow::Owned(Selector::AnnotationSelector(handle, Some((resource_handle, textselection_handle, OffsetMode::default()))))
                     } else {
-                            Cow::Owned(Selector::AnnotationSelector(handle, None))
+                        Cow::Owned(Selector::AnnotationSelector(handle, None))
                     }
+                } else {
+                        Cow::Owned(Selector::AnnotationSelector(handle, None))
                 }
-                Selector::RangedTextSelector { resource, begin, .. } => {
-                    Cow::Owned(Selector::TextSelector(*resource, TextSelectionHandle::new(begin.as_usize() + self.cursor_in_range), OffsetMode::default()) )
-                }
-                _ => {
-                    unreachable!()
-                }
-            },
+            }
+            Selector::RangedTextSelector { resource, begin, .. } => {
+                Cow::Owned(Selector::TextSelector(*resource, TextSelectionHandle::new(begin.as_usize() + self.cursor_in_range), OffsetMode::default()) )
+            }
+            _ => {
+                unreachable!()
+            }
         }
     }
 }
 
 impl<'a> Iterator for SelectorIter<'a> {
-    type Item = SelectorIterItem<'a>;
+    type Item = Cow<'a, Selector>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -926,9 +913,7 @@ impl<'a> Iterator for SelectorIter<'a> {
                         Selector::ResourceSelector(_) => {}
                     };
                     self.done = true; //this flags that we have processed the selector
-                    return Some(SelectorIterItem {
-                        selector: Cow::Borrowed(self.selector),
-                    });
+                    return Some(Cow::Borrowed(self.selector));
                 } else {
                     return None;
                 }
