@@ -110,16 +110,9 @@ impl<'store, T> TargetIterItem<'store, T>
 where
     T: Storable,
 {
-    pub fn depth(&self) -> usize {
-        self.selectoriteritem.depth()
-    }
     pub fn selector<'b>(&'b self) -> &'b Cow<'store, Selector> {
         self.selectoriteritem.selector()
     }
-    pub fn is_leaf(&self) -> bool {
-        self.selectoriteritem.is_leaf()
-    }
-
     // some copied methods from ResultItem:
     pub fn as_ref(&self) -> &'store T {
         self.item.as_ref()
