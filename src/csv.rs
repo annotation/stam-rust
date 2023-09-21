@@ -71,7 +71,7 @@ impl<'a> AnnotationCsv<'a> {
                     if let Selector::RangedTextSelector { .. }
                     | Selector::RangedAnnotationSelector { .. } = subselector
                     {
-                        for (i, subselector) in subselector.iter(store, false, false).enumerate() {
+                        for (i, subselector) in subselector.iter(store, false).enumerate() {
                             if i > 0 {
                                 selectortype.push(';');
                             }
@@ -97,7 +97,7 @@ impl<'a> AnnotationCsv<'a> {
                     if let Selector::RangedTextSelector { .. }
                     | Selector::RangedAnnotationSelector { .. } = subselector
                     {
-                        for (i, subselector) in subselector.iter(store, false, false).enumerate() {
+                        for (i, subselector) in subselector.iter(store, false).enumerate() {
                             if i > 0 {
                                 out.push(';');
                             }
@@ -127,7 +127,7 @@ impl<'a> AnnotationCsv<'a> {
                     if let Selector::RangedTextSelector { .. }
                     | Selector::RangedAnnotationSelector { .. } = subselector
                     {
-                        for (i, subselector) in subselector.iter(store, false, false).enumerate() {
+                        for (i, subselector) in subselector.iter(store, false).enumerate() {
                             if i > 0 {
                                 out.push(';');
                             }
@@ -156,9 +156,7 @@ impl<'a> AnnotationCsv<'a> {
                     out.push(';'); //delimiter
                     match subselector {
                         Selector::RangedTextSelector { .. } => {
-                            for (i, subselector) in
-                                subselector.iter(store, false, false).enumerate()
-                            {
+                            for (i, subselector) in subselector.iter(store, false).enumerate() {
                                 if i > 0 {
                                     out.push(';');
                                 }
@@ -226,9 +224,7 @@ impl<'a> AnnotationCsv<'a> {
                     out.push(';'); //delimiter
                     match subselector {
                         Selector::RangedAnnotationSelector { .. } => {
-                            for (i, subselector) in
-                                subselector.iter(store, false, false).enumerate()
-                            {
+                            for (i, subselector) in subselector.iter(store, false).enumerate() {
                                 if i > 0 {
                                     out.push(';');
                                 }

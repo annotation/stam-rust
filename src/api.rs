@@ -26,7 +26,7 @@ use smallvec::SmallVec;
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::resources::TextResource;
-use crate::selector::{AncestorVec, Selector, SelectorIter, SelectorIterItem};
+use crate::selector::{Selector, SelectorIter, SelectorIterItem};
 use crate::store::*;
 
 // This root module contains some common structures used by multiple parts of the higher-level API.
@@ -115,9 +115,6 @@ where
     }
     pub fn selector<'b>(&'b self) -> &'b Cow<'store, Selector> {
         self.selectoriteritem.selector()
-    }
-    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'store> {
-        self.selectoriteritem.ancestors()
     }
     pub fn is_leaf(&self) -> bool {
         self.selectoriteritem.is_leaf()
