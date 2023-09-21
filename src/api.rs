@@ -26,7 +26,7 @@ use smallvec::SmallVec;
 use crate::annotation::Annotation;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::resources::TextResource;
-use crate::selector::{Selector, SelectorIter, SelectorIterItem};
+use crate::selector::{Selector, SelectorIter};
 use crate::store::*;
 
 // This root module contains some common structures used by multiple parts of the higher-level API.
@@ -64,7 +64,7 @@ where
     T: Storable,
 {
     pub(crate) item: ResultItem<'store, T>,
-    pub(crate) selectoriteritem: SelectorIterItem<'store>,
+    pub(crate) selector: Cow<'store, Selector>,
 }
 
 impl<'store, T> PartialEq for TargetIterItem<'store, T>
@@ -110,8 +110,8 @@ impl<'store, T> TargetIterItem<'store, T>
 where
     T: Storable,
 {
-    pub fn selector<'b>(&'b self) -> &'b Cow<'store, Selector> {
-        self.selectoriteritem.selector()
+    pub fn selector(&self) -> &Selector {
+        self.selector.as_ref()
     }
     // some copied methods from ResultItem:
     pub fn as_ref(&self) -> &'store T {
@@ -132,7 +132,7 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
         loop {
             let selectoritem = self.iter.next();
             if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
+                match selectoritem.as_ref() {
                     Selector::TextSelector(res_id, _, _)
                     | Selector::ResourceSelector(res_id)
                     | Selector::AnnotationSelector(_, Some((res_id, _, _))) => {
@@ -146,7 +146,7 @@ impl<'a> Iterator for TargetIter<'a, TextResource> {
                         }
                         return Some(TargetIterItem {
                             item: resource.as_resultitem(self.store, self.iter.store),
-                            selectoriteritem: selectoritem,
+                            selector: selectoritem,
                         });
                     }
                     _ => continue,
@@ -165,7 +165,7 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
         loop {
             let selectoritem = self.iter.next();
             if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
+                match selectoritem.as_ref() {
                     Selector::DataSetSelector(set_id) => {
                         let annotationset: &AnnotationDataSet =
                             self.iter.store.get(*set_id).expect("Dataset must exist");
@@ -177,7 +177,7 @@ impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
                         }
                         return Some(TargetIterItem {
                             item: annotationset.as_resultitem(self.store, self.iter.store),
-                            selectoriteritem: selectoritem,
+                            selector: selectoritem,
                         });
                     }
                     _ => continue,
@@ -196,7 +196,7 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
         loop {
             let selectoritem = self.iter.next();
             if let Some(selectoritem) = selectoritem {
-                match selectoritem.selector().as_ref() {
+                match selectoritem.as_ref() {
                     Selector::AnnotationSelector(a_id, _) => {
                         let annotation: &Annotation =
                             self.iter.store.get(*a_id).expect("Annotation must exist");
@@ -208,7 +208,7 @@ impl<'a> Iterator for TargetIter<'a, Annotation> {
                         }
                         return Some(TargetIterItem {
                             item: annotation.as_resultitem(self.store, self.iter.store),
-                            selectoriteritem: selectoritem,
+                            selector: selectoritem,
                         });
                     }
                     _ => continue,
