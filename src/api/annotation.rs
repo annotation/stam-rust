@@ -62,17 +62,24 @@ impl<'store> ResultItem<'store, Annotation> {
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     ///
     /// Note: This does no sorting nor deduplication, if you want results in textual order without duplicates, add `.textual_order()`
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        let store = self.store();
-        self.store()
-            .annotations_by_annotation_reverse(self.handle())
-            .into_iter()
-            .flatten()
-            .map(|a_handle| {
-                store
-                    .annotation(*a_handle)
-                    .expect("annotation handle must be valid")
-            })
+    pub fn annotations(&self) -> AnnotationsIter<'store> {
+        let annotations = self
+            .store()
+            .annotations_by_annotation_reverse(self.handle());
+        if let Some(annotations) = annotations {
+            AnnotationsIter {
+                store: self.store(),
+                iter: Some(IntersectionIter::new(Cow::Borrowed(annotations), true)),
+                cursor: 0,
+            }
+        } else {
+            //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
+            AnnotationsIter {
+                store: self.store(),
+                iter: None,
+                cursor: 0,
+            }
+        }
     }
 
     /// Iterates over all the annotations that reference this annotation, if any, in parallel.
@@ -323,11 +330,6 @@ impl<'store> ResultItem<'store, Annotation> {
                 cursor: 0,
             }
         }
-
-        /*
-        self.annotations()
-            .filter(move |annotation| annotation.has_data(&data))
-                */
     }
 
     /// Search for annotations *about* this annotation, satisfying multiple exact data that are already known.
