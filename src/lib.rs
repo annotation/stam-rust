@@ -155,8 +155,8 @@ where
             //find insertion point
             let mut pos = 0;
             for refsource in self.sources.iter() {
-                if refsource.iter.is_some() {
-                    //pass
+                if refsource.array.is_none() {
+                    //pass: arrays go at the end
                 } else if (source.sorted == refsource.sorted) && (refsource.len() > source.len()) {
                     //shorter before longer (allows us to discard quicker)
                     break;
@@ -177,12 +177,12 @@ where
         self
     }
 
-    pub(crate) fn with_singleton(mut self, data: T, sorted: bool) -> Self {
+    pub(crate) fn with_singleton(mut self, data: T) -> Self {
         let source = IntersectionSource {
             array: None,
             singleton: Some(data),
             iter: None,
-            sorted,
+            sorted: true, //irrelevant in this context
         };
         if self.sources.is_empty() {
             self.sources.push(source);
