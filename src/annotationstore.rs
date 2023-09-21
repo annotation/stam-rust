@@ -253,7 +253,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             if self.config.annotation_annotation_map {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
                     .as_resultitem(self, self)
-                    .annotations_in_targets(false, false) //high-level method!!!
+                    .annotations_in_targets(false) //high-level method!!!
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
                 self.annotation_annotation_map

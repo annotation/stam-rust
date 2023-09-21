@@ -668,7 +668,7 @@ impl<'a> Serialize for WrappedSelectors<'a> {
                 seq.serialize_element(&wrappedselector)?;
             } else {
                 //we have an internal ranged selector
-                for subselector in subselector.iter(self.store, false,false) {
+                for subselector in subselector.iter(self.store, false) {
                     let wrappedselector = WrappedSelector {
                         selector: &subselector.selector,
                         store: self.store,
@@ -789,15 +789,12 @@ impl Selector {
         &'a self,
         store: &'a AnnotationStore,
         recurse_annotation: bool,
-        track_ancestors: bool,
     ) -> SelectorIter<'a> {
         SelectorIter {
             selector: self,
-            ancestors: SmallVec::new(),
             subiterstack: Vec::new(),
             cursor_in_range: 0,
             recurse_annotation,
-            track_ancestors,
             store,
             done: false,
             depth: 0,
@@ -805,28 +802,21 @@ impl Selector {
     }
 }
 
-const ANCESTORSIZE: usize = 3;
-pub type AncestorVec<'a> = SmallVec<[Cow<'a,Selector>;ANCESTORSIZE]>;
-
 /// Iterator that returns the selector itself, plus all selectors under it (recursively)
 pub struct SelectorIter<'a> {
     selector: &'a Selector, //we keep the root item out of subiterstack to save ourselves the Vec<> allocation
     done: bool,
-    ancestors: AncestorVec<'a>,
     subiterstack: Vec<SelectorIter<'a>>,
     ///used to track iteration of InternalRangedSelectors, starts at 0 (not begin)
     cursor_in_range: usize,
     /// follow AnnotationSelectors recursively
     recurse_annotation: bool,
-    /// provide a full path to all ancestors (rarely used and has a fair degree of overhead)
-    track_ancestors: bool,
     pub(crate) store: &'a AnnotationStore,
     pub(crate) depth: usize,
 }
 
 #[derive(Debug)]
 pub struct SelectorIterItem<'a> {
-    ancestors: AncestorVec<'a>,
     selector: Cow<'a, Selector>, //we use Cow because we may return newly created owned selectors on the fly (like with ranged internal selectors)
     depth: usize,
     leaf: bool,
@@ -841,9 +831,6 @@ impl<'a> SelectorIterItem<'a> {
     pub fn selector<'b>(&'b self) -> &'b Cow<'a,Selector> {
         &self.selector
     }
-    pub fn ancestors<'b>(&'b self) -> &'b AncestorVec<'a> {
-        &self.ancestors
-    }
     pub fn is_leaf(&self) -> bool {
         self.leaf
     }
@@ -852,11 +839,6 @@ impl<'a> SelectorIterItem<'a> {
 impl<'a> SelectorIter<'a> {
     fn get_internal_ranged_item(&self, selector: &'a Selector) -> SelectorIterItem<'a> {
         SelectorIterItem {
-            ancestors: if self.track_ancestors {
-                self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive (but we hardly use track_ancestors anyway)
-            } else {
-                SmallVec::new()
-            },
             selector: match selector {
                 Selector::RangedAnnotationSelector { begin, with_text, .. } => {
                     let handle = AnnotationHandle::new(begin.as_usize() + self.cursor_in_range);
@@ -903,18 +885,10 @@ impl<'a> Iterator for SelectorIter<'a> {
                                     .expect("referenced annotation must exist");
                                 self.subiterstack.push(SelectorIter {
                                     selector: annotation.target(),
-                                    ancestors: if self.track_ancestors {
-                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive (but we hardly use track_ancestors anyway)
-                                        ancestors.push(Cow::Borrowed(&self.selector));
-                                        ancestors
-                                    } else {
-                                        SmallVec::new()
-                                    },
                                     //note: Vec::new() should be cheap as Vec only allocates on push!
                                     subiterstack: Vec::new(),
                                     cursor_in_range: 0,
                                     recurse_annotation: self.recurse_annotation,
-                                    track_ancestors: self.track_ancestors,
                                     store: self.store,
                                     done: false,
                                     depth: self.depth + 1,
@@ -929,18 +903,10 @@ impl<'a> Iterator for SelectorIter<'a> {
                             for subselector in v.iter().rev() {
                                 self.subiterstack.push(SelectorIter {
                                     selector: subselector,
-                                    ancestors: if self.track_ancestors {
-                                        let mut ancestors = self.ancestors.clone(); //MAYBE TODO: the clones are fairly expensive (but we hardly use track_ancestors anyway)
-                                        ancestors.push(Cow::Borrowed(subselector));
-                                        ancestors
-                                    } else {
-                                        SmallVec::new()
-                                    },
                                     //note: Vec::new() should be cheap as Vec only allocates on push!
                                     subiterstack: Vec::new(),
                                     cursor_in_range: 0,
                                     recurse_annotation: self.recurse_annotation,
-                                    track_ancestors: self.track_ancestors,
                                     store: self.store,
                                     done: false,
                                     depth: self.depth + 1,
@@ -976,11 +942,6 @@ impl<'a> Iterator for SelectorIter<'a> {
                     };
                     self.done = true; //this flags that we have processed the selector
                     return Some(SelectorIterItem {
-                        ancestors: if self.track_ancestors {
-                            self.ancestors.clone() //MAYBE TODO: the clones are fairly expensive
-                        } else {
-                            SmallVec::new()
-                        },
                         selector: Cow::Borrowed(self.selector),
                         depth: self.depth,
                         leaf,

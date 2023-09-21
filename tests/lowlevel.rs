@@ -324,19 +324,7 @@ fn serialize_annotationstore_to_file() -> Result<(), StamError> {
 fn selectoriter() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let word: &Annotation = store.get("sentence2word2")?;
-    for (i, selectoritem) in word.target().iter(&store, true, true).enumerate() {
-        match i {
-            0 => assert!(selectoritem.ancestors().is_empty()),
-            1 => {
-                assert_eq!(selectoritem.ancestors().len(), 1);
-                assert_eq!(
-                    selectoritem.ancestors().get(0).unwrap().kind(),
-                    SelectorKind::AnnotationSelector
-                );
-            }
-            _ => panic!("expected only two iterations!"),
-        }
-    }
+    assert_eq!(word.target().iter(&store, true).count(), 2);
     Ok(())
 }
 

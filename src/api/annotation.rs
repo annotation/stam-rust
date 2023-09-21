@@ -28,8 +28,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// This returns no duplicates even if a resource is referenced multiple times.
     /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
     pub fn resources(&self) -> TargetIter<'store, TextResource> {
-        let selector_iter: SelectorIter<'store> =
-            self.as_ref().target().iter(self.store(), true, false);
+        let selector_iter: SelectorIter<'store> = self.as_ref().target().iter(self.store(), true);
         //                                            ^--- recurse
         TargetIter::new(self.store(), selector_iter, false)
     }
@@ -37,8 +36,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the datasets that this annotation (by its target selector) references
     /// This returns no duplicates even if a dataset is referenced multiple times.
     pub fn datasets(&self) -> TargetIter<'store, AnnotationDataSet> {
-        let selector_iter: SelectorIter<'store> =
-            self.as_ref().target().iter(self.store(), true, false);
+        let selector_iter: SelectorIter<'store> = self.as_ref().target().iter(self.store(), true);
         //                                            ^--- recurse
         TargetIter::new(self.store(), selector_iter, false)
     }
@@ -46,15 +44,9 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
     /// Results will be in textual order.
-    pub fn annotations_in_targets(
-        &self,
-        recursive: bool,
-        track_ancestors: bool,
-    ) -> TargetIter<'store, Annotation> {
+    pub fn annotations_in_targets(&self, recursive: bool) -> TargetIter<'store, Annotation> {
         let selector_iter: SelectorIter<'store> =
-            self.as_ref()
-                .target()
-                .iter(self.store(), recursive, track_ancestors);
+            self.as_ref().target().iter(self.store(), recursive);
         TargetIter::new(self.store(), selector_iter, false)
     }
 
@@ -404,7 +396,7 @@ impl<'store> ResultItem<'store, Annotation> {
         if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
         {
             Some(
-                self.annotations_in_targets(recursive, false)
+                self.annotations_in_targets(recursive)
                     .map(move |annotation| {
                         annotation
                             .find_data(test_set_handle, test_key_handle, value)
@@ -433,7 +425,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let store = self.store();
         if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
         {
-            self.annotations_in_targets(recursive, false)
+            self.annotations_in_targets(recursive)
                 .any(move |annotation| {
                     annotation.test_data(test_set_handle, test_key_handle, value)
                 })
@@ -451,7 +443,7 @@ impl<'store> ResultItem<'store, Annotation> {
         data: &ResultItem<'store, AnnotationData>,
         recursive: bool,
     ) -> bool {
-        self.annotations_in_targets(recursive, false)
+        self.annotations_in_targets(recursive)
             .any(move |annotation| {
                 annotation
                     .as_ref()
