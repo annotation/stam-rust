@@ -18,7 +18,7 @@ use crate::selector::{Selector, SelectorIter, SelectorKind};
 use crate::store::*;
 use crate::text::Text;
 use crate::textselection::{
-    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
+    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet, TextSelectionsIter,
 };
 use crate::IntersectionIter;
 
@@ -625,14 +625,14 @@ impl<'store> ResultItem<'store, Annotation> {
 }
 
 pub struct AnnotationsIter<'store> {
-    iter: Option<IntersectionIter<'store, AnnotationHandle>>,
+    iter: Option<IntersectionIter<'store, Annotation>>,
     cursor: usize,
     store: &'store AnnotationStore,
 }
 
 impl<'store> AnnotationsIter<'store> {
     pub(crate) fn new(
-        iter: IntersectionIter<'store, AnnotationHandle>,
+        iter: IntersectionIter<'store, Annotation>,
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
@@ -650,10 +650,18 @@ impl<'store> AnnotationsIter<'store> {
         }
     }
 
-    /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in all the annotations.
-    /// This returns data without annotations, use [`Self.with_data()`] instead if you want to know which annotations have which data.
+    /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in
+    /// all the annotations. This returns data without annotations (sorted chronologically and
+    /// without duplicates), use [`Self.with_data()`] instead if you want to know which annotations
+    /// have which data.
     pub fn data(mut self) -> DataIter<'store> {
-        todo!("implement");
+        let mut data: Vec<_> = self
+            .map(|annotation| annotation.as_ref().data().copied())
+            .flatten()
+            .collect();
+        data.sort_unstable();
+        data.dedup();
+        DataIter::new(IntersectionIter::new(Cow::Owned(data), true), self.store)
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
@@ -672,7 +680,7 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
-    /// Constraint the iterator to only returns annotations that have data that occurs in the passed data iterator.
+    /// Constrain the iterator to only returns annotations that have data that occurs in the passed data iterator.
     /// If you have a single AnnotationData instance, use [`Self.filter_by_annotationdata()`] instead.
     pub fn filter_data(mut self, data: DataIter<'store>) -> Self {
         self.filter_annotations(data.annotations())
@@ -757,7 +765,15 @@ impl<'store> AnnotationsIter<'store> {
         tset.as_resultset(self.store).related_text(operator)
     }
 
-    pub fn textselections(mut self) -> TextSelectionsIter<'store> {}
+    pub fn textselections(mut self) -> TextSelectionsIter<'store> {
+        TextSelectionsIter {
+            data: self
+                .map(|annotation| annotation.textselections())
+                .flatten()
+                .textual_order(),
+            cursor: 0,
+        }
+    }
 
     pub fn filter_textselection(mut self, textselection: &ResultTextSelection<'store>) -> Self {}
 

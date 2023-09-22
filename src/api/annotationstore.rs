@@ -1,12 +1,15 @@
-use crate::annotation::Annotation;
+use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
+use crate::api::annotation::AnnotationsIter;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::textselection::{ResultTextSelectionSet, TextSelectionSet};
+use crate::types::Handle;
+use crate::IntersectionIter;
 
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.
@@ -57,10 +60,8 @@ impl AnnotationStore {
     }
 
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
-    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
-    pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<Annotation>> {
-        self.iter()
-            .map(|item: &Annotation| item.as_resultitem(self, self))
+    pub fn annotations<'a>(&'a self) -> AnnotationsIter<'a> {
+        AnnotationsIter::new(IntersectionIter::new_with_storevec(&self.annotations), self)
     }
 
     /// internal helper method

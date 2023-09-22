@@ -618,6 +618,27 @@ where
 }
 
 pub struct TextSelectionsIter<'store> {
+    data: Vec<ResultTextSelection<'store>>,
+    cursor: usize,
+    store: &'store AnnotationStore,
+}
+
+impl<'store> Iterator for TextSelectionsIter<'store> {
+    type Item = ResultTextSelection<'store>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(item) = self.data.get(self.cursor) {
+            self.cursor += 1;
+            return Some(item.clone());
+        }
+        None
+    }
+}
+
+//// delete the below:
+
+/*
+pub struct TextSelectionsIter<'store> {
     iter: Option<IntersectionIter<'store, (TextResourceHandle, TextSelectionHandle)>>,
     cursor: usize,
     store: &'store AnnotationStore,
@@ -692,7 +713,7 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(iter) = self.iter.as_mut() {
             if let Some((res_handle, tsel_handle)) = iter.next() {
-                //optimisation so we don't have to grab the same set over and over:
+                //optimisation so we don't have to grab the same resource over and over:
                 let resource = if Some(res_handle) == self.last_resource_handle {
                     self.last_resource.unwrap()
                 } else {
@@ -716,3 +737,4 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
         None
     }
 }
+*/

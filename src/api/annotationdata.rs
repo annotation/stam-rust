@@ -149,7 +149,7 @@ impl<'store> DataIter<'store> {
         }
     }
 
-    /// Constrain the iterator to return only the data that used by the specified annotation
+    /// Constrain the iterator to return only the data used by the specified annotation
     pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
         let annotation_data = annotation.as_ref().raw_data();
         if let Some(iter) = self.iter.as_mut() {
@@ -159,7 +159,7 @@ impl<'store> DataIter<'store> {
     }
 
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
-        todo!("implement");
+        self.filter_data(annotations.data())
     }
 
     pub fn filter_data(mut self, data: DataIter<'store>) -> Self {
@@ -167,9 +167,28 @@ impl<'store> DataIter<'store> {
         self
     }
 
-    /// Iterate over the annotations that make use of data in this iterator
+    /// Iterate over the annotations that make use of data in this iterator.
+    /// Annotations will be returnted chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
     pub fn annotations(&self) -> AnnotationsIter<'store> {
-        todo!("implement");
+        let mut annotations: Vec<_> = self
+            .filter_map(|data| {
+                if let Some(annotations) = data
+                    .rootstore()
+                    .annotations_by_data_indexlookup(data.set().handle(), data.handle())
+                {
+                    Some(annotations.iter().copied())
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        AnnotationsIter::new(
+            IntersectionIter::new(Cow::Owned(annotations), true),
+            self.store,
+        )
     }
 }
 
