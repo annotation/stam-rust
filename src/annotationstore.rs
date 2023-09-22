@@ -244,7 +244,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                 let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = annotation
                     .as_resultitem(self, self)
                     .datasets() //high-level method!!!
-                    .map(|targetitem| (targetitem.handle(), handle))
+                    .map(|targethandle| (targethandle.handle(), handle))
                     .collect();
                 self.dataset_annotation_map
                     .extend(target_datasets.into_iter());
@@ -253,7 +253,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             if self.config.annotation_annotation_map {
                 let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
                     .as_resultitem(self, self)
-                    .annotations_in_targets(false) //high-level method!!!
+                    .annotations_in_targets(false) //high-level method!!! TODO: use SelectIter directly
                     .map(|targetitem| (targetitem.handle(), handle))
                     .collect();
                 self.annotation_annotation_map
@@ -1664,6 +1664,17 @@ impl AnnotationStore {
             }
         } else {
             BTreeSet::new()
+        }
+    }
+
+    pub(crate) fn annotations_by_data_search(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> BTreeSet<AnnotationHandle> {
+        if let Some((test_set_handle, test_key_handle)) = self.find_data_request_resolver(set, key)
+        {
         }
     }
 }

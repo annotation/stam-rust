@@ -120,12 +120,15 @@ impl AnnotationStore {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>>>
+    ) -> DataIter<'store>
     where
         'a: 'store,
     {
-        if let Some((test_set_handle, test_key_handle)) = self.find_data_request_resolver(set, key)
-        {
+        if let Some((set_handle, key_handle)) = self.find_data_request_resolver(set, key) {
+            if let Some(set_handle) = test_set_handle {
+                let dataset = self.dataset(set_handle).expect("dataset must exist");
+                dataset.find_data(key, value);
+            }
             Some(
                 self.datasets() //we do have to go over all and test because otherwise we have distinct return types
                     .filter_map(move |dataset| {

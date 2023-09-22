@@ -2,19 +2,19 @@ use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
-use crate::api::TargetIterItem;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
-use crate::resources::TextResource;
+use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
 use crate::textselection::{
     ResultTextSelection, ResultTextSelectionSet, TextSelection, TextSelectionHandle,
     TextSelectionOperator, TextSelectionSet,
 };
+use crate::IntersectionIter;
+use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::ops::Deref;
 
 impl<'store> ResultItem<'store, TextSelection> {
     pub fn wrap(self) -> ResultTextSelection<'store> {
@@ -548,18 +548,6 @@ where
     }
 }
 
-impl<'store, I> SortTextualOrder<TargetIterItem<'store, Annotation>> for I
-where
-    I: Iterator<Item = TargetIterItem<'store, Annotation>>,
-{
-    fn textual_order(&mut self) -> Vec<TargetIterItem<'store, Annotation>> {
-        let mut v: Vec<_> = self.collect();
-        v.sort_unstable_by(|a, b| compare_annotation(a.deref(), b.deref()));
-        v.dedup();
-        v
-    }
-}
-
 impl<'store, I> SortTextualOrder<ResultTextSelection<'store>> for I
 where
     I: Iterator<Item = ResultTextSelection<'store>>,
@@ -626,5 +614,105 @@ where
         let mut v: Vec<_> = self.collect();
         v.sort_unstable_by(|a, b| a.cmp(b));
         v
+    }
+}
+
+pub struct TextSelectionsIter<'store> {
+    iter: Option<IntersectionIter<'store, (TextResourceHandle, TextSelectionHandle)>>,
+    cursor: usize,
+    store: &'store AnnotationStore,
+
+    //for optimisations:
+    last_resource_handle: Option<TextResourceHandle>,
+    last_resource: Option<ResultItem<'store, TextResource>>,
+}
+
+impl<'store> TextSelectionsIter<'store> {
+    pub(crate) fn new(
+        iter: IntersectionIter<'store, (TextResourceHandle, TextSelectionHandle)>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            cursor: 0,
+            iter: Some(iter),
+            store,
+            last_resource_handle: None,
+            last_resource: None,
+        }
+    }
+
+    pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
+        Self {
+            cursor: 0,
+            iter: None,
+            store,
+            last_resource_handle: None,
+            last_resource: None,
+        }
+    }
+
+    /// Constrain the iterator to return only the text selections that are used by the specified annotation
+    pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
+        let textselections = self
+            .store
+            .textselections_by_selector(annotation.as_ref().target())
+            .into_iter()
+            .map(|(resource, textselection)| {
+                (
+                    resource.handle().expect("must have handle"),
+                    textselection.handle().expect("must have handle"),
+                )
+            })
+            .collect();
+
+        if let Some(iter) = self.iter.as_mut() {
+            *iter = iter.with(Cow::Owned(textselections), true);
+        }
+        self
+    }
+
+    pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
+        todo!("implement");
+    }
+
+    pub fn filter_textselections(mut self, textselections: TextSelectionsIter<'store>) -> Self {
+        self.iter.merge(textselections.iter);
+        self
+    }
+
+    /// Iterate over the annotations that make use of data in this iterator
+    pub fn annotations(&self) -> AnnotationsIter<'store> {
+        todo!("implement");
+    }
+}
+
+impl<'store> Iterator for TextSelectionsIter<'store> {
+    type Item = ResultTextSelection<'store>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(iter) = self.iter.as_mut() {
+            if let Some((res_handle, tsel_handle)) = iter.next() {
+                //optimisation so we don't have to grab the same set over and over:
+                let resource = if Some(res_handle) == self.last_resource_handle {
+                    self.last_resource.unwrap()
+                } else {
+                    self.last_resource_handle = Some(res_handle);
+                    self.last_resource = Some(
+                        self.store
+                            .resource(res_handle)
+                            .expect("resource must exist"),
+                    );
+                    self.last_resource.unwrap()
+                };
+                let tsel: &TextSelection = resource
+                    .as_ref()
+                    .get(tsel_handle)
+                    .expect("text selection must exist");
+                return Some(ResultTextSelection::Bound(
+                    tsel.as_resultitem(resource.as_ref(), self.store),
+                ));
+            }
+        }
+        None
     }
 }

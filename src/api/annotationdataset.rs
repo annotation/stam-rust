@@ -1,9 +1,10 @@
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
+use crate::api::annotationdata::DataIter;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
-use crate::store::*;
+use crate::{store::*, IntersectionIter};
 
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set
@@ -68,7 +69,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         &self,
         key: impl Request<DataKey>,
         value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
+    ) -> DataIter<'store>
     where
         'a: 'store,
     {
@@ -77,20 +78,23 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             key_handle = key.to_handle(self.as_ref());
             if key_handle.is_none() {
                 //requested key doesn't exist, bail out early, we won't find anything at all
-                return None;
+                return DataIter::new_empty(self.rootstore());
             }
         };
         let store = self.as_ref();
-        let rootstore = self.rootstore();
-        Some(store.data().filter_map(move |annotationdata| {
+        let iter = store.data().filter_map(move |annotationdata| {
             if (key_handle.is_none() || key_handle.unwrap() == annotationdata.key())
                 && annotationdata.value().test(&value)
             {
-                Some(annotationdata.as_resultitem(store, rootstore))
+                Some((self.handle(), annotationdata.intid.unwrap()))
             } else {
                 None
             }
-        }))
+        });
+        DataIter::new(
+            IntersectionIter::new_with_iterator(Box::new(iter), true),
+            self.rootstore(),
+        )
     }
 
     /// Tests if the dataset has certain data, returns a boolean.
@@ -100,10 +104,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
     pub fn test_data<'a>(&self, key: impl Request<DataKey>, value: &'a DataOperator<'a>) -> bool {
-        match self.find_data(key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
+        self.find_data(key, value).next().is_some()
     }
 
     /// Tests whether two AnnotationDataSets are the same

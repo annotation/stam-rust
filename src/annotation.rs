@@ -1,4 +1,7 @@
 use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::marker::PhantomData;
+use std::ops::Deref;
 use std::slice::Iter;
 
 use datasize::DataSize;
@@ -17,9 +20,14 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataValue;
 use crate::error::*;
 use crate::file::*;
-use crate::selector::{OffsetMode, Selector, SelectorBuilder, SelfSelector, WrappedSelector};
+use crate::resources::{TextResource, TextResourceHandle};
+use crate::selector::{
+    OffsetMode, Selector, SelectorBuilder, SelectorIter, SelfSelector, WrappedSelector,
+};
 use crate::store::*;
 use crate::types::*;
+
+use smallvec::SmallVec;
 
 type DataVec = Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>; // I also tried SmallVec, makes no noticable difference in memory size or performance
 
@@ -471,6 +479,11 @@ impl Annotation {
         self.data.iter()
     }
 
+    /// Provides access to the raw underlying data
+    pub fn raw_data(&self) -> &[(AnnotationDataSetHandle, AnnotationDataHandle)] {
+        &self.data
+    }
+
     /// Low-level method that returns raw data (handles) at specified index
     pub fn data_by_index(
         &self,
@@ -533,6 +546,100 @@ impl SelfSelector for Annotation {
             }
         } else {
             Err(StamError::Unbound("Annotation::self_selector()"))
+        }
+    }
+}
+
+pub struct TargetIter<'a, T>
+where
+    T: Storable,
+{
+    pub(crate) iter: SelectorIter<'a>,
+    pub(crate) history: SmallVec<[T::HandleType; 3]>, //only used for certain types
+    pub(crate) _phantomdata: PhantomData<T>,
+}
+
+impl<'a, T> TargetIter<'a, T>
+where
+    T: Storable,
+{
+    pub fn new(iter: SelectorIter<'a>) -> Self {
+        Self {
+            iter,
+            history: SmallVec::new(),
+            _phantomdata: PhantomData,
+        }
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, TextResource> {
+    type Item = TextResourceHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let selectoritem = self.iter.next();
+            if let Some(selectoritem) = selectoritem {
+                match selectoritem.as_ref() {
+                    Selector::TextSelector(res_id, _, _)
+                    | Selector::ResourceSelector(res_id)
+                    | Selector::AnnotationSelector(_, Some((res_id, _, _))) => {
+                        if self.history.contains(res_id) {
+                            continue;
+                        }
+                        self.history.push(*res_id);
+                        return Some(*res_id);
+                    }
+                    _ => continue,
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, AnnotationDataSet> {
+    type Item = AnnotationDataSetHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let selectoritem = self.iter.next();
+            if let Some(selectoritem) = selectoritem {
+                match selectoritem.as_ref() {
+                    Selector::DataSetSelector(set_id) => {
+                        return Some(*set_id);
+                    }
+                    _ => continue,
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for TargetIter<'a, Annotation> {
+    type Item = AnnotationHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let selectoritem = self.iter.next();
+            if let Some(selectoritem) = selectoritem {
+                match selectoritem.as_ref() {
+                    Selector::AnnotationSelector(a_id, _) => {
+                        if self.iter.recurse_annotation {
+                            if self.history.contains(a_id) {
+                                continue;
+                            }
+                            self.history.push(*a_id);
+                        }
+                        return Some(*a_id);
+                    }
+                    _ => continue,
+                }
+            } else {
+                return None;
+            }
         }
     }
 }

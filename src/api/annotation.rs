@@ -4,16 +4,17 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
-use crate::annotation::{Annotation, AnnotationHandle};
+use crate::annotation::{Annotation, AnnotationHandle, TargetIter};
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
-use crate::api::{FindText, TargetIter};
+use crate::api::annotationdata::DataIter;
+use crate::api::FindText;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::StamError;
 use crate::resources::TextResource;
-use crate::selector::{Selector, SelectorIter};
+use crate::selector::{Selector, SelectorIter, SelectorKind};
 use crate::store::*;
 use crate::text::Text;
 use crate::textselection::{
@@ -27,27 +28,35 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns no duplicates even if a resource is referenced multiple times.
     /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
-    pub fn resources(&self) -> TargetIter<'store, TextResource> {
-        let selector_iter: SelectorIter<'store> = self.as_ref().target().iter(self.store(), true);
-        //                                            ^--- recurse
-        TargetIter::new(self.store(), selector_iter, false)
+    pub fn resources(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> + 'store {
+        let selector = self.as_ref().target();
+        let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
+        //                                                                               ^--- recurse
+        let store = self.store();
+        iter.map(|handle| store.resource(handle).unwrap())
     }
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references
     /// This returns no duplicates even if a dataset is referenced multiple times.
-    pub fn datasets(&self) -> TargetIter<'store, AnnotationDataSet> {
-        let selector_iter: SelectorIter<'store> = self.as_ref().target().iter(self.store(), true);
-        //                                            ^--- recurse
-        TargetIter::new(self.store(), selector_iter, false)
+    pub fn datasets(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store {
+        let selector = self.as_ref().target();
+        let iter: TargetIter<AnnotationDataSet> =
+            TargetIter::new(selector.iter(self.store(), false));
+        let store = self.store();
+        iter.map(|handle| store.dataset(handle).unwrap())
     }
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
-    /// Results will be in textual order.
-    pub fn annotations_in_targets(&self, recursive: bool) -> TargetIter<'store, Annotation> {
-        let selector_iter: SelectorIter<'store> =
-            self.as_ref().target().iter(self.store(), recursive);
-        TargetIter::new(self.store(), selector_iter, false)
+    /// Results will be in textual order unless recursive is set or a DirectionalSelector is involved.
+    pub fn annotations_in_targets(&self, recursive: bool) -> AnnotationsIter<'store> {
+        let selector = self.as_ref().target();
+        let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
+        let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
+        AnnotationsIter::new(
+            IntersectionIter::new_with_iterator(Box::new(iter), sorted),
+            self.store(),
+        )
     }
 
     /// Iterates over all the annotations that reference this annotation, if any
@@ -59,18 +68,13 @@ impl<'store> ResultItem<'store, Annotation> {
             .store()
             .annotations_by_annotation_reverse(self.handle());
         if let Some(annotations) = annotations {
-            AnnotationsIter {
-                store: self.store(),
-                iter: Some(IntersectionIter::new(Cow::Borrowed(annotations), true)),
-                cursor: 0,
-            }
+            AnnotationsIter::new(
+                IntersectionIter::new(Cow::Borrowed(annotations), true),
+                self.store(),
+            )
         } else {
             //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
-            AnnotationsIter {
-                store: self.store(),
-                iter: None,
-                cursor: 0,
-            }
+            AnnotationsIter::new_empty(self.store())
         }
     }
 
@@ -620,14 +624,148 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 }
 
-pub struct AnnotationsIter<'a> {
-    iter: Option<IntersectionIter<'a, AnnotationHandle>>,
+pub struct AnnotationsIter<'store> {
+    iter: Option<IntersectionIter<'store, AnnotationHandle>>,
     cursor: usize,
-    store: &'a AnnotationStore,
+    store: &'store AnnotationStore,
 }
 
-impl<'a> Iterator for AnnotationsIter<'a> {
-    type Item = ResultItem<'a, Annotation>;
+impl<'store> AnnotationsIter<'store> {
+    pub(crate) fn new(
+        iter: IntersectionIter<'store, AnnotationHandle>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            cursor: 0,
+            iter: Some(iter),
+            store,
+        }
+    }
+
+    pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
+        Self {
+            cursor: 0,
+            iter: None,
+            store,
+        }
+    }
+
+    /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in all the annotations.
+    /// This returns data without annotations, use [`Self.with_data()`] instead if you want to know which annotations have which data.
+    pub fn data(mut self) -> DataIter<'store> {
+        todo!("implement");
+    }
+
+    /// Constrain the iterator to return only the annotations that have this exact data item
+    /// To filter by multiple data instances, use [`Self.filter_by_data()`] instead.
+    pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
+        let data_annotations = self
+            .store
+            .annotations_by_data_indexlookup(data.set().handle(), data.handle());
+        if let Some(iter) = self.iter.as_mut() {
+            if let Some(data_annotations) = data_annotations {
+                *iter = iter.with(Cow::Borrowed(data_annotations), true);
+            } else {
+                iter.abort = true; //data is not used, invalidate the iterator
+            }
+        }
+        self
+    }
+
+    /// Constraint the iterator to only returns annotations that have data that occurs in the passed data iterator.
+    /// If you have a single AnnotationData instance, use [`Self.filter_by_annotationdata()`] instead.
+    pub fn filter_data(mut self, data: DataIter<'store>) -> Self {
+        self.filter_annotations(data.annotations())
+    }
+
+    pub fn filter_find_data<'a>(
+        mut self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Self {
+        self.filter_data(self.store.find_data(set, key, value))
+    }
+
+    /// Returns annotations along with matching data, either may occur multiple times!
+    /// Consumes the iterator.
+    pub fn with_data(
+        self,
+    ) -> impl Iterator<
+        Item = (
+            ResultItem<'store, Annotation>,
+            ResultItem<'store, AnnotationData>,
+        ),
+    > + 'store {
+        self.map(|annotation| {
+            annotation
+                .data()
+                .map(move |data| (annotation.clone(), data))
+        })
+        .flatten()
+    }
+
+    pub fn with_find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: &'a DataOperator<'a>,
+    ) -> Option<
+        impl Iterator<
+                Item = (
+                    ResultItem<'store, Annotation>,
+                    ResultItem<'store, AnnotationData>,
+                ),
+            > + 'store,
+    >
+    where
+        'a: 'store,
+    {
+        if let Some((set_handle, key_handle)) = self.store.find_data_request_resolver(set, key) {
+            Some(
+                self.map(move |annotation| {
+                    annotation.data().filter_map(move |data| {
+                        if (set_handle.is_none() || data.set().handle() == set_handle.unwrap())
+                            && (key_handle.is_none() || data.key().handle() == key_handle.unwrap())
+                            && data.value().test(value)
+                        {
+                            Some((annotation.clone(), data))
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .flatten(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Constrain this iterator by another (intersection)
+    pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
+        self.iter.merge(annotations.iter);
+        self
+    }
+
+    pub fn related_text(
+        &self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = ResultTextSelectionSet> {
+        //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
+        let tset: TextSelectionSet = self.textselections().collect();
+        tset.as_resultset(self.store).related_text(operator)
+    }
+
+    pub fn textselections(mut self) -> TextSelectionsIter<'store> {}
+
+    pub fn filter_textselection(mut self, textselection: &ResultTextSelection<'store>) -> Self {}
+
+    pub fn filter_textselections(mut self, textselections: TextSelectionsIter<'store>) -> Self {}
+}
+
+impl<'store> Iterator for AnnotationsIter<'store> {
+    type Item = ResultItem<'store, Annotation>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(iter) = self.iter.as_mut() {
