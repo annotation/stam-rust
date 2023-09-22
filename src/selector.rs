@@ -809,7 +809,7 @@ pub struct SelectorIter<'a> {
     ///used to track iteration of InternalRangedSelectors, starts at 0 (not begin)
     cursor_in_range: usize,
     /// follow AnnotationSelectors recursively
-    recurse_annotation: bool,
+    pub(crate) recurse_annotation: bool,
     pub(crate) store: &'a AnnotationStore,
 }
 

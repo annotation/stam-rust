@@ -1614,6 +1614,11 @@ impl<'store> Iterator for FindTextSelectionsIter<'store> {
 
 /// Private trait implementing the actual behaviour for [`FindTextSelectionsIter`]
 impl<'store> FindTextSelectionsIter<'store> {
+    /// Returns the resource associated with this iterator
+    pub fn resource(&self) -> &'store TextResource {
+        self.resource
+    }
+
     /// This method returns an iterator over TextSelections in the resource
     /// It attempts to return the smallest sliced iterator possible, depending
     /// on the operator

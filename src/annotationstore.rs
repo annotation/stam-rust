@@ -240,52 +240,39 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
 
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
-            if self.config.dataset_annotation_map {
-                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self, self)
-                    .datasets() //high-level method!!!
-                    .map(|targetitem| (targetitem.handle(), handle))
-                    .collect();
-                self.dataset_annotation_map
-                    .extend(target_datasets.into_iter());
-            }
+            let mut target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = Vec::new();
+            let mut target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = Vec::new();
+            let mut target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = Vec::new();
 
-            if self.config.annotation_annotation_map {
-                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self, self)
-                    .annotations_in_targets(false) //high-level method!!!
-                    .map(|targetitem| (targetitem.handle(), handle))
-                    .collect();
-                self.annotation_annotation_map
-                    .extend(target_annotations.into_iter());
-            }
-
-            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = annotation
-                .as_resultitem(self, self)
-                .resources() //high-level method!!!
-                .map(|targetitem| {
-                    let res_handle = targetitem.handle();
-                    //combine two steps in one to save an iteration
-                    if self.config.textrelationmap {
-                        for (resource, textselection) in
-                            self.textselections_by_selector(targetitem.selector())
-                        {
-                            extend_textrelationmap.push((
-                                resource.handle().expect("resource handle must be valid"),
-                                textselection
-                                    .handle()
-                                    .expect("textselection handle must be valid"),
-                                handle,
-                            ));
+            for selector in annotation.target().iter(self, false) {
+                if self.config.textrelationmap {
+                    for (res_handle, tsel_handle) in self.textselections_by_selector(&selector) {
+                        extend_textrelationmap.push((res_handle, tsel_handle, handle));
+                    }
+                }
+                if self.config.annotation_annotation_map {
+                    if let Selector::AnnotationSelector(a_handle, _) = selector.as_ref() {
+                        target_annotations.push((*a_handle, handle));
+                    }
+                }
+                match selector.as_ref() {
+                    Selector::ResourceSelector(res_handle) => {
+                        if self.config.resource_annotation_map {
+                            target_resources.push((*res_handle, handle));
                         }
                     }
-                    (res_handle, handle)
-                })
-                .collect();
+                    Selector::DataSetSelector(set_handle) => {
+                        if self.config.dataset_annotation_map {
+                            target_datasets.push((*set_handle, handle));
+                        }
+                    }
+                    _ => {}
+                };
+            }
 
             if self.config.resource_annotation_map {
                 self.resource_annotation_map
-                    .extend(target_resources.iter().map(|(x, y)| (*x, *y)).into_iter());
+                    .extend(target_resources.into_iter());
             }
 
             if self.config.textrelationmap {
@@ -1183,18 +1170,15 @@ impl AnnotationStore {
         Ok(results)
     }
 
-    /// Retrieve  [`TextSelection`] given a specific selector.
+    /// Low-level method to retrieve  [`TextSelection`] handles given a specific selector.
     pub(crate) fn textselections_by_selector<'store>(
         &'store self,
         selector: &Selector,
-    ) -> SmallVec<[(&'store TextResource, &'store TextSelection); 2]> {
+    ) -> SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]> {
         match selector {
             Selector::TextSelector(res_handle, tsel_handle, _)
             | Selector::AnnotationSelector(_, Some((res_handle, tsel_handle, _))) => {
-                let resource: &TextResource = self.get(*res_handle).expect("handle must be valid");
-                let textselection: &TextSelection =
-                    resource.get(*tsel_handle).expect("handle must be valid");
-                smallvec!((resource, textselection))
+                smallvec!((*res_handle, *tsel_handle))
             }
             Selector::RangedTextSelector {
                 resource,
@@ -1202,12 +1186,8 @@ impl AnnotationStore {
                 end,
             } => {
                 let mut results = SmallVec::with_capacity(end.as_usize() - begin.as_usize());
-                let resource: &TextResource = self.get(*resource).expect("handle must be valid");
                 for i in begin.as_usize()..=end.as_usize() {
-                    let textselection: &TextSelection = resource
-                        .get(TextSelectionHandle::new(i))
-                        .expect("handle must be valid");
-                    results.push((resource, textselection));
+                    results.push((*resource, TextSelectionHandle(i as u32)));
                 }
                 results
             }
@@ -1225,11 +1205,7 @@ impl AnnotationStore {
                         annotation.target().resource_handle(),
                         annotation.target().textselection_handle(),
                     ) {
-                        let resource: &TextResource =
-                            self.get(res_handle).expect("handle must be valid");
-                        let textselection: &TextSelection =
-                            resource.get(tsel_handle).expect("handle must be valid");
-                        results.push((resource, textselection));
+                        results.push((res_handle, tsel_handle));
                     }
                 }
                 results
@@ -1649,21 +1625,25 @@ impl AnnotationStore {
         &self,
         dataset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
-    ) -> BTreeSet<AnnotationHandle> {
+    ) -> Vec<AnnotationHandle> {
         let dataset: Option<&AnnotationDataSet> = self.get(dataset_handle).ok();
         if let Some(dataset) = dataset {
             if let Some(data) = dataset.data_by_key(datakey_handle) {
-                data.iter()
+                let mut vec: Vec<_> = data
+                    .iter()
                     .filter_map(move |dataitem| {
                         self.annotations_by_data_indexlookup(dataset_handle, *dataitem)
                     })
                     .flat_map(|v| v.iter().copied()) //(only the handles are copied)
-                    .collect()
+                    .collect();
+                vec.sort_unstable();
+                vec.dedup();
+                vec
             } else {
-                BTreeSet::new()
+                Vec::new()
             }
         } else {
-            BTreeSet::new()
+            Vec::new()
         }
     }
 }

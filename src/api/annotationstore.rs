@@ -1,12 +1,16 @@
-use crate::annotation::Annotation;
-use crate::annotationdata::AnnotationData;
+use crate::annotation::{Annotation, AnnotationHandle};
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
+use crate::api::annotation::AnnotationsIter;
+use crate::api::annotationdata::DataIter;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::textselection::{ResultTextSelectionSet, TextSelectionSet};
+use crate::types::Handle;
+use crate::IntersectionIter;
 
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.
@@ -57,10 +61,17 @@ impl AnnotationStore {
     }
 
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
-    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
-    pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<Annotation>> {
-        self.iter()
-            .map(|item: &Annotation| item.as_resultitem(self, self))
+    pub fn annotations<'a>(&'a self) -> AnnotationsIter<'a> {
+        AnnotationsIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.iter()
+                        .map(|a: &'a Annotation| a.handle().expect("annotation must have handle")),
+                ),
+                true,
+            ),
+            self,
+        )
     }
 
     /// internal helper method
@@ -101,62 +112,71 @@ impl AnnotationStore {
     /// If you are not interested in returning the results but merely testing the presence of particular data,
     /// then use `test_data` instead..
     ///
-    /// You can pass a boolean (true/false, doesn't matter) or empty string literal for set or key to represent any set/key.
-    /// To search for any value, `value` can must be explicitly set to `DataOperator::Any` to return all values.
+    /// You can pass a boolean (true/false, doesn't matter) or empty string literal for set or key to represent *any* set/key.
+    /// To search for any value, `value` must be explicitly set to `DataOperator::Any` to return all values.
     ///
-    /// Value is a DataOperator that can apply a data test to the value. Use `DataOperator::Equals` to search
-    /// for an exact value. As a shortcut, you can pass `"value".into()`  to the automatically conver into an equality
-    /// DataOperator.
+    /// Value is a DataOperator that can apply a data test to the value. Use [`DataOperator::Equals`] to search
+    /// for an exact value. As a shortcut, you can pass `"value".into()`  to the automatically convert into
+    /// [`DataOperator::Equals`].
     ///
-    /// Example call to retrieve all data indiscriminately: `annotation.data(false,false, DataOperator::Any)`
-    ///  .. or just use the alias function `data_all()`.
+    /// Example call to retrieve all data indiscriminately: `annotation.find_data(false,false, DataOperator::Any)`
+    ///  .. or just use the alias function `data()`.
     ///
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
-    ///       search for keys if you don't know their set.
-    /// Note: If you already know the set and you have lots of sets in your data, then it may be
-    ///       slightly more performant to call [`AnnotationDataSet.find_data()`] directly.
-    pub fn find_data<'store, 'a>(
+    ///       search for keys if you don't know their set!
+    pub fn find_data<'store, 'q>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>>>
+        value: DataOperator<'q>,
+    ) -> DataIter<'store>
     where
-        'a: 'store,
+        'q: 'store,
     {
-        if let Some((test_set_handle, test_key_handle)) = self.find_data_request_resolver(set, key)
-        {
-            Some(
-                self.datasets() //we do have to go over all and test because otherwise we have distinct return types
-                    .filter_map(move |dataset| {
-                        if test_set_handle.is_none() || dataset.handle() == test_set_handle.unwrap()
-                        {
-                            Some(
-                                dataset
-                                    .find_data(test_key_handle, value)
-                                    .into_iter()
-                                    .flatten(),
-                            )
-                        } else {
-                            None
-                        }
+        if !set.any() {
+            if let Some(dataset) = self.dataset(set) {
+                //delegate to the dataset
+                return dataset.find_data(key, value);
+            } else {
+                return DataIter::new_empty(self);
+            }
+        }
+
+        //all datasets
+        if let Some((_, key_handle)) = self.find_data_request_resolver(set, key) {
+            //iterate over all datasets
+            let iter: Box<
+                dyn Iterator<Item = (AnnotationDataSetHandle, AnnotationDataHandle)> + 'store,
+            > = Box::new(
+                self.datasets()
+                    .map(move |dataset| {
+                        dataset.as_ref().data().filter_map(move |annotationdata| {
+                            if key_handle.is_none() || key_handle.unwrap() == annotationdata.key() {
+                                Some((
+                                    dataset.handle(),
+                                    annotationdata.handle().expect("data must have handle"),
+                                ))
+                            } else {
+                                None
+                            }
+                        })
                     })
-                    .into_iter()
                     .flatten(),
-            )
+            );
+            if let DataOperator::Any = value {
+                DataIter::new(IntersectionIter::new_with_iterator(iter, true), self)
+            } else {
+                DataIter::new(IntersectionIter::new_with_iterator(iter, true), self)
+                    .filter_value(value)
+            }
         } else {
-            None
+            DataIter::new_empty(self)
         }
     }
 
-    /// Returns an iterator over all data in all sets
-    pub fn data(&self) -> impl Iterator<Item = ResultItem<AnnotationData>> {
-        self.datasets()
-            .map(|set| {
-                let set = set.as_ref();
-                set.data().map(|item| item.as_resultitem(set, self))
-            })
-            .flatten()
+    /// Returns an iterator over all data in all sets. Using a more constrained method (on a set or a key) is preferred!
+    pub fn data<'store>(&'store self) -> DataIter<'store> {
+        self.find_data(false, false, DataOperator::Any)
     }
 
     /// Tests if certain annotation data exists, returns a boolean.
@@ -170,86 +190,12 @@ impl AnnotationStore {
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
+        value: DataOperator<'a>,
     ) -> bool
     where
         'a: 'store,
     {
-        match self.find_data(set, key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
-    }
-
-    /// Searches for annotations by data.
-    /// Returns an iterator returning both the annotation, as well the matching data item
-    ///
-    /// This may return the same annotation multiple times if different matching data references it!
-    ///
-    /// If you already have a `ResultItem<DataKey>` instance, just use `ResultItem<DataKey>.find_by_data()` instead, it'll be much more efficient.
-    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.annotations()` instead, it'll be much more efficient.
-    ///
-    /// See `find_data()` for further parameter explanation.
-    pub fn annotations_by_data<'store, 'a>(
-        &'store self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> impl Iterator<
-        Item = (
-            ResultItem<'store, Annotation>,
-            ResultItem<'store, AnnotationData>,
-        ),
-    >
-    where
-        'a: 'store,
-    {
-        self.find_data(set, key, value)
-            .into_iter()
-            .flatten()
-            .map(|data| {
-                data.annotations()
-                    .map(move |annotation| (annotation, data.clone()))
-            })
-            .into_iter()
-            .flatten()
-    }
-
-    /// Searches for texts selections by data (via annotations)
-    /// Returns an iterator returning both the text selection, as well the matching data item
-    ///
-    /// This may return the same text selection multiple times if different matching data references it!
-    ///
-    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.annotations()` instead, it'll be much more efficient.
-    ///
-    /// See `find_data()` for further parameter explanation.
-    pub fn text_by_data<'store, 'a>(
-        &'store self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> impl Iterator<
-        Item = (
-            ResultTextSelectionSet,
-            ResultItem<'store, Annotation>,
-            ResultItem<'store, AnnotationData>,
-        ),
-    >
-    where
-        'a: 'store,
-    {
-        let store = self;
-        self.find_data(set, key, value)
-            .into_iter()
-            .flatten()
-            .map(move |data| {
-                data.annotations().map(move |annotation| {
-                    let tset: TextSelectionSet = annotation.textselections().collect();
-                    (tset.as_resultset(store), annotation, data.clone())
-                })
-            })
-            .into_iter()
-            .flatten()
+        self.find_data(set, key, value).next().is_some()
     }
 
     /// Searches for resources by metadata.
@@ -264,7 +210,7 @@ impl AnnotationStore {
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
+        value: DataOperator<'a>,
     ) -> impl Iterator<
         Item = (
             ResultItem<'store, TextResource>,
@@ -275,8 +221,6 @@ impl AnnotationStore {
         'a: 'store,
     {
         self.find_data(set, key, value)
-            .into_iter()
-            .flatten()
             .map(|data| {
                 data.resources_as_metadata()
                     .into_iter()
@@ -298,7 +242,7 @@ impl AnnotationStore {
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
+        value: DataOperator<'a>,
     ) -> impl Iterator<
         Item = (
             ResultItem<'store, AnnotationDataSet>,
@@ -309,8 +253,6 @@ impl AnnotationStore {
         'a: 'store,
     {
         self.find_data(set, key, value)
-            .into_iter()
-            .flatten()
             .map(|data| {
                 data.datasets()
                     .into_iter()
