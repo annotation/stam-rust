@@ -78,7 +78,6 @@ where
 {
     iter: Option<Box<dyn Iterator<Item = T>>>,
     array: Option<Cow<'a, [T]>>,
-    singleton: Option<T>,
     sorted: bool,
 }
 
@@ -90,8 +89,6 @@ where
     fn len(&self) -> Option<usize> {
         if let Some(array) = self.array {
             return Some(array.len());
-        } else if self.singleton.is_some() {
-            return Some(1);
         }
         None
     }
@@ -99,8 +96,6 @@ where
     fn take_item(&mut self, index: usize) -> Option<T> {
         if let Some(array) = self.array {
             return array.get(index).map(|x| *x);
-        } else if let Some(singleton) = self.singleton.take() {
-            return Some(singleton);
         } else if let Some(iter) = self.iter.as_mut() {
             return iter.next();
         }
@@ -119,13 +114,12 @@ where
             cursors: SmallVec::new(),
             abort: false,
         };
-        iter.with_array(source, sorted)
+        iter.with(source, sorted)
     }
 
     pub(crate) fn new_with_iterator(iter: Box<dyn Iterator<Item = T>>, sorted: bool) -> Self {
         let source = IntersectionSource {
             array: None,
-            singleton: None,
             iter: Some(iter),
             sorted,
         };
@@ -136,7 +130,7 @@ where
         }
     }
 
-    pub(crate) fn with_array(mut self, data: Cow<'a, [T]>, sorted: bool) -> Self {
+    pub(crate) fn with(mut self, data: Cow<'a, [T]>, sorted: bool) -> Self {
         if data.is_empty() {
             //don't bother, empty data invalidates the whole iterator
             self.abort = true;
@@ -144,7 +138,6 @@ where
         }
         let source = IntersectionSource {
             array: Some(data),
-            singleton: None,
             iter: None,
             sorted,
         };
@@ -165,36 +158,6 @@ where
                     break;
                 }
                 pos += 1;
-            }
-            if pos == self.sources.len() {
-                self.sources.push(source);
-                self.cursors.push(0);
-            } else {
-                self.sources.insert(pos, source);
-                self.cursors.insert(pos, 0);
-            }
-        }
-        self
-    }
-
-    pub(crate) fn with_singleton(mut self, data: T) -> Self {
-        let source = IntersectionSource {
-            array: None,
-            singleton: Some(data),
-            iter: None,
-            sorted: true, //irrelevant in this context
-        };
-        if self.sources.is_empty() {
-            self.sources.push(source);
-            self.cursors.push(0);
-        } else {
-            //find insertion point
-            //singletons go before everything else (except if the first source is a lazy iterator)
-            let mut pos = 0;
-            if let Some(refsource) = self.sources.first() {
-                if refsource.iter.is_some() {
-                    pos = 1;
-                }
             }
             if pos == self.sources.len() {
                 self.sources.push(source);
@@ -257,17 +220,8 @@ where
                             break;
                         }
                     }
-                } else if let Some(data) = right.singleton {
-                    if item != data {
-                        found = false;
-                        if item > data && left_sorted {
-                            //optimization: we can abort the whole operation now
-                            self.abort = true;
-                        }
-                        break;
-                    }
                 } else {
-                    unreachable!("all right types should have been covered")
+                    unreachable!("IntersectionIter: only the first source may be an interator");
                 }
             }
             if found {
