@@ -61,7 +61,16 @@ impl AnnotationStore {
 
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
     pub fn annotations<'a>(&'a self) -> AnnotationsIter<'a> {
-        AnnotationsIter::new(IntersectionIter::new_with_storevec(&self.annotations), self)
+        AnnotationsIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.iter()
+                        .map(|a| a.handle().expect("annotation must have handle")),
+                ),
+                true,
+            ),
+            self,
+        )
     }
 
     /// internal helper method

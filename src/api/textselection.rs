@@ -1,7 +1,8 @@
-use crate::annotation::Annotation;
+use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
+use crate::api::annotation::AnnotationsIter;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
@@ -34,19 +35,19 @@ impl<'store> ResultItem<'store, TextSelection> {
     }
 
     /// Iterates over all annotations that reference this TextSelection, if any.
-    /// Note that you need to explicitly specify the `AnnotationStore` for this method.
-    pub fn annotations(
-        &self,
-        annotationstore: &'store AnnotationStore,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
-        annotationstore
+    pub fn annotations(&self) -> AnnotationsIter<'store> {
+        if let Some(annotations) = self
+            .rootstore()
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
-            .map(|v| {
-                v.into_iter()
-                    .map(|a_handle| annotationstore.annotation(*a_handle).unwrap())
-            })
-            .into_iter()
-            .flatten()
+        {
+            AnnotationsIter::new(
+                IntersectionIter::new(Cow::Borrowed(annotations), true),
+                self.rootstore(),
+            )
+        } else {
+            //dummy iterator that yields nothing
+            AnnotationsIter::new_empty(self.rootstore())
+        }
     }
 
     /// Returns the number of annotations that reference this text selection
@@ -218,11 +219,10 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Iterates over all annotations that are referenced by this TextSelection, if any.
-    pub fn annotations(&self) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>>> {
-        let annotationstore = self.rootstore();
+    pub fn annotations(&self) -> AnnotationsIter<'store> {
         match self {
-            Self::Bound(item) => Some(item.annotations(annotationstore)),
-            Self::Unbound(..) => None,
+            Self::Bound(item) => item.annotations(),
+            Self::Unbound(..) => AnnotationsIter::new_empty(self.rootstore()),
         }
     }
 
@@ -632,6 +632,61 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
             return Some(item.clone());
         }
         None
+    }
+}
+
+impl<'store> TextSelectionsIter<'store> {
+    pub(crate) fn new(
+        data: Vec<ResultTextSelection<'store>>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            data,
+            store,
+            cursor: 0,
+        }
+    }
+
+    /// Iterate over the annotations that make use of text selections in this iterator. No duplicates are returned and results are in chronological order.
+    pub fn annotations(&self) -> AnnotationsIter<'store> {
+        let mut annotations: Vec<AnnotationHandle> = Vec::new();
+        for textselection in self.data.iter() {
+            if let Some(thandle) = textselection.handle() {
+                if let Some(moreannotations) = self.store.annotations_by_textselection(
+                    textselection.resource().handle(),
+                    textselection.inner(),
+                ) {
+                    annotations.extend(moreannotations);
+                }
+            }
+        }
+        annotations.sort_unstable();
+        annotations.dedup();
+        AnnotationsIter::new(
+            IntersectionIter::new(Cow::Owned(annotations), true),
+            self.store,
+        )
+    }
+
+    /// Find all text selections that are related to any text selections in this iterator, the operator
+    /// determines the type of the relation.
+    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter {
+        let mut textselections: Vec<ResultTextSelection<'store>> = Vec::new();
+        for textselection in self.data.iter() {
+            textselections.extend(textselection.related_text(operator))
+        }
+        textselections.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        textselections.dedup();
+        TextSelectionsIter {
+            data: textselections,
+            store: self.store,
+            cursor: 0,
+        }
+    }
+
+    /// Resets the iterator so it can be used again
+    pub fn reset(&mut self) {
+        self.cursor = 0;
     }
 }
 

@@ -9,6 +9,7 @@ use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotationdata::DataIter;
+use crate::api::textselection::TextSelectionsIter;
 use crate::api::FindText;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
@@ -18,7 +19,8 @@ use crate::selector::{Selector, SelectorIter, SelectorKind};
 use crate::store::*;
 use crate::text::Text;
 use crate::textselection::{
-    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet, TextSelectionsIter,
+    ResultTextSelection, ResultTextSelectionSet, TextSelection, TextSelectionOperator,
+    TextSelectionSet,
 };
 use crate::IntersectionIter;
 
@@ -625,14 +627,14 @@ impl<'store> ResultItem<'store, Annotation> {
 }
 
 pub struct AnnotationsIter<'store> {
-    iter: Option<IntersectionIter<'store, Annotation>>,
+    iter: Option<IntersectionIter<'store, AnnotationHandle>>,
     cursor: usize,
     store: &'store AnnotationStore,
 }
 
 impl<'store> AnnotationsIter<'store> {
     pub(crate) fn new(
-        iter: IntersectionIter<'store, Annotation>,
+        iter: IntersectionIter<'store, AnnotationHandle>,
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
@@ -665,7 +667,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
-    /// To filter by multiple data instances, use [`Self.filter_by_data()`] instead.
+    /// To filter by multiple data instances, use [`Self.filter_data()`] instead.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
         let data_annotations = self
             .store
@@ -681,7 +683,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to only returns annotations that have data that occurs in the passed data iterator.
-    /// If you have a single AnnotationData instance, use [`Self.filter_by_annotationdata()`] instead.
+    /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
     pub fn filter_data(mut self, data: DataIter<'store>) -> Self {
         self.filter_annotations(data.annotations())
     }
@@ -697,7 +699,7 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Returns annotations along with matching data, either may occur multiple times!
     /// Consumes the iterator.
-    pub fn with_data(
+    pub fn zip_data(
         self,
     ) -> impl Iterator<
         Item = (
@@ -713,7 +715,7 @@ impl<'store> AnnotationsIter<'store> {
         .flatten()
     }
 
-    pub fn with_find_data<'a>(
+    pub fn zip_find_data<'a>(
         self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
@@ -756,28 +758,68 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
-    pub fn related_text(
-        &self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultTextSelectionSet> {
-        //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
-        let tset: TextSelectionSet = self.textselections().collect();
-        tset.as_resultset(self.store).related_text(operator)
+    /// Find all text selections that are related to any text selections in this iterator, the operator
+    /// determines the type of the relation. Shortcut method for `.textselections().related_text(operator)`.
+    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
+        self.textselections().related_text(operator)
     }
 
-    pub fn textselections(mut self) -> TextSelectionsIter<'store> {
+    /// Maps annotations to textselections. Results will be returned in textual order.
+    pub fn textselections(self) -> TextSelectionsIter<'store> {
         TextSelectionsIter {
             data: self
                 .map(|annotation| annotation.textselections())
                 .flatten()
                 .textual_order(),
             cursor: 0,
+            store: self.store,
         }
     }
 
-    pub fn filter_textselection(mut self, textselection: &ResultTextSelection<'store>) -> Self {}
+    /// Returns annotations along with matching text selections, either may occur multiple times!
+    /// Consumes the iterator. Results are not sorted in textual order.
+    pub fn zip_textselections(
+        self,
+    ) -> impl Iterator<
+        Item = (
+            ResultItem<'store, Annotation>,
+            ResultTextSelectionSet<'store>,
+        ),
+    > + 'store {
+        let store = self.store;
+        self.map(move |annotation| {
+            let tset: TextSelectionSet = annotation.textselections().collect();
+            (annotation, tset.as_resultset(store))
+        })
+    }
 
-    pub fn filter_textselections(mut self, textselections: TextSelectionsIter<'store>) -> Self {}
+    pub fn filter_textselection(mut self, textselection: &ResultTextSelection<'store>) -> Self {
+        self.filter_annotations(textselection.annotations())
+    }
+
+    pub fn filter_textselections(mut self, textselections: TextSelectionsIter<'store>) -> Self {
+        self.filter_annotations(textselections.annotations())
+    }
+
+    pub fn zip_related_text(
+        self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = (ResultItem<'store, Annotation>, TextSelectionsIter<'store>)> + 'store
+    {
+        let store = self.store;
+        self.map(move |annotation| {
+            let tset: TextSelectionSet = annotation.textselections().collect();
+            (
+                annotation,
+                TextSelectionsIter::new(
+                    tset.as_resultset(store)
+                        .related_text(operator.clone())
+                        .collect(),
+                    store,
+                ),
+            )
+        })
+    }
 }
 
 impl<'store> Iterator for AnnotationsIter<'store> {
