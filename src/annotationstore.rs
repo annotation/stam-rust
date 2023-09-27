@@ -240,43 +240,35 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
 
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
-            if self.config.dataset_annotation_map {
-                let target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self, self)
-                    .datasets() //high-level method!!!
-                    .map(|targethandle| (targethandle.handle(), handle))
-                    .collect();
-                self.dataset_annotation_map
-                    .extend(target_datasets.into_iter());
-            }
+            let mut target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = Vec::new();
+            let mut target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = Vec::new();
+            let mut target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = Vec::new();
 
-            if self.config.annotation_annotation_map {
-                let target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = annotation
-                    .as_resultitem(self, self)
-                    .annotations_in_targets(false) //high-level method!!! TODO: use SelectIter directly
-                    .map(|targetitem| (targetitem.handle(), handle))
-                    .collect();
-                self.annotation_annotation_map
-                    .extend(target_annotations.into_iter());
-            }
-
-            let target_resources: Vec<_> = annotation
-                .target()
-                .iter(self, true) //recursion enabled, we want all resources!
-                .filter_map(|selector| {
-                    //combine two steps in one to save an iteration
-                    if self.config.textrelationmap {
-                        for (res_handle, tsel_handle) in self.textselections_by_selector(&selector)
-                        {
-                            extend_textrelationmap.push((res_handle, tsel_handle, handle));
+            for selector in annotation.target().iter(self, false) {
+                if self.config.textrelationmap {
+                    for (res_handle, tsel_handle) in self.textselections_by_selector(&selector) {
+                        extend_textrelationmap.push((res_handle, tsel_handle, handle));
+                    }
+                }
+                if self.config.annotation_annotation_map {
+                    if let Selector::AnnotationSelector(a_handle, _) = selector.as_ref() {
+                        target_annotations.push((*a_handle, handle));
+                    }
+                }
+                match selector.as_ref() {
+                    Selector::ResourceSelector(res_handle) => {
+                        if self.config.resource_annotation_map {
+                            target_resources.push((*res_handle, handle));
                         }
                     }
-                    match selector.as_ref() {
-                        Selector::ResourceSelector(res_handle) => Some((*res_handle, handle)),
-                        _ => None,
+                    Selector::DataSetSelector(set_handle) => {
+                        if self.config.dataset_annotation_map {
+                            target_datasets.push((*set_handle, handle));
+                        }
                     }
-                })
-                .collect();
+                    _ => {}
+                };
+            }
 
             if self.config.resource_annotation_map {
                 self.resource_annotation_map
