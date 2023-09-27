@@ -260,26 +260,21 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                     .extend(target_annotations.into_iter());
             }
 
-            let target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = annotation
-                .as_resultitem(self, self)
-                .resources() //high-level method!!!
-                .map(|targetitem| {
-                    let res_handle = targetitem.handle();
+            let target_resources: Vec<_> = annotation
+                .target()
+                .iter(self, true) //recursion enabled, we want all resources!
+                .filter_map(|selector| {
                     //combine two steps in one to save an iteration
                     if self.config.textrelationmap {
-                        for (resource, textselection) in
-                            self.textselections_by_selector(targetitem.selector())
+                        for (res_handle, tsel_handle) in self.textselections_by_selector(&selector)
                         {
-                            extend_textrelationmap.push((
-                                resource.handle().expect("resource handle must be valid"),
-                                textselection
-                                    .handle()
-                                    .expect("textselection handle must be valid"),
-                                handle,
-                            ));
+                            extend_textrelationmap.push((res_handle, tsel_handle, handle));
                         }
                     }
-                    (res_handle, handle)
+                    match selector.as_ref() {
+                        Selector::ResourceSelector(res_handle) => Some((*res_handle, handle)),
+                        _ => None,
+                    }
                 })
                 .collect();
 
@@ -1183,18 +1178,15 @@ impl AnnotationStore {
         Ok(results)
     }
 
-    /// Retrieve  [`TextSelection`] given a specific selector.
+    /// Low-level method to retrieve  [`TextSelection`] handles given a specific selector.
     pub(crate) fn textselections_by_selector<'store>(
         &'store self,
         selector: &Selector,
-    ) -> SmallVec<[(&'store TextResource, &'store TextSelection); 2]> {
+    ) -> SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]> {
         match selector {
             Selector::TextSelector(res_handle, tsel_handle, _)
             | Selector::AnnotationSelector(_, Some((res_handle, tsel_handle, _))) => {
-                let resource: &TextResource = self.get(*res_handle).expect("handle must be valid");
-                let textselection: &TextSelection =
-                    resource.get(*tsel_handle).expect("handle must be valid");
-                smallvec!((resource, textselection))
+                smallvec!((*res_handle, *tsel_handle))
             }
             Selector::RangedTextSelector {
                 resource,
@@ -1202,12 +1194,8 @@ impl AnnotationStore {
                 end,
             } => {
                 let mut results = SmallVec::with_capacity(end.as_usize() - begin.as_usize());
-                let resource: &TextResource = self.get(*resource).expect("handle must be valid");
                 for i in begin.as_usize()..=end.as_usize() {
-                    let textselection: &TextSelection = resource
-                        .get(TextSelectionHandle::new(i))
-                        .expect("handle must be valid");
-                    results.push((resource, textselection));
+                    results.push((*resource, TextSelectionHandle(i as u32)));
                 }
                 results
             }
@@ -1225,11 +1213,7 @@ impl AnnotationStore {
                         annotation.target().resource_handle(),
                         annotation.target().textselection_handle(),
                     ) {
-                        let resource: &TextResource =
-                            self.get(res_handle).expect("handle must be valid");
-                        let textselection: &TextSelection =
-                            resource.get(tsel_handle).expect("handle must be valid");
-                        results.push((resource, textselection));
+                        results.push((res_handle, tsel_handle));
                     }
                 }
                 results
