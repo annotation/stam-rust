@@ -5,15 +5,17 @@ use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::AnnotationsIter;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
+use crate::text::Text;
 use crate::textselection::{
-    ResultTextSelection, ResultTextSelectionSet, TextSelection, TextSelectionHandle,
-    TextSelectionOperator, TextSelectionSet,
+    FindTextSelectionsIter, ResultTextSelection, ResultTextSelectionSet, TextSelection,
+    TextSelectionHandle, TextSelectionOperator, TextSelectionSet,
 };
 use crate::IntersectionIter;
+use crate::{error::*, FindText};
+use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
@@ -71,21 +73,6 @@ impl<'store> ResultItem<'store, TextSelection> {
     ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let tset: TextSelectionSet = self.clone().into();
         self.resource().related_text(operator, tset)
-    }
-
-    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`ResultItem<TextSelection>`]).
-    /// If you are interested in the text selections only, use [`Self.find_textselections()`] instead.
-    pub fn annotations_by_related_text(
-        &self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
-        let tset: TextSelectionSet = self.clone().into();
-        self.resource()
-            .related_text(operator, tset)
-            .filter_map(|tsel| tsel.annotations())
-            .flatten()
     }
 }
 
@@ -238,10 +225,7 @@ impl<'store> ResultTextSelection<'store> {
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
     /// If you are interested in the annotations associated with the found text selections, then use [`Self.annotations_by_related_text()`] instead.
-    pub fn related_text(
-        &self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
+    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let mut tset: TextSelectionSet =
             TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
         tset.add(match self {
@@ -249,224 +233,6 @@ impl<'store> ResultTextSelection<'store> {
             Self::Unbound(_, _, textselection) => textselection.clone(),
         });
         self.resource().related_text(operator, tset)
-    }
-
-    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the current one. Returns a set of annotations.
-    /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
-    /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
-    /// The annotations are returned in textual order.
-    pub fn annotations_by_related_text(
-        &self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        let mut tset: TextSelectionSet =
-            TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
-        tset.add(match self {
-            Self::Bound(item) => item.as_ref().clone().into(),
-            Self::Unbound(_, _, textselection) => textselection.clone(),
-        });
-        self.resource()
-            .related_text(operator, tset)
-            .filter_map(|tsel| tsel.annotations())
-            .flatten()
-    }
-
-    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the current one *and* that match specific data. Returns a set of annotations.
-    /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
-    /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
-    /// The annotations are returned in textual order.
-    pub fn annotations_by_related_text_and_data<'a>(
-        &self,
-        operator: TextSelectionOperator,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store>
-    where
-        'a: 'store,
-    {
-        if let Some((test_set_handle, test_key_handle)) =
-            self.rootstore().find_data_request_resolver(set, key)
-        {
-            Some(
-                self.related_text(operator)
-                    .map(move |tsel| {
-                        tsel.find_data_about(test_set_handle, test_key_handle, value)
-                            .into_iter()
-                            .flatten()
-                            .map(|(_data, annotation)| annotation)
-                    })
-                    .flatten(),
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Search for data *about* this text, i.e. data on annotations that refer to this text.
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn find_data_about<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<
-        impl Iterator<
-                Item = (
-                    ResultItem<'store, AnnotationData>,
-                    ResultItem<'store, Annotation>,
-                ),
-            > + 'store,
-    >
-    where
-        'a: 'store,
-    {
-        if let Some((test_set_handle, test_key_handle)) =
-            self.rootstore().find_data_request_resolver(set, key)
-        {
-            Some(
-                self.annotations()
-                    .into_iter()
-                    .flatten()
-                    .map(move |annotation| {
-                        annotation
-                            .find_data(test_set_handle, test_key_handle, value)
-                            .into_iter()
-                            .flatten()
-                            .map(move |data| (data, annotation.clone()))
-                    })
-                    .flatten(),
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Shortcut method to get all data *about* this text, i.e. data on annotations that refer to this text
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn data_about(
-        &self,
-    ) -> Option<
-        impl Iterator<
-                Item = (
-                    ResultItem<'store, AnnotationData>,
-                    ResultItem<'store, Annotation>,
-                ),
-            > + 'store,
-    > {
-        self.find_data_about(false, false, &DataOperator::Any)
-    }
-
-    /// Test data *about* this text, i.e. data on annotations that refer to this text
-    pub fn test_data_about<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> bool
-    where
-        'a: 'store,
-    {
-        match self.find_data_about(set, key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
-    }
-
-    /// Search for annotations *about* this textselection, satisfying certain exact data that is already known.
-    /// For a higher-level variant, see `find_data_about`, this method is more efficient.
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn annotations_by_data_about(
-        &self,
-        data: ResultItem<'store, AnnotationData>,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        self.annotations()
-            .into_iter()
-            .flatten()
-            .filter(move |annotation| annotation.has_data(&data))
-    }
-
-    /// Tests if the textselection has certain data in annotatations that reference this textselection, returns a boolean.
-    /// If you don't have a data instance yet, use `test_data_about()` instead.
-    /// This method is much more efficient than `test_data_about()`.
-    pub fn has_data_about(&self, data: ResultItem<'store, AnnotationData>) -> bool {
-        self.annotations_by_data_about(data).next().is_some()
-    }
-
-    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
-    /// It returns both the matching text and for each also the matching annotation data and matching annotation
-    /// If you do not wish to return the data, but merely test for it, then use [`Self.related_text_test_data()`] instead.
-    /// It effectively combines `related_text()` with `find_data_about()` on its results, into a single method.
-    /// See these methods for further parameter explanation.
-    pub fn related_text_with_data<'a>(
-        &self,
-        operator: TextSelectionOperator,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<
-        impl Iterator<
-            Item = (
-                ResultTextSelection<'store>,
-                Vec<(
-                    ResultItem<'store, AnnotationData>,
-                    ResultItem<'store, Annotation>,
-                )>,
-            ),
-        >,
-    >
-    where
-        'a: 'store,
-    {
-        if let Some((test_set_handle, test_key_handle)) =
-            self.rootstore().find_data_request_resolver(set, key)
-        {
-            Some(self.related_text(operator).filter_map(move |tsel| {
-                if let Some(iter) = tsel.find_data_about(test_set_handle, test_key_handle, value) {
-                    let data: Vec<_> = iter.collect();
-                    if data.is_empty() {
-                        None
-                    } else {
-                        Some((tsel.clone(), data))
-                    }
-                } else {
-                    None
-                }
-            }))
-        } else {
-            None
-        }
-    }
-
-    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
-    /// This returns the matching text, not the data. Use [`Self.related_text_with_data()`] if you want the data as well.
-    /// It effectively combines `related_text()` with `test_data_about()` on its results, into a single method.
-    /// See these methods for further parameter explanation.
-    pub fn related_text_test_data<'a>(
-        &self,
-        operator: TextSelectionOperator,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultTextSelection<'store>>>
-    where
-        'a: 'store,
-    {
-        if let Some((test_set_handle, test_key_handle)) =
-            self.rootstore().find_data_request_resolver(set, key)
-        {
-            Some(self.related_text(operator).filter_map(move |tsel| {
-                if tsel.test_data_about(test_set_handle, test_key_handle, value) {
-                    Some(tsel)
-                } else {
-                    None
-                }
-            }))
-        } else {
-            None
-        }
     }
 }
 
@@ -485,24 +251,14 @@ impl<'store> ResultTextSelectionSet<'store> {
     /// are in a specific relation with the current text selection set. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultItem<TextSelection>`]).
     /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
-    pub fn related_text(
-        self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
-        let rootstore = self.rootstore();
+    pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let resource = self.resource();
-        resource
-            .as_ref()
-            .textselections_by_operator(operator, self.tset)
-            .map(move |ts_handle| {
-                let textselection: &'store TextSelection = resource
-                    .as_ref()
-                    .get(ts_handle)
-                    .expect("textselection handle must be valid");
-                textselection
-                    .as_resultitem(resource.as_ref(), rootstore)
-                    .into()
-            })
+        TextSelectionsIter::new_with_iterator(
+            resource
+                .as_ref()
+                .textselections_by_operator(operator, self.tset),
+            self.rootstore(),
+        )
     }
 }
 
@@ -617,8 +373,17 @@ where
     }
 }
 
+/// Source for TextSelectionsIter
+pub(crate) enum TextSelectionsSource<'store> {
+    HighVec(Vec<ResultTextSelection<'store>>),
+    LowVec(SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]>), //used with AnnotationStore.textselections_by_selector
+    FindIter(FindTextSelectionsIter<'store>), //used with textselections_by_operator()
+}
+
+/// Iterator over TextSelections (yields [`ResultTextSelection`] instances)
+/// offering high-level API methods.
 pub struct TextSelectionsIter<'store> {
-    data: Vec<ResultTextSelection<'store>>,
+    source: TextSelectionsSource<'store>,
     cursor: usize,
     store: &'store AnnotationStore,
 }
@@ -627,9 +392,41 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
     type Item = ResultTextSelection<'store>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(item) = self.data.get(self.cursor) {
-            self.cursor += 1;
-            return Some(item.clone());
+        match &mut self.source {
+            TextSelectionsSource::HighVec(data) => {
+                if let Some(item) = data.get(self.cursor) {
+                    self.cursor += 1;
+                    return Some(item.clone());
+                }
+            }
+            TextSelectionsSource::LowVec(data) => {
+                if let Some((res_handle, tsel_handle)) = data.get(self.cursor) {
+                    let resource = self
+                        .store
+                        .resource(*res_handle)
+                        .expect("resource must exist");
+                    let tsel: &TextSelection = resource
+                        .as_ref()
+                        .get(*tsel_handle)
+                        .expect("text selection must exist");
+                    self.cursor += 1;
+                    return Some(ResultTextSelection::Bound(
+                        tsel.as_resultitem(resource.as_ref(), self.store),
+                    ));
+                }
+            }
+            TextSelectionsSource::FindIter(iter) => {
+                if let Some(tsel_handle) = iter.next() {
+                    let resource = iter.resource();
+                    let tsel: &TextSelection = resource
+                        .get(tsel_handle)
+                        .expect("text selection must exist");
+                    self.cursor += 1; //not really used in this context
+                    return Some(ResultTextSelection::Bound(
+                        tsel.as_resultitem(resource, self.store),
+                    ));
+                }
+            }
         }
         None
     }
@@ -641,16 +438,38 @@ impl<'store> TextSelectionsIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            data,
+            source: TextSelectionsSource::HighVec(data),
+            store,
+            cursor: 0,
+        }
+    }
+
+    pub(crate) fn new_lowlevel(
+        data: SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            source: TextSelectionsSource::LowVec(data),
+            store,
+            cursor: 0,
+        }
+    }
+
+    pub(crate) fn new_with_iterator(
+        iter: FindTextSelectionsIter<'store>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            source: TextSelectionsSource::FindIter(iter),
             store,
             cursor: 0,
         }
     }
 
     /// Iterate over the annotations that make use of text selections in this iterator. No duplicates are returned and results are in chronological order.
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
+    pub fn annotations(self) -> AnnotationsIter<'store> {
         let mut annotations: Vec<AnnotationHandle> = Vec::new();
-        for textselection in self.data.iter() {
+        for textselection in self {
             if let Some(thandle) = textselection.handle() {
                 if let Some(moreannotations) = self.store.annotations_by_textselection(
                     textselection.resource().handle(),
@@ -670,126 +489,26 @@ impl<'store> TextSelectionsIter<'store> {
 
     /// Find all text selections that are related to any text selections in this iterator, the operator
     /// determines the type of the relation.
-    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter {
+    pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let mut textselections: Vec<ResultTextSelection<'store>> = Vec::new();
-        for textselection in self.data.iter() {
+        for textselection in self {
             textselections.extend(textselection.related_text(operator))
         }
         textselections.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         textselections.dedup();
-        TextSelectionsIter {
-            data: textselections,
-            store: self.store,
-            cursor: 0,
-        }
+        TextSelectionsIter::new(textselections, self.store)
     }
 
-    /// Resets the iterator so it can be used again
-    pub fn reset(&mut self) {
-        self.cursor = 0;
-    }
-}
-
-//// delete the below:
-
-/*
-pub struct TextSelectionsIter<'store> {
-    iter: Option<IntersectionIter<'store, (TextResourceHandle, TextSelectionHandle)>>,
-    cursor: usize,
-    store: &'store AnnotationStore,
-
-    //for optimisations:
-    last_resource_handle: Option<TextResourceHandle>,
-    last_resource: Option<ResultItem<'store, TextResource>>,
-}
-
-impl<'store> TextSelectionsIter<'store> {
-    pub(crate) fn new(
-        iter: IntersectionIter<'store, (TextResourceHandle, TextSelectionHandle)>,
-        store: &'store AnnotationStore,
-    ) -> Self {
-        Self {
-            cursor: 0,
-            iter: Some(iter),
-            store,
-            last_resource_handle: None,
-            last_resource: None,
-        }
-    }
-
-    pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
-        Self {
-            cursor: 0,
-            iter: None,
-            store,
-            last_resource_handle: None,
-            last_resource: None,
-        }
-    }
-
-    /// Constrain the iterator to return only the text selections that are used by the specified annotation
-    pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
-        let textselections = self
-            .store
-            .textselections_by_selector(annotation.as_ref().target())
-            .into_iter()
-            .map(|(resource, textselection)| {
-                (
-                    resource.handle().expect("must have handle"),
-                    textselection.handle().expect("must have handle"),
-                )
-            })
-            .collect();
-
-        if let Some(iter) = self.iter.as_mut() {
-            *iter = iter.with(Cow::Owned(textselections), true);
-        }
-        self
-    }
-
-    pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
-        todo!("implement");
-    }
-
-    pub fn filter_textselections(mut self, textselections: TextSelectionsIter<'store>) -> Self {
-        self.iter.merge(textselections.iter);
-        self
-    }
-
-    /// Iterate over the annotations that make use of data in this iterator
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
-        todo!("implement");
-    }
-}
-
-impl<'store> Iterator for TextSelectionsIter<'store> {
-    type Item = ResultTextSelection<'store>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(iter) = self.iter.as_mut() {
-            if let Some((res_handle, tsel_handle)) = iter.next() {
-                //optimisation so we don't have to grab the same resource over and over:
-                let resource = if Some(res_handle) == self.last_resource_handle {
-                    self.last_resource.unwrap()
-                } else {
-                    self.last_resource_handle = Some(res_handle);
-                    self.last_resource = Some(
-                        self.store
-                            .resource(res_handle)
-                            .expect("resource must exist"),
-                    );
-                    self.last_resource.unwrap()
-                };
-                let tsel: &TextSelection = resource
-                    .as_ref()
-                    .get(tsel_handle)
-                    .expect("text selection must exist");
-                return Some(ResultTextSelection::Bound(
-                    tsel.as_resultitem(resource.as_ref(), self.store),
-                ));
+    /// Returns all underlying text concatenated into a single String
+    pub fn text_join(mut self, delimiter: &str) -> String {
+        let mut s = String::new();
+        for textselection in self {
+            let text = textselection.text();
+            if !s.is_empty() {
+                s += delimiter;
             }
+            s += text;
         }
-        None
+        s
     }
 }
-*/

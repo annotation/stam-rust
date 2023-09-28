@@ -272,7 +272,7 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
 
             if self.config.resource_annotation_map {
                 self.resource_annotation_map
-                    .extend(target_resources.iter().map(|(x, y)| (*x, *y)).into_iter());
+                    .extend(target_resources.into_iter());
             }
 
             if self.config.textrelationmap {

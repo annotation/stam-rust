@@ -99,15 +99,12 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
-    /// They are returned in textual order, or in case if a DirectionSelector is involved, in the exact order as they were selected.
-    pub fn textselections(&self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'store {
-        let store = self.store();
-        store
-            .textselections_by_selector(self.as_ref().target())
-            .into_iter()
-            .map(|(resource, textselection)| {
-                ResultTextSelection::Bound(textselection.as_resultitem(resource, store))
-            })
+    /// They are returned in textual order, except in case if a DirectionSelector is involved, then they are in the exact order as they were selected.
+    pub fn textselections(&self) -> TextSelectionsIter<'store> {
+        let textselections = self
+            .store()
+            .textselections_by_selector(self.as_ref().target());
+        TextSelectionsIter::new_lowlevel(textselections, self.store())
     }
 
     /// Iterates over all text slices this annotation refers to
@@ -130,15 +127,9 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Returns all underlying text for this annotation concatenated
+    /// Shortcut for `.textselections().text_join()`
     pub fn text_join(&self, delimiter: &str) -> String {
-        let mut s = String::new();
-        for slice in self.text() {
-            if !s.is_empty() {
-                s += delimiter;
-            }
-            s += slice;
-        }
-        s
+        self.textselections().text_join(delimiter)
     }
 
     /// Returns the (single!) resource the annotation points to. Only works for TextSelector,
@@ -682,12 +673,14 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
-    /// Constrain the iterator to only returns annotations that have data that occurs in the passed data iterator.
+    /// Constrain the iterator to only return annotations that have data that occurs in the passed data iterator.
     /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
     pub fn filter_data(mut self, data: DataIter<'store>) -> Self {
         self.filter_annotations(data.annotations())
     }
 
+    /// Constrain the iterator to only return annotations that have data matching the search parameters.
+    /// This is a just shortcut method for `.filter_data( store.find_data(..) )`
     pub fn filter_find_data<'a>(
         mut self,
         set: impl Request<AnnotationDataSet>,
@@ -698,7 +691,6 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Returns annotations along with matching data, either may occur multiple times!
-    /// Consumes the iterator.
     pub fn zip_data(
         self,
     ) -> impl Iterator<
@@ -715,6 +707,7 @@ impl<'store> AnnotationsIter<'store> {
         .flatten()
     }
 
+    /// Returns annotations along with matching data (matching the search parameters), either may occur multiple times!
     pub fn zip_find_data<'a>(
         self,
         set: impl Request<AnnotationDataSet>,
@@ -754,7 +747,9 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain this iterator by another (intersection)
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
-        self.iter.merge(annotations.iter);
+        if self.iter.is_some() && annotations.iter.is_some() {
+            self.iter = Some(self.iter.unwrap().merge(annotations.iter.unwrap()));
+        }
         self
     }
 
@@ -766,18 +761,17 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Maps annotations to textselections. Results will be returned in textual order.
     pub fn textselections(self) -> TextSelectionsIter<'store> {
-        TextSelectionsIter {
-            data: self
-                .map(|annotation| annotation.textselections())
+        TextSelectionsIter::new(
+            self.map(|annotation| annotation.textselections())
                 .flatten()
                 .textual_order(),
-            cursor: 0,
-            store: self.store,
-        }
+            self.store,
+        )
     }
 
     /// Returns annotations along with matching text selections, either may occur multiple times!
-    /// Consumes the iterator. Results are not sorted in textual order.
+    /// If an annotation references multiple text selections, they are returned as a set.
+    /// Note that results are in chronological annotation order, not textual order.
     pub fn zip_textselections(
         self,
     ) -> impl Iterator<
@@ -793,14 +787,20 @@ impl<'store> AnnotationsIter<'store> {
         })
     }
 
+    /// Constrain the iterator to only return annotations that reference the specified text selection
+    /// This is a just shortcut method for `.filter_annotations( textselection.annotations(..) )`
     pub fn filter_textselection(mut self, textselection: &ResultTextSelection<'store>) -> Self {
         self.filter_annotations(textselection.annotations())
     }
 
+    /// Constrain the iterator to only return annotations that reference any of the specified text selections
+    /// This is a just shortcut method for `.filter_annotations( textselections.annotations(..) )`
     pub fn filter_textselections(mut self, textselections: TextSelectionsIter<'store>) -> Self {
         self.filter_annotations(textselections.annotations())
     }
 
+    /// Returns annotations along with an iterator to over related text (the operator determines the type of the relation).
+    /// Note that results are in chronological annotation order, not textual order.
     pub fn zip_related_text(
         self,
         operator: TextSelectionOperator,
@@ -819,6 +819,28 @@ impl<'store> AnnotationsIter<'store> {
                 ),
             )
         })
+    }
+
+    /// Produces the union between two annotation iterators
+    /// Any constraints on either iterator remain valid!
+    pub fn extend(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
+        if self.iter.is_some() && other.iter.is_some() {
+            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+        } else if self.iter.is_none() {
+            return other;
+        }
+        self
+    }
+
+    /// Produces the intersection between two annotation iterators
+    /// Any constraints on either iterator remain valid!
+    pub fn merge(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
+        if self.iter.is_some() && other.iter.is_some() {
+            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+        } else if self.iter.is_none() {
+            return other;
+        }
+        self
     }
 }
 

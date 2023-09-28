@@ -57,6 +57,7 @@ mod tests;
 
 use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
+use std::ops::Deref;
 
 // Lazy iterator computing an intersection
 pub(crate) struct IntersectionIter<'a, T>
@@ -153,8 +154,9 @@ where
                 } else if (source.sorted == refsource.sorted) && (refsource.len() > source.len()) {
                     //shorter before longer (allows us to discard quicker)
                     break;
-                } else if !source.sorted && refsource.sorted {
+                } else if pos > 0 && !source.sorted && refsource.sorted {
                     //unsorted before sorted (it is more efficient to have sorted in the right hand side as we can do binary search there)
+                    //however, we do not do this if the first item is already sorted, because that determines the sorting of the entire result
                     break;
                 }
                 pos += 1;
@@ -165,6 +167,70 @@ where
             } else {
                 self.sources.insert(pos, source);
                 self.cursors.insert(pos, 0);
+            }
+        }
+        self
+    }
+
+    /// Merges another IntersectionIter into the current one. This effectively
+    /// iterates over the intersection of both.
+    pub(crate) fn merge(mut self, other: IntersectionIter<'a, T>) -> Self {
+        for source in other.sources {
+            if source.array.is_some() {
+                self = self.with(source.array.unwrap(), source.sorted);
+            } else if let Some(iter) = source.iter {
+                let data = iter.collect(); //consume the iterator, we can only have an iterator in the first position
+                self = self.with(Cow::Owned(data), source.sorted);
+            }
+        }
+        self
+    }
+
+    /// Extends this iterator with another one. This is a *union* and not an *intersection*.
+    /// However, all additional constraints on either iterator are preserved (and those are intersections).
+    pub(crate) fn extend(mut self, other: IntersectionIter<'a, T>) -> Self {
+        //edge-cases first:
+        if self.sources.is_empty() {
+            return other;
+        } else if other.sources.is_empty() {
+            //no-op
+            return self;
+        }
+
+        if self.sources[0].iter.is_some() && other.sources[0].iter.is_some() {
+            // We have two iterators, we can solve the whole problem lazily by just chaining them! \o/
+            let iter = self.sources[0].iter.unwrap().as_mut();
+            let iter2 = other.sources[0].iter.unwrap().as_mut();
+            self.sources[0].iter = Some(Box::new(iter.chain(iter2)));
+            self.sources[0].sorted = false; //we can no longer guarantee any sorting
+        } else {
+            if let Some(array) = self.sources[0].array.as_mut() {
+                let mut borrowed = false;
+                if let Cow::Borrowed(_) = array {
+                    borrowed = true;
+                }
+                if borrowed {
+                    //we have take ownership (= make a clone) because we'll be extending this array later
+                    *array = Cow::Owned(array.into_owned());
+                }
+            } else if let Some(iter) = self.sources[0].iter {
+                //similar as above: we have to consume our iterator first and turn it into an owned collection, otherwise we can't extend it
+                self.sources[0].array = Some(Cow::Owned(iter.collect()));
+            }
+            if let Some(Cow::Owned(array)) = self.sources[0].array.as_mut() {
+                if let Some(iter2) = other.sources[0].iter {
+                    array.extend(iter2);
+                } else if let Some(array2) = other.sources[0].array {
+                    array.extend(array2.iter().map(|x| *x));
+                }
+            }
+            self.sources[0].sorted = false; //we can no longer guarantee any sorting
+        }
+
+        //copy any further constraints on the other iterator
+        for source in &other.sources[1..] {
+            if let Some(array) = source.array {
+                self = self.with(array, source.sorted);
             }
         }
         self
