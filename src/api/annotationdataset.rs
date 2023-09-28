@@ -77,36 +77,33 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// If you already have a `ResultItem<DataKey>` , use `ResultItem<DataKey>.find_data()` instead, it'll be much more efficient.
     ///
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    pub fn find_data<'a>(
+    pub fn find_data<'q>(
         &self,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> DataIter<'store>
+        value: DataOperator<'q>,
+    ) -> DataIter<'store, 'q>
     where
-        'a: 'store,
+        'q: 'store,
     {
-        let mut key_handle: Option<DataKeyHandle> = None; //this means 'any' in this context
         if !key.any() {
-            key_handle = key.to_handle(self.as_ref());
-            if key_handle.is_none() {
+            if let Some(key) = self.key(key) {
+                if value == DataOperator::Any {
+                    return key.data();
+                } else {
+                    return key.data().filter_value(value);
+                }
+            } else {
                 //requested key doesn't exist, bail out early, we won't find anything at all
                 return DataIter::new_empty(self.rootstore());
             }
         };
-        let store = self.as_ref();
-        let iter = store.data().filter_map(move |annotationdata| {
-            if (key_handle.is_none() || key_handle.unwrap() == annotationdata.key())
-                && annotationdata.value().test(&value)
-            {
-                Some((self.handle(), annotationdata.intid.unwrap()))
-            } else {
-                None
-            }
-        });
-        DataIter::new(
-            IntersectionIter::new_with_iterator(Box::new(iter), true),
-            self.rootstore(),
-        )
+
+        //any key
+        if value == DataOperator::Any {
+            self.data()
+        } else {
+            self.data().filter_value(value)
+        }
     }
 
     /// Tests if the dataset has certain data, returns a boolean.

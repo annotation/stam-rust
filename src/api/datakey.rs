@@ -1,12 +1,16 @@
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
+use crate::api::annotation::AnnotationsIter;
+use crate::api::annotationdata::DataIter;
 use crate::datakey::DataKey;
 use crate::resources::TextResource;
 use crate::selector::SelectorKind;
-use crate::{store::*, DataOperator};
+use crate::store::*;
+use crate::IntersectionIter;
 
 impl<'store> ResultItem<'store, DataKey> {
     /// Method to return a reference to the dataset that holds this key
@@ -21,86 +25,34 @@ impl<'store> ResultItem<'store, DataKey> {
     }
 
     /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key.
-    pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store {
+    /// Use methods on this iterator like `DataIter.filter_value()` to further constrain the results.
+    pub fn data(&self) -> DataIter<'store, '_> {
         let rootstore = self.rootstore();
         let store = self.store();
-        store
-            .data_by_key(self.handle())
-            .into_iter()
-            .flatten()
-            .filter_map(|data_handle| {
-                store
-                    .annotationdata(*data_handle)
-                    .map(|d| d.as_resultitem(store, rootstore))
-            })
-    }
-
-    /// Searches for data for this data key
-    pub fn find_data<'a>(
-        &self,
-        value: &'a DataOperator<'a>,
-    ) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store
-    where
-        'a: 'store,
-    {
-        self.data().filter_map(|data| {
-            if data.test(false, value) {
-                Some(data)
-            } else {
-                None
-            }
-        })
-    }
-
-    /// Tests for the presence of data for this data key
-    pub fn test_data<'a>(&self, value: &'a DataOperator<'a>) -> bool {
-        self.data().any(|data| data.test(false, value))
-    }
-
-    /// Searches for annotations by data.
-    /// Returns an iterator returning both the annotation and the matching data item
-    ///
-    /// This may return the same annotation multiple times if different annotationdata (e.g. multiple values) reference it!
-    ///
-    /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.annotations()` instead, it'll be much more efficient.
-    ///
-    /// See `find_data()` for further parameter explanation.
-    pub fn annotations_by_data<'a>(
-        &self,
-        value: &'a DataOperator<'a>,
-    ) -> impl Iterator<
-        Item = (
-            ResultItem<'store, Annotation>,
-            ResultItem<'store, AnnotationData>,
-        ),
-    >
-    where
-        'a: 'store,
-    {
-        let set_handle = self.store().handle().expect("set must have handle");
-        let key_handle = self.handle();
-        self.annotations()
-            .map(move |annotation| {
-                annotation
-                    .find_data(set_handle, key_handle, value)
-                    .into_iter()
-                    .flatten()
-                    .map(move |data| (annotation.clone(), data))
-            })
-            .flatten()
+        if let Some(vec) = store.data_by_key(self.handle()) {
+            let iter = vec
+                .iter()
+                .map(|datahandle| (store.handle().unwrap(), *datahandle));
+            DataIter::new(
+                IntersectionIter::new_with_iterator(Box::new(iter), true),
+                self.rootstore(),
+            )
+        } else {
+            DataIter::new_empty(self.rootstore())
+        }
     }
 
     /// Returns an iterator over all annotations ([`Annotation`]) that make use of this key.
-    /// Especially useful in combination with a call to  [`AnnotationDataSet.key()`] first.
-    ///
-    /// (This function internally allocates a temporary buffer to ensure no duplicates are returned)
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+    pub fn annotations(&self) -> AnnotationsIter<'store> {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();
-        annotationstore
-            .annotations_by_key(set_handle, self.handle())
-            .into_iter()
-            .filter_map(|a_handle| annotationstore.annotation(a_handle))
+        let annotations: Vec<_> = annotationstore
+            .annotations_by_key(set_handle, self.handle()) //MAYBE TODO: extra reverse index so we can borrow directly?
+            .into();
+        AnnotationsIter::new(
+            IntersectionIter::new(Cow::Owned(annotations), true),
+            self.rootstore(),
+        )
     }
 
     /// Returns the number of annotations that make use of this key.

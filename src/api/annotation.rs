@@ -110,20 +110,13 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Iterates over all text slices this annotation refers to
     /// They are returned in textual order, or in case if a DirectionSelector is involved, in the exact order as they were selected.
     pub fn text(&self) -> impl Iterator<Item = &'store str> {
-        self.textselections()
-            .map(|textselection| textselection.text())
+        self.textselections().text()
     }
 
     /// If this annotation refers to a single simple text slice,
     /// this returns it. If not contains no text or multiple text references, it returns None.
     pub fn text_simple(&self) -> Option<&'store str> {
-        let mut iter = self.text();
-        let text = iter.next();
-        if let None = iter.next() {
-            return text;
-        } else {
-            None
-        }
+        self.textselections().text_simple()
     }
 
     /// Returns all underlying text for this annotation concatenated
@@ -134,6 +127,7 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Returns the (single!) resource the annotation points to. Only works for TextSelector,
     /// ResourceSelector and AnnotationSelector, and not for complex selectors.
+    /// AnnotationSelectors are followed recursively if needed.
     pub fn resource(&self) -> Option<ResultItem<'store, TextResource>> {
         match self.as_ref().target() {
             Selector::TextSelector(res_id, _, _)
@@ -153,467 +147,31 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 
-    /// Finds [`AnnotationData'] pertaining directly to this annotation, using data search criteria.
-    /// This returns an iterator over all matches.
-    ///
-    /// If you are not interested in returning the results but merely testing the presence of particular data,
-    /// then use `test_data` instead..
-    ///
-    /// You can pass a boolean (true/false, doesn't matter) or empty string literal for set or key to represent any set/key.
-    /// To search for any value, `value` can must be explicitly set to `DataOperator::Any` to return all values.
-    ///
-    /// Value is a DataOperator that can apply a data test to the value. Use `DataOperator::Equals` to search
-    /// for an exact value. As a shortcut, you can pass `"value".into()`  to the automatically convert into an equality
-    /// DataOperator.
-    ///
-    /// Example call to retrieve all data indiscriminately: `annotation.data(false,false, DataOperator::Any)`
-    ///
-    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
-    ///       search for keys if you don't know their set.
-    pub fn find_data<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
-    where
-        'a: 'store,
-    {
-        let store = self.store();
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
-        {
-            Some(
-                self.as_ref()
-                    .data()
-                    .filter_map(move |(dataset_handle, data_handle)| {
-                        if test_set_handle.is_none() || test_set_handle.unwrap() == *dataset_handle
-                        {
-                            Some(
-                                store
-                                    .get(*dataset_handle)
-                                    .map(|set| {
-                                        set.annotationdata(*data_handle)
-                                            .map(|data| data.as_resultitem(set, store))
-                                            .expect("data must exist")
-                                    })
-                                    .expect("set must exist"),
-                            )
-                        } else {
-                            None
-                        }
-                    })
-                    .filter_map(move |annotationdata| {
-                        if (test_key_handle.is_none()
-                            || test_key_handle.unwrap() == annotationdata.key().handle())
-                            && annotationdata.as_ref().value().test(&value)
-                        {
-                            Some(annotationdata)
-                        } else {
-                            None
-                        }
-                    }),
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Shortcut method to get all data
-    pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> + 'store {
-        self.find_data(false, false, &DataOperator::Any)
-            .expect("must return an iterator")
+    /// Get an iterator over all data for this annotation
+    pub fn data(&self) -> DataIter<'store, '_> {
+        DataIter::new(
+            IntersectionIter::new(Cow::Borrowed(self.as_ref().raw_data()), false),
+            self.store(),
+        )
     }
 
     /// Tests if the annotation has certain data, returns a boolean.
-    /// If you already have an AnnotationData instance, use `has_data()` instead, it is much more efficient.
-    /// If you want to actually retrieve the data, use `find_data()` instead.
-    ///
-    /// Provide `set` and `key` , if set to a boolean (false or true), all sets and keys will be searched.
-    /// Value is a DataOperator. It can be set to `DataOperator::Any` to return all values.
-    ///
-    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
-    ///       search for keys if you don't know their set.
-    pub fn test_data<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> bool {
-        match self.find_data(set, key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
-    }
-
-    /// Tests if the annotation has certain data, returns a boolean.
-    /// If you don't have a data instance yet, use `test_data()` instead.
-    /// If you do, this method is much more efficient than `test_data()`.
+    /// This will be a bit quicker than using `.data().filter_annotationdata()`.
     pub fn has_data(&self, data: &ResultItem<AnnotationData>) -> bool {
         self.as_ref().has_data(data.set().handle(), data.handle())
-    }
-
-    /// Search for data *about* this annotation, i.e. data on other annotation that refer to this one.
-    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`].
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn find_data_about<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<
-        impl Iterator<
-                Item = (
-                    ResultItem<'store, AnnotationData>,
-                    ResultItem<'store, Annotation>,
-                ),
-            > + 'store,
-    >
-    where
-        'a: 'store,
-    {
-        let store = self.store();
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
-        {
-            Some(
-                self.annotations()
-                    .map(move |annotation| {
-                        annotation
-                            .find_data(test_set_handle, test_key_handle, value)
-                            .into_iter()
-                            .flatten()
-                            .map(move |data| (data, annotation.clone()))
-                    })
-                    .flatten(),
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Search for annotations *about* this annotation, satisfying certain exact data that is already known.
-    /// For a higher-level variant, see `find_data_about`, but that method is less efficient than this one.
-    pub fn annotations_by_data_about(
-        &self,
-        data: ResultItem<'store, AnnotationData>,
-    ) -> AnnotationsIter<'store> {
-        let annotations = self
-            .store()
-            .annotations_by_annotation_reverse(self.handle());
-        let data_annotations = self
-            .store()
-            .annotations_by_data_indexlookup(data.set().handle(), data.handle());
-        if let (Some(annotations), Some(data_annotations)) = (annotations, data_annotations) {
-            AnnotationsIter {
-                store: self.store(),
-                iter: Some(
-                    IntersectionIter::new(Cow::Borrowed(data_annotations), true)
-                        .with(Cow::Borrowed(annotations), true),
-                ),
-                cursor: 0,
-            }
-        } else {
-            //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
-            AnnotationsIter {
-                store: self.store(),
-                iter: None,
-                cursor: 0,
-            }
-        }
-    }
-
-    /// Search for annotations *about* this annotation, satisfying multiple exact data that are already known.
-    /// For a higher-level variant, see `find_data_about`, but that method is less efficient than this one.
-    /*
-    pub fn annotations_by_data_about_from_iter(
-        &self,
-        data: impl Iterator<Item = ResultItem<'store, AnnotationData>>,
-    ) -> AnnotationsIter<'store> {
-        let annotations = self
-            .store()
-            .annotations_by_annotation_reverse(self.handle());
-        let mut data_annotations: Vec<_> = Vec::new();
-        for data in data {
-            data_annotations.extend(
-                self.store()
-                    .annotations_by_data_indexlookup(data.set().handle(), data.handle())
-                    .map(|v| v.iter().copied())
-                    .into_iter()
-                    .flatten(),
-            );
-        }
-        data_annotations.sort_unstable();
-        data_annotations.dedup();
-
-        AnnotationsIter {
-            store: self.store(),
-            iter: if let Some(annotations) = annotations {
-                Some(IntersectionIter::new(
-                    Cow::Owned(data_annotations),
-                    true,
-                    Cow::Borrowed(annotations),
-                    true,
-                ))
-            } else {
-                None
-            },
-            cursor: 0,
-        }
-    }
-    */
-
-    /// Tests if the annotation has certain data in other annotatations that reference this one, returns a boolean.
-    /// If you don't have a data instance yet, use `test_data_about()` instead.
-    /// This method is much more efficient than `test_data_about()`.
-    pub fn has_data_about(&self, data: ResultItem<'store, AnnotationData>) -> bool {
-        self.annotations_by_data_about(data).next().is_some()
-    }
-
-    /// Search for data in annotations targeted by this one (i.e. via an AnnotationSelector).
-    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`],
-    /// or with annotations that target the instance in question, which can be searched with [`Self.find_data_about()`].
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn find_data_in_targets<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-        recursive: bool,
-    ) -> Option<
-        impl Iterator<
-                Item = (
-                    ResultItem<'store, AnnotationData>,
-                    ResultItem<'store, Annotation>,
-                ),
-            > + 'store,
-    >
-    where
-        'a: 'store,
-    {
-        let store = self.store();
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
-        {
-            Some(
-                self.annotations_in_targets(recursive)
-                    .map(move |annotation| {
-                        annotation
-                            .find_data(test_set_handle, test_key_handle, value)
-                            .into_iter()
-                            .flatten()
-                            .map(move |data| (data, annotation.clone()))
-                    })
-                    .flatten(),
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Tests for data in annotations targeted by this one (i.e. via an AnnotationSelector).
-    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`],
-    /// or with annotations that target the instance in question, which can be searched with [`Self.find_data_about()`].
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn test_data_in_targets<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-        recursive: bool,
-    ) -> bool {
-        let store = self.store();
-        if let Some((test_set_handle, test_key_handle)) = store.find_data_request_resolver(set, key)
-        {
-            self.annotations_in_targets(recursive)
-                .any(move |annotation| {
-                    annotation.test_data(test_set_handle, test_key_handle, value)
-                })
-        } else {
-            false
-        }
-    }
-
-    /// Tests for data in annotations targeted by this one (i.e. via an AnnotationSelector).
-    /// Do not confuse this with the data this annotation holds, which can be searched with [`Self.find_data()`],
-    /// or with annotations that target the instance in question, which can be searched with [`Self.find_data_about()`].
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn has_data_in_targets<'a>(
-        &self,
-        data: &ResultItem<'store, AnnotationData>,
-        recursive: bool,
-    ) -> bool {
-        self.annotations_in_targets(recursive)
-            .any(move |annotation| {
-                annotation
-                    .as_ref()
-                    .has_data(data.set().handle(), data.handle())
-            })
-    }
-
-    /// Shortcut method to get all data *about* this annotation, i.e. data on other annotation that refer to this one.
-    /// Do not confuse this with the data this annotation holds, which can be obtained via [`Self.data()`].
-    /// Both the matching data as well as the matching annotation will be returned in an iterator.
-    pub fn data_about(
-        &self,
-    ) -> Option<
-        impl Iterator<
-                Item = (
-                    ResultItem<'store, AnnotationData>,
-                    ResultItem<'store, Annotation>,
-                ),
-            > + 'store,
-    > {
-        self.find_data_about(false, false, &DataOperator::Any)
-    }
-
-    /// Test data *about* this annotation, i.e. data on other annotation that refer to this one.
-    /// Do not confuse this with the data this annotation holds, which can be tested via [`Self.test_data()`].
-    pub fn test_data_about<'a>(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> bool
-    where
-        'a: 'store,
-    {
-        match self.find_data_about(set, key, value) {
-            Some(mut iter) => iter.next().is_some(),
-            None => false,
-        }
     }
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the text relations pertaining to the annotations. Returns an iterator over the [`TextSelection`] instances, in textual order.
     /// (as [`ResultTextSelection`]).
-    /// If you are interested in the annotations associated with the found text selections, then use [`Self.annotations_by_related_text()`] instead.
-    pub fn related_text(
-        &self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
+    ///
+    /// This method is slight different from `.textselections().related_text()`. This method
+    /// will consider multiple textselections pertaining to this annotation as a single set, the
+    /// other method treats each textselection separately.
+    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
         let tset: TextSelectionSet = self.textselections().collect();
         tset.as_resultset(self.store()).related_text(operator)
-    }
-
-    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the text selections of the current one. Returns an iterator over the [`Annotation`] instances, in textual order.
-    /// (as [`ResultTextSelection`]).
-    /// If you are interested in the text selections only, use [`Self.related_text`] instead.
-    ///
-    /// Note: this may return the current annotation again if it is referenced by related text!
-    pub fn annotations_by_related_text(
-        &self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
-        self.related_text(operator)
-            .filter_map(|tsel| tsel.annotations())
-            .flatten()
-    }
-
-    /// Applies a [`TextSelectionOperator`] to find *annotations* referencing other text selections that
-    /// are in a specific relation with the current one *and* that match specific data. Returns a set of annotations.
-    /// If you also want to filter based on the data, use [`Self.annotations_by_related_text_matching_data()`]
-    /// If you are interested in the text selections only, use [`Self.related_text()`] instead.
-    /// The annotations are returned in textual order.
-    pub fn annotations_by_related_text_and_data<'a>(
-        &self,
-        operator: TextSelectionOperator,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultItem<'store, Annotation>> + 'store>
-    where
-        'a: 'store,
-    {
-        if let Some((test_set_handle, test_key_handle)) =
-            self.rootstore().find_data_request_resolver(set, key)
-        {
-            Some(
-                self.related_text(operator)
-                    .map(move |tsel| {
-                        tsel.find_data_about(test_set_handle, test_key_handle, value)
-                            .into_iter()
-                            .flatten()
-                            .map(|(_data, annotation)| annotation)
-                    })
-                    .flatten(),
-            )
-        } else {
-            None
-        }
-    }
-
-    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
-    /// It returns both the matching text and for each also the matching annotation data and matching annotation
-    /// If you do not wish to return the data, but merely test for it, then use [`Self.related_text_test_data()`] instead.
-    /// It effectively combines `related_text()` with `find_data_about()` on its results, into a single method.
-    /// See these methods for further parameter explanation.
-    pub fn related_text_with_data<'a>(
-        &self,
-        operator: TextSelectionOperator,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<
-        impl Iterator<
-            Item = (
-                ResultTextSelection<'store>,
-                Vec<(
-                    ResultItem<'store, AnnotationData>,
-                    ResultItem<'store, Annotation>,
-                )>,
-            ),
-        >,
-    >
-    where
-        'a: 'store,
-    {
-        if let Some((test_set_handle, test_key_handle)) =
-            self.store().find_data_request_resolver(set, key)
-        {
-            Some(self.related_text(operator).filter_map(move |tsel| {
-                if let Some(iter) = tsel.find_data_about(test_set_handle, test_key_handle, value) {
-                    let data: Vec<_> = iter.collect();
-                    if data.is_empty() {
-                        None
-                    } else {
-                        Some((tsel.clone(), data))
-                    }
-                } else {
-                    None
-                }
-            }))
-        } else {
-            None
-        }
-    }
-
-    /// This selects text in a specific relation to the text of the current annotation, where that has text has certain data describing it.
-    /// This returns the matching text, not the data.
-    /// It effectively combines `related_text()` with `test_data_about()` on its results, into a single method.
-    /// See these methods for further parameter explanation.
-    pub fn related_text_test_data<'a>(
-        &self,
-        operator: TextSelectionOperator,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<impl Iterator<Item = ResultTextSelection<'store>>>
-    where
-        'a: 'store,
-    {
-        if let Some((test_set_handle, test_key_handle)) =
-            self.store().find_data_request_resolver(set, key)
-        {
-            Some(self.related_text(operator).filter_map(move |tsel| {
-                if tsel.test_data_about(test_set_handle, test_key_handle, value) {
-                    Some(tsel)
-                } else {
-                    None
-                }
-            }))
-        } else {
-            None
-        }
     }
 }
 
@@ -647,7 +205,7 @@ impl<'store> AnnotationsIter<'store> {
     /// all the annotations. This returns data without annotations (sorted chronologically and
     /// without duplicates), use [`Self.with_data()`] instead if you want to know which annotations
     /// have which data.
-    pub fn data(mut self) -> DataIter<'store> {
+    pub fn data(mut self) -> DataIter<'store, 'store> {
         let mut data: Vec<_> = self
             .map(|annotation| annotation.as_ref().data().copied())
             .flatten()
@@ -675,12 +233,12 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain the iterator to only return annotations that have data that occurs in the passed data iterator.
     /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
-    pub fn filter_data(mut self, data: DataIter<'store>) -> Self {
+    pub fn filter_data(mut self, data: DataIter<'store, '_>) -> Self {
         self.filter_annotations(data.annotations())
     }
 
     /// Constrain the iterator to only return annotations that have data matching the search parameters.
-    /// This is a just shortcut method for `.filter_data( store.find_data(..) )`
+    /// This is a just shortcut method for `self.filter_data( store.find_data(..) )`
     pub fn filter_find_data<'a>(
         mut self,
         set: impl Request<AnnotationDataSet>,
@@ -691,6 +249,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Returns annotations along with matching data, either may occur multiple times!
+    /// Consumes the iterator.
     pub fn zip_data(
         self,
     ) -> impl Iterator<
@@ -747,6 +306,10 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain this iterator by another (intersection)
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
+        if annotations.iter.is_none() {
+            //invalidate the iterator, there will be no results
+            self.iter.abort = true;
+        }
         if self.iter.is_some() && annotations.iter.is_some() {
             self.iter = Some(self.iter.unwrap().merge(annotations.iter.unwrap()));
         }
@@ -759,7 +322,7 @@ impl<'store> AnnotationsIter<'store> {
         self.textselections().related_text(operator)
     }
 
-    /// Maps annotations to textselections. Results will be returned in textual order.
+    /// Maps annotations to textselections, consuming the itetor. Results will be returned in textual order.
     pub fn textselections(self) -> TextSelectionsIter<'store> {
         TextSelectionsIter::new(
             self.map(|annotation| annotation.textselections())
@@ -841,6 +404,48 @@ impl<'store> AnnotationsIter<'store> {
             return other;
         }
         self
+    }
+
+    /// Extract a low-level vector of handles from this iterator.
+    /// This is different than running `collect()`, which produces high-level objects.
+    ///
+    /// An extracted vector can be easily turned back into a DataIter again with [`Self.from_vec()`]
+    pub fn to_vec(&self) -> Vec<AnnotationHandle> {
+        let mut results: Vec<AnnotationHandle> = Vec::new();
+        loop {
+            if let Some(iter) = self.iter.as_mut() {
+                if let Some(handle) = iter.next() {
+                    results.push(handle);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        results
+    }
+
+    /// Turns a low-level vector into an AnnotationsIter. Borrows the underlying vec, use [`Self::from_vec_owned()`] if you need an owned variant.
+    /// A low-level vector can be produced from any AnnotationsIter with [`Self.to_vec()`]
+    /// The `sorted` parameter expressed whether the underlying vector is sorted (you need to set it, it does not do anything itself)
+    pub fn from_vec(
+        vec: &Vec<AnnotationHandle>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self::new(IntersectionIter::new(Cow::Borrowed(vec), sorted), store)
+    }
+
+    /// Turns a low-level vector into an AnnotationsIter. Owns the underlying vec, use [`Self::from_vec()`] if you want a borrowed variant.
+    /// A low-level vector can be produced from any AnnotationsIter with [`Self.to_vec()`]
+    /// The `sorted` parameter expressed whether the underlying vector is sorted (you need to set it, it does not do anything itself)
+    pub fn from_vec_owned(
+        vec: Vec<AnnotationHandle>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self::new(IntersectionIter::new(Cow::Owned(vec), sorted), store)
     }
 }
 

@@ -115,17 +115,20 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 }
 
-pub struct DataIter<'store> {
+#[derive(Clone)]
+pub struct DataIter<'store, 'q> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
     cursor: usize,
     store: &'store AnnotationStore,
+
+    operator: Option<DataOperator<'q>>,
 
     //for optimisations:
     last_set_handle: Option<AnnotationDataSetHandle>,
     last_set: Option<ResultItem<'store, AnnotationDataSet>>,
 }
 
-impl<'store> DataIter<'store> {
+impl<'store, 'q> DataIter<'store, 'q> {
     pub(crate) fn new(
         iter: IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>,
         store: &'store AnnotationStore,
@@ -136,6 +139,7 @@ impl<'store> DataIter<'store> {
             store,
             last_set_handle: None,
             last_set: None,
+            operator: None,
         }
     }
 
@@ -146,6 +150,7 @@ impl<'store> DataIter<'store> {
             store,
             last_set_handle: None,
             last_set: None,
+            operator: None,
         }
     }
 
@@ -158,18 +163,37 @@ impl<'store> DataIter<'store> {
         self
     }
 
+    /// Constrain the iterator to return only the data used by the specified annotations
+    /// Shortcut for `self.filter_data(annotations.data())`.
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
         self.filter_data(annotations.data())
     }
 
-    pub fn filter_data(mut self, data: DataIter<'store>) -> Self {
-        self.iter.merge(data.iter);
+    /// Constrain the iterator to return only the data that uses the specified key
+    /// Shortcut for `self.filter_data(key.data())`.
+    pub fn filter_key(mut self, key: &ResultItem<'store, DataKey>) -> Self {
+        self.filter_data(key.data());
+        self
+    }
+
+    pub fn filter_data(mut self, data: DataIter<'store, 'q>) -> Self {
+        self.merge(data);
+        self
+    }
+
+    /// Select data by testing the value (mediated by a [`DataOperator']).
+    /// Consumes the iterator and returns an iterator over AnnotationData instances
+    ///
+    /// Note: You can only use this method once (it will overwrite earlier value filters, use DataOperator::Or and DataOperator::And to test against multiple values)
+    pub fn filter_value(mut self, operator: DataOperator<'q>) -> Self {
+        self.operator = Some(operator);
         self
     }
 
     /// Iterate over the annotations that make use of data in this iterator.
     /// Annotations will be returnted chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
+    /// If you want to keep track of what data has what annotations, then use [`self.zip_annotations()`] instead.
+    pub fn annotations(self) -> AnnotationsIter<'store> {
         let mut annotations: Vec<_> = self
             .filter_map(|data| {
                 if let Some(annotations) = data
@@ -190,26 +214,127 @@ impl<'store> DataIter<'store> {
             self.store,
         )
     }
+
+    /// Returns data along with annotations, either may occur multiple times!
+    /// Consumes the iterator.
+    pub fn zip_annotations(
+        self,
+    ) -> impl Iterator<
+        Item = (
+            ResultItem<'store, AnnotationData>,
+            ResultItem<'store, Annotation>,
+        ),
+    > + 'store {
+        self.map(|data| {
+            data.annotations()
+                .map(move |annotation| (data.clone(), annotation))
+        })
+        .flatten()
+    }
+
+    /// Produces the union between two data iterators
+    /// Any constraints on either iterator remain valid!
+    pub fn extend(mut self, other: DataIter<'store, 'q>) -> DataIter<'store, 'q> {
+        if self.iter.is_some() && other.iter.is_some() {
+            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+        } else if self.iter.is_none() {
+            return other;
+        }
+        self
+    }
+
+    /// Produces the intersection between two data iterators
+    /// Any constraints on either iterator remain valid!
+    pub fn merge(mut self, other: DataIter<'store, 'q>) -> DataIter<'store, 'q> {
+        if self.iter.is_some() && other.iter.is_some() {
+            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+        } else if self.iter.is_none() {
+            return other;
+        }
+        self
+    }
+
+    /// Extract a low-level vector of handles from this iterator.
+    /// This is different than running `collect()`, which produces high-level objects.
+    ///
+    /// An extracted vector can be easily turned back into a DataIter again with [`Self.from_vec()`]
+    pub fn to_vec(&self) -> Vec<(AnnotationDataSetHandle, AnnotationDataHandle)> {
+        if self.operator.is_none() {
+            //we can be a bit more performant if we have no operator:
+            let mut results: Vec<(AnnotationDataSetHandle, AnnotationDataHandle)> = Vec::new();
+            loop {
+                if let Some(iter) = self.iter.as_mut() {
+                    if let Some((set_handle, data_handle)) = iter.next() {
+                        results.push((set_handle, data_handle));
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            results
+        } else {
+            // go to higher-level (needed to deal with the operator) and back to handles
+            self.map(|annotationdata| (annotationdata.set().handle(), annotationdata.handle()))
+                .collect()
+        }
+    }
+
+    /// Turns a low-level vector into a DataIter. Borrows the underlying vec, use [`Self::from_vec_owned()`] if you need an owned variant.
+    /// A low-level vector can be produced from any DataIter with [`Self.to_vec()`]
+    /// The `sorted` parameter expressed whether the underlying vector is sorted (you need to set it, it does not do anything itself)
+    pub fn from_vec(
+        vec: &Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self::new(IntersectionIter::new(Cow::Borrowed(vec), sorted), store)
+    }
+
+    /// Turns a low-level vector into a DataIter. Owns the underlying vec, use [`Self::from_vec()`] if you want a borrowed variant.
+    /// A low-level vector can be produced from any DataIter with [`Self.to_vec()`]
+    /// The `sorted` parameter expressed whether the underlying vector is sorted (you need to set it, it does not do anything itself)
+    pub fn from_vec_owned(
+        vec: Vec<(AnnotationDataSetHandle, AnnotationDataHandle)>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self::new(IntersectionIter::new(Cow::Owned(vec), sorted), store)
+    }
 }
 
-impl<'store> Iterator for DataIter<'store> {
+impl<'store, 'q> Iterator for DataIter<'store, 'q> {
     type Item = ResultItem<'store, AnnotationData>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(iter) = self.iter.as_mut() {
-            if let Some((set_handle, data_handle)) = iter.next() {
-                //optimisation so we don't have to grab the same set over and over:
-                let dataset = if Some(set_handle) == self.last_set_handle {
-                    self.last_set.unwrap()
+        loop {
+            if let Some(iter) = self.iter.as_mut() {
+                if let Some((set_handle, data_handle)) = iter.next() {
+                    //optimisation so we don't have to grab the same set over and over:
+                    let dataset = if Some(set_handle) == self.last_set_handle {
+                        self.last_set.unwrap()
+                    } else {
+                        self.last_set_handle = Some(set_handle);
+                        self.last_set =
+                            Some(self.store.dataset(set_handle).expect("set must exist"));
+                        self.last_set.unwrap()
+                    };
+                    let data = dataset
+                        .annotationdata(data_handle)
+                        .expect("data must exist");
+                    if let Some(operator) = self.operator {
+                        if !data.test(false, &operator) {
+                            //data does not pass the value test
+                            continue;
+                        }
+                    }
+                    return Some(data);
                 } else {
-                    self.last_set_handle = Some(set_handle);
-                    self.last_set = Some(self.store.dataset(set_handle).expect("set must exist"));
-                    self.last_set.unwrap()
-                };
-                let data = dataset
-                    .annotationdata(data_handle)
-                    .expect("data must exist");
-                return Some(data);
+                    break;
+                }
+            } else {
+                break;
             }
         }
         None

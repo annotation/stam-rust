@@ -499,6 +499,11 @@ impl<'store> TextSelectionsIter<'store> {
         TextSelectionsIter::new(textselections, self.store)
     }
 
+    /// Iterates over all text slices in this iterator
+    pub fn text(self) -> impl Iterator<Item = &'store str> {
+        self.map(|textselection| textselection.text())
+    }
+
     /// Returns all underlying text concatenated into a single String
     pub fn text_join(mut self, delimiter: &str) -> String {
         let mut s = String::new();
@@ -510,5 +515,17 @@ impl<'store> TextSelectionsIter<'store> {
             s += text;
         }
         s
+    }
+
+    /// If this acollections refers to a single simple text slice,
+    /// this returns it. If it contains no text or multiple text references, it returns None.
+    pub fn text_simple(self) -> Option<&'store str> {
+        let mut iter = self.text();
+        let text = iter.next();
+        if let None = iter.next() {
+            return text;
+        } else {
+            None
+        }
     }
 }

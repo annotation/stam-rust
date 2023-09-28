@@ -124,22 +124,26 @@ impl AnnotationStore {
     ///
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
     ///       search for keys if you don't know their set!
-    pub fn find_data<'store, 'a>(
+    pub fn find_data<'store, 'q>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> DataIter<'store>
+        value: DataOperator<'q>,
+    ) -> DataIter<'store, 'q>
     where
-        'a: 'store,
+        'q: 'store,
     {
-        if let Some((set_handle, key_handle)) = self.find_data_request_resolver(set, key) {
-            if let Some(set_handle) = set_handle {
+        if !set.any() {
+            if let Some(dataset) = self.dataset(set) {
                 //delegate to the dataset
-                let dataset = self.dataset(set_handle).expect("dataset must exist");
                 return dataset.find_data(key, value);
+            } else {
+                return DataIter::new_empty(self);
             }
+        }
 
+        //all datasets
+        if let Some((set_handle, key_handle)) = self.find_data_request_resolver(set, key) {
             //iterate over all datasets
             let iter: Box<
                 dyn Iterator<Item = (AnnotationDataSetHandle, AnnotationDataHandle)> + 'store,
@@ -167,9 +171,9 @@ impl AnnotationStore {
         }
     }
 
-    /// Returns an iterator over all data in all sets
-    pub fn data<'store>(&'store self) -> DataIter<'store> {
-        self.find_data(false, false, &DataOperator::Any)
+    /// Returns an iterator over all data in all sets. Using a more constrained method (on a set or a key) is preferred!
+    pub fn data<'store>(&'store self) -> DataIter<'store, '_> {
+        self.find_data(false, false, DataOperator::Any)
     }
 
     /// Tests if certain annotation data exists, returns a boolean.
