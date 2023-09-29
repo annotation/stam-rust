@@ -241,7 +241,7 @@ pub fn bench_scale(c: &mut Criterion) {
             black_box(
                 annotation
                     .annotations()
-                    .filter_find_data("testdataset", "type", DataOperator::Equals("bigram"))
+                    .find_data("testdataset", "type", DataOperator::Equals("bigram"))
                     .count(),
             );
         })
@@ -255,7 +255,7 @@ pub fn bench_scale(c: &mut Criterion) {
             black_box(
                 annotation
                     .annotations()
-                    .filter_find_data(
+                    .find_data(
                         dataset.handle(),
                         key_type.handle(),
                         DataOperator::Equals("bigram"),
