@@ -158,9 +158,7 @@ pub fn bench_storefor(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 store
-                    .find_data("testdataset", "pos", &DataOperator::Equals("noun"))
-                    .into_iter()
-                    .flatten()
+                    .find_data("testdataset", "pos", DataOperator::Equals("noun"))
                     .count(),
             );
         })
@@ -215,9 +213,7 @@ pub fn bench_scale(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 store
-                    .find_data("testdataset", "n", &DataOperator::EqualsInt(50000))
-                    .into_iter()
-                    .flatten()
+                    .find_data("testdataset", "n", DataOperator::EqualsInt(50000))
                     .count(),
             );
         })
@@ -232,10 +228,8 @@ pub fn bench_scale(c: &mut Criterion) {
                     .find_data(
                         dataset.handle(),
                         key_n.handle(),
-                        &DataOperator::EqualsInt(50000),
+                        DataOperator::EqualsInt(50000),
                     )
-                    .into_iter()
-                    .flatten()
                     .count(),
             );
         })
@@ -246,9 +240,8 @@ pub fn bench_scale(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 annotation
-                    .find_data_about("testdataset", "type", &DataOperator::Equals("bigram"))
-                    .into_iter()
-                    .flatten()
+                    .annotations()
+                    .filter_find_data("testdataset", "type", DataOperator::Equals("bigram"))
                     .count(),
             );
         })
@@ -261,13 +254,12 @@ pub fn bench_scale(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 annotation
-                    .find_data_about(
+                    .annotations()
+                    .filter_find_data(
                         dataset.handle(),
                         key_type.handle(),
-                        &DataOperator::Equals("bigram"),
+                        DataOperator::Equals("bigram"),
                     )
-                    .into_iter()
-                    .flatten()
                     .count(),
             );
         })
@@ -278,11 +270,17 @@ pub fn bench_scale(c: &mut Criterion) {
         let dataset = store.dataset("testdataset").unwrap();
         let key_type = dataset.key("type").unwrap();
         let data = key_type
-            .find_data(&DataOperator::Equals("bigram"))
+            .data()
+            .filter_value(DataOperator::Equals("bigram"))
             .next()
             .unwrap();
         b.iter(|| {
-            black_box(annotation.annotations_by_data_about(data.clone()).count());
+            black_box(
+                annotation
+                    .annotations()
+                    .filter_annotationdata(&data)
+                    .count(),
+            );
         })
     });
 
