@@ -11,6 +11,7 @@ use crate::store::*;
 use crate::IntersectionIter;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::fmt::Debug;
 
 impl<'store> ResultItem<'store, AnnotationData> {
     /// Method to return a reference to the dataset that holds this data
@@ -107,6 +108,15 @@ pub struct Data<'store> {
     array: Cow<'store, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
     store: &'store AnnotationStore,
     sorted: bool,
+}
+
+impl<'store> Debug for Data<'store> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Data")
+            .field("array", &self.array)
+            .field("sorted", &self.sorted)
+            .finish()
+    }
 }
 
 impl<'a> Data<'a> {

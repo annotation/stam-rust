@@ -2,6 +2,7 @@ use rayon::prelude::*;
 use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::annotation::{Annotation, AnnotationHandle, TargetIter};
@@ -230,6 +231,15 @@ pub struct Annotations<'store> {
     array: Cow<'store, [AnnotationHandle]>,
     store: &'store AnnotationStore,
     sorted: bool,
+}
+
+impl<'store> Debug for Annotations<'store> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Annotations")
+            .field("array", &self.array)
+            .field("sorted", &self.sorted)
+            .finish()
+    }
 }
 
 impl<'a> Annotations<'a> {
