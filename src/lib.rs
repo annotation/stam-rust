@@ -175,7 +175,10 @@ where
             //find insertion point
             let mut pos = 0;
             for refsource in self.sources.iter() {
-                if refsource.array.is_none() {
+                if source.len() == Some(1) {
+                    //singletons before everything else
+                    break;
+                } else if refsource.array.is_none() {
                     //pass: arrays go at the end
                 } else if (source.sorted == refsource.sorted) && (refsource.len() > source.len()) {
                     //shorter before longer (allows us to discard quicker)
@@ -284,12 +287,15 @@ where
             return Some(item);
         } else {
             let mut found = true; //falsify
-            for (i, right) in self.sources.iter().enumerate() {
+            for (i, right) in self.sources.iter_mut().enumerate() {
                 if i == 0 {
                     //the first item is the left iter
                     continue;
                 };
-                if let Some(data) = &right.array {
+                if let Some(data) = &right.singleton {
+                    found = item == *data;
+                    break;
+                } else if let Some(data) = &right.array {
                     if right.sorted {
                         //binary search
                         match data[self.cursors[i]..].binary_search(&item) {
@@ -321,8 +327,19 @@ where
                             break;
                         }
                     }
+                } else if let Some(iter) = right.iter.as_mut() {
+                    //iterators normally don't occur on the right hand side (because they can't be reused), EXCEPT when the left hand side is a singleton or array with length 1
+                    for x in iter {
+                        if x == item {
+                            break;
+                        }
+                        if right.sorted && x > item {
+                            found = false;
+                            break;
+                        }
+                    }
                 } else {
-                    unreachable!("IntersectionIter: only the first source may be an interator");
+                    unreachable!("IntersectionIter: unknown type");
                 }
             }
             if found {
