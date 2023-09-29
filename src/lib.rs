@@ -409,7 +409,7 @@ mod test {
     #[test]
     fn test_intersectioniter_2() {
         let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
-        iter = iter.with(Cow::Owned(vec![1, 3, 5]), true);
+        iter = iter.with(Cow::Owned(vec![1, 3, 5, 7]), true);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![1, 3, 5]);
     }
@@ -417,7 +417,7 @@ mod test {
     #[test]
     fn test_intersectioniter_3() {
         let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
-        iter = iter.with(Cow::Owned(vec![1, 3, 5]), true);
+        iter = iter.with(Cow::Owned(vec![1, 3, 5, 7]), true);
         iter = iter.with(Cow::Owned(vec![5]), true);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![5]);
@@ -426,8 +426,9 @@ mod test {
     #[test]
     fn test_intersectioniter_borrow() {
         let v = vec![1, 2, 3, 4, 5];
+        let v2 = vec![1, 3, 5];
         let mut iter = IntersectionIter::new(Cow::Borrowed(&v), true);
-        iter = iter.with(Cow::Owned(vec![1, 3, 5]), true);
+        iter = iter.with(Cow::Borrowed(&v2), true);
         iter = iter.with(Cow::Owned(vec![5]), true);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![5]);
@@ -437,7 +438,7 @@ mod test {
     fn test_intersectioniter_iter() {
         let v = vec![1, 2, 3, 4, 5];
         let mut iter = IntersectionIter::new_with_iterator(Box::new(v.iter().copied()), true);
-        iter = iter.with(Cow::Owned(vec![1, 3, 5]), true);
+        iter = iter.with(Cow::Owned(vec![1, 3, 5, 7]), true);
         iter = iter.with(Cow::Owned(vec![5]), true);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![5]);
@@ -446,10 +447,30 @@ mod test {
     #[test]
     fn test_intersectioniter_emptyresult() {
         let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
-        iter = iter.with(Cow::Owned(vec![1, 3, 5]), true);
+        iter = iter.with(Cow::Owned(vec![1, 3, 5, 7]), true);
         iter = iter.with(Cow::Owned(vec![2, 4]), true);
         let v: Vec<_> = iter.collect();
         let v2: Vec<u32> = Vec::new();
         assert_eq!(v, v2);
+    }
+
+    #[test]
+    fn test_intersectioniter_merge() {
+        let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
+        iter = iter.with(Cow::Owned(vec![1, 3, 5]), true);
+        let iter2 = IntersectionIter::new(Cow::Owned(vec![5, 6]), true);
+        iter = iter.merge(iter2);
+        iter = iter.with(Cow::Owned(vec![5]), true);
+        let v: Vec<_> = iter.collect();
+        assert_eq!(v, vec![5]);
+    }
+
+    #[test]
+    fn test_intersectioniter_extend() {
+        let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
+        let iter2 = IntersectionIter::new(Cow::Owned(vec![6, 7]), true);
+        iter = iter.extend(iter2);
+        let v: Vec<_> = iter.collect();
+        assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7]);
     }
 }
