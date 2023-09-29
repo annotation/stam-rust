@@ -1625,32 +1625,25 @@ impl AnnotationStore {
         &self,
         dataset_handle: AnnotationDataSetHandle,
         datakey_handle: DataKeyHandle,
-    ) -> BTreeSet<AnnotationHandle> {
+    ) -> Vec<AnnotationHandle> {
         let dataset: Option<&AnnotationDataSet> = self.get(dataset_handle).ok();
         if let Some(dataset) = dataset {
             if let Some(data) = dataset.data_by_key(datakey_handle) {
-                data.iter()
+                let mut vec: Vec<_> = data
+                    .iter()
                     .filter_map(move |dataitem| {
                         self.annotations_by_data_indexlookup(dataset_handle, *dataitem)
                     })
                     .flat_map(|v| v.iter().copied()) //(only the handles are copied)
-                    .collect()
+                    .collect();
+                vec.sort_unstable();
+                vec.dedup();
+                vec
             } else {
-                BTreeSet::new()
+                Vec::new()
             }
         } else {
-            BTreeSet::new()
-        }
-    }
-
-    pub(crate) fn annotations_by_data_search(
-        &self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> BTreeSet<AnnotationHandle> {
-        if let Some((test_set_handle, test_key_handle)) = self.find_data_request_resolver(set, key)
-        {
+            Vec::new()
         }
     }
 }

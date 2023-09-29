@@ -26,7 +26,7 @@ impl<'store> ResultItem<'store, DataKey> {
 
     /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key.
     /// Use methods on this iterator like `DataIter.filter_value()` to further constrain the results.
-    pub fn data(&self) -> DataIter<'store, '_> {
+    pub fn data<'q>(&self) -> DataIter<'store, 'q> {
         let rootstore = self.rootstore();
         let store = self.store();
         if let Some(vec) = store.data_by_key(self.handle()) {
@@ -46,9 +46,7 @@ impl<'store> ResultItem<'store, DataKey> {
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();
-        let annotations: Vec<_> = annotationstore
-            .annotations_by_key(set_handle, self.handle()) //MAYBE TODO: extra reverse index so we can borrow directly?
-            .into();
+        let annotations: Vec<_> = annotationstore.annotations_by_key(set_handle, self.handle()); //MAYBE TODO: extra reverse index so we can borrow directly?
         AnnotationsIter::new(
             IntersectionIter::new(Cow::Owned(annotations), true),
             self.rootstore(),
@@ -88,15 +86,7 @@ impl<'store> ResultItem<'store, DataKey> {
     /// Returns resources that make use of this key as metadata (via annotation with a ResourceSelector)
     pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
-            .map(|annotation| {
-                annotation.resources().filter_map(|resource| {
-                    if resource.selector().kind() == SelectorKind::ResourceSelector {
-                        Some(resource.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
+            .map(|annotation| annotation.resources_as_metadata())
             .flatten()
             .collect()
     }
@@ -104,16 +94,7 @@ impl<'store> ResultItem<'store, DataKey> {
     /// Returns a set of all text resources that make use of this key via annotations via a ResourceSelector (i.e. as metadata)
     pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
-            .map(|annotation| {
-                annotation
-                    .resources()
-                    .filter_map(|resource| match resource.selector().kind() {
-                        SelectorKind::TextSelector | SelectorKind::ResourceSelector => {
-                            Some(resource.clone())
-                        }
-                        _ => None,
-                    })
-            })
+            .map(|annotation| annotation.resources_on_text())
             .flatten()
             .collect()
     }

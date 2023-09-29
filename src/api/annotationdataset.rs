@@ -11,7 +11,7 @@ use std::borrow::Cow;
 
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set
-    pub fn data(&self) -> DataIter<'store> {
+    pub fn data(&self) -> DataIter<'store, '_> {
         DataIter::new(
             IntersectionIter::new_with_iterator(
                 Box::new(
@@ -87,7 +87,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     {
         if !key.any() {
             if let Some(key) = self.key(key) {
-                if value == DataOperator::Any {
+                if let DataOperator::Any = value {
                     return key.data();
                 } else {
                     return key.data().filter_value(value);
@@ -99,7 +99,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         };
 
         //any key
-        if value == DataOperator::Any {
+        if let DataOperator::Any = value {
             self.data()
         } else {
             self.data().filter_value(value)
@@ -112,7 +112,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
     /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
-    pub fn test_data<'a>(&self, key: impl Request<DataKey>, value: &'a DataOperator<'a>) -> bool {
+    pub fn test_data<'a>(&self, key: impl Request<DataKey>, value: DataOperator<'a>) -> bool {
         self.find_data(key, value).next().is_some()
     }
 

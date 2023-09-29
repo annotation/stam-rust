@@ -6,7 +6,7 @@ use crate::api::annotation::AnnotationsIter;
 use crate::datakey::DataKey;
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::TextResource;
-use crate::selector::SelectorKind;
+use crate::selector::Selector;
 use crate::store::*;
 use crate::IntersectionIter;
 use std::borrow::Cow;
@@ -76,15 +76,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
     /// Returns an set of all text resources that make use of this data via annotations via a ResourceSelector (i.e. as metadata)
     pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
-            .map(|annotation| {
-                annotation.resources().filter_map(|resource| {
-                    if resource.selector().kind() == SelectorKind::ResourceSelector {
-                        Some(resource.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
+            .map(|annotation| annotation.resources_as_metadata())
             .flatten()
             .collect()
     }
@@ -92,16 +84,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
     /// Returns an iterator over all text resources that make use of this data via annotations via a TextSelector (i.e. on text)
     pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
-            .map(|annotation| {
-                annotation
-                    .resources()
-                    .filter_map(|resource| match resource.selector().kind() {
-                        SelectorKind::TextSelector | SelectorKind::ResourceSelector => {
-                            Some(resource.clone())
-                        }
-                        _ => None,
-                    })
-            })
+            .map(|annotation| annotation.resources_on_text())
             .flatten()
             .collect()
     }
@@ -224,7 +207,10 @@ impl<'store, 'q> DataIter<'store, 'q> {
             ResultItem<'store, AnnotationData>,
             ResultItem<'store, Annotation>,
         ),
-    > + 'store {
+    > + 'store
+    where
+        'q: 'store,
+    {
         self.map(|data| {
             data.annotations()
                 .map(move |annotation| (data.clone(), annotation))

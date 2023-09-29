@@ -29,13 +29,43 @@ use crate::api::textselection::SortTextualOrder;
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns no duplicates even if a resource is referenced multiple times.
-    /// If you want to distinguish between resources references as metadata and on text, check  `selector().kind()` on the return values.
+    /// If you want to distinguish between resources references as metadata and on text, use [`Self.resources_as_metadata()`] or [`Self.resources_on_text()` ] instead.
     pub fn resources(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> + 'store {
         let selector = self.as_ref().target();
         let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
         //                                                                               ^--- recurse
         let store = self.store();
         iter.map(|handle| store.resource(handle).unwrap())
+    }
+
+    pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+        self.as_ref()
+            .target()
+            .iter(self.store(), true)
+            .filter_map(|selector| {
+                if let Selector::ResourceSelector(res_handle) = selector.as_ref() {
+                    let store = self.store();
+                    store.resource(*res_handle)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+        self.as_ref()
+            .target()
+            .iter(self.store(), true)
+            .filter_map(|selector| {
+                if let Selector::TextSelector(res_handle, ..) = selector.as_ref() {
+                    let store = self.store();
+                    store.resource(*res_handle)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references
@@ -148,7 +178,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Get an iterator over all data for this annotation
-    pub fn data(&self) -> DataIter<'store, '_> {
+    pub fn data<'q>(&self) -> DataIter<'store, 'q> {
         DataIter::new(
             IntersectionIter::new(Cow::Borrowed(self.as_ref().raw_data()), false),
             self.store(),
@@ -243,7 +273,7 @@ impl<'store> AnnotationsIter<'store> {
         mut self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
+        value: DataOperator<'a>,
     ) -> Self {
         self.filter_data(self.store.find_data(set, key, value))
     }
@@ -306,12 +336,13 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain this iterator by another (intersection)
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
-        if annotations.iter.is_none() {
-            //invalidate the iterator, there will be no results
-            self.iter.abort = true;
-        }
-        if self.iter.is_some() && annotations.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().merge(annotations.iter.unwrap()));
+        if self.iter.is_some() {
+            if annotations.iter.is_some() {
+                self.iter = Some(self.iter.unwrap().merge(annotations.iter.unwrap()));
+            } else {
+                //invalidate the iterator, there will be no results
+                self.iter.unwrap().abort = true;
+            }
         }
         self
     }

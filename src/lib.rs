@@ -11,7 +11,7 @@ mod error;
 mod file;
 mod json;
 mod resources;
-mod search;
+//mod search;
 mod selector;
 mod store;
 mod text;

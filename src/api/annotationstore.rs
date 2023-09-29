@@ -66,7 +66,7 @@ impl AnnotationStore {
             IntersectionIter::new_with_iterator(
                 Box::new(
                     self.iter()
-                        .map(|a| a.handle().expect("annotation must have handle")),
+                        .map(|a: &'a Annotation| a.handle().expect("annotation must have handle")),
                 ),
                 true,
             ),
@@ -187,7 +187,7 @@ impl AnnotationStore {
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
+        value: DataOperator<'a>,
     ) -> bool
     where
         'a: 'store,
@@ -207,7 +207,7 @@ impl AnnotationStore {
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
+        value: DataOperator<'a>,
     ) -> impl Iterator<
         Item = (
             ResultItem<'store, TextResource>,
@@ -218,8 +218,6 @@ impl AnnotationStore {
         'a: 'store,
     {
         self.find_data(set, key, value)
-            .into_iter()
-            .flatten()
             .map(|data| {
                 data.resources_as_metadata()
                     .into_iter()
@@ -241,7 +239,7 @@ impl AnnotationStore {
         &'store self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
+        value: DataOperator<'a>,
     ) -> impl Iterator<
         Item = (
             ResultItem<'store, AnnotationDataSet>,
@@ -252,8 +250,6 @@ impl AnnotationStore {
         'a: 'store,
     {
         self.find_data(set, key, value)
-            .into_iter()
-            .flatten()
             .map(|data| {
                 data.datasets()
                     .into_iter()
