@@ -1,7 +1,6 @@
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
-use std::ops::Deref;
 
 mod common;
 use crate::common::*;
@@ -578,7 +577,7 @@ fn annotations_by_offset() -> Result<(), StamError> {
         .resource("testres")
         .expect("test: resource must exist");
     let textselection = resource.textselection(&Offset::simple(6, 11))?;
-    let v: Vec<_> = textselection.annotations().into_iter().flatten().collect();
+    let v: Vec<_> = textselection.annotations().collect();
     let a_ref = store.annotation("A1").unwrap();
     assert_eq!(v, vec!(a_ref));
     Ok(())
@@ -641,7 +640,7 @@ fn data_by_value() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let dataset = store.dataset("testdataset").unwrap();
     let key = dataset.key("pos").unwrap();
-    let annotationdata = key.find_data(&DataOperator::Equals("noun")).next();
+    let annotationdata = key.data().filter_value(DataOperator::Equals("noun")).next();
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -652,11 +651,7 @@ fn find_data_exact() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let dataset = store.dataset("testdataset").unwrap();
     let mut count = 0;
-    for annotationdata in dataset
-        .find_data("pos", &DataOperator::Equals("noun"))
-        .into_iter()
-        .flatten()
-    {
+    for annotationdata in dataset.find_data("pos", DataOperator::Equals("noun")) {
         count += 1;
         assert_eq!(annotationdata.id(), Some("D1"));
     }
@@ -668,27 +663,17 @@ fn find_data_exact() -> Result<(), StamError> {
 fn find_data_by_key() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let dataset = store.dataset("testdataset").unwrap();
-    let mut count = 0;
-    for _ in dataset
-        .find_data("type", &DataOperator::Any)
-        .into_iter()
-        .flatten()
-    {
-        count += 1;
-    }
+    let count = dataset.find_data("type", DataOperator::Any).count();
     assert_eq!(count, 2);
     Ok(())
 }
 
 #[test]
-fn find_data_by_key_2() -> Result<(), StamError> {
+fn data_by_key() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let dataset = store.dataset("testdataset").unwrap();
     let key = dataset.key("type").unwrap();
-    let mut count = 0;
-    for _ in key.find_data(&DataOperator::Any) {
-        count += 1;
-    }
+    let count = key.data().count();
     assert_eq!(count, 2);
     Ok(())
 }
@@ -697,14 +682,7 @@ fn find_data_by_key_2() -> Result<(), StamError> {
 fn find_data_all() -> Result<(), StamError> {
     let store = setup_example_3()?;
     let annotationset = store.dataset("testdataset").unwrap();
-    let mut count = 0;
-    for _ in annotationset
-        .find_data(false, &DataOperator::Any)
-        .into_iter()
-        .flatten()
-    {
-        count += 1;
-    }
+    let count = annotationset.find_data(false, DataOperator::Any).count();
     assert_eq!(count, 2);
     Ok(())
 }
@@ -1163,11 +1141,8 @@ fn annotate_regex_single2() -> Result<(), StamError> {
     annotate_regex_for_example_6(&mut store)?;
 
     let data: Vec<_> = store
-        .find_data("myset", "type", &DataOperator::Equals("header"))
-        .into_iter()
-        .flatten()
-        .map(|data| data.annotations())
-        .flatten()
+        .find_data("myset", "type", DataOperator::Equals("header"))
+        .annotations()
         .collect();
     assert_eq!(data.len(), 4);
     Ok(())
@@ -1182,15 +1157,24 @@ fn annotations_by_textselection() -> Result<(), StamError> {
     let mut count_annotations = 0;
     for textselection in resource.textselections() {
         count += 1;
-        if let Some(annotations) = textselection.annotations() {
-            for annotation in annotations {
-                count_annotations += 1;
-                eprintln!("{} {:?}", textselection.text(), annotation.id());
-            }
+        for annotation in textselection.annotations() {
+            count_annotations += 1;
+            eprintln!("{} {:?}", textselection.text(), annotation.id());
         }
     }
     assert_eq!(count, resource.textselections_len());
     assert_ne!(count, 0);
+    assert_eq!(count_annotations, store.annotations_len());
+    assert_ne!(count_annotations, 0);
+    Ok(())
+}
+
+#[test]
+fn annotations_by_textselection_2() -> Result<(), StamError> {
+    let mut store = setup_example_5()?;
+    annotate_regex_for_example_6(&mut store)?;
+    let resource = store.resource("humanrights").unwrap();
+    let count_annotations = resource.textselections().annotations().count();
     assert_eq!(count_annotations, store.annotations_len());
     assert_ne!(count_annotations, 0);
     Ok(())
@@ -1269,7 +1253,7 @@ fn annotations_by_textselection_none() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let resource = store.resource("humanrights").unwrap();
     let textselection = resource.textselection(&Offset::simple(1, 14))?; //no annotations for this random selection
-    let v: Vec<_> = textselection.annotations().into_iter().flatten().collect();
+    let v: Vec<_> = textselection.annotations().collect();
     assert!(v.is_empty());
     Ok(())
 }
@@ -1326,9 +1310,9 @@ fn textselections_in_range_bigger() -> Result<(), StamError> {
 #[test]
 fn related_text_embeds() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let sentence1 = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").unwrap();
     let mut count = 0;
-    for reftextsel in sentence1.textselections() {
+    for reftextsel in sentence.textselections() {
         for textsel in reftextsel.related_text(TextSelectionOperator::embeds()) {
             count += 1;
             assert_eq!(textsel.begin(), 17);
@@ -1340,15 +1324,30 @@ fn related_text_embeds() -> Result<(), StamError> {
 }
 
 #[test]
+fn related_text_embeds_shortcut() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let sentence = store.annotation("Sentence1").unwrap();
+    let mut count = 0;
+    for textsel in sentence.related_text(TextSelectionOperator::embeds()) {
+        count += 1;
+        assert_eq!(textsel.begin(), 17);
+        assert_eq!(textsel.end(), 40);
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn annotations_by_related_text_embeds() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let sentence1 = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").unwrap();
     let mut count = 0;
-    for reftextsel in sentence1.textselections() {
-        for annotation in reftextsel.annotations_by_related_text(TextSelectionOperator::embeds()) {
-            count += 1;
-            assert_eq!(annotation.id(), Some("Phrase1"));
-        }
+    for annotation in sentence
+        .related_text(TextSelectionOperator::embeds())
+        .annotations()
+    {
+        count += 1;
+        assert_eq!(annotation.id(), Some("Phrase1"));
     }
     assert_eq!(count, 1);
     Ok(())
@@ -1359,7 +1358,11 @@ fn annotations_by_related_text_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence = store.annotation("Sentence1").unwrap();
     let mut count = 0;
-    for annotation in sentence.annotations_by_related_text(TextSelectionOperator::embeds()) {
+    for annotation in sentence
+        .textselections()
+        .related_text(TextSelectionOperator::embeds())
+        .annotations()
+    {
         count += 1;
         assert_eq!(annotation.id(), Some("Phrase1"));
     }
@@ -1373,7 +1376,8 @@ fn annotations_by_related_text_overlaps() -> Result<(), StamError> {
     annotate_phrases_for_example_6(&mut store)?;
     let phrase = store.annotation("Phrase1").unwrap();
     let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::overlaps())
+        .related_text(TextSelectionOperator::overlaps())
+        .annotations()
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -1386,30 +1390,13 @@ fn annotations_by_related_text_overlaps() -> Result<(), StamError> {
 }
 
 #[test]
-fn annotations_by_related_text_overlaps_2() -> Result<(), StamError> {
-    let mut store = setup_example_6()?;
-    annotate_phrases_for_example_6(&mut store)?;
-    let phrase = store.annotation("Phrase2").unwrap();
-    let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::overlaps())
-        .collect();
-    assert_eq!(annotations.len(), 2);
-    assert!(annotations
-        .iter()
-        .any(|annotation| annotation.id().unwrap() == "Phrase1"));
-    assert!(annotations
-        .iter()
-        .any(|annotation| annotation.id().unwrap() == "Sentence1"));
-    Ok(())
-}
-
-#[test]
 fn annotations_by_related_text_before() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
     let phrase = store.annotation("Phrase2").unwrap();
     let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::before())
+        .related_text(TextSelectionOperator::before())
+        .annotations()
         .collect();
     assert_eq!(annotations.len(), 1);
     assert!(annotations
@@ -1424,7 +1411,8 @@ fn annotations_by_related_text_after() -> Result<(), StamError> {
     annotate_phrases_for_example_6(&mut store)?;
     let phrase = store.annotation("Phrase3").unwrap();
     let annotations: Vec<_> = phrase
-        .annotations_by_related_text(TextSelectionOperator::after())
+        .related_text(TextSelectionOperator::after())
+        .annotations()
         .collect();
     assert_eq!(annotations.len(), 2);
     assert!(annotations
@@ -1445,6 +1433,13 @@ fn related_text_with_data() -> Result<(), StamError> {
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
     let text: Vec<_> = phrase
+        .related_text(TextSelectionOperator::embeds())
+        .annotations()
+        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .text()
+        .collect();
+    /*
+    let text: Vec<_> = phrase
         .related_text_with_data(
             TextSelectionOperator::embeds(),
             "myset",
@@ -1455,6 +1450,7 @@ fn related_text_with_data() -> Result<(), StamError> {
         .flatten() // --^
         .map(|(text, _)| text.text()) //grab only the textual content
         .collect();
+    */
     assert_eq!(text, &["dignity", "and", "rights"]);
     Ok(())
 }
@@ -1468,6 +1464,13 @@ fn related_text_with_data_2() -> Result<(), StamError> {
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
     let text: Vec<_> = phrase
+        .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
+        .annotations()
+        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .text()
+        .collect();
+    /*
+    let text: Vec<_> = phrase
         .related_text_with_data(
             TextSelectionOperator::after(), //phrase AFTER result, so result before phrase
             "myset",
@@ -1478,6 +1481,7 @@ fn related_text_with_data_2() -> Result<(), StamError> {
         .flatten() // --^
         .map(|(text, _)| text.text()) //grab only the textual content
         .collect();
+    */
     assert_eq!(
         text,
         &["All", "human", "beings", "are", "born", "free", "and", "equal", "in"]
@@ -1492,15 +1496,10 @@ fn related_text_with_data_3() -> Result<(), StamError> {
     let store = setup_example_6b()?; //<--- used different example! rest of code is the same
     let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
     let text: Vec<_> = phrase
-        .related_text_with_data(
-            TextSelectionOperator::after(), //phrase AFTER result, so result before phrase
-            "myset",
-            "type",
-            &DataOperator::Equals("word"),
-        )
-        .into_iter() //work away the Option<>
-        .flatten() // --^
-        .map(|(text, _)| text.text()) //grab only the textual content
+        .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
+        .annotations()
+        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .text()
         .collect();
     assert_eq!(
         text,
@@ -1516,15 +1515,10 @@ fn related_text_with_data_4() -> Result<(), StamError> {
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
     let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
     let text: Vec<_> = phrase
-        .related_text_with_data(
-            TextSelectionOperator::after(), //phrase AFTER result, so result before phrase
-            "myset",
-            "type",
-            &DataOperator::Equals("word"),
-        )
-        .into_iter() //work away the Option<>
-        .flatten() // --^
-        .map(|(text, _)| text.text()) //grab only the textual content
+        .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
+        .annotations()
+        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .text()
         .collect();
     assert_eq!(
         text,
@@ -1565,21 +1559,15 @@ fn related_text_with_data_5() -> Result<(), StamError> {
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let sentence = store.annotation("Sentence1").unwrap();
 
-    //get the 2nd word in the sentence
-    let secondword = sentence
-        .related_text_with_data(
-            TextSelectionOperator::embeds(),
-            "myset",
-            "type",
-            &DataOperator::Equals("word"),
-        )
-        .into_iter() //<-- work away the option
-        .flatten() // --^
-        .map(|(textselection, _)| textselection) // get rid of the data we don't use
-        .nth(1)
-        .unwrap();
+    let words: Vec<_> = sentence
+        .related_text(TextSelectionOperator::embeds())
+        .annotations()
+        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .textual_order(); //we could omit this if we were sure word annotations were added in sequence
 
-    assert_eq!(secondword.text(), "human");
+    let secondword = words.iter().nth(1).unwrap();
+
+    assert_eq!(secondword.text_simple(), Some("human"));
     Ok(())
 }
 
@@ -1597,10 +1585,10 @@ fn find_data_about() -> Result<(), StamError> {
 
     //now find the phrase this word belongs to:
     let mut count = 0;
-    for (_data, phrase) in secondword
-        .find_data_about("myset", "type", &DataOperator::Equals("phrase"))
-        .into_iter() //<-- work away the option
-        .flatten()
+    for phrase in
+        secondword
+            .annotations()
+            .filter_find_data("myset", "type", DataOperator::Equals("phrase"))
     {
         count += 1;
         //we can test in body because we only have one:
@@ -1616,75 +1604,28 @@ fn find_data_about() -> Result<(), StamError> {
 }
 
 #[test]
-fn find_data_about_2() -> Result<(), StamError> {
-    let store = setup_example_6c()?;
-    let sentence = store.annotation("Sentence1").unwrap();
-    //get the 2nd word in the sentence
-    let secondword = sentence.annotations_in_targets(false).nth(1).unwrap();
-    assert_eq!(
-        secondword.text_simple(),
-        Some("human"),
-        "testing the second word in the sentence"
-    );
-
-    //now find the phrase this word belongs to:
-    let mut count = 0;
-    for (data, annotation) in secondword
-        .find_data_about("myset", "type", &DataOperator::Any)
-        .into_iter() //<-- work away the option
-        .flatten()
-    {
-        count += 1;
-        //we can get a phrase or a sentence in our example:
-        if data.value() == "phrase" {
-            assert_eq!(
-                annotation.id(),
-                Some("Phrase2"),
-                "testing whether we got the right phrase"
-            );
-            assert_eq!(annotation.text_join(" "), "human beings are born");
-        } else {
-            assert_eq!(annotation.id(), Some("Sentence1"));
-        }
-    }
-    assert_eq!(count, 2);
-    Ok(())
-}
-
-#[test]
 fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
     let mut store = setup_example_6()?; //note: not the same as the previous two!
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let sentence = store.annotation("Sentence1").unwrap();
 
-    //get the 2nd word in the sentence
-    let secondword = sentence
-        .related_text_with_data(
-            TextSelectionOperator::embeds(),
-            "myset",
-            "type",
-            &DataOperator::Equals("word"),
-        )
-        .into_iter() //<-- work away the option
-        .flatten() // --^
-        .map(|(textselection, _)| textselection) // get rid of the data we don't use
-        .nth(1)
-        .unwrap();
+    let words: Vec<_> = sentence
+        .related_text(TextSelectionOperator::embeds())
+        .annotations()
+        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .textual_order(); //we could omit this if we were sure word annotations were added in sequence
 
-    assert_eq!(secondword.text(), "human");
+    let secondword = words.iter().nth(1).unwrap();
+
+    assert_eq!(secondword.text_simple(), Some("human"));
 
     //now find the phrase this word belongs to:
     let mut count = 0;
     for phrase in secondword
-        .annotations_by_related_text_and_data(
-            TextSelectionOperator::embedded(),
-            "myset",
-            "type",
-            &DataOperator::Equals("phrase"),
-        )
-        .into_iter()
-        .flatten()
+        .related_text(TextSelectionOperator::embedded())
+        .annotations()
+        .filter_find_data("myset", "type", DataOperator::Equals("phrase"))
     {
         count += 1;
         //we can test in body because we only have one:
