@@ -185,6 +185,27 @@ impl<'store> ResultItem<'store, Annotation> {
         )
     }
 
+    /// Find data amongst the data for this annotation. Returns an iterator over the data.
+    /// If you have a particular annotation data instance, then use [`Self.has_data()`] instead.
+    pub fn find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: DataOperator<'a>,
+    ) -> DataIter<'store>
+    where
+        'a: 'store,
+    {
+        match self.store().find_data_request_resolver(set, key) {
+            Some((Some(set_handle), Some(key_handle))) => self
+                .data()
+                .filter_key_late(set_handle, key_handle)
+                .filter_value(value),
+            Some((None, None)) => self.data().filter_value(value),
+            _ => DataIter::new_empty(self.store()),
+        }
+    }
+
     /// Tests if the annotation has certain data, returns a boolean.
     /// This will be a bit quicker than using `.data().filter_annotationdata()`.
     pub fn has_data(&self, data: &ResultItem<AnnotationData>) -> bool {
@@ -391,6 +412,15 @@ impl<'store> AnnotationsIter<'store> {
         }
         self
     }
+
+    /// Constrain this iterator to only a single annotation
+    pub fn filter_annotation(mut self, annotation: &ResultItem<Annotation>) -> Self {
+        if self.iter.is_some() {
+            self.iter = Some(self.iter.unwrap().with_singleton(annotation.handle()));
+        }
+        self
+    }
+
     /// Find all text selections that are related to any text selections in this iterator, the operator
     /// determines the type of the relation. Shortcut method for `.textselections().related_text(operator)`.
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {

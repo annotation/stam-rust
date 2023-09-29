@@ -3,7 +3,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::AnnotationsIter;
-use crate::datakey::DataKey;
+use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::TextResource;
 use crate::selector::Selector;
@@ -128,6 +128,7 @@ pub struct DataIter<'store> {
     store: &'store AnnotationStore,
 
     operator: Option<DataOperator<'store>>,
+    key_test: Option<(AnnotationDataSetHandle, DataKeyHandle)>,
 
     //for optimisations:
     last_set_handle: Option<AnnotationDataSetHandle>,
@@ -146,6 +147,7 @@ impl<'store> DataIter<'store> {
             last_set_handle: None,
             last_set: None,
             operator: None,
+            key_test: None,
         }
     }
 
@@ -157,6 +159,7 @@ impl<'store> DataIter<'store> {
             last_set_handle: None,
             last_set: None,
             operator: None,
+            key_test: None,
         }
     }
 
@@ -195,12 +198,39 @@ impl<'store> DataIter<'store> {
         self.merge(data)
     }
 
+    /// Constrain this iterator to only a single annotationdata
+    pub fn filter_annotationdata(mut self, annotationdata: &ResultItem<AnnotationData>) -> Self {
+        if self.iter.is_some() {
+            self.iter = Some(
+                self.iter
+                    .unwrap()
+                    .with_singleton((annotationdata.set().handle(), annotationdata.handle())),
+            );
+        }
+        self
+    }
+
     /// Select data by testing the value (mediated by a [`DataOperator']).
     /// Consumes the iterator and returns an iterator over AnnotationData instances
     ///
     /// Note: You can only use this method once (it will overwrite earlier value filters, use DataOperator::Or and DataOperator::And to test against multiple values)
     pub fn filter_value(mut self, operator: DataOperator<'store>) -> Self {
+        if let DataOperator::Any = operator {
+            //don't bother actually adding the operator, this is a no-op
+            return self;
+        }
         self.operator = Some(operator);
+        self
+    }
+
+    /// This filters for keys, but late in the process, all data will be individually checked
+    /// This can only be used once.
+    pub(crate) fn filter_key_late(
+        mut self,
+        set_handle: AnnotationDataSetHandle,
+        key_handle: DataKeyHandle,
+    ) -> Self {
+        self.key_test = Some((set_handle, key_handle));
         self
     }
 
@@ -274,7 +304,7 @@ impl<'store> DataIter<'store> {
     pub fn to_cache(self) -> Data<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
-        if self.operator.is_none() {
+        if self.operator.is_none() && self.key_test.is_none() {
             //we can be a bit more performant if we have no operator:
             if let Some(iter) = self.iter {
                 Data {
@@ -338,6 +368,12 @@ impl<'store> Iterator for DataIter<'store> {
                     let data = dataset
                         .annotationdata(data_handle)
                         .expect("data must exist");
+                    //do the late key test set by `.filter_key_late()`
+                    if let Some((test_set, test_key)) = self.key_test {
+                        if set_handle != test_set || data.key().handle() != test_key {
+                            continue;
+                        }
+                    }
                     if let Some(operator) = self.operator.as_ref() {
                         if !data.test(false, operator) {
                             //data does not pass the value test
