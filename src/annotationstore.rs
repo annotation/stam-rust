@@ -245,17 +245,25 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
             let mut target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = Vec::new();
 
             for selector in annotation.target().iter(self, false) {
-                if self.config.textrelationmap {
-                    for (res_handle, tsel_handle) in self.textselections_by_selector(&selector) {
-                        extend_textrelationmap.push((res_handle, tsel_handle, handle));
-                    }
-                }
-                if self.config.annotation_annotation_map {
-                    if let Selector::AnnotationSelector(a_handle, _) = selector.as_ref() {
-                        target_annotations.push((*a_handle, handle));
-                    }
-                }
                 match selector.as_ref() {
+                    Selector::AnnotationSelector(a_handle, Some((res_handle, tsel_handle, _))) => {
+                        if self.config.textrelationmap {
+                            extend_textrelationmap.push((*res_handle, *tsel_handle, handle));
+                        }
+                        if self.config.annotation_annotation_map {
+                            target_annotations.push((*a_handle, handle));
+                        }
+                    }
+                    Selector::AnnotationSelector(a_handle, None) => {
+                        if self.config.annotation_annotation_map {
+                            target_annotations.push((*a_handle, handle));
+                        }
+                    }
+                    Selector::TextSelector(res_handle, tsel_handle, _) => {
+                        if self.config.textrelationmap {
+                            extend_textrelationmap.push((*res_handle, *tsel_handle, handle));
+                        }
+                    }
                     Selector::ResourceSelector(res_handle) => {
                         if self.config.resource_annotation_map {
                             target_resources.push((*res_handle, handle));
@@ -266,8 +274,13 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                             target_datasets.push((*set_handle, handle));
                         }
                     }
-                    _ => {}
+                    _ => {} //this matches the complex selectors, they will be returned first and then their children, we can therefore just ignore them
                 };
+            }
+
+            if self.config.annotation_annotation_map {
+                self.annotation_annotation_map
+                    .extend(target_annotations.into_iter());
             }
 
             if self.config.resource_annotation_map {
