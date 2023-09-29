@@ -47,35 +47,25 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Returns an iterator over all annotations that reference this resource, both annotations that can be considered metadata as well
     /// annotations that reference a portion of the text.
     /// Use `annotations_as_metadata()` or `annotations_on_text()` instead if you want to differentiate the two.
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> + 'store {
+    pub fn annotations(&self) -> AnnotationsIter<'store> {
         self.annotations_as_metadata()
             .extend(self.annotations_on_text())
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
     /// They are returned in textual order, but this does not come with any significant performance overhead. If you want an unsorted version use [`self.as_ref().textselections_unsorted()`] instead.
-    /// This is a double-ended iterator that can be traversed in both directions.
-    pub fn textselections(&self) -> impl DoubleEndedIterator<Item = ResultTextSelection<'store>> {
+    /// Note: This is a double-ended iterator that can be traversed in both directions.
+    pub fn textselections(&self) -> TextSelectionsIter<'store> {
         let resource = self.as_ref();
-        let annotationstore = self.rootstore();
-        resource
-            .iter()
-            .map(|item| item.as_resultitem(resource, annotationstore).into())
+        TextSelectionsIter::new_with_resiterator(resource.iter(), self.rootstore())
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
     /// textselections that either start or end in this range (depending on the direction you're
     /// iterating in)
-    pub fn textselections_in_range(
-        &self,
-        begin: usize,
-        end: usize,
-    ) -> impl DoubleEndedIterator<Item = ResultTextSelection<'store>> {
+    pub fn textselections_in_range(&self, begin: usize, end: usize) -> TextSelectionsIter<'store> {
         let resource = self.as_ref();
-        let annotationstore = self.rootstore();
-        resource
-            .range(begin, end)
-            .map(|item| item.as_resultitem(resource, annotationstore).into())
+        TextSelectionsIter::new_with_resiterator(resource.range(begin, end), self.rootstore())
     }
 
     /// Returns the number of textselections that are marked in this resource (i.e. there are one or more annotations on it).

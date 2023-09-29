@@ -5,7 +5,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::AnnotationsIter;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::resources::{TextResource, TextResourceHandle};
+use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
 use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
 use crate::text::Text;
@@ -379,29 +379,36 @@ pub(crate) enum TextSelectionsSource<'store> {
     HighVec(Vec<ResultTextSelection<'store>>),
     LowVec(SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]>), //used with AnnotationStore.textselections_by_selector
     FindIter(FindTextSelectionsIter<'store>), //used with textselections_by_operator()
+    TSIter(TextSelectionIter<'store>),        //used by resource.textselections(), double-ended
 }
 
 /// Iterator over TextSelections (yields [`ResultTextSelection`] instances)
 /// offering high-level API methods.
 pub struct TextSelectionsIter<'store> {
     source: TextSelectionsSource<'store>,
-    cursor: usize,
+    cursor: isize,
     store: &'store AnnotationStore,
+    /// Direction of iteration
+    forward: Option<bool>,
 }
 
 impl<'store> Iterator for TextSelectionsIter<'store> {
     type Item = ResultTextSelection<'store>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.forward != Some(true) {
+            self.forward = Some(true);
+            self.cursor = 0;
+        }
         match &mut self.source {
             TextSelectionsSource::HighVec(data) => {
-                if let Some(item) = data.get(self.cursor) {
+                if let Some(item) = data.get(self.cursor as usize) {
                     self.cursor += 1;
                     return Some(item.clone());
                 }
             }
             TextSelectionsSource::LowVec(data) => {
-                if let Some((res_handle, tsel_handle)) = data.get(self.cursor) {
+                if let Some((res_handle, tsel_handle)) = data.get(self.cursor as usize) {
                     let resource = self
                         .store
                         .resource(*res_handle)
@@ -428,6 +435,71 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
                     ));
                 }
             }
+            TextSelectionsSource::TSIter(iter) => {
+                if let Some(tsel) = iter.next() {
+                    let resource = iter.resource();
+                    self.cursor += 1; //not really used in this context
+                    return Some(ResultTextSelection::Bound(
+                        tsel.as_resultitem(resource, self.store),
+                    ));
+                }
+            }
+        }
+        None
+    }
+}
+
+impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.forward != Some(false) {
+            self.forward = Some(false);
+            self.cursor = match &self.source {
+                TextSelectionsSource::HighVec(data) => data.len() as isize - 1,
+                TextSelectionsSource::LowVec(data) => data.len() as isize - 1,
+                TextSelectionsSource::FindIter(iter) => {
+                    unimplemented!("No backward iteration on FindIter")
+                }
+                TextSelectionsSource::TSIter(iter) => iter.size_hint().0 as isize,
+            };
+        }
+        if self.cursor < 0 {
+            return None;
+        }
+        match &mut self.source {
+            TextSelectionsSource::HighVec(data) => {
+                if let Some(item) = data.get(self.cursor as usize) {
+                    self.cursor -= 1;
+                    return Some(item.clone());
+                }
+            }
+            TextSelectionsSource::LowVec(data) => {
+                if let Some((res_handle, tsel_handle)) = data.get(self.cursor as usize) {
+                    let resource = self
+                        .store
+                        .resource(*res_handle)
+                        .expect("resource must exist");
+                    let tsel: &TextSelection = resource
+                        .as_ref()
+                        .get(*tsel_handle)
+                        .expect("text selection must exist");
+                    self.cursor -= 1;
+                    return Some(ResultTextSelection::Bound(
+                        tsel.as_resultitem(resource.as_ref(), self.store),
+                    ));
+                }
+            }
+            TextSelectionsSource::FindIter(iter) => {
+                unimplemented!("No backward iteration on FindIter")
+            }
+            TextSelectionsSource::TSIter(iter) => {
+                if let Some(tsel) = iter.next_back() {
+                    let resource = iter.resource();
+                    self.cursor -= 1; //not really used in this context
+                    return Some(ResultTextSelection::Bound(
+                        tsel.as_resultitem(resource, self.store),
+                    ));
+                }
+            }
         }
         None
     }
@@ -442,6 +514,7 @@ impl<'store> TextSelectionsIter<'store> {
             source: TextSelectionsSource::HighVec(data),
             store,
             cursor: 0,
+            forward: None,
         }
     }
 
@@ -453,6 +526,7 @@ impl<'store> TextSelectionsIter<'store> {
             source: TextSelectionsSource::LowVec(data),
             store,
             cursor: 0,
+            forward: None,
         }
     }
 
@@ -464,6 +538,19 @@ impl<'store> TextSelectionsIter<'store> {
             source: TextSelectionsSource::FindIter(iter),
             store,
             cursor: 0,
+            forward: Some(true),
+        }
+    }
+
+    pub(crate) fn new_with_resiterator(
+        iter: TextSelectionIter<'store>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            source: TextSelectionsSource::TSIter(iter),
+            store,
+            cursor: 0,
+            forward: None,
         }
     }
 

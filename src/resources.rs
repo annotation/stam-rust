@@ -944,6 +944,12 @@ pub struct TextSelectionIter<'a> {
     resource: &'a TextResource,
 }
 
+impl<'a> TextSelectionIter<'a> {
+    pub fn resource(&self) -> &'a TextResource {
+        self.resource
+    }
+}
+
 impl<'a> Iterator for TextSelectionIter<'a> {
     type Item = &'a TextSelection;
 
