@@ -261,6 +261,14 @@ where
         }
         self
     }
+
+    pub(crate) fn returns_sorted(&self) -> bool {
+        if let Some(source) = self.sources.get(0) {
+            source.sorted
+        } else {
+            true //empty iterators can be considered sorted
+        }
+    }
 }
 
 impl<'a, T> IntersectionIter<'a, T>

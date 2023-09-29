@@ -205,6 +205,25 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 }
 
+pub struct Annotations<'store> {
+    array: Cow<'store, [AnnotationHandle]>,
+    store: &'store AnnotationStore,
+    sorted: bool,
+}
+
+impl<'a> Annotations<'a> {
+    pub fn iter(&self) -> AnnotationsIter<'a> {
+        AnnotationsIter::new(
+            IntersectionIter::new(self.array.clone(), self.sorted),
+            self.store,
+        )
+    }
+
+    pub fn len(&self) -> usize {
+        self.array.len()
+    }
+}
+
 pub struct AnnotationsIter<'store> {
     iter: Option<IntersectionIter<'store, AnnotationHandle>>,
     cursor: usize,
@@ -244,6 +263,23 @@ impl<'store> AnnotationsIter<'store> {
         data.sort_unstable();
         data.dedup();
         DataIter::new(IntersectionIter::new(Cow::Owned(data), true), store)
+    }
+
+    /// Find data for the annotations in this iterator. Returns an iterator over the data.
+    /// If you want know what annotation has what data, use [`Self.zip_find_data()`] instead.
+    /// If you want to constrain annotations by a data search, use [`Self.filter_find_data()`] instead.
+    pub fn find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: DataOperator<'a>,
+    ) -> DataIter<'store>
+    where
+        'a: 'store,
+    {
+        self.store
+            .find_data(set, key, value)
+            .filter_annotations(self)
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
@@ -355,7 +391,6 @@ impl<'store> AnnotationsIter<'store> {
         }
         self
     }
-
     /// Find all text selections that are related to any text selections in this iterator, the operator
     /// determines the type of the relation. Shortcut method for `.textselections().related_text(operator)`.
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
@@ -452,54 +487,54 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
-    /// Extract a low-level vector of handles from this iterator.
-    /// This is different than running `collect()`, which produces high-level objects.
-    ///
-    /// An extracted vector can be easily turned back into a DataIter again with [`Self.from_vec()`]
-    pub fn to_vec(mut self) -> Vec<AnnotationHandle> {
-        let mut results: Vec<AnnotationHandle> = Vec::new();
-        loop {
-            if let Some(iter) = self.iter.as_mut() {
-                if let Some(handle) = iter.next() {
-                    results.push(handle);
-                } else {
-                    break;
-                }
-            } else {
-                break;
+    /// Does this iterator return items in sorted order?
+    pub fn returns_sorted(&self) -> bool {
+        if let Some(iter) = self.iter.as_ref() {
+            iter.returns_sorted()
+        } else {
+            true //empty iterators can be considered sorted
+        }
+    }
+
+    /// Constrain this iterator by a vector of handles (intersection).
+    /// You can use [`Self.to_cache()`] on an AnnotationIter and then later reload it with this method.
+    pub fn filter_from(self, annotations: &Annotations<'store>) -> Self {
+        self.filter_annotations(annotations.iter())
+    }
+
+    /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
+    /// This consumes the iterator.
+    /// Note: This is different than running `collect()`, which produces high-level objects.
+    pub fn to_cache(mut self) -> Annotations<'store> {
+        let store = self.store;
+        let sorted = self.returns_sorted();
+        //TODO: handle special case where source is borrowed
+        /*
+        if self.iter.is_some() && self.iter.unwrap().sources.len() == 1 {
+            if self.iter.unwrap().sources[0].array.is_some() {
+                return Annotations {
+                    array: self.iter.unwrap().sources[0].array.unwrap(),
+                    store,
+                    sorted,
+                };
             }
         }
-        results
-    }
-
-    /// Turns a low-level vector into an AnnotationsIter. Borrows the underlying vec, use [`Self::from_vec_owned()`] if you need an owned variant.
-    /// A low-level vector can be produced from any AnnotationsIter with [`Self.to_vec()`]
-    /// The `sorted` parameter expressed whether the underlying vector is sorted (you need to set it, it does not do anything itself)
-    pub fn from_vec<'a>(
-        vec: &'a Vec<AnnotationHandle>,
-        sorted: bool,
-        store: &'store AnnotationStore,
-    ) -> Self
-    where
-        'a: 'store,
-    {
-        Self::new(IntersectionIter::new(Cow::Borrowed(vec), sorted), store)
-    }
-
-    /// Turns a low-level vector into an AnnotationsIter. Owns the underlying vec, use [`Self::from_vec()`] if you want a borrowed variant.
-    /// A low-level vector can be produced from any AnnotationsIter with [`Self.to_vec()`]
-    /// The `sorted` parameter expressed whether the underlying vector is sorted (you need to set it, it does not do anything itself)
-    pub fn from_vec_owned(
-        vec: Vec<AnnotationHandle>,
-        sorted: bool,
-        store: &'store AnnotationStore,
-    ) -> Self {
-        Self::new(IntersectionIter::new(Cow::Owned(vec), sorted), store)
+        */
+        Annotations {
+            array: Cow::Owned(self.map(|x| x.handle()).collect()),
+            store,
+            sorted,
+        }
     }
 
     /// Set the iterator to abort, no further results will be returned
     pub fn abort(&mut self) {
         self.iter.as_mut().map(|iter| iter.abort = true);
+    }
+
+    /// Returns true if the iterator has items, false otherwise
+    pub fn test(mut self) -> bool {
+        self.next().is_some()
     }
 }
 
