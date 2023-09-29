@@ -391,6 +391,11 @@ impl<'store> AnnotationsIter<'store> {
         })
     }
 
+    /// Shortcut for `.textselections().text()`
+    pub fn text(self) -> impl Iterator<Item = &'store str> {
+        self.textselections().text()
+    }
+
     /// Constrain the iterator to only return annotations that reference the specified text selection
     /// This is a just shortcut method for `.filter_annotations( textselection.annotations(..) )`
     pub fn filter_textselection(mut self, textselection: &ResultTextSelection<'store>) -> Self {
