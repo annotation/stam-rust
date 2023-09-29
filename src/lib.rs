@@ -424,6 +424,15 @@ mod test {
     }
 
     #[test]
+    fn test_intersectioniter_unsorted() {
+        let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 2, 4, 5]), false);
+        iter = iter.with(Cow::Owned(vec![3, 1, 5, 7]), false);
+        iter = iter.with(Cow::Owned(vec![5]), false);
+        let v: Vec<_> = iter.collect();
+        assert_eq!(v, vec![5]);
+    }
+
+    #[test]
     fn test_intersectioniter_borrow() {
         let v = vec![1, 2, 3, 4, 5];
         let v2 = vec![1, 3, 5];
