@@ -80,32 +80,9 @@ where
 {
     iter: Option<Box<dyn Iterator<Item = T> + 'a>>,
     array: Option<Cow<'a, [T]>>,
+    singleton: Option<T>,
     sorted: bool,
 }
-
-/*
-impl<'a, T> Clone for IntersectionSource<'a, T>
-where
-    T: Ord,
-    [T]: ToOwned<Owned = Vec<T>>,
-{
-    fn clone(&self) -> Self {
-        if self.iter.is_some() {
-            Self {
-                iter: None,
-                array: Some(Cow::Owned(self.iter.unwrap().collect())),
-                sorted: self.sorted,
-            }
-        } else {
-            Self {
-                iter: None,
-                array: self.array.clone(),
-                sorted: self.sorted,
-            }
-        }
-    }
-}
-*/
 
 impl<'a, T> IntersectionSource<'a, T>
 where
@@ -116,6 +93,8 @@ where
     fn len(&self) -> Option<usize> {
         if let Some(array) = &self.array {
             return Some(array.len());
+        } else if self.singleton.is_some() {
+            return Some(1);
         }
         None
     }
@@ -125,6 +104,8 @@ where
             return array.get(index).map(|x| *x);
         } else if let Some(iter) = self.iter.as_mut() {
             return iter.next();
+        } else if self.singleton.is_some() {
+            return self.singleton.take();
         }
         return None;
     }
@@ -149,6 +130,7 @@ where
         let source = IntersectionSource {
             array: None,
             iter: Some(iter),
+            singleton: None,
             sorted,
         };
         Self {
@@ -167,8 +149,25 @@ where
         let source = IntersectionSource {
             array: Some(data),
             iter: None,
+            singleton: None,
             sorted,
         };
+        self.insert_source(source);
+        self
+    }
+
+    pub(crate) fn with_singleton(mut self, data: T) -> Self {
+        let source = IntersectionSource {
+            array: None,
+            iter: None,
+            singleton: Some(data),
+            sorted: true,
+        };
+        self.insert_source(source);
+        self
+    }
+
+    pub(crate) fn insert_source(&mut self, source: IntersectionSource<'a, T>) {
         if self.sources.is_empty() {
             self.sources.push(source);
             self.cursors.push(0);
@@ -196,7 +195,6 @@ where
                 self.cursors.insert(pos, 0);
             }
         }
-        self
     }
 
     /// Merges another IntersectionIter into the current one. This effectively
@@ -208,6 +206,8 @@ where
             } else if let Some(iter) = source.iter {
                 let data = iter.collect(); //consume the iterator, we can only have an iterator in the first position
                 self = self.with(Cow::Owned(data), source.sorted);
+            } else if let Some(singleton) = source.singleton {
+                self = self.with_singleton(singleton)
             }
         }
         self
@@ -419,6 +419,15 @@ mod test {
         let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
         iter = iter.with(Cow::Owned(vec![1, 3, 5, 7]), true);
         iter = iter.with(Cow::Owned(vec![5]), true);
+        let v: Vec<_> = iter.collect();
+        assert_eq!(v, vec![5]);
+    }
+
+    #[test]
+    fn test_intersectioniter_singleton() {
+        let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
+        iter = iter.with(Cow::Owned(vec![1, 3, 5, 7]), true);
+        iter = iter.with_singleton(5);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![5]);
     }
