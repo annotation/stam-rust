@@ -253,11 +253,12 @@ impl<'store> ResultTextSelectionSet<'store> {
     /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let resource = self.resource();
+        let store = self.rootstore();
         TextSelectionsIter::new_with_iterator(
             resource
                 .as_ref()
                 .textselections_by_operator(operator, self.tset),
-            self.rootstore(),
+            store,
         )
     }
 }
@@ -469,34 +470,31 @@ impl<'store> TextSelectionsIter<'store> {
     /// Iterate over the annotations that make use of text selections in this iterator. No duplicates are returned and results are in chronological order.
     pub fn annotations(self) -> AnnotationsIter<'store> {
         let mut annotations: Vec<AnnotationHandle> = Vec::new();
+        let store = self.store;
         for textselection in self {
-            if let Some(thandle) = textselection.handle() {
-                if let Some(moreannotations) = self.store.annotations_by_textselection(
-                    textselection.resource().handle(),
-                    textselection.inner(),
-                ) {
-                    annotations.extend(moreannotations);
-                }
+            if let Some(moreannotations) = store.annotations_by_textselection(
+                textselection.resource().handle(),
+                textselection.inner(),
+            ) {
+                annotations.extend(moreannotations);
             }
         }
         annotations.sort_unstable();
         annotations.dedup();
-        AnnotationsIter::new(
-            IntersectionIter::new(Cow::Owned(annotations), true),
-            self.store,
-        )
+        AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
     }
 
     /// Find all text selections that are related to any text selections in this iterator, the operator
     /// determines the type of the relation.
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let mut textselections: Vec<ResultTextSelection<'store>> = Vec::new();
+        let store = self.store;
         for textselection in self {
             textselections.extend(textselection.related_text(operator))
         }
         textselections.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         textselections.dedup();
-        TextSelectionsIter::new(textselections, self.store)
+        TextSelectionsIter::new(textselections, store)
     }
 
     /// Iterates over all text slices in this iterator
@@ -505,7 +503,7 @@ impl<'store> TextSelectionsIter<'store> {
     }
 
     /// Returns all underlying text concatenated into a single String
-    pub fn text_join(mut self, delimiter: &str) -> String {
+    pub fn text_join(self, delimiter: &str) -> String {
         let mut s = String::new();
         for textselection in self {
             let text = textselection.text();

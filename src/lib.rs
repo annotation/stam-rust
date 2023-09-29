@@ -137,7 +137,7 @@ where
     [T]: ToOwned<Owned = Vec<T>>,
 {
     pub(crate) fn new(source: Cow<'a, [T]>, sorted: bool) -> Self {
-        let mut iter = Self {
+        let iter = Self {
             sources: SmallVec::new(),
             cursors: SmallVec::new(),
             abort: false,
@@ -333,7 +333,7 @@ where
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.abort {
+            if self.abort || self.sources.is_empty() {
                 return None;
             } else if let Some(item) = self.sources.get_mut(0).unwrap().take_item(self.cursors[0]) {
                 //                                                                ^-- (cursor may or may not be used depending on source type)

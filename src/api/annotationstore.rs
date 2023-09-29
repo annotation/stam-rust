@@ -143,7 +143,7 @@ impl AnnotationStore {
         }
 
         //all datasets
-        if let Some((set_handle, key_handle)) = self.find_data_request_resolver(set, key) {
+        if let Some((_, key_handle)) = self.find_data_request_resolver(set, key) {
             //iterate over all datasets
             let iter: Box<
                 dyn Iterator<Item = (AnnotationDataSetHandle, AnnotationDataHandle)> + 'store,
@@ -151,9 +151,7 @@ impl AnnotationStore {
                 self.datasets()
                     .map(move |dataset| {
                         dataset.as_ref().data().filter_map(move |annotationdata| {
-                            if (key_handle.is_none() || key_handle.unwrap() == annotationdata.key())
-                                && annotationdata.value().test(&value)
-                            {
+                            if key_handle.is_none() || key_handle.unwrap() == annotationdata.key() {
                                 Some((
                                     dataset.handle(),
                                     annotationdata.handle().expect("data must have handle"),
@@ -165,7 +163,12 @@ impl AnnotationStore {
                     })
                     .flatten(),
             );
-            DataIter::new(IntersectionIter::new_with_iterator(iter, true), self)
+            if let DataOperator::Any = value {
+                DataIter::new(IntersectionIter::new_with_iterator(iter, true), self)
+            } else {
+                DataIter::new(IntersectionIter::new_with_iterator(iter, true), self)
+                    .filter_value(value)
+            }
         } else {
             DataIter::new_empty(self)
         }

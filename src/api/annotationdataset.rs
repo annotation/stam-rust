@@ -12,15 +12,13 @@ use std::borrow::Cow;
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set
     pub fn data(&self) -> DataIter<'store> {
+        let set_handle = self.handle();
+        let iter = self
+            .as_ref()
+            .data()
+            .map(move |data| (set_handle, data.handle().expect("data must have handle")));
         DataIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(
-                    self.as_ref()
-                        .data()
-                        .map(|data| (self.handle(), data.handle().expect("data must have handle"))),
-                ),
-                true,
-            ),
+            IntersectionIter::new_with_iterator(Box::new(iter), true),
             self.rootstore(),
         )
     }
