@@ -98,7 +98,6 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 }
 
-#[derive(Clone)]
 pub struct DataIter<'store, 'q> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
     cursor: usize,
@@ -140,28 +139,30 @@ impl<'store, 'q> DataIter<'store, 'q> {
     /// Constrain the iterator to return only the data used by the specified annotation
     pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
         let annotation_data = annotation.as_ref().raw_data();
-        if let Some(iter) = self.iter.as_mut() {
-            *iter = iter.with(Cow::Borrowed(annotation_data), true);
+        if self.iter.is_some() {
+            self.iter = Some(
+                self.iter
+                    .unwrap()
+                    .with(Cow::Borrowed(annotation_data), true),
+            );
         }
         self
     }
 
     /// Constrain the iterator to return only the data used by the specified annotations
     /// Shortcut for `self.filter_data(annotations.data())`.
-    pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
+    pub fn filter_annotations(self, annotations: AnnotationsIter<'store>) -> Self {
         self.filter_data(annotations.data())
     }
 
     /// Constrain the iterator to return only the data that uses the specified key
     /// Shortcut for `self.filter_data(key.data())`.
     pub fn filter_key(mut self, key: &ResultItem<'store, DataKey>) -> Self {
-        self.filter_data(key.data());
-        self
+        self.filter_data(key.data())
     }
 
-    pub fn filter_data(mut self, data: DataIter<'store, 'q>) -> Self {
-        self.merge(data);
-        self
+    pub fn filter_data(self, data: DataIter<'store, 'q>) -> Self {
+        self.merge(data)
     }
 
     /// Select data by testing the value (mediated by a [`DataOperator']).

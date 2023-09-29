@@ -235,14 +235,15 @@ impl<'store> AnnotationsIter<'store> {
     /// all the annotations. This returns data without annotations (sorted chronologically and
     /// without duplicates), use [`Self.with_data()`] instead if you want to know which annotations
     /// have which data.
-    pub fn data(mut self) -> DataIter<'store, 'store> {
+    pub fn data(self) -> DataIter<'store, 'store> {
+        let store = self.store;
         let mut data: Vec<_> = self
             .map(|annotation| annotation.as_ref().data().copied())
             .flatten()
             .collect();
         data.sort_unstable();
         data.dedup();
-        DataIter::new(IntersectionIter::new(Cow::Owned(data), true), self.store)
+        DataIter::new(IntersectionIter::new(Cow::Owned(data), true), store)
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
@@ -251,11 +252,15 @@ impl<'store> AnnotationsIter<'store> {
         let data_annotations = self
             .store
             .annotations_by_data_indexlookup(data.set().handle(), data.handle());
-        if let Some(iter) = self.iter.as_mut() {
+        if self.iter.is_some() {
             if let Some(data_annotations) = data_annotations {
-                *iter = iter.with(Cow::Borrowed(data_annotations), true);
+                self.iter = Some(
+                    self.iter
+                        .unwrap()
+                        .with(Cow::Borrowed(data_annotations), true),
+                );
             } else {
-                iter.abort = true; //data is not used, invalidate the iterator
+                self.abort(); //data is not used, invalidate the iterator
             }
         }
         self
@@ -263,19 +268,23 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain the iterator to only return annotations that have data that occurs in the passed data iterator.
     /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
-    pub fn filter_data(mut self, data: DataIter<'store, '_>) -> Self {
+    pub fn filter_data(self, data: DataIter<'store, '_>) -> Self {
         self.filter_annotations(data.annotations())
     }
 
     /// Constrain the iterator to only return annotations that have data matching the search parameters.
     /// This is a just shortcut method for `self.filter_data( store.find_data(..) )`
     pub fn filter_find_data<'a>(
-        mut self,
+        self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: DataOperator<'a>,
-    ) -> Self {
-        self.filter_data(self.store.find_data(set, key, value))
+    ) -> Self
+    where
+        'a: 'store,
+    {
+        let store = self.store;
+        self.filter_data(store.find_data(set, key, value))
     }
 
     /// Returns annotations along with matching data, either may occur multiple times!
@@ -341,7 +350,7 @@ impl<'store> AnnotationsIter<'store> {
                 self.iter = Some(self.iter.unwrap().merge(annotations.iter.unwrap()));
             } else {
                 //invalidate the iterator, there will be no results
-                self.iter.unwrap().abort = true;
+                self.abort();
             }
         }
         self
@@ -349,17 +358,18 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Find all text selections that are related to any text selections in this iterator, the operator
     /// determines the type of the relation. Shortcut method for `.textselections().related_text(operator)`.
-    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
+    pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         self.textselections().related_text(operator)
     }
 
     /// Maps annotations to textselections, consuming the itetor. Results will be returned in textual order.
     pub fn textselections(self) -> TextSelectionsIter<'store> {
+        let store = self.store;
         TextSelectionsIter::new(
             self.map(|annotation| annotation.textselections())
                 .flatten()
                 .textual_order(),
-            self.store,
+            store,
         )
     }
 
@@ -441,7 +451,7 @@ impl<'store> AnnotationsIter<'store> {
     /// This is different than running `collect()`, which produces high-level objects.
     ///
     /// An extracted vector can be easily turned back into a DataIter again with [`Self.from_vec()`]
-    pub fn to_vec(&self) -> Vec<AnnotationHandle> {
+    pub fn to_vec(mut self) -> Vec<AnnotationHandle> {
         let mut results: Vec<AnnotationHandle> = Vec::new();
         loop {
             if let Some(iter) = self.iter.as_mut() {
@@ -460,11 +470,14 @@ impl<'store> AnnotationsIter<'store> {
     /// Turns a low-level vector into an AnnotationsIter. Borrows the underlying vec, use [`Self::from_vec_owned()`] if you need an owned variant.
     /// A low-level vector can be produced from any AnnotationsIter with [`Self.to_vec()`]
     /// The `sorted` parameter expressed whether the underlying vector is sorted (you need to set it, it does not do anything itself)
-    pub fn from_vec(
-        vec: &Vec<AnnotationHandle>,
+    pub fn from_vec<'a>(
+        vec: &'a Vec<AnnotationHandle>,
         sorted: bool,
         store: &'store AnnotationStore,
-    ) -> Self {
+    ) -> Self
+    where
+        'a: 'store,
+    {
         Self::new(IntersectionIter::new(Cow::Borrowed(vec), sorted), store)
     }
 
@@ -477,6 +490,11 @@ impl<'store> AnnotationsIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self::new(IntersectionIter::new(Cow::Owned(vec), sorted), store)
+    }
+
+    /// Set the iterator to abort, no further results will be returned
+    pub fn abort(&mut self) {
+        self.iter.as_mut().map(|iter| iter.abort = true);
     }
 }
 

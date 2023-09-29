@@ -59,7 +59,6 @@ use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
 
 // Lazy iterator computing an intersection
-#[derive(Clone)]
 pub(crate) struct IntersectionIter<'a, T>
 where
     T: Ord,
@@ -77,11 +76,12 @@ where
     T: Ord,
     [T]: ToOwned<Owned = Vec<T>>,
 {
-    iter: Option<Box<dyn Iterator<Item = T>>>,
+    iter: Option<Box<dyn Iterator<Item = T> + 'a>>,
     array: Option<Cow<'a, [T]>>,
     sorted: bool,
 }
 
+/*
 impl<'a, T> Clone for IntersectionSource<'a, T>
 where
     T: Ord,
@@ -103,6 +103,7 @@ where
         }
     }
 }
+*/
 
 impl<'a, T> IntersectionSource<'a, T>
 where
@@ -140,7 +141,7 @@ where
         iter.with(source, sorted)
     }
 
-    pub(crate) fn new_with_iterator(iter: Box<dyn Iterator<Item = T>>, sorted: bool) -> Self {
+    pub(crate) fn new_with_iterator(iter: Box<dyn Iterator<Item = T> + 'a>, sorted: bool) -> Self {
         let source = IntersectionSource {
             array: None,
             iter: Some(iter),
