@@ -26,7 +26,7 @@ impl<'store> ResultItem<'store, DataKey> {
 
     /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key.
     /// Use methods on this iterator like `DataIter.filter_value()` to further constrain the results.
-    pub fn data<'q>(&self) -> DataIter<'store, 'q> {
+    pub fn data(&self) -> DataIter<'store> {
         let rootstore = self.rootstore();
         let store = self.store();
         if let Some(vec) = store.data_by_key(self.handle()) {

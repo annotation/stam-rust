@@ -11,7 +11,7 @@ use std::borrow::Cow;
 
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set
-    pub fn data(&self) -> DataIter<'store, '_> {
+    pub fn data(&self) -> DataIter<'store> {
         DataIter::new(
             IntersectionIter::new_with_iterator(
                 Box::new(
@@ -81,7 +81,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         &self,
         key: impl Request<DataKey>,
         value: DataOperator<'q>,
-    ) -> DataIter<'store, 'q>
+    ) -> DataIter<'store>
     where
         'q: 'store,
     {

@@ -62,6 +62,7 @@ use std::borrow::Cow;
 pub(crate) struct IntersectionIter<'a, T>
 where
     T: Ord,
+    T: Copy,
     [T]: ToOwned<Owned = Vec<T>>,
 {
     sources: SmallVec<[IntersectionSource<'a, T>; 2]>,
@@ -74,6 +75,7 @@ where
 pub(crate) struct IntersectionSource<'a, T>
 where
     T: Ord,
+    T: Copy,
     [T]: ToOwned<Owned = Vec<T>>,
 {
     iter: Option<Box<dyn Iterator<Item = T> + 'a>>,
@@ -108,17 +110,18 @@ where
 impl<'a, T> IntersectionSource<'a, T>
 where
     T: Ord,
+    T: Copy,
     [T]: ToOwned<Owned = Vec<T>>,
 {
     fn len(&self) -> Option<usize> {
-        if let Some(array) = self.array {
+        if let Some(array) = &self.array {
             return Some(array.len());
         }
         None
     }
 
     fn take_item(&mut self, index: usize) -> Option<T> {
-        if let Some(array) = self.array {
+        if let Some(array) = &self.array {
             return array.get(index).map(|x| *x);
         } else if let Some(iter) = self.iter.as_mut() {
             return iter.next();
@@ -130,6 +133,7 @@ where
 impl<'a, T> IntersectionIter<'a, T>
 where
     T: Ord,
+    T: Copy,
     [T]: ToOwned<Owned = Vec<T>>,
 {
     pub(crate) fn new(source: Cow<'a, [T]>, sorted: bool) -> Self {
@@ -211,7 +215,7 @@ where
 
     /// Extends this iterator with another one. This is a *union* and not an *intersection*.
     /// However, all additional constraints on either iterator are preserved (and those are intersections).
-    pub(crate) fn extend(mut self, other: IntersectionIter<'a, T>) -> Self {
+    pub(crate) fn extend(mut self, mut other: IntersectionIter<'a, T>) -> Self {
         //edge-cases first:
         if self.sources.is_empty() {
             return other;
@@ -222,28 +226,27 @@ where
 
         if self.sources[0].iter.is_some() && other.sources[0].iter.is_some() {
             // We have two iterators, we can solve the whole problem lazily by just chaining them! \o/
-            let iter = self.sources[0].iter.unwrap().as_mut();
-            let iter2 = other.sources[0].iter.unwrap().as_mut();
+            let iter = self.sources[0].iter.take().unwrap();
+            let iter2 = other.sources[0].iter.take().unwrap();
             self.sources[0].iter = Some(Box::new(iter.chain(iter2)));
             self.sources[0].sorted = false; //we can no longer guarantee any sorting
         } else {
-            if let Some(array) = self.sources[0].array.as_mut() {
-                let mut borrowed = false;
-                if let Cow::Borrowed(_) = array {
-                    borrowed = true;
-                }
-                if borrowed {
-                    //we have take ownership (= make a clone) because we'll be extending this array later
-                    *array = Cow::Owned(array.into_owned());
-                }
-            } else if let Some(iter) = self.sources[0].iter {
+            if let Some(Cow::Borrowed(_)) = self.sources[0].array {
+                //we have take ownership (= make a clone) because we'll be extending this array later
+                self.sources[0]
+                    .array
+                    .as_mut()
+                    .map(|array| *array = Cow::Owned(array.to_vec()));
+            } else if self.sources[0].iter.is_some() {
                 //similar as above: we have to consume our iterator first and turn it into an owned collection, otherwise we can't extend it
+                let iter = self.sources[0].iter.take().unwrap();
                 self.sources[0].array = Some(Cow::Owned(iter.collect()));
             }
             if let Some(Cow::Owned(array)) = self.sources[0].array.as_mut() {
-                if let Some(iter2) = other.sources[0].iter {
+                if other.sources[0].iter.is_some() {
+                    let iter2 = other.sources[0].iter.take().unwrap();
                     array.extend(iter2);
-                } else if let Some(array2) = other.sources[0].array {
+                } else if let Some(array2) = other.sources[0].array.as_ref() {
                     array.extend(array2.iter().map(|x| *x));
                 }
             }
@@ -251,9 +254,9 @@ where
         }
 
         //copy any further constraints on the other iterator
-        for source in &other.sources[1..] {
-            if let Some(array) = source.array {
-                self = self.with(array, source.sorted);
+        for (i, source) in other.sources.into_iter().enumerate() {
+            if i > 0 && source.array.is_some() {
+                self = self.with(source.array.unwrap(), source.sorted);
             }
         }
         self
@@ -263,6 +266,7 @@ where
 impl<'a, T> IntersectionIter<'a, T>
 where
     T: Ord,
+    T: Copy,
     [T]: ToOwned<Owned = Vec<T>>,
 {
     fn test_sources(&mut self, item: T, left_sorted: bool) -> Option<T> {
@@ -277,7 +281,7 @@ where
                     //the first item is the left iter
                     continue;
                 };
-                if let Some(data) = right.array {
+                if let Some(data) = &right.array {
                     if right.sorted {
                         //binary search
                         match data[self.cursors[i]..].binary_search(&item) {
@@ -329,12 +333,11 @@ where
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let left = self.sources.get_mut(0).unwrap();
             if self.abort {
                 return None;
-            } else if let Some(item) = left.take_item(self.cursors[0]) {
-                //                                     ^-- (cursor may or may not be used depending on source type)
-                let result = self.test_sources(item, left.sorted);
+            } else if let Some(item) = self.sources.get_mut(0).unwrap().take_item(self.cursors[0]) {
+                //                                                                ^-- (cursor may or may not be used depending on source type)
+                let result = self.test_sources(item, self.sources.get(0).unwrap().sorted);
                 if result.is_some() {
                     return result;
                 }

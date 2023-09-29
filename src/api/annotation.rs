@@ -178,7 +178,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Get an iterator over all data for this annotation
-    pub fn data<'q>(&self) -> DataIter<'store, 'q> {
+    pub fn data(&self) -> DataIter<'store> {
         DataIter::new(
             IntersectionIter::new(Cow::Borrowed(self.as_ref().raw_data()), false),
             self.store(),
@@ -235,7 +235,7 @@ impl<'store> AnnotationsIter<'store> {
     /// all the annotations. This returns data without annotations (sorted chronologically and
     /// without duplicates), use [`Self.with_data()`] instead if you want to know which annotations
     /// have which data.
-    pub fn data(self) -> DataIter<'store, 'store> {
+    pub fn data(self) -> DataIter<'store> {
         let store = self.store;
         let mut data: Vec<_> = self
             .map(|annotation| annotation.as_ref().data().copied())
@@ -268,7 +268,7 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain the iterator to only return annotations that have data that occurs in the passed data iterator.
     /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
-    pub fn filter_data(self, data: DataIter<'store, '_>) -> Self {
+    pub fn filter_data(self, data: DataIter<'store>) -> Self {
         self.filter_annotations(data.annotations())
     }
 

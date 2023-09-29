@@ -129,7 +129,7 @@ impl AnnotationStore {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: DataOperator<'q>,
-    ) -> DataIter<'store, 'q>
+    ) -> DataIter<'store>
     where
         'q: 'store,
     {
@@ -172,7 +172,7 @@ impl AnnotationStore {
     }
 
     /// Returns an iterator over all data in all sets. Using a more constrained method (on a set or a key) is preferred!
-    pub fn data<'store>(&'store self) -> DataIter<'store, '_> {
+    pub fn data<'store>(&'store self) -> DataIter<'store> {
         self.find_data(false, false, DataOperator::Any)
     }
 
