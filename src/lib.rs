@@ -167,6 +167,7 @@ where
         self
     }
 
+    #[inline]
     pub(crate) fn insert_source(&mut self, source: IntersectionSource<'a, T>) {
         if self.sources.is_empty() {
             self.sources.push(source);
@@ -280,6 +281,7 @@ where
     T: Copy,
     [T]: ToOwned<Owned = Vec<T>>,
 {
+    #[inline]
     fn test_sources(&mut self, item: T, left_sorted: bool) -> Option<T> {
         if self.sources[1..].is_empty() {
             //only one source
