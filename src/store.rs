@@ -1547,6 +1547,18 @@ where
     }
 }
 
+impl<'a, T> Request<T> for &ResultItem<'a, T>
+where
+    T: Storable,
+{
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<T::HandleType>
+    where
+        S: StoreFor<T>,
+    {
+        Some(self.handle())
+    }
+}
+
 impl<'a, T> Request<T> for BuildItem<'a, T>
 where
     T: Storable,
