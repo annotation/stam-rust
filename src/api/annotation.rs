@@ -436,7 +436,7 @@ impl<'store> AnnotationsIter<'store> {
     /// Constrain this iterator by another (intersection)
     /// This method can be called multiple times
     ///
-    /// You can cast various tuples or vectors of ResultItem<Annotation> to AnnotationIter via `.into_iter()`.
+    /// You can cast any existing iterator that produces `ResultItem<Annotation>` to an [`AnnotationsIter`] using [`AnnotationsIter::from_iter()`]
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
         if self.iter.is_some() {
             if annotations.iter.is_some() {
@@ -564,7 +564,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain this iterator by a vector of handles (intersection).
-    /// You can use [`Self.to_cache()`] on an AnnotationIter and then later reload it with this method.
+    /// You can use [`Self.to_cache()`] on an AnnotationsIter and then later reload it with this method.
     pub fn filter_from(self, annotations: &Annotations<'store>) -> Self {
         self.filter_annotations(annotations.iter())
     }

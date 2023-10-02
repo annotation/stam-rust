@@ -14,17 +14,18 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 impl<'store> ResultItem<'store, AnnotationData> {
-    /// Method to return a reference to the dataset that holds this data
+    /// Return a reference to the dataset that holds this data
     pub fn set(&self) -> ResultItem<'store, AnnotationDataSet> {
         let rootstore = self.rootstore();
         self.store().as_resultitem(rootstore, rootstore)
     }
 
-    /// Return a reference to data value
+    /// Return a reference to the data value
     pub fn value(&self) -> &'store DataValue {
         self.as_ref().value()
     }
 
+    /// Return a reference to the key for this data
     pub fn key(&self) -> ResultItem<'store, DataKey> {
         self.store()
             .key(self.as_ref().key())
@@ -133,7 +134,7 @@ impl<'a> Data<'a> {
     }
 }
 
-/// The DataIter iterates over annotation data, it returns ResultItem<AnnotationData> instances.
+/// `DataIter` iterates over annotation data, it returns `ResultItem<AnnotationData>` instances.
 /// The iterator offers a various high-level API methods that operate on a collection of annotation data, and
 /// allow to further filter or map annotations.
 ///
@@ -236,16 +237,19 @@ impl<'store> DataIter<'store> {
     }
 
     /// Constrain the iterator to return only the data that uses the specified key
+    /// This method can only be called once.
     pub fn filter_key(self, key: &ResultItem<'store, DataKey>) -> Self {
         self.filter_key_handle(key.set().handle(), key.handle())
     }
 
     /// Constrain the iterator to return only the data that is also in the other iterator (intersection)
+    ///
+    /// You can cast any existing iterator that produces `ResultItem<AnnotationData>` to a [`DataIter`] using [`DataIter::from_iter()`].
     pub fn filter_data(self, data: DataIter<'store>) -> Self {
         self.merge(data)
     }
 
-    /// Find and filter data amongst the data for this annotation. Returns an iterator over the data.
+    /// Find and filter data. Returns an iterator over the data.
     /// If you have a particular annotation data instance, then use [`Self.has_data()`] instead.
     pub fn find_data<'a>(
         self,
