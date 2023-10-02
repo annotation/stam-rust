@@ -1,4 +1,4 @@
-use crate::annotation::{Annotation, AnnotationHandle};
+use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
@@ -8,8 +8,6 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::textselection::{ResultTextSelectionSet, TextSelectionSet};
-use crate::types::Handle;
 use crate::IntersectionIter;
 
 impl AnnotationStore {

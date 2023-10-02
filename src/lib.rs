@@ -379,7 +379,7 @@ where
 
 mod test {
     use super::IntersectionIter;
-    use crate::*;
+    use std::borrow::Cow;
 
     /*
     fn setup_example() -> Result<AnnotationStore, StamError> {

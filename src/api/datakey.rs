@@ -1,14 +1,11 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 
-use crate::annotation::Annotation;
-use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::api::annotation::AnnotationsIter;
 use crate::api::annotationdata::DataIter;
 use crate::datakey::DataKey;
 use crate::resources::TextResource;
-use crate::selector::SelectorKind;
 use crate::store::*;
 use crate::IntersectionIter;
 
@@ -27,7 +24,6 @@ impl<'store> ResultItem<'store, DataKey> {
     /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key.
     /// Use methods on this iterator like `DataIter.filter_value()` to further constrain the results.
     pub fn data(&self) -> DataIter<'store> {
-        let rootstore = self.rootstore();
         let store = self.store();
         if let Some(vec) = store.data_by_key(self.handle()) {
             let iter = vec

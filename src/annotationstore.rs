@@ -6,7 +6,6 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -24,7 +23,7 @@ use crate::json::{FromJson, ToJson};
 use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
 use crate::selector::{Offset, OffsetMode, Selector, SelectorBuilder};
 use crate::store::*;
-use crate::textselection::{ResultTextSelection, TextSelection, TextSelectionHandle};
+use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
 
 /// An Annotation Store is an unordered collection of annotations, resources and

@@ -1,7 +1,5 @@
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::marker::PhantomData;
-use std::ops::Deref;
 use std::slice::Iter;
 
 use datasize::DataSize;
@@ -10,9 +8,7 @@ use sealed::sealed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 
-use crate::annotationdata::{
-    AnnotationData, AnnotationDataBuilder, AnnotationDataHandle, AnnotationDataRefImpliedSet,
-};
+use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::config::{Config, Configurable};

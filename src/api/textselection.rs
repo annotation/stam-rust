@@ -454,7 +454,7 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
             self.cursor = match &self.source {
                 TextSelectionsSource::HighVec(data) => data.len() as isize - 1,
                 TextSelectionsSource::LowVec(data) => data.len() as isize - 1,
-                TextSelectionsSource::FindIter(iter) => {
+                TextSelectionsSource::FindIter(_) => {
                     unimplemented!("No backward iteration on FindIter")
                 }
                 TextSelectionsSource::TSIter(iter) => iter.size_hint().0 as isize,
@@ -486,7 +486,7 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
                     ));
                 }
             }
-            TextSelectionsSource::FindIter(iter) => {
+            TextSelectionsSource::FindIter(_) => {
                 unimplemented!("No backward iteration on FindIter")
             }
             TextSelectionsSource::TSIter(iter) => {

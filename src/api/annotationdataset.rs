@@ -1,9 +1,8 @@
-use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::api::annotation::AnnotationsIter;
 use crate::api::annotationdata::DataIter;
-use crate::datakey::{DataKey, DataKeyHandle};
+use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::{store::*, IntersectionIter};
 

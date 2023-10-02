@@ -1,17 +1,10 @@
-use rayon::iter::InterleaveShortest;
-
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
-use crate::annotationdataset::AnnotationDataSet;
 use crate::api::annotation::AnnotationsIter;
 use crate::api::textselection::TextSelectionsIter;
-use crate::datakey::DataKey;
-use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::textselection::{
-    ResultTextSelection, TextSelection, TextSelectionOperator, TextSelectionSet,
-};
+use crate::textselection::{TextSelectionOperator, TextSelectionSet};
 use crate::IntersectionIter;
 
 use std::borrow::Cow;

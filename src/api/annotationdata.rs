@@ -133,9 +133,13 @@ impl<'a> Data<'a> {
     }
 }
 
+/// The DataIter iterates over annotation data, it returns ResultItem<AnnotationData> instances.
+/// The iterator offers a various high-level API methods that operate on a collection of annotation data, and
+/// allow to further filter or map annotations.
+///
+/// The iterator is produced by calling the `data()` method that is implemented for several objects.
 pub struct DataIter<'store> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
-    cursor: usize,
     store: &'store AnnotationStore,
 
     operator: Option<DataOperator<'store>>,
@@ -153,7 +157,6 @@ impl<'store> DataIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            cursor: 0,
             iter: Some(iter),
             store,
             last_set_handle: None,
@@ -166,7 +169,6 @@ impl<'store> DataIter<'store> {
 
     pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
         Self {
-            cursor: 0,
             iter: None,
             store,
             last_set_handle: None,
@@ -189,7 +191,6 @@ impl<'store> DataIter<'store> {
             .collect();
         Self {
             iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
-            cursor: 0,
             last_set_handle: None,
             last_set: None,
             operator: None,
@@ -199,9 +200,10 @@ impl<'store> DataIter<'store> {
         }
     }
 
-    /// Produce a parallel iterator, iterator methods like `filter` and `map` *after* this will run in parallel.
-    /// It does not parallelize the operation of DataIter itself.
+    /// Transform the iterator into a parallel iterator; subsequent iterator methods like `filter` and `map` will run in parallel.
     /// This first consumes the sequential iterator into a newly allocated buffer.
+    ///
+    /// Note: It does not parallelize the operation of DataIter itself.
     pub fn parallel(
         self,
     ) -> impl ParallelIterator<Item = ResultItem<'store, AnnotationData>> + 'store {

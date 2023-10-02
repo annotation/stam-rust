@@ -242,9 +242,13 @@ impl<'a> Annotations<'a> {
     }
 }
 
+/// The AnnotationsIter iterates over annotations, it returns ResultItem<Annotation> instances.
+/// The iterator offers a various high-level API methods that operate on a collection of annotations, and
+/// allow to further filter or map annotations.
+///
+/// The iterator is produced by calling the `annotations()` method that is implemented for several objects.
 pub struct AnnotationsIter<'store> {
     iter: Option<IntersectionIter<'store, AnnotationHandle>>,
-    cursor: usize,
     store: &'store AnnotationStore,
 
     data_filter: Option<Data<'store>>,
@@ -257,7 +261,6 @@ impl<'store> AnnotationsIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            cursor: 0,
             iter: Some(iter),
             data_filter: None,
             single_data_filter: None,
@@ -267,7 +270,6 @@ impl<'store> AnnotationsIter<'store> {
 
     pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
         Self {
-            cursor: 0,
             iter: None,
             data_filter: None,
             single_data_filter: None,
@@ -285,16 +287,16 @@ impl<'store> AnnotationsIter<'store> {
         let data: Vec<_> = iter.map(|a| a.handle()).collect();
         Self {
             iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
-            cursor: 0,
             data_filter: None,
             single_data_filter: None,
             store,
         }
     }
 
-    /// Produce a parallel iterator, iterator methods like `filter` and `map` *after* this will run in parallel.
-    /// It does not parallelize the operation of AnnotationsIter itself.
+    /// Transform the iterator into a parallel iterator; subsequent iterator methods like `filter` and `map` will run in parallel.
     /// This first consumes the sequential iterator into a newly allocated buffer.
+    ///
+    /// Note: It does not parallelize the operation of AnnotationsIter itself.
     pub fn parallel(self) -> impl ParallelIterator<Item = ResultItem<'store, Annotation>> + 'store {
         self.collect::<Vec<_>>().into_par_iter()
     }
@@ -528,7 +530,7 @@ impl<'store> AnnotationsIter<'store> {
         self.filter_annotations(textselections.annotations())
     }
 
-    /// Returns annotations along with an iterator to over related text (the operator determines the type of the relation).
+    /// Returns annotations along with an iterator to go over related text (the operator determines the type of the relation).
     /// Note that results are in chronological annotation order, not textual order.
     pub fn zip_related_text(
         self,
