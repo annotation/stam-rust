@@ -15,6 +15,7 @@ use crate::textselection::{
 };
 use crate::IntersectionIter;
 use crate::{error::*, FindText};
+use rayon::prelude::*;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -552,6 +553,13 @@ impl<'store> TextSelectionsIter<'store> {
             cursor: 0,
             forward: None,
         }
+    }
+
+    /// Produce a parallel iterator, iterator methods like `filter` and `map` *after* this will run in parallel.
+    /// It does not parallelize the operation of TextSelectionsIter itself.
+    /// This first consumes the sequential iterator into a newly allocated buffer.
+    pub fn parallel(self) -> impl ParallelIterator<Item = ResultTextSelection<'store>> + 'store {
+        self.collect::<Vec<_>>().into_par_iter()
     }
 
     /// Iterate over the annotations that make use of text selections in this iterator. No duplicates are returned and results are in chronological order.

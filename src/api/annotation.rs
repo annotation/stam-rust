@@ -298,6 +298,13 @@ impl<'store> AnnotationsIter<'store> {
         }
     }
 
+    /// Produce a parallel iterator, iterator methods like `filter` and `map` *after* this will run in parallel.
+    /// It does not parallelize the operation of AnnotationsIter itself.
+    /// This first consumes the sequential iterator into a newly allocated buffer.
+    pub fn parallel(self) -> impl ParallelIterator<Item = ResultItem<'store, Annotation>> + 'store {
+        self.collect::<Vec<_>>().into_par_iter()
+    }
+
     /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector'])
     /// Use [`Self.annotations()'] if you want to find the annotations that reference these ones (the reverse).
     /// Annotations will be returned sorted chronologically, without duplicates
