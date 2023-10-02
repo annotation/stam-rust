@@ -281,6 +281,53 @@ impl<'store> AnnotationsIter<'store> {
         }
     }
 
+    /// Builds a new annotation iterator from any other iterator of annotation.
+    pub fn from_iter(
+        iter: impl Iterator<Item = ResultItem<'store, Annotation>>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        let data: Vec<_> = iter.map(|a| a.handle()).collect();
+        Self {
+            iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
+            cursor: 0,
+            data_filter: None,
+            single_data_filter: None,
+            store,
+        }
+    }
+
+    /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector'])
+    /// Use [`Self.annotations()'] if you want to find the annotations that reference these ones (the reverse).
+    /// Annotations will be returned sorted chronologically, without duplicates
+    pub fn annotations_in_targets(self, recursive: bool) -> AnnotationsIter<'store> {
+        let store = self.store;
+        let mut annotations: Vec<_> = self
+            .map(|annotation| {
+                annotation
+                    .annotations_in_targets(recursive)
+                    .map(|a| a.handle())
+            })
+            .flatten()
+            .collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
+    }
+
+    /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector'])
+    /// Annotations will be returned sorted chronologically, without duplicates
+    pub fn annotations(self) -> AnnotationsIter<'store> {
+        let store = self.store;
+        let mut annotations: Vec<_> = self
+            .map(|annotation| annotation.annotations().map(|a| a.handle()))
+            .flatten()
+            .collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
+    }
+
     /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in
     /// all the annotations. This returns data without annotations (sorted chronologically and
     /// without duplicates), use [`Self.with_data()`] instead if you want to know which annotations
@@ -404,6 +451,8 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain this iterator by another (intersection)
     /// This method can be called multiple times
+    ///
+    /// You can cast various tuples or vectors of ResultItem<Annotation> to AnnotationIter via `.into_iter()`.
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
         if self.iter.is_some() {
             if annotations.iter.is_some() {
@@ -417,6 +466,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain this iterator to only a single annotation
+    /// This method can only be used once! Use [`Self.filter_annotations()`] to filter on multiple annotations (disjunction).
     pub fn filter_annotation(mut self, annotation: &ResultItem<Annotation>) -> Self {
         if self.iter.is_some() {
             self.iter = Some(self.iter.unwrap().with_singleton(annotation.handle()));
