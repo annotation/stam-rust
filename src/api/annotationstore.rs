@@ -12,7 +12,7 @@ use crate::IntersectionIter;
 
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.
-    /// The `request` parameter encapsulates some kind of identifier, it can be a &str/String or handle.
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, `String` or [`TextResourceHandle`].
     ///
     /// The item is returned as a fat pointer [`ResultItem<TextResource>']) in an Option.
     /// Returns `None` if it does not exist.
@@ -24,10 +24,7 @@ impl AnnotationStore {
     }
 
     /// Requests a specific [`AnnotationDataSet`] from the store to be returned by reference.
-    /// The `request` parameter encapsulates some kind of identifier, it can be a &str,String or handle.
-    ///
-    /// The item is returned as a fat pointer [`ResultItem<AnnotationDataSet>']) in an Option.
-    /// Returns `None` if it does not exist.
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, `String` or [`AnnotationDataSetHandle`].
     pub fn dataset(
         &self,
         request: impl Request<AnnotationDataSet>,
@@ -36,7 +33,7 @@ impl AnnotationStore {
     }
 
     /// Requests a specific [`Annotation`] from the store to be returned by reference.
-    /// The `request` parameter encapsulates some kind of identifier, it can be a &str,String or handle.
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`,`String` or [`AnnotationHandle`].
     ///
     /// The item is returned as a fat pointer [`ResultItem<Annotation>']) in an Option.
     /// Returns `None` if it does not exist.
@@ -108,13 +105,13 @@ impl AnnotationStore {
     /// This returns an iterator over all matches.
     ///
     /// If you are not interested in returning the results but merely testing the presence of particular data,
-    /// then use `test_data` instead..
+    /// then use [`Self.test_data()`] instead..
     ///
-    /// You can pass a boolean (true/false, doesn't matter) or empty string literal for set or key to represent *any* set/key.
+    /// You can pass a boolean (true/false, doesn't matter) or empty string literal for `set` or `key` to represent *any* set/key.
     /// To search for any value, `value` must be explicitly set to `DataOperator::Any` to return all values.
     ///
     /// Value is a DataOperator that can apply a data test to the value. Use [`DataOperator::Equals`] to search
-    /// for an exact value. As a shortcut, you can pass `"value".into()`  to the automatically convert into
+    /// for an exact value. As a shortcut, you can pass `"value".into()` to automatically convert various data types into
     /// [`DataOperator::Equals`].
     ///
     /// Example call to retrieve all data indiscriminately: `annotation.find_data(false,false, DataOperator::Any)`
@@ -172,7 +169,8 @@ impl AnnotationStore {
         }
     }
 
-    /// Returns an iterator over all data in all sets. Using a more constrained method (on a set or a key) is preferred!
+    /// Returns an iterator over all data in all sets.
+    /// If possible, use a more constrained method (on [`AnnotationDataSet`] or a [`DataKey`]), it will have better performance.
     pub fn data<'store>(&'store self) -> DataIter<'store> {
         self.find_data(false, false, DataOperator::Any)
     }
@@ -180,10 +178,10 @@ impl AnnotationStore {
     /// Tests if certain annotation data exists, returns a boolean.
     /// If you want to actually retrieve the data, use `find_data()` instead.
     ///
-    /// Provide `key` as Option, if set to `None`, all keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    /// You can pass a boolean (true/false, doesn't matter) or empty string literal for `set` or `key` to represent *any* set/key.
+    /// To search for any value, `value` must be explicitly set to `DataOperator::Any` to return all values.
     ///
-    /// Note: This gives no guarantee that data, although it exists, is actually used by annotations
+    /// Note: This gives no guarantee that data, although it exists, is actually used by annotations.
     pub fn test_data<'store, 'a>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
@@ -203,7 +201,7 @@ impl AnnotationStore {
     ///
     /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.resources_as_metadata()` instead, it'll be much more efficient.
     ///
-    /// See `find_data()` for further parameter explanation.
+    /// See [`Self.find_data()`] for further parameter explanation.
     pub fn resources_by_metadata<'store, 'a>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
@@ -235,7 +233,7 @@ impl AnnotationStore {
     ///
     /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.resources_as_metadata()` instead, it'll be much more efficient.
     ///
-    /// See `find_data()` for further parameter explanation.
+    /// See [`Self.find_data()`] for further parameter explanation.
     pub fn datasets_by_metadata<'store, 'a>(
         &'store self,
         set: impl Request<AnnotationDataSet>,

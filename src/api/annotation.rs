@@ -103,24 +103,6 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 
-    /// Iterates over all the annotations that reference this annotation, if any, in parallel.
-    ///
-    /// Note: This does no sorting nor deduplication!
-    pub fn annotations_par(
-        &self,
-    ) -> impl ParallelIterator<Item = ResultItem<'store, Annotation>> + 'store {
-        let store = self.store();
-        self.store()
-            .annotations_by_annotation(self.handle())
-            .into_par_iter()
-            .flatten()
-            .map(|a_handle| {
-                store
-                    .annotation(*a_handle)
-                    .expect("annotation handle must be valid")
-            })
-    }
-
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
     /// They are returned in textual order, except in case if a DirectionSelector is involved, then they are in the exact order as they were selected.
     pub fn textselections(&self) -> TextSelectionsIter<'store> {
