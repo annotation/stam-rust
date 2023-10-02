@@ -9,6 +9,7 @@ use crate::resources::TextResource;
 use crate::selector::Selector;
 use crate::store::*;
 use crate::IntersectionIter;
+use rayon::prelude::*;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
@@ -197,6 +198,15 @@ impl<'store> DataIter<'store> {
             key_test: None,
             store,
         }
+    }
+
+    /// Produce a parallel iterator, iterator methods like `filter` and `map` *after* this will run in parallel.
+    /// It does not parallelize the operation of DataIter itself.
+    /// This first consumes the sequential iterator into a newly allocated buffer.
+    pub fn parallel(
+        self,
+    ) -> impl ParallelIterator<Item = ResultItem<'store, AnnotationData>> + 'store {
+        self.collect::<Vec<_>>().into_par_iter()
     }
 
     /// Constrain the iterator to return only the data used by the specified annotation
