@@ -1,10 +1,7 @@
 use crate::annotation::{Annotation, AnnotationHandle};
-use crate::annotationdata::AnnotationData;
-use crate::annotationdataset::AnnotationDataSet;
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::AnnotationsIter;
-use crate::datakey::DataKey;
-use crate::datavalue::DataOperator;
+use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
 use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
@@ -14,7 +11,7 @@ use crate::textselection::{
     TextSelectionHandle, TextSelectionOperator, TextSelectionSet,
 };
 use crate::IntersectionIter;
-use crate::{error::*, FindText};
+
 use rayon::prelude::*;
 use smallvec::SmallVec;
 use std::borrow::Cow;

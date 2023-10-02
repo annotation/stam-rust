@@ -6,7 +6,6 @@ use crate::api::annotation::AnnotationsIter;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::TextResource;
-use crate::selector::Selector;
 use crate::store::*;
 use crate::IntersectionIter;
 use rayon::prelude::*;

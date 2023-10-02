@@ -1,9 +1,7 @@
 use rayon::prelude::*;
-use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use crate::annotation::{Annotation, AnnotationHandle, TargetIter};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
@@ -11,17 +9,13 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotationdata::{Data, DataIter};
 use crate::api::textselection::TextSelectionsIter;
-use crate::api::FindText;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::error::StamError;
 use crate::resources::TextResource;
-use crate::selector::{Selector, SelectorIter, SelectorKind};
+use crate::selector::{Selector, SelectorKind};
 use crate::store::*;
-use crate::text::Text;
 use crate::textselection::{
-    ResultTextSelection, ResultTextSelectionSet, TextSelection, TextSelectionOperator,
-    TextSelectionSet,
+    ResultTextSelection, ResultTextSelectionSet, TextSelectionOperator, TextSelectionSet,
 };
 use crate::IntersectionIter;
 
