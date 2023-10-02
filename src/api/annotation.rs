@@ -281,7 +281,8 @@ impl<'store> AnnotationsIter<'store> {
         }
     }
 
-    /// Builds a new annotation iterator from any other iterator of annotation.
+    /// Builds a new annotation iterator from any other iterator of annotations.
+    /// Eagerly consumes the iterator first.
     pub fn from_iter(
         iter: impl Iterator<Item = ResultItem<'store, Annotation>>,
         sorted: bool,

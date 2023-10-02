@@ -177,6 +177,28 @@ impl<'store> DataIter<'store> {
         }
     }
 
+    /// Builds a new data iterator from any other iterator of annotationdata
+    /// Eagerly consumes the iterator.
+    pub fn from_iter(
+        iter: impl Iterator<Item = ResultItem<'store, AnnotationData>>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        let data: Vec<_> = iter
+            .map(|data| (data.set().handle(), data.handle()))
+            .collect();
+        Self {
+            iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
+            cursor: 0,
+            last_set_handle: None,
+            last_set: None,
+            operator: None,
+            set_test: None,
+            key_test: None,
+            store,
+        }
+    }
+
     /// Constrain the iterator to return only the data used by the specified annotation
     pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
         let annotation_data = annotation.as_ref().raw_data();
