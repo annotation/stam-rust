@@ -104,10 +104,11 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 }
 
+#[derive(Clone)]
 pub struct Data<'store> {
-    array: Cow<'store, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
-    store: &'store AnnotationStore,
-    sorted: bool,
+    pub(crate) array: Cow<'store, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
+    pub(crate) store: &'store AnnotationStore,
+    pub(crate) sorted: bool,
 }
 
 impl<'store> Debug for Data<'store> {
@@ -138,7 +139,8 @@ pub struct DataIter<'store> {
     store: &'store AnnotationStore,
 
     operator: Option<DataOperator<'store>>,
-    key_test: Option<(AnnotationDataSetHandle, DataKeyHandle)>,
+    set_test: Option<AnnotationDataSetHandle>,
+    key_test: Option<DataKeyHandle>,
 
     //for optimisations:
     last_set_handle: Option<AnnotationDataSetHandle>,
@@ -157,6 +159,7 @@ impl<'store> DataIter<'store> {
             last_set_handle: None,
             last_set: None,
             operator: None,
+            set_test: None,
             key_test: None,
         }
     }
@@ -169,6 +172,7 @@ impl<'store> DataIter<'store> {
             last_set_handle: None,
             last_set: None,
             operator: None,
+            set_test: None,
             key_test: None,
         }
     }
@@ -199,23 +203,54 @@ impl<'store> DataIter<'store> {
     }
 
     /// Constrain the iterator to return only the data that uses the specified key
-    /// Shortcut for `self.filter_data(key.data())`.
     pub fn filter_key(self, key: &ResultItem<'store, DataKey>) -> Self {
-        self.filter_data(key.data())
+        self.filter_key_handle(key.set().handle(), key.handle())
     }
 
+    /// Constrain the iterator to return only the data that is also in the other iterator (intersection)
     pub fn filter_data(self, data: DataIter<'store>) -> Self {
         self.merge(data)
     }
 
+    /// Find and filter data amongst the data for this annotation. Returns an iterator over the data.
+    /// If you have a particular annotation data instance, then use [`Self.has_data()`] instead.
+    pub fn find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: DataOperator<'a>,
+    ) -> DataIter<'store>
+    where
+        'a: 'store,
+    {
+        let store = self.store;
+        match store.find_data_request_resolver(set, key) {
+            Some((Some(set_handle), Some(key_handle))) => self
+                .filter_key_handle(set_handle, key_handle)
+                .filter_value(value),
+            Some((Some(set_handle), None)) => {
+                self.filter_set_handle(set_handle).filter_value(value)
+            }
+            Some((None, None)) => self.filter_value(value),
+            _ => DataIter::new_empty(store),
+        }
+    }
+
     /// Constrain this iterator to only a single annotationdata
-    pub fn filter_annotationdata(mut self, annotationdata: &ResultItem<AnnotationData>) -> Self {
+    /// If you're looking for a lower-level variant, use [`Self.filter_handle()`] instead.
+    pub fn filter_annotationdata(self, annotationdata: &ResultItem<AnnotationData>) -> Self {
+        self.filter_handle(annotationdata.set().handle(), annotationdata.handle())
+    }
+
+    /// Constrain this iterator to only a single annotationdata, by handle
+    /// You will like want to use the higher-level method [`Self.filter_annotationdata()`] instead.
+    pub fn filter_handle(
+        mut self,
+        set_handle: AnnotationDataSetHandle,
+        data_handle: AnnotationDataHandle,
+    ) -> Self {
         if self.iter.is_some() {
-            self.iter = Some(
-                self.iter
-                    .unwrap()
-                    .with_singleton((annotationdata.set().handle(), annotationdata.handle())),
-            );
+            self.iter = Some(self.iter.unwrap().with_singleton((set_handle, data_handle)));
         }
         self
     }
@@ -233,14 +268,22 @@ impl<'store> DataIter<'store> {
         self
     }
 
-    /// This filters for keys, but late in the process, all data will be individually checked
+    /// Filter for sets
     /// This can only be used once.
-    pub(crate) fn filter_key_late(
+    pub(crate) fn filter_set_handle(mut self, set_handle: AnnotationDataSetHandle) -> Self {
+        self.set_test = Some(set_handle);
+        self
+    }
+
+    /// Filter for keys
+    /// This can only be used once.
+    pub(crate) fn filter_key_handle(
         mut self,
         set_handle: AnnotationDataSetHandle,
         key_handle: DataKeyHandle,
     ) -> Self {
-        self.key_test = Some((set_handle, key_handle));
+        self.set_test = Some(set_handle);
+        self.key_test = Some(key_handle);
         self
     }
 
@@ -299,7 +342,7 @@ impl<'store> DataIter<'store> {
     /// Any constraints on either iterator remain valid!
     pub fn merge(mut self, other: DataIter<'store>) -> DataIter<'store> {
         if self.iter.is_some() && other.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+            self.iter = Some(self.iter.unwrap().merge(other.iter.unwrap()));
         } else if self.iter.is_none() {
             return other;
         }
@@ -314,7 +357,7 @@ impl<'store> DataIter<'store> {
     pub fn to_cache(self) -> Data<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
-        if self.operator.is_none() && self.key_test.is_none() {
+        if self.operator.is_none() && self.set_test.is_none() && self.key_test.is_none() {
             //we can be a bit more performant if we have no operator:
             if let Some(iter) = self.iter {
                 Data {
@@ -366,6 +409,11 @@ impl<'store> Iterator for DataIter<'store> {
         loop {
             if let Some(iter) = self.iter.as_mut() {
                 if let Some((set_handle, data_handle)) = iter.next() {
+                    if let Some(test_set) = self.set_test {
+                        if set_handle != test_set {
+                            continue;
+                        }
+                    }
                     //optimisation so we don't have to grab the same set over and over:
                     let dataset = if Some(set_handle) == self.last_set_handle {
                         self.last_set.as_ref().unwrap()
@@ -378,9 +426,8 @@ impl<'store> Iterator for DataIter<'store> {
                     let data = dataset
                         .annotationdata(data_handle)
                         .expect("data must exist");
-                    //do the late key test set by `.filter_key_late()`
-                    if let Some((test_set, test_key)) = self.key_test {
-                        if set_handle != test_set || data.key().handle() != test_key {
+                    if let Some(test_key) = self.key_test {
+                        if test_key != data.key().handle() {
                             continue;
                         }
                     }

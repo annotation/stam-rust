@@ -6,10 +6,10 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::annotation::{Annotation, AnnotationHandle, TargetIter};
-use crate::annotationdata::AnnotationData;
-use crate::annotationdataset::AnnotationDataSet;
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::annotationdata::DataIter;
+use crate::api::annotationdata::{Data, DataIter};
 use crate::api::textselection::TextSelectionsIter;
 use crate::api::FindText;
 use crate::datakey::DataKey;
@@ -189,7 +189,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Find data amongst the data for this annotation. Returns an iterator over the data.
     /// If you have a particular annotation data instance, then use [`Self.has_data()`] instead.
     pub fn find_data<'a>(
-        self,
+        &self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: DataOperator<'a>,
@@ -197,14 +197,7 @@ impl<'store> ResultItem<'store, Annotation> {
     where
         'a: 'store,
     {
-        match self.store().find_data_request_resolver(set, key) {
-            Some((Some(set_handle), Some(key_handle))) => self
-                .data()
-                .filter_key_late(set_handle, key_handle)
-                .filter_value(value),
-            Some((None, None)) => self.data().filter_value(value),
-            _ => DataIter::new_empty(self.store()),
-        }
+        self.data().find_data(set, key, value)
     }
 
     /// Tests if the annotation has certain data, returns a boolean.
@@ -259,6 +252,9 @@ pub struct AnnotationsIter<'store> {
     iter: Option<IntersectionIter<'store, AnnotationHandle>>,
     cursor: usize,
     store: &'store AnnotationStore,
+
+    data_filter: Option<Data<'store>>,
+    single_data_filter: Option<(AnnotationDataSetHandle, AnnotationDataHandle)>,
 }
 
 impl<'store> AnnotationsIter<'store> {
@@ -269,6 +265,8 @@ impl<'store> AnnotationsIter<'store> {
         Self {
             cursor: 0,
             iter: Some(iter),
+            data_filter: None,
+            single_data_filter: None,
             store,
         }
     }
@@ -277,6 +275,8 @@ impl<'store> AnnotationsIter<'store> {
         Self {
             cursor: 0,
             iter: None,
+            data_filter: None,
+            single_data_filter: None,
             store,
         }
     }
@@ -296,8 +296,8 @@ impl<'store> AnnotationsIter<'store> {
         DataIter::new(IntersectionIter::new(Cow::Owned(data), true), store)
     }
 
-    /// Find data for the annotations in this iterator. Returns an iterator over the data.
-    /// If you want know what annotation has what data, use [`Self.zip_find_data()`] instead.
+    /// Find data for the annotations in this iterator. Returns an iterator over the data (losing the information about annotations).
+    /// If you want specifically know what annotation has what data, use [`Self.zip_find_data()`] instead.
     /// If you want to constrain annotations by a data search, use [`Self.filter_find_data()`] instead.
     pub fn find_data<'a>(
         self,
@@ -308,39 +308,31 @@ impl<'store> AnnotationsIter<'store> {
     where
         'a: 'store,
     {
-        self.store
-            .find_data(set, key, value)
-            .filter_annotations(self)
+        self.data().find_data(set, key, value)
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
     /// To filter by multiple data instances, use [`Self.filter_data()`] instead.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
-        let data_annotations = self
-            .store
-            .annotations_by_data_indexlookup(data.set().handle(), data.handle());
-        if self.iter.is_some() {
-            if let Some(data_annotations) = data_annotations {
-                self.iter = Some(
-                    self.iter
-                        .unwrap()
-                        .with(Cow::Borrowed(data_annotations), true),
-                );
-            } else {
-                self.abort(); //data is not used, invalidate the iterator
-            }
-        }
+        self.single_data_filter = Some((data.set().handle(), data.handle()));
         self
     }
 
-    /// Constrain the iterator to only return annotations that have data that occurs in the passed data iterator.
+    /// Constrain the iterator to only return annotations that have data that corresponds with the passed data.
     /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
-    pub fn filter_data(self, data: DataIter<'store>) -> Self {
-        self.filter_annotations(data.annotations())
+    pub fn filter_data<'a>(mut self, data: Data<'store>) -> Self
+    where
+        'a: 'store,
+    {
+        self.data_filter = Some(data);
+        self
     }
 
     /// Constrain the iterator to only return annotations that have data matching the search parameters.
-    /// This is a just shortcut method for `self.filter_data( store.find_data(..) )`
+    /// This is a just shortcut method for `self.filter_data( store.find_data(..).to_cache() )`
+    ///
+    /// Note: Do not call this method in a loop, it will be very inefficient! Compute it once before and cache it (`let data = store.find_data(..).to_cache()`), then
+    ///       pass the result to [`Self.filter_data(data.clone())`], the clone will be cheap.
     pub fn filter_find_data<'a>(
         self,
         set: impl Request<AnnotationDataSet>,
@@ -351,7 +343,7 @@ impl<'store> AnnotationsIter<'store> {
         'a: 'store,
     {
         let store = self.store;
-        self.filter_data(store.find_data(set, key, value))
+        self.filter_data(store.find_data(set, key, value).to_cache())
     }
 
     /// Returns annotations along with matching data, either may occur multiple times!
@@ -411,6 +403,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain this iterator by another (intersection)
+    /// This method can be called multiple times
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
         if self.iter.is_some() {
             if annotations.iter.is_some() {
@@ -473,13 +466,13 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain the iterator to only return annotations that reference the specified text selection
     /// This is a just shortcut method for `.filter_annotations( textselection.annotations(..) )`
-    pub fn filter_textselection(mut self, textselection: &ResultTextSelection<'store>) -> Self {
+    pub fn filter_textselection(self, textselection: &ResultTextSelection<'store>) -> Self {
         self.filter_annotations(textselection.annotations())
     }
 
     /// Constrain the iterator to only return annotations that reference any of the specified text selections
     /// This is a just shortcut method for `.filter_annotations( textselections.annotations(..) )`
-    pub fn filter_textselections(mut self, textselections: TextSelectionsIter<'store>) -> Self {
+    pub fn filter_textselections(self, textselections: TextSelectionsIter<'store>) -> Self {
         self.filter_annotations(textselections.annotations())
     }
 
@@ -545,25 +538,28 @@ impl<'store> AnnotationsIter<'store> {
     /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
     /// This consumes the iterator.
     /// Note: This is different than running `collect()`, which produces high-level objects.
-    pub fn to_cache(mut self) -> Annotations<'store> {
+    pub fn to_cache(self) -> Annotations<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
-        //TODO: handle special case where source is borrowed
-        /*
-        if self.iter.is_some() && self.iter.unwrap().sources.len() == 1 {
-            if self.iter.unwrap().sources[0].array.is_some() {
-                return Annotations {
-                    array: self.iter.unwrap().sources[0].array.unwrap(),
-                    store,
-                    sorted,
-                };
+
+        //handle special case where we may be able to just clone the reference (Cow::Borrowed) from the iterator
+        if self.iter.is_some()
+            && self.iter.as_ref().unwrap().sources.len() == 1
+            && self.iter.as_ref().unwrap().sources[0].array.is_some()
+            && self.data_filter.is_none()
+            && self.single_data_filter.is_none()
+        {
+            Annotations {
+                array: self.iter.unwrap().sources[0].array.clone().unwrap(),
+                store,
+                sorted,
             }
-        }
-        */
-        Annotations {
-            array: Cow::Owned(self.map(|x| x.handle()).collect()),
-            store,
-            sorted,
+        } else {
+            Annotations {
+                array: Cow::Owned(self.map(|x| x.handle()).collect()),
+                store,
+                sorted,
+            }
         }
     }
 
@@ -582,9 +578,31 @@ impl<'store> Iterator for AnnotationsIter<'store> {
     type Item = ResultItem<'store, Annotation>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(iter) = self.iter.as_mut() {
-            if let Some(item) = iter.next() {
-                return Some(self.store.annotation(item).expect("annotation must exist"));
+        loop {
+            if let Some(iter) = self.iter.as_mut() {
+                if let Some(item) = iter.next() {
+                    if let Some(annotation) = self.store.annotation(item) {
+                        if let Some((set_handle, data_handle)) = self.single_data_filter {
+                            if !annotation
+                                .data()
+                                .filter_handle(set_handle, data_handle)
+                                .test()
+                            {
+                                continue;
+                            }
+                        }
+                        if let Some(data_filter) = &self.data_filter {
+                            if !annotation.data().filter_data(data_filter.iter()).test() {
+                                continue;
+                            }
+                        }
+                        return Some(annotation);
+                    }
+                } else {
+                    break;
+                }
+            } else {
+                break;
             }
         }
         None
