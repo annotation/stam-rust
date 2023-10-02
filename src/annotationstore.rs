@@ -1579,7 +1579,7 @@ impl AnnotationStore {
     ///
     /// This is a low-level function, use [`ResultItem<Annotation>.annotations()`] instead.
     /// Use [`ResultItem<annotation>.annotations_in_targets()`] if you are looking for the annotations that an annotation points at.
-    pub(crate) fn annotations_by_annotation_reverse(
+    pub(crate) fn annotations_by_annotation(
         &self,
         annotation_handle: AnnotationHandle,
     ) -> Option<&Vec<AnnotationHandle>> {

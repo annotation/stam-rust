@@ -91,9 +91,7 @@ impl<'store> ResultItem<'store, Annotation> {
     ///
     /// Note: This does no sorting nor deduplication, if you want results in textual order without duplicates, add `.textual_order()`
     pub fn annotations(&self) -> AnnotationsIter<'store> {
-        let annotations = self
-            .store()
-            .annotations_by_annotation_reverse(self.handle());
+        let annotations = self.store().annotations_by_annotation(self.handle());
         if let Some(annotations) = annotations {
             AnnotationsIter::new(
                 IntersectionIter::new(Cow::Borrowed(annotations), true),
@@ -113,7 +111,7 @@ impl<'store> ResultItem<'store, Annotation> {
     ) -> impl ParallelIterator<Item = ResultItem<'store, Annotation>> + 'store {
         let store = self.store();
         self.store()
-            .annotations_by_annotation_reverse(self.handle())
+            .annotations_by_annotation(self.handle())
             .into_par_iter()
             .flatten()
             .map(|a_handle| {
