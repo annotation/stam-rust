@@ -2,7 +2,6 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::borrow::Cow;
-use smallvec::SmallVec;
 use datasize::{DataSize,data_size};
 use minicbor::{Encode,Decode};
 
@@ -315,7 +314,7 @@ impl Selector {
     /// Returns the textselection handle this selector points at, if any
     pub fn textselection_handle(&self) -> Option<TextSelectionHandle> {
         match self {
-            Selector::TextSelector(res_handle,tsel_handle,_) | Selector::AnnotationSelector(_, Some((res_handle,tsel_handle,_))) => {
+            Selector::TextSelector(_,tsel_handle,_) | Selector::AnnotationSelector(_, Some((_,tsel_handle,_))) => {
                 Some(*tsel_handle)
             }
             _ => None
@@ -699,7 +698,7 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 }
                 state.end()
             }
-            Selector::TextSelector(res_handle, tsel_handl, offsetmode) => {
+            Selector::TextSelector(res_handle, _, _) => {
                 let textresource: Result<&TextResource, _> = self.store().get(*res_handle);
                 let textresource = textresource.map_err(serde::ser::Error::custom)?;
                 let mut state = serializer.serialize_struct("Selector", 3)?;
@@ -847,12 +846,10 @@ impl<'a> Iterator for SelectorIter<'a> {
         loop {
             if self.subiterstack.is_empty() {
                 if !self.done {
-                    let mut leaf = true;
                     match self.selector {
                         //  higher-order annotation, appends to the subiterstack
                         Selector::AnnotationSelector(a_handle, _) => {
                             if self.recurse_annotation {
-                                leaf = false;
                                 let annotation: &Annotation = self
                                     .store
                                     .get(*a_handle)
@@ -872,7 +869,6 @@ impl<'a> Iterator for SelectorIter<'a> {
                         Selector::MultiSelector(v)
                         | Selector::CompositeSelector(v)
                         | Selector::DirectionalSelector(v) => {
-                            leaf = false;
                             for subselector in v.iter().rev() {
                                 self.subiterstack.push(SelectorIter {
                                     selector: subselector,

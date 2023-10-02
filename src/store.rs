@@ -1503,7 +1503,7 @@ impl<'a, T> Request<T> for bool
 where
     T: Storable,
 {
-    fn to_handle<'store, S>(&self, store: &'store S) -> Option<T::HandleType>
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<T::HandleType>
     where
         S: StoreFor<T>,
     {

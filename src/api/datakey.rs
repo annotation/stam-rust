@@ -1,19 +1,16 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 
-use crate::annotation::Annotation;
-use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::api::annotation::AnnotationsIter;
 use crate::api::annotationdata::DataIter;
 use crate::datakey::DataKey;
 use crate::resources::TextResource;
-use crate::selector::SelectorKind;
 use crate::store::*;
 use crate::IntersectionIter;
 
 impl<'store> ResultItem<'store, DataKey> {
-    /// Method to return a reference to the dataset that holds this key
+    /// Returns a reference to the dataset that holds this key
     pub fn set(&self) -> ResultItem<'store, AnnotationDataSet> {
         let rootstore = self.rootstore();
         self.store().as_resultitem(rootstore, rootstore)
@@ -27,7 +24,6 @@ impl<'store> ResultItem<'store, DataKey> {
     /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key.
     /// Use methods on this iterator like `DataIter.filter_value()` to further constrain the results.
     pub fn data(&self) -> DataIter<'store> {
-        let rootstore = self.rootstore();
         let store = self.store();
         if let Some(vec) = store.data_by_key(self.handle()) {
             let iter = vec
@@ -54,7 +50,7 @@ impl<'store> ResultItem<'store, DataKey> {
     }
 
     /// Returns the number of annotations that make use of this key.
-    ///  Note: this method has suffix `_count` instead of `_len` because it is not O(1) but does actual counting (O(n) at worst).
+    /// Note: this method has suffix `_count` instead of `_len` because it is not O(1) but does actual counting (O(n) at worst).
     /// (This function internally allocates a temporary buffer to ensure no duplicates are returned)
     pub fn annotations_count(&self) -> usize {
         self.rootstore()
@@ -74,8 +70,7 @@ impl<'store> ResultItem<'store, DataKey> {
         }
     }
 
-    /// Returns an iterator over all text resources that make use of this key via annotations (either as metadata or on text)
-    /// (This function allocates a temporary buffer to ensure no duplicates are returned)
+    /// Returns an set of all text resources that make use of this key via annotations (either as metadata or on text)
     pub fn resources(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
             .map(|annotation| annotation.resources().map(|resource| resource.clone()))
@@ -83,7 +78,7 @@ impl<'store> ResultItem<'store, DataKey> {
             .collect()
     }
 
-    /// Returns resources that make use of this key as metadata (via annotation with a ResourceSelector)
+    /// Returns a set of all text resources that make use of this key as metadata (via annotations with a ResourceSelector)
     pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
             .map(|annotation| annotation.resources_as_metadata())

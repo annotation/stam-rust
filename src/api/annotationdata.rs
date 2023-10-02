@@ -6,7 +6,6 @@ use crate::api::annotation::AnnotationsIter;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::TextResource;
-use crate::selector::Selector;
 use crate::store::*;
 use crate::IntersectionIter;
 use rayon::prelude::*;
@@ -15,17 +14,18 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 impl<'store> ResultItem<'store, AnnotationData> {
-    /// Method to return a reference to the dataset that holds this data
+    /// Return a reference to the dataset that holds this data
     pub fn set(&self) -> ResultItem<'store, AnnotationDataSet> {
         let rootstore = self.rootstore();
         self.store().as_resultitem(rootstore, rootstore)
     }
 
-    /// Return a reference to data value
+    /// Return a reference to the data value
     pub fn value(&self) -> &'store DataValue {
         self.as_ref().value()
     }
 
+    /// Return a reference to the key for this data
     pub fn key(&self) -> ResultItem<'store, DataKey> {
         self.store()
             .key(self.as_ref().key())
@@ -134,9 +134,13 @@ impl<'a> Data<'a> {
     }
 }
 
+/// `DataIter` iterates over annotation data, it returns `ResultItem<AnnotationData>` instances.
+/// The iterator offers a various high-level API methods that operate on a collection of annotation data, and
+/// allow to further filter or map annotations.
+///
+/// The iterator is produced by calling the `data()` method that is implemented for several objects.
 pub struct DataIter<'store> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
-    cursor: usize,
     store: &'store AnnotationStore,
 
     operator: Option<DataOperator<'store>>,
@@ -154,7 +158,6 @@ impl<'store> DataIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            cursor: 0,
             iter: Some(iter),
             store,
             last_set_handle: None,
@@ -167,7 +170,6 @@ impl<'store> DataIter<'store> {
 
     pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
         Self {
-            cursor: 0,
             iter: None,
             store,
             last_set_handle: None,
@@ -190,7 +192,6 @@ impl<'store> DataIter<'store> {
             .collect();
         Self {
             iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
-            cursor: 0,
             last_set_handle: None,
             last_set: None,
             operator: None,
@@ -200,9 +201,10 @@ impl<'store> DataIter<'store> {
         }
     }
 
-    /// Produce a parallel iterator, iterator methods like `filter` and `map` *after* this will run in parallel.
-    /// It does not parallelize the operation of DataIter itself.
+    /// Transform the iterator into a parallel iterator; subsequent iterator methods like `filter` and `map` will run in parallel.
     /// This first consumes the sequential iterator into a newly allocated buffer.
+    ///
+    /// Note: It does not parallelize the operation of DataIter itself.
     pub fn parallel(
         self,
     ) -> impl ParallelIterator<Item = ResultItem<'store, AnnotationData>> + 'store {
@@ -235,16 +237,19 @@ impl<'store> DataIter<'store> {
     }
 
     /// Constrain the iterator to return only the data that uses the specified key
+    /// This method can only be called once.
     pub fn filter_key(self, key: &ResultItem<'store, DataKey>) -> Self {
         self.filter_key_handle(key.set().handle(), key.handle())
     }
 
     /// Constrain the iterator to return only the data that is also in the other iterator (intersection)
+    ///
+    /// You can cast any existing iterator that produces `ResultItem<AnnotationData>` to a [`DataIter`] using [`DataIter::from_iter()`].
     pub fn filter_data(self, data: DataIter<'store>) -> Self {
         self.merge(data)
     }
 
-    /// Find and filter data amongst the data for this annotation. Returns an iterator over the data.
+    /// Find and filter data. Returns an iterator over the data.
     /// If you have a particular annotation data instance, then use [`Self.has_data()`] instead.
     pub fn find_data<'a>(
         self,

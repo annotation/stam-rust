@@ -1,16 +1,15 @@
-use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
 use crate::api::annotation::AnnotationsIter;
 use crate::api::annotationdata::DataIter;
-use crate::datakey::{DataKey, DataKeyHandle};
+use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::{store::*, IntersectionIter};
 
 use std::borrow::Cow;
 
 impl<'store> ResultItem<'store, AnnotationDataSet> {
-    /// Returns an iterator over all data in this set
+    /// Returns an iterator over all data in this set.
     pub fn data(&self) -> DataIter<'store> {
         let set_handle = self.handle();
         let iter = self
@@ -30,7 +29,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
             .map(|item| item.as_resultitem(self.as_ref(), self.rootstore()))
     }
 
-    /// Retrieve a key in this set
+    /// Retrieve a [`DataKey`] in this set
     pub fn key(&self, key: impl Request<DataKey>) -> Option<ResultItem<'store, DataKey>> {
         self.as_ref()
             .get(key)
@@ -39,11 +38,6 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     }
 
     /// Retrieve a single [`AnnotationData`] in this set
-    ///
-    /// Returns a reference to [`AnnotationData`] that is wrapped in a fat pointer
-    /// ([`ResultItem<AnnotationData>`]) that also contains reference to the store and which is
-    /// immediately implements various methods for working with the type. If you need a more
-    /// performant low-level method, use `StoreFor<T>::get()` instead.
     pub fn annotationdata(
         &self,
         annotationdata: impl Request<AnnotationData>,
@@ -107,9 +101,8 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Tests if the dataset has certain data, returns a boolean.
     /// If you want to actually retrieve the data, use `find_data()` instead.
     ///
-    /// Provide `set` and `key`  as Options, if set to `None`, all sets and keys will be searched.
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
-    /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored.
+    /// If you pass an empty string literal or boolean to `key`, all keys will be searched.
+    /// Value is a DataOperator, it can be set set to [`DataOperator::Any`] to return all values.
     pub fn test_data<'a>(&self, key: impl Request<DataKey>, value: DataOperator<'a>) -> bool {
         self.find_data(key, value).next().is_some()
     }

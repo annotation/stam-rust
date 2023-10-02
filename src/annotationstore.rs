@@ -6,7 +6,6 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -24,7 +23,7 @@ use crate::json::{FromJson, ToJson};
 use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
 use crate::selector::{Offset, OffsetMode, Selector, SelectorBuilder};
 use crate::store::*;
-use crate::textselection::{ResultTextSelection, TextSelection, TextSelectionHandle};
+use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
 
 /// An Annotation Store is an unordered collection of annotations, resources and
@@ -1580,7 +1579,7 @@ impl AnnotationStore {
     ///
     /// This is a low-level function, use [`ResultItem<Annotation>.annotations()`] instead.
     /// Use [`ResultItem<annotation>.annotations_in_targets()`] if you are looking for the annotations that an annotation points at.
-    pub(crate) fn annotations_by_annotation_reverse(
+    pub(crate) fn annotations_by_annotation(
         &self,
         annotation_handle: AnnotationHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
