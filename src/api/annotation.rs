@@ -465,9 +465,19 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain this iterator to only a single annotation
     /// This method can only be used once! Use [`Self.filter_annotations()`] to filter on multiple annotations (disjunction).
-    pub fn filter_annotation(mut self, annotation: &ResultItem<Annotation>) -> Self {
+    pub fn filter_annotation(self, annotation: &ResultItem<Annotation>) -> Self {
         if self.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().with_singleton(annotation.handle()));
+            self.filter_handle(annotation.handle())
+        } else {
+            self
+        }
+    }
+
+    /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self.filter_annotation()`] instead.
+    /// This method can only be used once! Use [`Self.filter_annotations()`] to filter on multiple annotations (disjunction).
+    pub fn filter_handle(mut self, handle: AnnotationHandle) -> Self {
+        if self.iter.is_some() {
+            self.iter = Some(self.iter.unwrap().with_singleton(handle));
         }
         self
     }
