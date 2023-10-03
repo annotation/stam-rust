@@ -196,8 +196,8 @@ impl<'store> ResultItem<'store, Annotation> {
 
 pub struct Annotations<'store> {
     array: Cow<'store, [AnnotationHandle]>,
-    store: &'store AnnotationStore,
     sorted: bool,
+    store: &'store AnnotationStore,
 }
 
 impl<'store> Debug for Annotations<'store> {
@@ -219,6 +219,20 @@ impl<'a> Annotations<'a> {
 
     pub fn len(&self) -> usize {
         self.array.len()
+    }
+
+    /// Low-level method to instantiate annotations from an existing collection
+    /// Use of this function is discouraged in most cases as there is no validity check on the handles you pass.
+    pub fn from_handles(
+        array: Cow<'a, [AnnotationHandle]>,
+        sorted: bool,
+        store: &'a AnnotationStore,
+    ) -> Self {
+        Self {
+            array,
+            sorted,
+            store,
+        }
     }
 }
 

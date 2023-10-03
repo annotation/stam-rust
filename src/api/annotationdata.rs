@@ -132,6 +132,20 @@ impl<'a> Data<'a> {
     pub fn len(&self) -> usize {
         self.array.len()
     }
+
+    /// Low-level method to instantiate data from an existing collection
+    /// Use of this function is discouraged in most cases as there is no validity check on the handles you pass.
+    pub fn from_handles(
+        array: Cow<'a, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
+        sorted: bool,
+        store: &'a AnnotationStore,
+    ) -> Self {
+        Self {
+            array,
+            sorted,
+            store,
+        }
+    }
 }
 
 /// `DataIter` iterates over annotation data, it returns `ResultItem<AnnotationData>` instances.
