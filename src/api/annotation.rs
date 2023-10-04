@@ -221,6 +221,10 @@ impl<'a> Annotations<'a> {
         self.array.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.array.is_empty()
+    }
+
     /// Low-level method to instantiate annotations from an existing collection
     /// Use of this function is discouraged in most cases as there is no validity check on the handles you pass.
     pub fn from_handles(
@@ -407,60 +411,12 @@ impl<'store> AnnotationsIter<'store> {
         self.filter_data(store.find_data(set, key, value).to_cache())
     }
 
-    /// Returns annotations along with matching data, either may occur multiple times!
-    /// Consumes the iterator.
-    pub fn zip_data(
-        self,
-    ) -> impl Iterator<
-        Item = (
-            ResultItem<'store, Annotation>,
-            ResultItem<'store, AnnotationData>,
-        ),
-    > + 'store {
-        self.map(|annotation| {
-            annotation
-                .data()
-                .map(move |data| (annotation.clone(), data))
-        })
-        .flatten()
-    }
-
-    /// Returns annotations along with matching data (matching the search parameters), either may occur multiple times!
-    pub fn zip_find_data<'a>(
-        self,
-        set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-        value: &'a DataOperator<'a>,
-    ) -> Option<
-        impl Iterator<
-                Item = (
-                    ResultItem<'store, Annotation>,
-                    ResultItem<'store, AnnotationData>,
-                ),
-            > + 'store,
-    >
-    where
-        'a: 'store,
-    {
-        if let Some((set_handle, key_handle)) = self.store.find_data_request_resolver(set, key) {
-            Some(
-                self.map(move |annotation| {
-                    annotation.data().filter_map(move |data| {
-                        if (set_handle.is_none() || data.set().handle() == set_handle.unwrap())
-                            && (key_handle.is_none() || data.key().handle() == key_handle.unwrap())
-                            && data.value().test(value)
-                        {
-                            Some((annotation.clone(), data))
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .flatten(),
-            )
-        } else {
-            None
-        }
+    /// Returns an iterator over annotations along with matching data as requested
+    /// via [`Self.filter_data()`], [`Self.filter_find_data()`] or [`Self.filter_annotationdata()`]).
+    /// Implicit filters on data via e.g. `filter_annotations(data.annotations())` will **NOT** be included.
+    /// This consumes the iterator.
+    pub fn iter_with_data(self) -> AnnotationsWithDataIter<'store> {
+        AnnotationsWithDataIter(self)
     }
 
     /// Constrain this iterator by another (intersection)
@@ -671,6 +627,42 @@ impl<'store> Iterator for AnnotationsIter<'store> {
                             }
                         }
                         return Some(annotation);
+                    }
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        None
+    }
+}
+
+/// An iterator over annotations along with matching data as requested
+/// via [`AnnotationsIter.filter_data()`], [`AnnotationsIter.filter_find_data()`] or [`AnnotationsIter.filter_annotationdata()`]).
+/// Implicit filters on data via e.g. `filter_annotations(data.annotations())` will **NOT** be included.
+pub struct AnnotationsWithDataIter<'store>(AnnotationsIter<'store>);
+
+impl<'store> Iterator for AnnotationsWithDataIter<'store> {
+    type Item = (ResultItem<'store, Annotation>, Data<'store>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(iter) = self.0.iter.as_mut() {
+                if let Some(item) = iter.next() {
+                    if let Some(annotation) = self.0.store.annotation(item) {
+                        let mut dataiter = annotation.data();
+                        if let Some((set_handle, data_handle)) = &self.0.single_data_filter {
+                            dataiter = dataiter.filter_handle(*set_handle, *data_handle);
+                        }
+                        if let Some(data_filter) = &self.0.data_filter {
+                            dataiter = dataiter.filter_data(data_filter.iter());
+                        }
+                        let data = dataiter.to_cache();
+                        if !data.is_empty() {
+                            return Some((annotation, data));
+                        }
                     }
                 } else {
                     break;

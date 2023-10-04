@@ -133,6 +133,10 @@ impl<'a> Data<'a> {
         self.array.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.array.is_empty()
+    }
+
     /// Low-level method to instantiate data from an existing collection
     /// Use of this function is discouraged in most cases as there is no validity check on the handles you pass.
     pub fn from_handles(
