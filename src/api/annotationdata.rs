@@ -146,6 +146,11 @@ impl<'a> Data<'a> {
             store,
         }
     }
+
+    /// Low-level method to take the underlying vector of handles
+    pub fn take(mut self) -> Vec<(AnnotationDataSetHandle, AnnotationDataHandle)> {
+        self.array.to_mut().to_vec()
+    }
 }
 
 /// `DataIter` iterates over annotation data, it returns `ResultItem<AnnotationData>` instances.

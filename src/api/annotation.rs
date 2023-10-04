@@ -234,6 +234,11 @@ impl<'a> Annotations<'a> {
             store,
         }
     }
+
+    /// Low-level method to take the underlying vector of handles
+    pub fn take(mut self) -> Vec<AnnotationHandle> {
+        self.array.to_mut().to_vec()
+    }
 }
 
 /// The AnnotationsIter iterates over annotations, it returns ResultItem<Annotation> instances.
@@ -357,9 +362,20 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
-    /// To filter by multiple data instances, use [`Self.filter_data()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
         self.single_data_filter = Some((data.set().handle(), data.handle()));
+        self
+    }
+
+    /// Constrain the iterator to return only the annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self.filter_annotationdata()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
+    pub fn filter_annotationdata_handle(
+        mut self,
+        set_handle: AnnotationDataSetHandle,
+        data_handle: AnnotationDataHandle,
+    ) -> Self {
+        self.single_data_filter = Some((set_handle, data_handle));
         self
     }
 
