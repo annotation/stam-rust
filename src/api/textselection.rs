@@ -528,6 +528,18 @@ impl<'store> TextSelectionsIter<'store> {
         }
     }
 
+    pub fn from_handles(
+        data: Vec<(TextResourceHandle, TextSelectionHandle)>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            source: TextSelectionsSource::LowVec(data.into_iter().collect()),
+            store,
+            cursor: 0,
+            forward: None,
+        }
+    }
+
     pub(crate) fn new_with_iterator(
         iter: FindTextSelectionsIter<'store>,
         store: &'store AnnotationStore,
@@ -549,6 +561,21 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
+        }
+    }
+
+    pub fn to_handles(self) -> Vec<(TextResourceHandle, TextSelectionHandle)> {
+        match self.source {
+            TextSelectionsSource::LowVec(v) => v.into_iter().collect(),
+            _ => self
+                .filter_map(|textselection| {
+                    if let Some(handle) = textselection.handle() {
+                        Some((textselection.resource().handle(), handle))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
         }
     }
 
@@ -592,6 +619,11 @@ impl<'store> TextSelectionsIter<'store> {
     /// Iterates over all text slices in this iterator
     pub fn text(self) -> impl Iterator<Item = &'store str> {
         self.map(|textselection| textselection.text())
+    }
+
+    /// Returns true if the iterator has items, false otherwise
+    pub fn test(mut self) -> bool {
+        self.next().is_some()
     }
 
     /// Returns all underlying text concatenated into a single String

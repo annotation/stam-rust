@@ -181,7 +181,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
-    /// are in a specific relation with the text relations pertaining to the annotations. Returns an iterator over the [`TextSelection`] instances, in textual order.
+    /// are in a specific relation with the text selected by this annotation. Returns an iterator over the [`TextSelection`] instances, in textual order.
     /// (as [`ResultTextSelection`]).
     ///
     /// This method is slight different from `.textselections().related_text()`. This method
@@ -256,6 +256,7 @@ pub struct AnnotationsIter<'store> {
 
     data_filter: Option<Data<'store>>,
     single_data_filter: Option<(AnnotationDataSetHandle, AnnotationDataHandle)>,
+    related_text_filter: Option<TextSelectionOperator>,
 }
 
 impl<'store> AnnotationsIter<'store> {
@@ -267,6 +268,7 @@ impl<'store> AnnotationsIter<'store> {
             iter: Some(iter),
             data_filter: None,
             single_data_filter: None,
+            related_text_filter: None,
             store,
         }
     }
@@ -276,6 +278,7 @@ impl<'store> AnnotationsIter<'store> {
             iter: None,
             data_filter: None,
             single_data_filter: None,
+            related_text_filter: None,
             store,
         }
     }
@@ -292,6 +295,7 @@ impl<'store> AnnotationsIter<'store> {
             iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
             data_filter: None,
             single_data_filter: None,
+            related_text_filter: None,
             store,
         }
     }
@@ -454,10 +458,17 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
-    /// Find all text selections that are related to any text selections in this iterator, the operator
+    /// Find all text selections that are related to any text selections of annotations in this iterator, the operator
     /// determines the type of the relation. Shortcut method for `.textselections().related_text(operator)`.
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         self.textselections().related_text(operator)
+    }
+
+    /// Find only annotations whose text selections are related to any text selections of annotations in this iterator, the operator
+    /// determines the type of the relation.
+    pub fn filter_related_text(mut self, operator: TextSelectionOperator) -> Self {
+        self.related_text_filter = Some(operator);
+        self
     }
 
     /// Maps annotations to textselections, consuming the itetor. Results will be returned in textual order.
@@ -475,6 +486,7 @@ impl<'store> AnnotationsIter<'store> {
     /// If an annotation references multiple text selections, they are returned as a set.
     /// Note that results are in chronological annotation order, not textual order.
     pub fn zip_textselections(
+        //TODO: refactor this into iter_with_textselections() (like iter_with_data()
         self,
     ) -> impl Iterator<
         Item = (
@@ -638,6 +650,11 @@ impl<'store> Iterator for AnnotationsIter<'store> {
                                 continue;
                             }
                         }
+                        if let Some(related_text_filter) = &self.related_text_filter {
+                            if !annotation.related_text(*related_text_filter).test() {
+                                continue;
+                            }
+                        }
                         return Some(annotation);
                     }
                 } else {
@@ -670,6 +687,11 @@ impl<'store> Iterator for AnnotationsWithDataIter<'store> {
                         }
                         if let Some(data_filter) = &self.0.data_filter {
                             dataiter = dataiter.filter_data(data_filter.iter());
+                        }
+                        if let Some(related_text_filter) = &self.0.related_text_filter {
+                            if !annotation.related_text(*related_text_filter).test() {
+                                continue;
+                            }
                         }
                         let data = dataiter.to_cache();
                         if !data.is_empty() {
