@@ -273,7 +273,6 @@ impl<'store> DataIter<'store> {
     }
 
     /// Find and filter data. Returns an iterator over the data.
-    /// If you have a particular annotation data instance, then use [`Self.has_data()`] instead.
     pub fn find_data<'a>(
         self,
         set: impl Request<AnnotationDataSet>,
@@ -292,7 +291,13 @@ impl<'store> DataIter<'store> {
                 self.filter_set_handle(set_handle).filter_value(value)
             }
             Some((None, None)) => self.filter_value(value),
-            _ => DataIter::new_empty(store),
+            Some((None, Some(_))) => {
+                eprintln!(
+                    "STAM warning: find_data() can not be used without a set if you specify a key!"
+                );
+                DataIter::new_empty(store)
+            }
+            None => DataIter::new_empty(store),
         }
     }
 
@@ -335,9 +340,9 @@ impl<'store> DataIter<'store> {
         self
     }
 
-    /// Filter for keys
+    /// Filter for keys. This is a low-level function, use [`Self.filter_key()`] instead.
     /// This can only be used once.
-    pub(crate) fn filter_key_handle(
+    pub fn filter_key_handle(
         mut self,
         set_handle: AnnotationDataSetHandle,
         key_handle: DataKeyHandle,
@@ -444,6 +449,22 @@ impl<'store> DataIter<'store> {
                 sorted,
                 store,
             }
+        }
+    }
+
+    /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
+    /// This consumes the iterator but takes only the first n elements up to the specified limit.
+    pub fn to_cache_limit(self, limit: usize) -> Data<'store> {
+        let store = self.store;
+        let sorted = self.returns_sorted();
+        Data {
+            array: Cow::Owned(
+                self.take(limit)
+                    .map(|annotationdata| (annotationdata.set().handle(), annotationdata.handle()))
+                    .collect(),
+            ),
+            store,
+            sorted,
         }
     }
 

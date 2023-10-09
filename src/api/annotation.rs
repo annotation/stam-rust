@@ -161,7 +161,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Find data amongst the data for this annotation. Returns an iterator over the data.
-    /// If you have a particular annotation data instance, then use [`Self.has_data()`] instead.
+    /// If you have a particular annotation data instance and want to test if the annotation uses it, then use [`Self.has_data()`] instead.
     pub fn find_data<'a>(
         &self,
         set: impl Request<AnnotationDataSet>,
@@ -590,6 +590,18 @@ impl<'store> AnnotationsIter<'store> {
                 store,
                 sorted,
             }
+        }
+    }
+
+    /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
+    /// This consumes the iterator but takes only the first n elements up to the specified limit.
+    pub fn to_cache_limit(self, limit: usize) -> Annotations<'store> {
+        let store = self.store;
+        let sorted = self.returns_sorted();
+        Annotations {
+            array: Cow::Owned(self.take(limit).map(|x| x.handle()).collect()),
+            store,
+            sorted,
         }
     }
 
