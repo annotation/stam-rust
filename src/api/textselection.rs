@@ -1,6 +1,9 @@
 use crate::annotation::{Annotation, AnnotationHandle};
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::{Annotations, AnnotationsIter};
+use crate::api::annotationdata::Data;
 use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
 use crate::selector::{Offset, OffsetMode};
@@ -390,6 +393,8 @@ pub struct TextSelectionsIter<'store> {
     forward: Option<bool>,
     annotations_filter: Option<Annotations<'store>>,
     single_annotation_filter: Option<AnnotationHandle>,
+    single_data_filter: Option<(AnnotationDataSetHandle, AnnotationDataHandle)>,
+    data_filter: Option<Data<'store>>,
 }
 
 impl<'store> Iterator for TextSelectionsIter<'store> {
@@ -545,6 +550,8 @@ impl<'store> TextSelectionsIter<'store> {
             forward: None,
             single_annotation_filter: None,
             annotations_filter: None,
+            single_data_filter: None,
+            data_filter: None,
         }
     }
 
@@ -559,6 +566,8 @@ impl<'store> TextSelectionsIter<'store> {
             forward: None,
             single_annotation_filter: None,
             annotations_filter: None,
+            single_data_filter: None,
+            data_filter: None,
         }
     }
 
@@ -573,6 +582,8 @@ impl<'store> TextSelectionsIter<'store> {
             forward: None,
             single_annotation_filter: None,
             annotations_filter: None,
+            single_data_filter: None,
+            data_filter: None,
         }
     }
 
@@ -587,6 +598,8 @@ impl<'store> TextSelectionsIter<'store> {
             forward: Some(true),
             single_annotation_filter: None,
             annotations_filter: None,
+            single_data_filter: None,
+            data_filter: None,
         }
     }
 
@@ -601,20 +614,43 @@ impl<'store> TextSelectionsIter<'store> {
             forward: None,
             single_annotation_filter: None,
             annotations_filter: None,
+            single_data_filter: None,
+            data_filter: None,
         }
     }
 
+    /// Checks whether the textsections passes the filters (if any)
     fn pass_filter(&self, textselection: &ResultTextSelection<'store>) -> bool {
         if let Some(annotation) = self.single_annotation_filter {
-            textselection.annotations().filter_handle(annotation).test()
-        } else if let Some(annotations) = &self.annotations_filter {
-            textselection
+            if !textselection.annotations().filter_handle(annotation).test() {
+                return false;
+            }
+        }
+        if let Some(annotations) = &self.annotations_filter {
+            if !textselection
                 .annotations()
                 .filter_annotations(annotations.iter())
                 .test()
-        } else {
-            true
+            {
+                return false;
+            }
         }
+        if let Some((set_handle, data_handle)) = self.single_data_filter {
+            if !textselection
+                .annotations()
+                .filter_annotationdata_handle(set_handle, data_handle)
+                .test()
+            {
+                return false;
+            }
+        }
+        if let Some(data) = &self.data_filter {
+            if !textselection.annotations().filter_data(data.clone()).test() {
+                //MAYBE TODO: this clone may be a bit too expensive?
+                return false;
+            }
+        }
+        true
     }
 
     pub fn to_handles(self) -> Vec<(TextResourceHandle, TextSelectionHandle)> {
@@ -688,6 +724,31 @@ impl<'store> TextSelectionsIter<'store> {
     /// Filter by annotations. Only text selections will be returned that are a part of any of the specified annotations.
     pub fn filter_annotations(mut self, annotations: Annotations<'store>) -> Self {
         self.annotations_filter = Some(annotations);
+        self
+    }
+
+    /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item
+    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
+    pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
+        self.single_data_filter = Some((data.set().handle(), data.handle()));
+        self
+    }
+
+    /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self.filter_annotationdata()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
+    pub fn filter_annotationdata_handle(
+        mut self,
+        set_handle: AnnotationDataSetHandle,
+        data_handle: AnnotationDataHandle,
+    ) -> Self {
+        self.single_data_filter = Some((set_handle, data_handle));
+        self
+    }
+
+    /// Constrain the iterator to only return textselections targeted by annotations that have data that corresponds with the passed data.
+    /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
+    pub fn filter_data(mut self, data: Data<'store>) -> Self {
+        self.data_filter = Some(data);
         self
     }
 
