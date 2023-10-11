@@ -355,7 +355,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Find data for the annotations in this iterator. Returns an iterator over the data (losing the information about annotations).
-    /// If you want specifically know what annotation has what data, use [`Self.zip_find_data()`] instead.
+    /// If you want specifically know what annotation has what data, use [`Self.iter_with_data()`] instead.
     /// If you want to constrain annotations by a data search, use [`Self.filter_find_data()`] instead.
     pub fn find_data<'a>(
         self,
@@ -389,10 +389,7 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Constrain the iterator to only return annotations that have data that corresponds with the passed data.
     /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
-    pub fn filter_data<'a>(mut self, data: Data<'store>) -> Self
-    where
-        'a: 'store,
-    {
+    pub fn filter_data(mut self, data: Data<'store>) -> Self {
         self.data_filter = Some(data);
         self
     }

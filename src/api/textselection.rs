@@ -579,6 +579,22 @@ impl<'store> TextSelectionsIter<'store> {
         }
     }
 
+    pub fn to_handles_limit(self, limit: usize) -> Vec<(TextResourceHandle, TextSelectionHandle)> {
+        match self.source {
+            TextSelectionsSource::LowVec(v) => v.into_iter().take(limit).collect(),
+            _ => self
+                .take(limit)
+                .filter_map(|textselection| {
+                    if let Some(handle) = textselection.handle() {
+                        Some((textselection.resource().handle(), handle))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        }
+    }
+
     /// Produce a parallel iterator, iterator methods like `filter` and `map` *after* this will run in parallel.
     /// It does not parallelize the operation of TextSelectionsIter itself.
     /// This first consumes the sequential iterator into a newly allocated buffer.
