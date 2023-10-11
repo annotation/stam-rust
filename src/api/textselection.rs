@@ -1,6 +1,6 @@
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::annotation::AnnotationsIter;
+use crate::api::annotation::{Annotations, AnnotationsIter};
 use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
 use crate::selector::{Offset, OffsetMode};
@@ -388,6 +388,8 @@ pub struct TextSelectionsIter<'store> {
     store: &'store AnnotationStore,
     /// Direction of iteration
     forward: Option<bool>,
+    annotations_filter: Option<Annotations<'store>>,
+    single_annotation_filter: Option<AnnotationHandle>,
 }
 
 impl<'store> Iterator for TextSelectionsIter<'store> {
@@ -398,52 +400,69 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
             self.forward = Some(true);
             self.cursor = 0;
         }
-        match &mut self.source {
-            TextSelectionsSource::HighVec(data) => {
-                if let Some(item) = data.get(self.cursor as usize) {
-                    self.cursor += 1;
-                    return Some(item.clone());
+        loop {
+            let result = match &mut self.source {
+                TextSelectionsSource::HighVec(textselections) => {
+                    if let Some(textselection) = textselections.get(self.cursor as usize) {
+                        self.cursor += 1;
+                        Some(textselection.clone())
+                    } else {
+                        None
+                    }
+                }
+                TextSelectionsSource::LowVec(handles) => {
+                    if let Some((res_handle, tsel_handle)) = handles.get(self.cursor as usize) {
+                        let resource = self
+                            .store
+                            .resource(*res_handle)
+                            .expect("resource must exist");
+                        let tsel: &TextSelection = resource
+                            .as_ref()
+                            .get(*tsel_handle)
+                            .expect("text selection must exist");
+                        self.cursor += 1;
+                        Some(ResultTextSelection::Bound(
+                            tsel.as_resultitem(resource.as_ref(), self.store),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                TextSelectionsSource::FindIter(iter) => {
+                    if let Some(tsel_handle) = iter.next() {
+                        let resource = iter.resource();
+                        let tsel: &TextSelection = resource
+                            .get(tsel_handle)
+                            .expect("text selection must exist");
+                        self.cursor += 1; //not really used in this context
+                        Some(ResultTextSelection::Bound(
+                            tsel.as_resultitem(resource, self.store),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                TextSelectionsSource::TSIter(iter) => {
+                    if let Some(tsel) = iter.next() {
+                        let resource = iter.resource();
+                        self.cursor += 1; //not really used in this context
+                        Some(ResultTextSelection::Bound(
+                            tsel.as_resultitem(resource, self.store),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+            };
+            if result.is_some() && self.annotations_filter.is_some()
+                || self.single_annotation_filter.is_some()
+            {
+                if !self.pass_filter(result.as_ref().unwrap()) {
+                    continue;
                 }
             }
-            TextSelectionsSource::LowVec(data) => {
-                if let Some((res_handle, tsel_handle)) = data.get(self.cursor as usize) {
-                    let resource = self
-                        .store
-                        .resource(*res_handle)
-                        .expect("resource must exist");
-                    let tsel: &TextSelection = resource
-                        .as_ref()
-                        .get(*tsel_handle)
-                        .expect("text selection must exist");
-                    self.cursor += 1;
-                    return Some(ResultTextSelection::Bound(
-                        tsel.as_resultitem(resource.as_ref(), self.store),
-                    ));
-                }
-            }
-            TextSelectionsSource::FindIter(iter) => {
-                if let Some(tsel_handle) = iter.next() {
-                    let resource = iter.resource();
-                    let tsel: &TextSelection = resource
-                        .get(tsel_handle)
-                        .expect("text selection must exist");
-                    self.cursor += 1; //not really used in this context
-                    return Some(ResultTextSelection::Bound(
-                        tsel.as_resultitem(resource, self.store),
-                    ));
-                }
-            }
-            TextSelectionsSource::TSIter(iter) => {
-                if let Some(tsel) = iter.next() {
-                    let resource = iter.resource();
-                    self.cursor += 1; //not really used in this context
-                    return Some(ResultTextSelection::Bound(
-                        tsel.as_resultitem(resource, self.store),
-                    ));
-                }
-            }
+            return result;
         }
-        None
     }
 }
 
@@ -452,54 +471,65 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
         if self.forward != Some(false) {
             self.forward = Some(false);
             self.cursor = match &self.source {
-                TextSelectionsSource::HighVec(data) => data.len() as isize - 1,
-                TextSelectionsSource::LowVec(data) => data.len() as isize - 1,
+                TextSelectionsSource::HighVec(textselections) => textselections.len() as isize - 1,
+                TextSelectionsSource::LowVec(handles) => handles.len() as isize - 1,
                 TextSelectionsSource::FindIter(_) => {
                     unimplemented!("No backward iteration on FindIter")
                 }
                 TextSelectionsSource::TSIter(iter) => iter.size_hint().0 as isize,
             };
         }
-        if self.cursor < 0 {
-            return None;
+        loop {
+            if self.cursor < 0 {
+                return None;
+            }
+            let result = match &mut self.source {
+                TextSelectionsSource::HighVec(textselections) => {
+                    if let Some(item) = textselections.get(self.cursor as usize) {
+                        self.cursor -= 1;
+                        Some(item.clone())
+                    } else {
+                        None
+                    }
+                }
+                TextSelectionsSource::LowVec(handles) => {
+                    if let Some((res_handle, tsel_handle)) = handles.get(self.cursor as usize) {
+                        let resource = self
+                            .store
+                            .resource(*res_handle)
+                            .expect("resource must exist");
+                        let tsel: &TextSelection = resource
+                            .as_ref()
+                            .get(*tsel_handle)
+                            .expect("text selection must exist");
+                        self.cursor -= 1;
+                        Some(ResultTextSelection::Bound(
+                            tsel.as_resultitem(resource.as_ref(), self.store),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                TextSelectionsSource::FindIter(_) => {
+                    unimplemented!("No backward iteration on FindIter")
+                }
+                TextSelectionsSource::TSIter(iter) => {
+                    if let Some(tsel) = iter.next_back() {
+                        let resource = iter.resource();
+                        self.cursor -= 1; //not really used in this context
+                        Some(ResultTextSelection::Bound(
+                            tsel.as_resultitem(resource, self.store),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+            };
+            if result.is_some() && !self.pass_filter(result.as_ref().unwrap()) {
+                continue;
+            }
+            return result;
         }
-        match &mut self.source {
-            TextSelectionsSource::HighVec(data) => {
-                if let Some(item) = data.get(self.cursor as usize) {
-                    self.cursor -= 1;
-                    return Some(item.clone());
-                }
-            }
-            TextSelectionsSource::LowVec(data) => {
-                if let Some((res_handle, tsel_handle)) = data.get(self.cursor as usize) {
-                    let resource = self
-                        .store
-                        .resource(*res_handle)
-                        .expect("resource must exist");
-                    let tsel: &TextSelection = resource
-                        .as_ref()
-                        .get(*tsel_handle)
-                        .expect("text selection must exist");
-                    self.cursor -= 1;
-                    return Some(ResultTextSelection::Bound(
-                        tsel.as_resultitem(resource.as_ref(), self.store),
-                    ));
-                }
-            }
-            TextSelectionsSource::FindIter(_) => {
-                unimplemented!("No backward iteration on FindIter")
-            }
-            TextSelectionsSource::TSIter(iter) => {
-                if let Some(tsel) = iter.next_back() {
-                    let resource = iter.resource();
-                    self.cursor -= 1; //not really used in this context
-                    return Some(ResultTextSelection::Bound(
-                        tsel.as_resultitem(resource, self.store),
-                    ));
-                }
-            }
-        }
-        None
     }
 }
 
@@ -513,6 +543,8 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
+            single_annotation_filter: None,
+            annotations_filter: None,
         }
     }
 
@@ -525,6 +557,8 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
+            single_annotation_filter: None,
+            annotations_filter: None,
         }
     }
 
@@ -537,6 +571,8 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
+            single_annotation_filter: None,
+            annotations_filter: None,
         }
     }
 
@@ -549,6 +585,8 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: Some(true),
+            single_annotation_filter: None,
+            annotations_filter: None,
         }
     }
 
@@ -561,6 +599,21 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
+            single_annotation_filter: None,
+            annotations_filter: None,
+        }
+    }
+
+    fn pass_filter(&self, textselection: &ResultTextSelection<'store>) -> bool {
+        if let Some(annotation) = self.single_annotation_filter {
+            textselection.annotations().filter_handle(annotation).test()
+        } else if let Some(annotations) = &self.annotations_filter {
+            textselection
+                .annotations()
+                .filter_annotations(annotations.iter())
+                .test()
+        } else {
+            true
         }
     }
 
@@ -617,6 +670,25 @@ impl<'store> TextSelectionsIter<'store> {
         annotations.sort_unstable();
         annotations.dedup();
         AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
+    }
+
+    /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
+    pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
+        self.single_annotation_filter = Some(annotation.handle());
+        self
+    }
+
+    /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
+    /// This is a lower-level method, use [`Self.filter_annotation`] instead.
+    pub fn filter_annotation_handle(mut self, annotation: AnnotationHandle) -> Self {
+        self.single_annotation_filter = Some(annotation);
+        self
+    }
+
+    /// Filter by annotations. Only text selections will be returned that are a part of any of the specified annotations.
+    pub fn filter_annotations(mut self, annotations: Annotations<'store>) -> Self {
+        self.annotations_filter = Some(annotations);
+        self
     }
 
     /// Find all text selections that are related to any text selections in this iterator, the operator
