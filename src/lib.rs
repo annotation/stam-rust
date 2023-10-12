@@ -43,7 +43,7 @@ pub use resources::{
 pub use selector::{
     Offset, OffsetMode, Selector, SelectorBuilder, SelectorIter, SelectorKind, SelfSelector,
 };
-pub use store::{BuildItem, Request, ResultItem, Storable, Store, StoreFor};
+pub use store::{BuildItem, Request, ResultItem, StamResult, Storable, Store, StoreFor};
 pub use text::Text;
 pub use textselection::{
     ResultTextSelection, TestTextSelection, TextSelection, TextSelectionHandle,

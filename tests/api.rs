@@ -44,11 +44,11 @@ fn sanity_check() -> Result<(), StamError> {
     let set_handle = store.insert(dataset)?;
 
     //get by handle (internal id)
-    let dataset = store.dataset(set_handle).expect("dataset");
+    let dataset = store.dataset(set_handle).or_fail()?;
     assert_eq!(dataset.id(), Some("testdataset"));
 
     //get by directly by id
-    let resource = store.resource("testres").expect("resource");
+    let resource = store.resource("testres").or_fail()?;
     assert_eq!(resource.id(), Some("testres"));
     assert_eq!(resource.textlen(), 11);
     Ok(())
@@ -84,7 +84,7 @@ fn annotation_iter_data() -> Result<(), StamError> {
 #[test]
 fn resource_text() -> Result<(), StamError> {
     let store = setup_example_1()?;
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
     let text = resource.text();
     assert_eq!(text, "Hello world");
     Ok(())
@@ -427,12 +427,12 @@ const EXAMPLE_3_TEMP_ID: &'static str = r#"{
 
 fn example_3_common_tests(store: &AnnotationStore) -> Result<(), StamError> {
     //repeat some common tests
-    let resource = store.resource("testres").expect("resource must exist");
-    let annotationset = store.dataset("testdataset").expect("dataset must exist");
+    let resource = store.resource("testres").or_fail()?;
+    let annotationset = store.dataset("testdataset").or_fail()?;
 
-    let datakey = annotationset.key("pos").expect("key must exist");
-    let _annotationdata = annotationset.annotationdata("D1").expect("data must exist");
-    let _annotation = store.annotation("A1").expect("annotation must exist");
+    let datakey = annotationset.key("pos").or_fail()?;
+    let _annotationdata = annotationset.annotationdata("D1").or_fail()?;
+    let _annotation = store.annotation("A1").or_fail()?;
 
     for key in annotationset.keys() {
         //there is only one so we can test in loop body
@@ -555,9 +555,7 @@ fn annotation_textselections_relative_endaligned() -> Result<(), StamError> {
 #[test]
 fn resource_textselection_existing() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let resource = store
-        .resource("testres")
-        .expect("test: resource must exist");
+    let resource = store.resource("testres").or_fail()?;
     let textselection = resource.textselection(&Offset::simple(6, 11))?;
 
     assert_eq!(textselection.begin(), 6);
@@ -573,9 +571,7 @@ fn resource_textselection_existing() -> Result<(), StamError> {
 #[test]
 fn annotations_by_offset() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let resource = store
-        .resource("testres")
-        .expect("test: resource must exist");
+    let resource = store.resource("testres").or_fail()?;
     let textselection = resource.textselection(&Offset::simple(6, 11))?;
     let v: Vec<_> = textselection.annotations().collect();
     let a_ref = store.annotation("A1").unwrap();
@@ -601,7 +597,7 @@ fn textselections_by_annotation() -> Result<(), StamError> {
 #[test]
 fn textselections_by_resource_unsorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
-    let resource = store.resource("testres").expect("resource");
+    let resource = store.resource("testres").or_fail()?;
     let v: Vec<_> = resource.as_ref().textselections_unsorted().collect(); //lower-level method
     assert_eq!(v[0].begin(), 6);
     assert_eq!(v[0].end(), 11);
@@ -614,7 +610,7 @@ fn textselections_by_resource_unsorted() -> Result<(), StamError> {
 #[test]
 fn textselections_by_resource_sorted() -> Result<(), StamError> {
     let store = setup_example_4()?;
-    let resource = store.resource("testres").expect("resource");
+    let resource = store.resource("testres").or_fail()?;
     let v: Vec<_> = resource.textselections().collect();
     assert_eq!(v.len(), 2);
     assert_eq!(v[0].begin(), 0);
@@ -625,7 +621,7 @@ fn textselections_by_resource_sorted() -> Result<(), StamError> {
 #[test]
 fn text_by_annotation() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let annotation = store.annotation("A1").unwrap();
+    let annotation = store.annotation("A1").or_fail()?;
     let mut count = 0;
     for text in annotation.text() {
         count += 1;
@@ -638,7 +634,7 @@ fn text_by_annotation() -> Result<(), StamError> {
 #[test]
 fn data_by_value() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let dataset = store.dataset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").or_fail()?;
     let key = dataset.key("pos").unwrap();
     let annotationdata = key.data().filter_value(DataOperator::Equals("noun")).next();
     assert!(annotationdata.is_some());
@@ -649,7 +645,7 @@ fn data_by_value() -> Result<(), StamError> {
 #[test]
 fn find_data_exact() -> Result<(), StamError> {
     let store = setup_example_2()?;
-    let dataset = store.dataset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").or_fail()?;
     let mut count = 0;
     for annotationdata in dataset.find_data("pos", DataOperator::Equals("noun")) {
         count += 1;
@@ -662,7 +658,7 @@ fn find_data_exact() -> Result<(), StamError> {
 #[test]
 fn find_data_by_key() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let dataset = store.dataset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").or_fail()?;
     let count = dataset.find_data("type", DataOperator::Any).count();
     assert_eq!(count, 2);
     Ok(())
@@ -671,7 +667,7 @@ fn find_data_by_key() -> Result<(), StamError> {
 #[test]
 fn data_by_key() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let dataset = store.dataset("testdataset").unwrap();
+    let dataset = store.dataset("testdataset").or_fail()?;
     let key = dataset.key("type").unwrap();
     let count = key.data().count();
     assert_eq!(count, 2);
@@ -681,7 +677,7 @@ fn data_by_key() -> Result<(), StamError> {
 #[test]
 fn find_data_all() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let annotationset = store.dataset("testdataset").unwrap();
+    let annotationset = store.dataset("testdataset").or_fail()?;
     let count = annotationset.find_data(false, DataOperator::Any).count();
     assert_eq!(count, 2);
     Ok(())
@@ -690,7 +686,7 @@ fn find_data_all() -> Result<(), StamError> {
 #[test]
 fn find_data_all_2() -> Result<(), StamError> {
     let store = setup_example_3()?;
-    let annotationset = store.dataset("testdataset").unwrap();
+    let annotationset = store.dataset("testdataset").or_fail()?;
     let mut count = 0;
     for _ in annotationset.data() {
         count += 1;
@@ -725,7 +721,7 @@ fn multiselector_iter_notranged() -> Result<(), StamError> {
 #[test]
 fn multiselector_iter_ranged() -> Result<(), StamError> {
     let store = setup_example_multiselector_ranged()?;
-    let annotation = store.annotation("WordAnnotation").unwrap();
+    let annotation = store.annotation("WordAnnotation").or_fail()?;
     let result: Vec<&str> = annotation.text().collect();
     assert_eq!(result.len(), 2);
     assert_eq!(result[0], "Hello");
@@ -736,7 +732,7 @@ fn multiselector_iter_ranged() -> Result<(), StamError> {
 #[test]
 fn multiselector2_iter() -> Result<(), StamError> {
     let store = setup_example_multiselector_2()?;
-    let annotation = store.annotation("WordAnnotation").unwrap();
+    let annotation = store.annotation("WordAnnotation").or_fail()?;
     let result: Vec<&str> = annotation.text().collect();
     assert_eq!(result.len(), 2);
     assert_eq!(result[0], "Hello");
@@ -793,7 +789,7 @@ fn find_text_nocase() -> Result<(), StamError> {
             .with_text("Hello world")
             .build()?,
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_nocase("hello") {
         count += 1;
@@ -814,7 +810,7 @@ fn find_text_sequence() -> Result<(), StamError> {
             .with_text("Hello world")
             .build()?,
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let results = resource
         .find_text_sequence(&["Hello", "world"], |c| !c.is_alphabetic(), true)
         .expect("results must be found");
@@ -837,7 +833,7 @@ fn find_text_sequence2() -> Result<(), StamError> {
             .with_text("Hello, world")
             .build()?,
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let results = resource
         .find_text_sequence(&["Hello", "world"], |c| !c.is_alphabetic(), true)
         .expect("results must be found");
@@ -860,7 +856,7 @@ fn find_text_sequence_nocase() -> Result<(), StamError> {
             .with_text("Hello world")
             .build()?,
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let results = resource
         .find_text_sequence(&["hello", "world"], |c| !c.is_alphabetic(), false)
         .expect("results must be found");
@@ -883,7 +879,7 @@ fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
             .with_text("Hello world")
             .build()?,
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let results =
         resource.find_text_sequence(&["hello", "world", "hi"], |c| !c.is_alphabetic(), false);
     assert!(results.is_none());
@@ -899,7 +895,7 @@ fn test_split_text() -> Result<(), StamError> {
             .with_text("Hello world")
             .build()?,
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.split_text(" ") {
         count += 1;
@@ -925,7 +921,7 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
         ).build()?
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"eavesdropping").unwrap()], None, true)? {
         count += 1;
@@ -946,7 +942,7 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
         ).build()?
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"\b\w{13}\b").unwrap()], None, true)? {
         count += 1;
@@ -974,7 +970,7 @@ fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
         ).build()?
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(
         &[
@@ -1009,7 +1005,7 @@ fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
         ).build()?
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(
         &[
@@ -1044,7 +1040,7 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
         ).build()?
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping").unwrap()],
@@ -1069,7 +1065,7 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
         ).build()?
     )?;
-    let resource = store.resource("testres").unwrap();
+    let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(
         &[Regex::new(r"deny\s(\w+)\seavesdropping\s(on\s\w+)\b").unwrap()],
@@ -1093,7 +1089,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
     let resource: &TextResource = store.get("hello.txt")?;
     assert_eq!(resource.text(), "Hallå världen\n");
 
-    let annotation = store.annotation("A1").unwrap();
+    let annotation = store.annotation("A1").or_fail()?;
     assert_eq!(annotation.text().next().unwrap(), "Hallå");
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
@@ -1102,7 +1098,7 @@ fn test_example_a_sanity(store: &AnnotationStore) -> Result<(), StamError> {
         assert_eq!(data.value(), "interjection");
     }
 
-    let annotation = store.annotation("A2").unwrap();
+    let annotation = store.annotation("A2").or_fail()?;
     assert_eq!(annotation.text().next().unwrap(), "världen");
     for data in annotation.data() {
         assert_eq!(data.key().id(), Some("pos"));
@@ -1185,21 +1181,21 @@ fn test_example_6_full() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?;
-    let resource = store.resource("humanrights").unwrap();
+    let resource = store.resource("humanrights").or_fail()?;
     assert_eq!(
         resource.text(),
         "All human beings are born free and equal in dignity and rights."
     );
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     assert_eq!(
         sentence.text_simple(),
         Some("All human beings are born free and equal in dignity and rights.")
     );
-    let phrase1 = store.annotation("Phrase1").unwrap();
+    let phrase1 = store.annotation("Phrase1").or_fail()?;
     assert_eq!(phrase1.text_simple(), Some("are born free and equal"));
-    let phrase2 = store.annotation("Phrase2").unwrap();
+    let phrase2 = store.annotation("Phrase2").or_fail()?;
     assert_eq!(phrase2.text_simple(), Some("human beings are born"));
-    let phrase3 = store.annotation("Phrase3").unwrap();
+    let phrase3 = store.annotation("Phrase3").or_fail()?;
     assert_eq!(phrase3.text_simple(), Some("dignity and rights"));
     Ok(())
 }
@@ -1207,21 +1203,21 @@ fn test_example_6_full() -> Result<(), StamError> {
 #[test]
 fn test_example_6b() -> Result<(), StamError> {
     let store = setup_example_6b()?;
-    let resource = store.resource("humanrights").unwrap();
+    let resource = store.resource("humanrights").or_fail()?;
     assert_eq!(
         resource.text(),
         "All human beings are born free and equal in dignity and rights."
     );
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     assert_eq!(
         sentence.text_simple(),
         Some("All human beings are born free and equal in dignity and rights.")
     );
-    let phrase1 = store.annotation("Phrase1").unwrap();
+    let phrase1 = store.annotation("Phrase1").or_fail()?;
     assert_eq!(phrase1.text_simple(), Some("are born free and equal"));
-    let phrase2 = store.annotation("Phrase2").unwrap();
+    let phrase2 = store.annotation("Phrase2").or_fail()?;
     assert_eq!(phrase2.text_simple(), Some("human beings are born"));
-    let phrase3 = store.annotation("Phrase3").unwrap();
+    let phrase3 = store.annotation("Phrase3").or_fail()?;
     assert_eq!(phrase3.text_simple(), Some("dignity and rights"));
     Ok(())
 }
@@ -1229,21 +1225,21 @@ fn test_example_6b() -> Result<(), StamError> {
 #[test]
 fn test_example_6c() -> Result<(), StamError> {
     let store = setup_example_6c()?;
-    let resource = store.resource("humanrights").unwrap();
+    let resource = store.resource("humanrights").or_fail()?;
     assert_eq!(
         resource.text(),
         "All human beings are born free and equal in dignity and rights."
     );
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     assert_eq!(
         sentence.text_join(" "),
         "All human beings are born free and equal in dignity and rights ." // <-- note the tokenisation!
     );
-    let phrase1 = store.annotation("Phrase1").unwrap();
+    let phrase1 = store.annotation("Phrase1").or_fail()?;
     assert_eq!(phrase1.text_join(" "), "are born free and equal");
-    let phrase2 = store.annotation("Phrase2").unwrap();
+    let phrase2 = store.annotation("Phrase2").or_fail()?;
     assert_eq!(phrase2.text_join(" "), "human beings are born");
-    let phrase3 = store.annotation("Phrase3").unwrap();
+    let phrase3 = store.annotation("Phrase3").or_fail()?;
     assert_eq!(phrase3.text_join(" "), "dignity and rights");
     Ok(())
 }
@@ -1251,7 +1247,7 @@ fn test_example_6c() -> Result<(), StamError> {
 #[test]
 fn annotations_by_textselection_none() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let resource = store.resource("humanrights").unwrap();
+    let resource = store.resource("humanrights").or_fail()?;
     let textselection = resource.textselection(&Offset::simple(1, 14))?; //no annotations for this random selection
     let v: Vec<_> = textselection.annotations().collect();
     assert!(v.is_empty());
@@ -1261,7 +1257,7 @@ fn annotations_by_textselection_none() -> Result<(), StamError> {
 #[test]
 fn related_text_embedded() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let phrase1 = store.annotation("Phrase1").unwrap();
+    let phrase1 = store.annotation("Phrase1").or_fail()?;
     let mut count = 0;
     for reftextsel in phrase1.textselections() {
         for textsel in reftextsel.related_text(TextSelectionOperator::embedded()) {
@@ -1277,7 +1273,7 @@ fn related_text_embedded() -> Result<(), StamError> {
 #[test]
 fn textselections_in_range_exact() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let resource = store.resource("humanrights").unwrap();
+    let resource = store.resource("humanrights").or_fail()?;
     let mut count = 0;
     for textsel in resource.textselections_in_range(17, 40) {
         count += 1;
@@ -1291,7 +1287,7 @@ fn textselections_in_range_exact() -> Result<(), StamError> {
 #[test]
 fn textselections_in_range_bigger() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let resource = store.resource("humanrights").unwrap();
+    let resource = store.resource("humanrights").or_fail()?;
     let mut count = 0;
     for textsel in resource.textselections_in_range(1, 50) {
         count += 1;
@@ -1310,7 +1306,7 @@ fn textselections_in_range_bigger() -> Result<(), StamError> {
 #[test]
 fn related_text_embeds() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     let mut count = 0;
     for reftextsel in sentence.textselections() {
         for textsel in reftextsel.related_text(TextSelectionOperator::embeds()) {
@@ -1326,7 +1322,7 @@ fn related_text_embeds() -> Result<(), StamError> {
 #[test]
 fn related_text_embeds_shortcut() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     let mut count = 0;
     for textsel in sentence.related_text(TextSelectionOperator::embeds()) {
         count += 1;
@@ -1340,7 +1336,7 @@ fn related_text_embeds_shortcut() -> Result<(), StamError> {
 #[test]
 fn annotations_by_related_text_embeds() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     let mut count = 0;
     for annotation in sentence
         .related_text(TextSelectionOperator::embeds())
@@ -1356,7 +1352,7 @@ fn annotations_by_related_text_embeds() -> Result<(), StamError> {
 #[test]
 fn annotations_by_related_text_embeds_2() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     let mut count = 0;
     for annotation in sentence
         .textselections()
@@ -1374,7 +1370,7 @@ fn annotations_by_related_text_embeds_2() -> Result<(), StamError> {
 fn annotations_by_related_text_overlaps() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
-    let phrase = store.annotation("Phrase1").unwrap();
+    let phrase = store.annotation("Phrase1").or_fail()?;
     let annotations: Vec<_> = phrase
         .related_text(TextSelectionOperator::overlaps())
         .annotations()
@@ -1393,7 +1389,7 @@ fn annotations_by_related_text_overlaps() -> Result<(), StamError> {
 fn annotations_by_related_text_before() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
-    let phrase = store.annotation("Phrase2").unwrap();
+    let phrase = store.annotation("Phrase2").or_fail()?;
     let annotations: Vec<_> = phrase
         .related_text(TextSelectionOperator::before())
         .annotations()
@@ -1409,7 +1405,7 @@ fn annotations_by_related_text_before() -> Result<(), StamError> {
 fn annotations_by_related_text_after() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
-    let phrase = store.annotation("Phrase3").unwrap();
+    let phrase = store.annotation("Phrase3").or_fail()?;
     let annotations: Vec<_> = phrase
         .related_text(TextSelectionOperator::after())
         .annotations()
@@ -1431,7 +1427,7 @@ fn related_text_with_data() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
-    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::embeds())
         .annotations()
@@ -1462,7 +1458,7 @@ fn related_text_with_data_2() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
-    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
@@ -1494,7 +1490,7 @@ fn related_text_with_data_3() -> Result<(), StamError> {
     // Given annotation type=phrase, get the text of all annotations type=word that come before in that phrase
 
     let store = setup_example_6b()?; //<--- used different example! rest of code is the same
-    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
@@ -1513,7 +1509,7 @@ fn related_text_with_data_4() -> Result<(), StamError> {
     // Given annotation type=phrase, get the text of all annotations type=word that come before in that phrase
 
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
-    let phrase = store.annotation("Phrase3").unwrap(); // "dignity and rights"
+    let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
@@ -1532,7 +1528,7 @@ fn annotations_in_targets() -> Result<(), StamError> {
     //Get the 2nd word in the sentence
 
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     //get the 2nd word in the sentence
     let secondword = sentence.annotations_in_targets(false).nth(1).unwrap();
     assert_eq!(secondword.text_simple(), Some("human"));
@@ -1544,7 +1540,7 @@ fn annotations_in_targets_len() -> Result<(), StamError> {
     //test the number of targets
 
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     let words: Vec<_> = sentence.annotations_in_targets(false).collect();
     assert_eq!(words.len(), 12, "number of targets returned"); //the final punctuation is not included because it's not selected via AnnotationSelector but via a TextSelector
     Ok(())
@@ -1557,7 +1553,7 @@ fn related_text_with_data_5() -> Result<(), StamError> {
     let mut store = setup_example_6()?;
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
 
     let words: Vec<_> = sentence
         .related_text(TextSelectionOperator::embeds())
@@ -1574,7 +1570,7 @@ fn related_text_with_data_5() -> Result<(), StamError> {
 #[test]
 fn find_data_about() -> Result<(), StamError> {
     let store = setup_example_6c()?;
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
     //get the 2nd word in the sentence
     let secondword = sentence.annotations_in_targets(false).nth(1).unwrap();
     assert_eq!(
@@ -1608,7 +1604,7 @@ fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
     let mut store = setup_example_6()?; //note: not the same as the previous two!
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
-    let sentence = store.annotation("Sentence1").unwrap();
+    let sentence = store.annotation("Sentence1").or_fail()?;
 
     let words: Vec<_> = sentence
         .related_text(TextSelectionOperator::embeds())
@@ -1641,13 +1637,13 @@ fn annotations_by_related_text_relative_offset() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let sentence1 = store
         .annotation("Sentence1")
-        .unwrap()
+        .or_fail()?
         .textselections()
         .next()
         .unwrap();
     let phrase1 = store
         .annotation("Phrase1")
-        .unwrap()
+        .or_fail()?
         .textselections()
         .next()
         .unwrap();
@@ -1664,7 +1660,7 @@ fn ex7_resource_textselections_scale_unsorted_iter() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     //iterate over all textselections unsorted
     let mut count = 0;
@@ -1681,7 +1677,7 @@ fn ex7_resource_textselections_scale_sorted_iter() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     //iterate over all textselections unsorted
     let mut count = 0;
@@ -1698,7 +1694,7 @@ fn ex7_resource_textselection() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     resource.textselection(&Offset::simple(100, 105))?;
 
@@ -1710,7 +1706,7 @@ fn ex7_textselections_scale_test_overlap() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     let selection = resource.textselection(&Offset::simple(100, 105))?;
     //iterate over all textselections unsorted
@@ -1731,7 +1727,7 @@ fn ex7_textselections_scale_test_embeds() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     let selection = resource.textselection(&Offset::simple(100, 105))?;
     //iterate over all textselections unsorted
@@ -1752,7 +1748,7 @@ fn ex7_textselections_scale_test_embedded() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     let selection = resource.textselection(&Offset::simple(100, 101))?;
     //iterate over all textselections unsorted
@@ -1773,7 +1769,7 @@ fn ex7_textselections_scale_test_precedes() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     let selection = resource.textselection(&Offset::simple(100, 101))?;
     //iterate over all textselections unsorted
@@ -1794,7 +1790,7 @@ fn ex7_textselections_scale_test_succeeds() -> Result<(), StamError> {
     let n = 10000;
     let store = setup_example_7(n)?;
 
-    let resource = store.resource("testres").expect("resource must exist");
+    let resource = store.resource("testres").or_fail()?;
 
     let selection = resource.textselection(&Offset::simple(100, 101))?;
     //iterate over all textselections unsorted

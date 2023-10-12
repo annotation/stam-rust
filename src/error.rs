@@ -14,6 +14,9 @@ pub enum StamError {
     /// The first parameter is the requested public ID
     IdNotFoundError(String, &'static str),
 
+    /// A more generic NotFound error
+    NotFoundError(Type, &'static str),
+
     /// This error is raised when an item has no public ID but one is expected
     NoIdError(&'static str),
 
@@ -104,6 +107,9 @@ impl From<&StamError> for String {
             }
             StamError::IdNotFoundError(id, contextmsg) => {
                 format!("IdError: No such ID: {} ({})", id, contextmsg)
+            }
+            StamError::NotFoundError(tp, contextmsg) => {
+                format!("NotFoundError: {} not found ({})", tp, contextmsg)
             }
             StamError::Unbound(contextmsg) => format!(
                 "Unbound: Item is not bound yet, add it to a store first. ({})",

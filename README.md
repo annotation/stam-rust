@@ -54,21 +54,23 @@ various configuration options.
 You can retrieve items by methods that are similarly named to the return type:
 
 ```rust
-let annotation =   store.annotation("my-annotation");
-let resource = store.resource("my-resource");
-let annotationset: &stam::AnnotationDataSet = store.annotationset("my-annotationset");
-let key = annotationset.key("my-key");
-let data = annotationset.annotationdata("my-data");
+let annotation =  store.annotation("my-annotation").or_fail()?;
+let resource = store.resource("my-resource").or_fail()?;
+let annotationset: &stam::AnnotationDataSet = store.annotationset("my-annotationset").or_fail()?;
+let key = annotationset.key("my-key").or_fail()?;
+let data = annotationset.annotationdata("my-data").or_fail()?;
 ```
 
-All of these methods return an `Option<ResultItem<T>>`, where `T` is a type in the STAM
-model like `Annotation`, `TextResource`,`AnnotationDataSet`, `DataKey` or
-`TextSelection`. If the item was not found, due to an invalid ID for instance,
-the `Option<>` has the value `None`. 
+All of these methods return an `Option<ResultItem<T>>`, where `T` is a type in
+the STAM model like `Annotation`, `TextResource`,`AnnotationDataSet`, `DataKey`
+or `TextSelection`. The `or_fail()` method transforms it into a
+`Result<T,StamError>` and the `?` unwraps it safely into `ResultItem<T>` or
+propagates the error further.
 
-The `ResultItem<T>` type holds *a reference* to T,
-with a lifetime equal to the store, it also holds a reference to the store
-itself. You can call `as_ref()` on all `ResultItem<T>` instances to a direct reference with a lifetime equal to the store, this exposes a lower-level API.
+The `ResultItem<T>` type holds *a reference* to T, with a lifetime equal to the
+store, it also holds a reference to the store itself. You can call `as_ref()`
+on all `ResultItem<T>` instances to a direct reference with a lifetime equal to
+the store, this exposes a lower-level API.
 
 The wrapping of `TextSelection` is a bit special, instead of
 `ResultItem<TextSelection>`, we typically use a more specialised type
@@ -261,8 +263,8 @@ When you are not interested in the actual items but merely want to test whether 
 Example retrieving all annotations for that have part-of-speech noun (fictitious model):
 
 ```rust
-let dataset = store.dataset("linguistic-features").unwrap();
-let key = dataset.key("part-of-speech").unwrap();
+let dataset = store.dataset("linguistic-features").or_fail()?;
+let key = dataset.key("part-of-speech").or_fail()?;
 let annotationsiter = key.data().filter_value("noun".into()).annotations();
 ```
 
@@ -275,8 +277,8 @@ let annotationsiter = key.annotations().filter_value("noun".into());
 Example testing whether a word is annotated with part-of-speech noun (fictitious model):
 
 ```rust
-let dataset = store.dataset("linguistic-features").unwrap();
-let key = dataset.key("part-of-speech").unwrap();
+let dataset = store.dataset("linguistic-features").or_fail()?;
+let key = dataset.key("part-of-speech").or_fail()?;
 if word.annotations().filter_key(&key).filter_value("noun".into()).test() {
    ...    
 }
@@ -320,8 +322,8 @@ The `related_text()` method allows for for finding text selections that are in a
 * `Embedded` - All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
 * `Before` - Each TextSelection in A comes before a textselection in B  (cf. textfabric's `<<`)
 * `After` - Each TextSelection In A comes after a textselection in B (cf. textfabric's `>>`)
-* `Precedes` - Each TextSelection in A is precedes B; it ends where at least one TextSelection in B begins.
-* `Succeeds` - Each TextSelection in A is succeeds B; it begins where at least one TextSelection in A ends.
+* `Precedes` - Each TextSelection in A precedes B; it ends where at least one TextSelection in B begins.
+* `Succeeds` - Each TextSelection in A succeeds B; it begins where at least one TextSelection in A ends.
 * `SameBegin` - Each TextSelection in A starts where a TextSelection in B starts
 * `SameEnd` - Each TextSelection in A starts where a TextSelection in B ends
 
@@ -330,8 +332,8 @@ The variants are typically constructed via a helper function on `TextSelectionOp
 Example, select all words in a sentence (sentence may be either an `Annotation` or `TextSelection` in this case):
 
 ```
-let dataset = store.dataset("structure-type").unwrap();
-let key_word = dataset.key("word").unwrap();
+let dataset = store.dataset("structure-type").or_fail()?;
+let key_word = dataset.key("word").or_fail()?;
 for word in sentence.related_text(TextSelectionOperator::embeds()).annotations().filter_key(key_word) {
     ...
 }

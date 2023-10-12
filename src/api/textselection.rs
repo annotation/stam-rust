@@ -13,7 +13,9 @@ use crate::textselection::{
     FindTextSelectionsIter, ResultTextSelection, ResultTextSelectionSet, TextSelection,
     TextSelectionHandle, TextSelectionOperator, TextSelectionSet,
 };
+use crate::types::*;
 use crate::IntersectionIter;
+use sealed::sealed;
 
 use rayon::prelude::*;
 use smallvec::SmallVec;
@@ -798,5 +800,12 @@ impl<'store> TextSelectionsIter<'store> {
         } else {
             None
         }
+    }
+}
+
+#[sealed]
+impl TypeInfo for Option<ResultTextSelection<'_>> {
+    fn typeinfo() -> Type {
+        Type::TextSelection
     }
 }

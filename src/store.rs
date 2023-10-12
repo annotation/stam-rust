@@ -1087,6 +1087,35 @@ where
     }
 }
 
+pub trait StamResult<T>
+where
+    T: TypeInfo,
+{
+    fn or_fail(self) -> Result<T, StamError>;
+}
+
+impl<'store, T> StamResult<T> for Option<T>
+where
+    T: TypeInfo,
+{
+    fn or_fail(self) -> Result<T, StamError> {
+        match self {
+            Some(item) => Ok(item),
+            None => Err(StamError::NotFoundError(T::typeinfo(), "")),
+        }
+    }
+}
+
+#[sealed]
+impl<T> TypeInfo for Option<ResultItem<'_, T>>
+where
+    T: Storable,
+{
+    fn typeinfo() -> Type {
+        T::typeinfo()
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Groups multiple result items together
