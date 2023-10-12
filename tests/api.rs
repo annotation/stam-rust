@@ -427,10 +427,10 @@ const EXAMPLE_3_TEMP_ID: &'static str = r#"{
 
 fn example_3_common_tests(store: &AnnotationStore) -> Result<(), StamError> {
     //repeat some common tests
-    let resource = store.resource("testres").or_fail()?;
+    let _resource = store.resource("testres").or_fail()?;
     let annotationset = store.dataset("testdataset").or_fail()?;
 
-    let datakey = annotationset.key("pos").or_fail()?;
+    let _datakey = annotationset.key("pos").or_fail()?;
     let _annotationdata = annotationset.annotationdata("D1").or_fail()?;
     let _annotation = store.annotation("A1").or_fail()?;
 

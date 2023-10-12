@@ -11,7 +11,6 @@ use std::slice::{Iter, IterMut};
 use datasize::{data_size, DataSize};
 use minicbor::{Decode, Encode};
 use nanoid::nanoid;
-use smallvec::{smallvec, SmallVec};
 
 use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;

@@ -1,7 +1,5 @@
+#![allow(dead_code)]
 use stam::*;
-use std::ops::Deref;
-
-const CARGO_MANIFEST_DIR: &'static str = env!("CARGO_MANIFEST_DIR");
 
 pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
@@ -300,7 +298,7 @@ pub fn annotate_regex_for_example_6(store: &mut AnnotationStore) -> Result<(), S
         .find_text_regex(&[Regex::new(r"Article \d").unwrap()], None, true)?
         .into_iter()
         .map(|foundmatch| {
-            let offset: Offset = foundmatch.textselections().first().unwrap().deref().into();
+            let offset: Offset = foundmatch.textselections().first().unwrap().into();
             AnnotationBuilder::new()
                 .with_target(SelectorBuilder::textselector(resource.handle(), offset))
                 .with_data("myset", "type", "header")
