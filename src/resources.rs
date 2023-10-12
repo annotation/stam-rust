@@ -415,7 +415,7 @@ impl TextResourceBuilder {
 
 impl TextResource {
     /// Instantiates a new completely empty TextResource
-    pub(crate) fn new(id: impl Into<String>, config: Config) -> Self {
+    pub fn new(id: impl Into<String>, config: Config) -> Self {
         Self {
             id: id.into(),
             intid: None,

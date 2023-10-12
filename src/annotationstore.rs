@@ -1586,29 +1586,6 @@ impl AnnotationStore {
         self.annotation_annotation_map.get(annotation_handle)
     }
 
-    /// Returns all annotations that reference any keys/data in an annotationset
-    /// Use [`Self.annotations_by_annotationset_metadata()`] instead if you are looking for annotations that reference the dataset as is
-    /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations()`] instead.
-    pub(crate) fn annotations_by_dataset(
-        &self,
-        dataset_handle: AnnotationDataSetHandle,
-    ) -> Option<impl Iterator<Item = AnnotationHandle> + '_> {
-        if let Some(data_annotationmap) = self
-            .dataset_data_annotation_map
-            .data
-            .get(dataset_handle.as_usize())
-        {
-            Some(
-                data_annotationmap
-                    .data
-                    .iter()
-                    .flat_map(|v| v.iter().copied()), //copies only the handles (cheap)
-            )
-        } else {
-            None
-        }
-    }
-
     /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
     /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations_metadata()`] instead.

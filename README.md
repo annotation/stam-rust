@@ -51,7 +51,7 @@ various configuration options.
 
 ### Retrieving items
 
-You can retrieve items by methods that are similarly named to the return type:
+You can retrieve items by methods that are similarly named to the desired return type:
 
 ```rust
 let annotation =  store.annotation("my-annotation").or_fail()?;
@@ -70,7 +70,8 @@ propagates the error further.
 The `ResultItem<T>` type holds *a reference* to T, with a lifetime equal to the
 store, it also holds a reference to the store itself. You can call `as_ref()`
 on all `ResultItem<T>` instances to a direct reference with a lifetime equal to
-the store, this exposes a lower-level API.
+the store, this exposes a lower-level API. `ResultItem<T>` itself always
+exposes a high-level API, which is what you want in most cases.
 
 The wrapping of `TextSelection` is a bit special, instead of
 `ResultItem<TextSelection>`, we typically use a more specialised type

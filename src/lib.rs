@@ -378,6 +378,7 @@ where
 }
 
 mod test {
+    #![allow(unused_imports)]
     use super::IntersectionIter;
     use std::borrow::Cow;
 

@@ -1,6 +1,6 @@
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
-use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
+use crate::annotationdataset::AnnotationDataSetHandle;
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::{Annotations, AnnotationsIter};
 use crate::api::annotationdata::Data;

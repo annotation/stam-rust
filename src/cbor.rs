@@ -45,6 +45,7 @@ impl<C> CborLen<C> for TextSelectionHandle {
     }
 }
 
+/*
 pub(crate) fn cbor_len_positionitem_smallvec<Ctx, W: minicbor::encode::Write>(
     v: &SmallVec<[(usize, TextSelectionHandle); 1]>,
     ctx: &mut Ctx,
@@ -52,6 +53,7 @@ pub(crate) fn cbor_len_positionitem_smallvec<Ctx, W: minicbor::encode::Write>(
     let n = v.len();
     n.cbor_len(ctx) + v.iter().map(|x| x.cbor_len(ctx)).sum::<usize>()
 }
+*/
 
 // minicbor has no skip property unfortunately, we have to fake it for the 'changed' fields on AnnotationDataSet and TextResource:
 
