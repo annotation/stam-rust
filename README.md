@@ -61,15 +61,18 @@ let key = annotationset.key("my-key");
 let data = annotationset.annotationdata("my-data");
 ```
 
-
-All of these methods return an `Option<ResultItem<T>>`, where `T` is a STAM
-type like `Annotation`, `TextResource`,`AnnotationDataSet`, `DataKey` or
+All of these methods return an `Option<ResultItem<T>>`, where `T` is a type in the STAM
+model like `Annotation`, `TextResource`,`AnnotationDataSet`, `DataKey` or
 `TextSelection`. If the item was not found, due to an invalid ID for instance,
-the `Option<>` has the value `None`.
+the `Option<>` has the value `None`. 
 
 The `ResultItem<T>` type holds *a reference* to T,
 with a lifetime equal to the store, it also holds a reference to the store
-itself. You can call `as_ref()` on all `ResultItem<T>` instances to a direct reference with a lifetime equal to the store.
+itself. You can call `as_ref()` on all `ResultItem<T>` instances to a direct reference with a lifetime equal to the store, this exposes a lower-level API.
+
+The wrapping of `TextSelection` is a bit special, instead of
+`ResultItem<TextSelection>`, we typically use a more specialised type
+`ResultTextSelection`.
 
 ### Adding items
 
@@ -158,7 +161,7 @@ Or to a [STAM CSV](https://github.com/annotation/stam/tree/master/extensions/sta
 store.to_file("example.stam.csv")?;
 ```
 
-### Iterators
+### Iterators & Searching
 
 Iterating through all annotations in the store, and outputting a simple tab
 separated format with the data by annotation and the text by annotation:
@@ -175,7 +178,7 @@ for annotation in store.annotations() {
 ```
 
 Here is an overview of the most important methods that return an iterator, the
-iterators in turn all return `ResultItem<T>` instances. The table is divided into two parts,
+iterators in turn all return `ResultItem<T>` instances (or `ResultTextSelection`). The table is divided into two parts,
 the top part simple methods that follows STAM's ownership model. Those in the bottom part leverage the various *reverse indices*
 that are computed:
 
@@ -184,42 +187,120 @@ that are computed:
 | -------------------------------------| ----------------------| ------------------------------------|
 | `AnnotationStore.annotations()`      | `Annotation`          | all annotations in the store        | 
 | `AnnotationStore.resources()`        | `TextResource`        | all resources in the store          |
-| `AnnotationStore.annotationsets()`   | `AnnotationDataSet`   | all annotation sets in the store    |
+| `AnnotationStore.datasets()`         | `AnnotationDataSet`   | all annotation sets in the store    |
 | `AnnotationDataSet.keys()`           | `DataKey`             | all keys in the set                 |
 | `AnnotationDataSet.data()`           | `AnnotationData`      | all data in the set                 |
 | `Annotation.data()`                  | `AnnotationData`      | the data pertaining to the annotation |
 | -------------------------------------|-----------------------|-------------------------------------|
 | `TextResource.textselections()`      | `TextSelection`       | all *known* text selections in the resource (1) |
 | `TextResource.annotations()`         | `Annotation`          | Annotations referencing this text using a `TextSelector` or `AnnotationSelector` |
-| `TextResource.annotations_metadata()`| `Annotation`          | Annotations referencing the resource via a `ResourceSelector` |
+| `TextResource.annotations_as_metadata()`| `Annotation`          | Annotations referencing the resource via a `ResourceSelector` |
 | `AnnotationDataSet.annotations()`         | `Annotation`          | All annotations making use of this set |
-| `AnnotationDataSet.annotations_metadata()`| `Annotation`          | Annotations referencing the set via a `DataSetSelector` |
-| `Annotation.annotations()`           | `Annotation`          | Annotations pointed at via a `AnnotationSelector` |
-| `Annotation.annotations_reverse()`   | `Annotation`          | The reverse of the above (annotations that point back) |
+| `AnnotationDataSet.annotations_as_metadata()`| `Annotation`          | Annotations referencing the set via a `DataSetSelector` |
+| `Annotation.annotations()`           | `Annotation`          | Annotations that reference the current one via an `AnnotationSelector` |
+| `Annotation.annotations_in_targets()`  | `Annotation`        | Annotations referenced by the current one via an `AnnotationSelector` |
 | `Annotation.textselections()`        | `Annotation`          | Targeted text selections (via `TextSelector` or `AnnotationSelector`) |
-| `AnnotationData.annotations()`       | `Annotation`          | All annotations that uses of this data  |
+| `AnnotationData.annotations()`       | `Annotation`          | All annotations that use this data  |
 | `DataKey.data()`                     | `AnnotationData`      | All annotation data that uses this key |
 | `TextSelection.annotations()`        | `Annotation`          | All annotations that target this text selection |
 | -------------------------------------|-----------------------|-------------------------------------|
 
+
 Notes:
 * (1) With *known* text selections, we refer to portions of the texts that have been referenced by an annotation.
-* Most of the methods in the left column, second part of the table, are implemented only for `WrappedItem<T>`, not `&T`.
+* Most of the methods in the left column, second part of the table, are implemented only for `ResultItem<T>`, not `&T`.
 * This library consistently uses iterators and therefore *lazy evaluation*.
   This is more efficient and less memory intensive because you don't need to
   wait for all results to be collected (and heap allocated) before you can do computation.
 
-#### Iterators (advanced, low-level)
+The main named iterators in STAM are:
 
-*(feel free to skip this subsection on a first reading!)*
+| Iterator                             | T                      | Methods that produce the iterator             |
+| ------------------------------------ | ---------------------- | --------------------------------------------- |
+| `AnnotationsIter`                    | `Annotation`           | `annotations()` / `annotations_in_targets()`  |
+| `DataIter`                           | `AnnotationData`       | `data()` / `find_data()`                      |
+| `TextSelectionsIter`                 | `TextSelection`        | `textselections()` / `related_text()`         |
+| ------------------------------------ | -----------------------|-----------------------------------------------|
 
-Whereas all iterators in the above table produce a `WrappedItem<T>`, there are lower level methods available which only return handles.
-We are not going to list them here, but they can be recognized by the keyword `_by_` in the method name, like `annotations_by_data()`.
+The iterators expose an API themselves, allowing various transformations and
+filter actions: You can typically transform one type of iterator to another
+using the methods in the third column. Similarly, you can obtain an iterator
+from `ResultItem` instances (`Annotation`,`TextSelection`,`AnnotationData`)
+through equally named methods.
 
-### Searching
 
-There are several methods available, on various objects, to enable searching. These all start with the prefix `find_`, and like those in the previous section, they return iterators producing `WrappedItem<T>` items.
+All of these named iterators have a cached counterpart that holds an entire collection in memory. You can go from the former to the latter with `.to_cache()` and from the latter to the format with `.iter()`.
 
+
+| Iterator                             | Collection             |
+| ------------------------------------ | ---------------------- |
+| `AnnotationsIter`                    | `Annotations`          |
+| `DataIter`                           | `Data`                 |
+| `TextSelectionsIter`                 | `TextSelections`       |
+| ------------------------------------ | -----------------------|
+
+The named iterators can be extended by filters, they are applied in a build pattern and return the same iterator with the filter applied:
+
+| Filter method                                  | Description            |
+| ---------------------------------------------- | ---------------------- |
+| `filter_annotation(&ResultItem<Annotation>)`   | Filters on a single annotation  | 
+| `filter_annotations(Annotations)`              | Filters on multiple annotations |
+| `filter_annotationdata(&ResultItem<AnnotationData>)`     | Filters on a single data item  |
+| `filter_data(Data)`                            | Filters on multiple data items |
+| `filter_key(&ResultItem<DataKey>)`             | Filters on a data key  | 
+| `filter_value(value)`                          | Filters on a data value, the parameter can be of various types |
+| ---------------------------------------------- | ---------------------- |
+
+STAM attempts to evaluate the iterators lazily when possible, but in many cases internal buffers need to be allocated.
+
+When you are not interested in the actual items but merely want to test whether there are results at all, then use the `test()` method.
+
+
+#### Examples
+
+Example retrieving all annotations for that have part-of-speech noun (fictitious model):
+
+```rust
+let dataset = store.dataset("linguistic-features").unwrap();
+let key = dataset.key("part-of-speech").unwrap();
+let annotationsiter = key.data().filter_value("noun".into()).annotations();
+```
+
+Alternatively, this can also be done as follows, following a slightly different path to get to the same results. Sometimes one version is more performant than the other, depending on how your data is modelled:
+
+```rust
+let annotationsiter = key.annotations().filter_value("noun".into());
+```
+
+Example testing whether a word is annotated with part-of-speech noun (fictitious model):
+
+```rust
+let dataset = store.dataset("linguistic-features").unwrap();
+let key = dataset.key("part-of-speech").unwrap();
+if word.annotations().filter_key(&key).filter_value("noun".into()).test() {
+   ...    
+}
+```
+
+### Searching data
+
+The above methods already allow to find data, but there is `find_data()` method on AnnotationStore and AnnotationDataSet provide a shortcut to quickly get data instances (via a `DataIter`).
+
+Example:
+
+```rust
+let data = store.find_data("linguistic-features", "part-of-speech", "noun".into()).next()
+```
+
+Here and in examples before we use the `into()` method to coerce a `&str` into
+a `DataOperator::Equals(&str)`. There are also other data operators available
+allowing for various types and various kinds of comparison (equality,
+inequality, greater than, less than, logical and/or etc).
+
+### Searching text
+
+The following methods are available to search for text, they return iterators
+producing `ResultItem<T>` items.
 
 | Method                               |  T                    | Description                         |
 | -------------------------------------| ----------------------| ------------------------------------|
@@ -227,17 +308,11 @@ There are several methods available, on various objects, to enable searching. Th
 | `TextSelection.find_text()`          | `TextSelection`       | Finds a particular substring within the specified text selection. |
 | `TextResource.find_text_regex()`     | `TextSelection`       | Idem, but as powerful regular expressed based search. | 
 | `TextSelection.find_text_regex()`    | `TextSelection`       | Idem, but as powerful regular expressed based search. |
-| `TextSelection.find_textselections()` | `TextSelection`      | Finds text selections that are in a specific relation with this text selection, the relation is expressed via a `TextSelectionOperator`.
-| `TextSelectionSet.find_textselections()`| `TextSelection`    | Finds text selections that are in a specific relation with these text selections, the relation is expressed via a `TextSelectionOperator`.
-| `TextSelection.find_annotations()`   | `Annotation`          | Finds other annotations via a relationship that holds between its text selections and this text selection
-| `Annotation.find_textselections()`   | `TextSelection`       | Finds other that selections that are in a specific relations with the text selections pertaining to the annotation.
-| `Annotation.find_annotations()`      | `Annotation`          | Finds other annotations via a relationship that holds between the respective text selections.
-| `TextSelectionSet.find_annotations()`| `Annotation`          | Finds annotations that are in a specific relation with these text selections.
-| `AnnotationDataSet.find_data()`      | `AnnotationData`      | Finds `AnnotationData` in a set, matching the search criteria.
-| `Annotation.find_data()`             | `AnnotationData`      | Finds `AnnotationData` in an annotation, matching the search criteria.
 | -------------------------------------|-----------------------|-------------------------------------|
 
-Many of these methods take a `TextSelectionOperator` as parameter, this expresses a relation between two text selections (or two sets of text selections). This library defines the following enum variants for `TextSelectionOperator`:
+### Searching related text
+
+The `related_text()` method allows for for finding text selections that are in a certain relation with the current one(s). It takes a `TextSelectionOperator` as parameter, which distinguishes various variants.
 
 * `Equals` - Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
 * `Overlaps` - Each TextSelection in A overlaps with a TextSelection in B (cf. textfabric's `&&`), commutative
@@ -250,11 +325,17 @@ Many of these methods take a `TextSelectionOperator` as parameter, this expresse
 * `SameBegin` - Each TextSelection in A starts where a TextSelection in B starts
 * `SameEnd` - Each TextSelection in A starts where a TextSelection in B ends
 
-There are some modifiers you can set for each operator
+The variants are typically constructed via a helper function on `TextSelectionOperator` (simply name of the variant in lowercase), e.g. `TextSelectionOperator::equals()`.
 
-* `all` (bool) - If this is set, then for each `TextSelection` in A, the relationship must hold with **ALL** of the text selections in B. The normal behaviour, when this is set to false, is a match with any item suffices (and may be returned).
-* `negate` (bool) - Inverses the operator (negation).
+Example, select all words in a sentence (sentence may be either an `Annotation` or `TextSelection` in this case):
 
+```
+let dataset = store.dataset("structure-type").unwrap();
+let key_word = dataset.key("word").unwrap();
+for word in sentence.related_text(TextSelectionOperator::embeds()).annotations().filter_key(key_word) {
+    ...
+}
+```
 
 ## API Reference Documentation
 
