@@ -258,6 +258,9 @@ STAM attempts to evaluate the iterators lazily when possible, but in many cases 
 
 When you are not interested in the actual items but merely want to test whether there are results at all, then use the `test()` method.
 
+For improved performance, you can add `.parallel()` to an iterator, any
+subsequent iterator methods (generic ones like `map()` and `filter()`, not
+STAM-specific), will then run in parallel over multiple cores.
 
 #### Examples
 
