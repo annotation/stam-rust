@@ -275,7 +275,8 @@ where
     fn textual_order(&mut self) -> Vec<T>;
 }
 
-fn compare_annotation<'store>(
+// Comparison function for two annotations, returns their ordering in textual order
+pub fn compare_annotation_textual_order<'store>(
     a: &ResultItem<'store, Annotation>,
     b: &ResultItem<'store, Annotation>,
 ) -> Ordering {
@@ -302,8 +303,7 @@ where
 {
     fn textual_order(&mut self) -> Vec<ResultItem<'store, Annotation>> {
         let mut v: Vec<_> = self.collect();
-        v.sort_unstable_by(compare_annotation);
-        v.dedup();
+        v.sort_unstable_by(compare_annotation_textual_order);
         v
     }
 }
