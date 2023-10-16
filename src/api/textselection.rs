@@ -736,6 +736,31 @@ impl<'store> TextSelectionsIter<'store> {
         AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
     }
 
+    /// Iterates over all the annotations make use of text selections in this iterator.
+    /// Unlike [`self.annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant)
+    pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
+        let store = self.store;
+        AnnotationsIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.filter_map(|textselection| {
+                        if let Some(annotations) = store.annotations_by_textselection(
+                            textselection.resource().handle(),
+                            textselection.inner(),
+                        ) {
+                            Some(annotations.into_iter().copied())
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten(),
+                ),
+                false,
+            ),
+            store,
+        )
+    }
+
     /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
     pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
         self.single_annotation_filter = Some(annotation.handle());

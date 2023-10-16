@@ -49,7 +49,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
-    /// The iterator returns the annoations as [`ResultItem<Annotation>`].
+    /// The iterator returns the annotations as [`ResultItem<Annotation>`].
     /// Especially useful in combination with a call to  [`ResultItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         let set_handle = self.store().handle().expect("set must have handle");
@@ -374,7 +374,7 @@ impl<'store> DataIter<'store> {
     }
 
     /// Iterate over the annotations that make use of data in this iterator.
-    /// Annotations will be returnted chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
+    /// Annotations will be returned chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
     /// If you want to keep track of what data has what annotations, then use [`self.zip_annotations()`] instead.
     pub fn annotations(self) -> AnnotationsIter<'store> {
         let store = self.store;
@@ -394,6 +394,31 @@ impl<'store> DataIter<'store> {
         annotations.sort_unstable();
         annotations.dedup();
         AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
+    }
+
+    /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
+    /// Unlike [`self.annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant)
+    pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
+        let store = self.store;
+        AnnotationsIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.filter_map(|data| {
+                        if let Some(annotations) = data
+                            .rootstore()
+                            .annotations_by_data_indexlookup(data.set().handle(), data.handle())
+                        {
+                            Some(annotations.iter().copied())
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten(),
+                ),
+                false,
+            ),
+            store,
+        )
     }
 
     /// Returns data along with annotations, either may occur multiple times!

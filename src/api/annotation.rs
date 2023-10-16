@@ -354,6 +354,27 @@ impl<'store> AnnotationsIter<'store> {
         AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
     }
 
+    /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
+    /// Use [`self.annotations()`] if you want to find the annotations that reference these ones (the reverse).
+    /// Unlike [`self.annotations_in_targets()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    pub fn annotations_in_targets_unchecked(self, recursive: bool) -> AnnotationsIter<'store> {
+        let store = self.store;
+        AnnotationsIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.map(move |annotation| {
+                        annotation
+                            .annotations_in_targets(recursive)
+                            .map(|a| a.handle())
+                    })
+                    .flatten(),
+                ),
+                false,
+            ),
+            store,
+        )
+    }
+
     /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector`])
     /// Annotations will be returned sorted chronologically, without duplicates
     pub fn annotations(self) -> AnnotationsIter<'store> {
@@ -365,6 +386,22 @@ impl<'store> AnnotationsIter<'store> {
         annotations.sort_unstable();
         annotations.dedup();
         AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
+    }
+
+    /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector`])
+    /// Unlike [`self.annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
+        let store = self.store;
+        AnnotationsIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.map(|annotation| annotation.annotations().map(|a| a.handle()))
+                        .flatten(),
+                ),
+                false,
+            ),
+            store,
+        )
     }
 
     /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in
@@ -380,6 +417,22 @@ impl<'store> AnnotationsIter<'store> {
         data.sort_unstable();
         data.dedup();
         DataIter::new(IntersectionIter::new(Cow::Owned(data), true), store)
+    }
+
+    /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in all the annotations.
+    /// Unlike [`self.data()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    pub fn data_unchecked(self) -> DataIter<'store> {
+        let store = self.store;
+        DataIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.map(|annotation| annotation.as_ref().data().copied())
+                        .flatten(),
+                ),
+                false,
+            ),
+            store,
+        )
     }
 
     /// Find data for the annotations in this iterator. Returns an iterator over the data (losing the information about annotations).
@@ -496,7 +549,7 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
-    /// Maps annotations to textselections, consuming the itetor. Results will be returned in textual order.
+    /// Maps annotations to textselections, consuming the iterator. Results will be returned in textual order.
     pub fn textselections(self) -> TextSelectionsIter<'store> {
         let store = self.store;
         TextSelectionsIter::new(
