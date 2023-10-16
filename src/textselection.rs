@@ -21,16 +21,14 @@ use crate::types::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, DataSize, Encode, Decode)]
 /// Corresponds to a slice of the text. This only contains minimal
-/// information; i.e. the begin offset and end offset.
+/// information; i.e. the begin offset, end offset and optionally a handle.
+/// if the textselection is already known in the model.
 ////
-/// This is similar to `Offset`, but that one uses cursors which may
-/// be relative. TextSelection specified an offset in more absolute terms.
+/// This is similar to [`Offset`], but that one uses cursors which may
+/// be relative. TextSelection specifies an offset in more absolute terms.
 ///
 /// The actual reference to the [`crate::TextResource`] is not stored in this structure but should
-/// accompany it explicitly when needed
-///
-/// On the lowest-level, this struct is obtain by a call to [`crate::annotationstore::AnnotationStore::textselection()`], which
-/// resolves a [`crate::Selector::TextSelector`]  to a [`TextSelection`]. Such calls are often abstracted away by higher level methods such as [`crate::annotationstore::AnnotationStore::textselections_by_annotation()`].
+/// accompany it explicitly when needed, such as in the higher-level wrapper [`ResultTextSelection`].
 pub struct TextSelection {
     #[n(0)] //for cbor (de)serialisation
     pub(crate) intid: Option<TextSelectionHandle>,
@@ -431,6 +429,8 @@ pub struct TextSelectionSet {
     sorted: bool,
 }
 
+/// A TextSelectionSet holds one or more [`TextSelection`] items and a reference to the TextResource from which they're drawn.
+/// This structure encapsulates such a [`TextSelectionSet`] and contains a reference to the underlying [`AnnotationStore`].
 pub struct ResultTextSelectionSet<'store> {
     pub(crate) tset: TextSelectionSet,
     pub(crate) rootstore: &'store AnnotationStore,
@@ -619,7 +619,7 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
     }
 */
 
-/// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection'] instances. It
+/// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection`] instances. It
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
 /// [`TextSelection`] instances can be.
 ///
@@ -1580,7 +1580,7 @@ impl TextResource {
     }
 }
 
-/// Iterator that finds text selections. This iterator owns the [`TextSelectionSet'] that is being compared against.
+/// Iterator that finds text selections. This iterator owns the [`TextSelectionSet`] that is being compared against.
 pub struct FindTextSelectionsIter<'store> {
     resource: &'store TextResource,
     operator: TextSelectionOperator,
@@ -1802,6 +1802,11 @@ impl<'store> FindTextSelectionsIter<'store> {
 }
 
 #[derive(Debug, Clone)]
+/// This structure holds a [`TextSelection`], along with references to its [`TextResource`] and the
+/// [`AnnotationStore`] and provides a high-level API on it.
+///
+/// The text selection may either be bound, in which case it corresponds to a known/existing text selection
+/// and carries a handle, or unbound, in which case it is an arbitrary textselection.
 pub enum ResultTextSelection<'store> {
     Bound(ResultItem<'store, TextSelection>),
     Unbound(&'store AnnotationStore, &'store TextResource, TextSelection),

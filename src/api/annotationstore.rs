@@ -12,9 +12,9 @@ use crate::IntersectionIter;
 
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.
-    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, `String` or [`TextResourceHandle`].
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, `String` or [`crate::TextResourceHandle`].
     ///
-    /// The item is returned as a fat pointer [`ResultItem<TextResource>']) in an Option.
+    /// The item is returned as a fat pointer [`ResultItem<TextResource>`]) in an Option.
     /// Returns `None` if it does not exist.
     pub fn resource(
         &self,
@@ -24,7 +24,7 @@ impl AnnotationStore {
     }
 
     /// Requests a specific [`AnnotationDataSet`] from the store to be returned by reference.
-    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, `String` or [`AnnotationDataSetHandle`].
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, [`String`] or [`AnnotationDataSetHandle`].
     pub fn dataset(
         &self,
         request: impl Request<AnnotationDataSet>,
@@ -33,23 +33,23 @@ impl AnnotationStore {
     }
 
     /// Requests a specific [`Annotation`] from the store to be returned by reference.
-    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`,`String` or [`AnnotationHandle`].
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`,[`String`] or [`crate::AnnotationHandle`].
     ///
-    /// The item is returned as a fat pointer [`ResultItem<Annotation>']) in an Option.
+    /// The item is returned as a fat pointer [`ResultItem<Annotation>`]) in an Option.
     /// Returns `None` if it does not exist.
     pub fn annotation(&self, request: impl Request<Annotation>) -> Option<ResultItem<Annotation>> {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
-    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
+    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]) .
     pub fn resources(&self) -> impl Iterator<Item = ResultItem<TextResource>> {
         self.iter()
             .map(|item: &TextResource| item.as_resultitem(self, self))
     }
 
     /// Returns an iterator over all [`AnnotationDataSet`] instances in the store.
-    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>']) .
+    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]) .
     pub fn datasets<'a>(&'a self) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
         self.iter()
             .map(|item: &AnnotationDataSet| item.as_resultitem(self, self))
@@ -101,14 +101,14 @@ impl AnnotationStore {
         Some((test_set_handle, test_key_handle))
     }
 
-    /// Finds [`AnnotationData'] using data search criteria.
+    /// Finds [`AnnotationData`] using data search criteria.
     /// This returns an iterator over all matches.
     ///
     /// If you are not interested in returning the results but merely testing the presence of particular data,
-    /// then use [`Self.test_data()`] instead..
+    /// then use [`self.test_data()`] instead..
     ///
     /// You can pass a boolean (true/false, doesn't matter) or empty string literal for `set` or `key` to represent *any* set/key.
-    /// To search for any value, `value` must be explicitly set to `DataOperator::Any` to return all values.
+    /// To search for any value, `value` must be explicitly set to [`DataOperator::Any`] to return all values.
     ///
     /// Value is a DataOperator that can apply a data test to the value. Use [`DataOperator::Equals`] to search
     /// for an exact value. As a shortcut, you can pass `"value".into()` to automatically convert various data types into

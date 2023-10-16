@@ -232,7 +232,7 @@ impl<'a> AnnotationBuilder<'a> {
         })
     }
 
-    /// This references existing [`AnnotationData`], in a particular [`AnnotationDataSet'], by Id.
+    /// This references existing [`AnnotationData`], in a particular [`AnnotationDataSet`], by Id.
     /// Useful if you have an Id or reference instance already.
     pub fn with_existing_data(
         self,
@@ -246,7 +246,7 @@ impl<'a> AnnotationBuilder<'a> {
         })
     }
 
-    /// Lower level method if you want to create and pass [`AnnotationDataBuilder'] yourself rather than use the other ``with_data_*()`` shortcut methods.
+    /// Lower level method if you want to create and pass [`AnnotationDataBuilder`] yourself rather than use the other ``with_data_*()`` shortcut methods.
     pub fn with_data_builder(mut self, builder: AnnotationDataBuilder<'a>) -> Self {
         self.data.push(builder);
         self
@@ -297,11 +297,12 @@ impl<'a> Serialize for ResultItem<'a, Annotation> {
     }
 }
 
-//Helper for serialising annotationdata under annotations
+/// Helper for serialising annotationdata under annotations
 struct AnnotationDataRefSerializer<'a, 'b> {
     annotation: &'b ResultItem<'a, Annotation>,
 }
 
+/// Helper structure for serialisation only
 struct AnnotationDataRef<'a> {
     id: Cow<'a, str>,
     set: &'a str,
@@ -413,7 +414,7 @@ impl AnnotationStore {
     }
 
     /// Builds and inserts an annotation
-    /// In a builder pattenr, use [`Self.with_annotation()`] instead
+    /// In a builder pattenr, use [`self.with_annotation()`] instead
     pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationHandle, StamError> {
         debug(self.config(), || {
             format!("AnnotationStore.annotate: builder={:?}", builder)
@@ -470,7 +471,7 @@ impl Annotation {
     }
 
     /// Iterate over the annotation data, returns tuples of internal IDs for (annotationset,annotationdata)
-    /// For a higher-level method, use `WrappedItem<Annotation>::data()` instead.
+    /// For a higher-level method, use [`ResultItem<Annotation>::data()`] instead.
     pub fn data(&self) -> Iter<(AnnotationDataSetHandle, AnnotationDataHandle)> {
         self.data.iter()
     }
@@ -503,7 +504,7 @@ impl Annotation {
     }
 }
 
-/// Helper structure for deserialisation
+/// Helper structure for JSON deserialisation
 #[derive(Deserialize)]
 pub(crate) struct AnnotationJson<'a> {
     #[serde(rename = "@id")]
@@ -512,6 +513,7 @@ pub(crate) struct AnnotationJson<'a> {
     target: SelectorBuilder<'a>,
 }
 
+/// Helper structure for JSON deserialisation
 #[derive(Deserialize)]
 pub(crate) struct AnnotationsJson<'a>(pub(crate) Vec<AnnotationJson<'a>>);
 
@@ -546,6 +548,7 @@ impl SelfSelector for Annotation {
     }
 }
 
+/// Iterator over the targets (T) for an annotation. Returns handles.
 pub struct TargetIter<'a, T>
 where
     T: Storable,

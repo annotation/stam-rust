@@ -482,8 +482,8 @@ impl AnnotationDataSet {
         Ok(self)
     }
 
-    /// Finds the [`AnnotationData'] in the annotation dataset. Returns one match.
-    /// This is a low level method, use the similar [`ResultItem<AnnotationDataSet>.data_by_value()`] for a higher level version.
+    /// Finds the [`AnnotationData`] in the annotation dataset. Returns one match.
+    /// This is a low level method, use the similar [`crate::ResultItem<AnnotationDataSet>.data_by_value()`] for a higher level version.
     pub fn data_by_value(
         &self,
         key: impl Request<DataKey>,
@@ -598,12 +598,12 @@ impl AnnotationDataSet {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }
 
-    ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references as [`WrappedItem<AnnotationData`].
+    ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references as [`ResultItem<AnnotationData>`].
     pub fn data(&self) -> StoreIter<AnnotationData> {
         <Self as StoreFor<AnnotationData>>::iter(self)
     }
 
-    /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references as [`WrappedItem<DataKey>`]
+    /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references as [`ResultItem<DataKey>`]
     pub fn keys(&self) -> StoreIter<DataKey> {
         <Self as StoreFor<DataKey>>::iter(self)
     }
@@ -622,7 +622,7 @@ impl AnnotationDataSet {
     }
 
     /// Returns data by key, does a lookup in the reverse index and returns a reference to it.
-    /// This is a low-level method. use [`WrappedItem<DataKey>.data()`] instead.
+    /// This is a low-level method. use [`ResultItem<DataKey>.data()`] instead.
     pub fn data_by_key(&self, key: impl Request<DataKey>) -> Option<&Vec<AnnotationDataHandle>> {
         if let Some(key_handle) = key.to_handle(self) {
             self.key_data_map.get(key_handle)

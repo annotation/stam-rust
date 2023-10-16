@@ -34,8 +34,8 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
-    /// The iterator returns the annoations as [`WrappedItem<Annotation>`].
-    /// Especially useful in combination with a call to  [`WrappedItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
+    /// The iterator returns the annoations as [`ResultItem<Annotation>`].
+    /// Especially useful in combination with a call to  [`ResultItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         let set_handle = self.store().handle().expect("set must have handle");
         if let Some(annotations) = self
@@ -227,7 +227,7 @@ impl<'store> DataIter<'store> {
     /// Transform the iterator into a parallel iterator; subsequent iterator methods like `filter` and `map` will run in parallel.
     /// This first consumes the sequential iterator into a newly allocated buffer.
     ///
-    /// Note: It does not parallelize the operation of DataIter itself.
+    /// Note: It does not parallelize the operation of DataIter itself!
     pub fn parallel(
         self,
     ) -> impl ParallelIterator<Item = ResultItem<'store, AnnotationData>> + 'store {
@@ -320,10 +320,10 @@ impl<'store> DataIter<'store> {
         self
     }
 
-    /// Select data by testing the value (mediated by a [`DataOperator']).
+    /// Select data by testing the value (mediated by a [`DataOperator`]).
     /// Consumes the iterator and returns an iterator over AnnotationData instances
     ///
-    /// Note: You can only use this method once (it will overwrite earlier value filters, use DataOperator::Or and DataOperator::And to test against multiple values)
+    /// Note: You can only use this method once (it will overwrite earlier value filters, use [`DataOperator::Or`] and [`DataOperator::And`] to test against multiple values)
     pub fn filter_value(mut self, operator: DataOperator<'store>) -> Self {
         if let DataOperator::Any = operator {
             //don't bother actually adding the operator, this is a no-op

@@ -191,7 +191,7 @@ pub enum Selector {
         TextResourceHandle
     ),
 
-    /// Refers to an [`crate::AnnotationDataSet`] as owned by an [`AnnotationStore']
+    /// Refers to an [`crate::AnnotationDataSet`] as owned by an [`AnnotationStore`]
     /// Annotations using this selector can be considered metadata.
     #[n(3)]
     DataSetSelector(
@@ -204,8 +204,8 @@ pub enum Selector {
     /// adding one MUST NOT affect the interpretation of any of the others nor of the whole. This
     /// is a way to express multiple annotations as one, a more condensed representation. This
     /// selector SHOULD be used sparingly in your modelling, as it is generally RECOMMENDED to
-    /// simply use multiple [`Annotation'] instances instead. In STAM, even with multiple annotations, you
-    /// benefit from the fact that multiple annotations may share the same [`AnnotationData`], and can
+    /// simply use multiple [`Annotation`] instances instead. In STAM, even with multiple annotations, you
+    /// benefit from the fact that multiple annotations may share the same [`crate::AnnotationData`], and can
     /// therefore easily retrieve all annotations that share particular data.
     #[n(4)]
     MultiSelector(
@@ -220,7 +220,7 @@ pub enum Selector {
     /// The interpretation of the whole relies on all its parts. Note that the order of the
     /// selectors is not significant (use a [`Self::DirectionalSelector`] instead if they are). When there is
     /// no dependency relation between the selectors, you MUST simply use multiple [`Annotation`] instances or a
-    /// [`Self::MultiSelector`] instead. When grouping things into a set, do use this [`Self::CompositeSelector'], as the
+    /// [`Self::MultiSelector`] instead. When grouping things into a set, do use this [`Self::CompositeSelector`], as the
     /// set as a whole is considered a composite entity.
     #[n(5)]
     CompositeSelector(
@@ -290,7 +290,7 @@ impl Selector {
         })
     }
 
-    /// Returns all subselectors. Use ['iter()`] instead if you want an iterator
+    /// Returns all subselectors. Use [`self.iter()`] instead if you want an iterator
     /// with more functionality.
     pub fn subselectors(&self) -> Option<&[Selector]> {
         match self {

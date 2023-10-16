@@ -21,8 +21,8 @@ impl<'store> ResultItem<'store, DataKey> {
         self.as_ref().as_str()
     }
 
-    /// Returns an iterator over all data ([`AnnotationData`]) that makes use of this key.
-    /// Use methods on this iterator like `DataIter.filter_value()` to further constrain the results.
+    /// Returns an iterator over all data ([`crate::AnnotationData`]) that makes use of this key.
+    /// Use methods on this iterator like [`DataIter.filter_value()`] to further constrain the results.
     pub fn data(&self) -> DataIter<'store> {
         let store = self.store();
         if let Some(vec) = store.data_by_key(self.handle()) {
@@ -38,7 +38,7 @@ impl<'store> ResultItem<'store, DataKey> {
         }
     }
 
-    /// Returns an iterator over all annotations ([`Annotation`]) that make use of this key.
+    /// Returns an iterator over all annotations ([`crate::Annotation`]) that make use of this key.
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();
@@ -70,7 +70,7 @@ impl<'store> ResultItem<'store, DataKey> {
         }
     }
 
-    /// Returns an set of all text resources that make use of this key via annotations (either as metadata or on text)
+    /// Returns an set of all text resources ([`crate::TextResource`]) that make use of this key via annotations (either as metadata or on text)
     pub fn resources(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
             .map(|annotation| annotation.resources().map(|resource| resource.clone()))
@@ -78,7 +78,7 @@ impl<'store> ResultItem<'store, DataKey> {
             .collect()
     }
 
-    /// Returns a set of all text resources that make use of this key as metadata (via annotations with a ResourceSelector)
+    /// Returns a set of all text resources ([`crate::TextResource`]) that make use of this key as metadata (via annotations with a ResourceSelector)
     pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
             .map(|annotation| annotation.resources_as_metadata())
@@ -86,7 +86,7 @@ impl<'store> ResultItem<'store, DataKey> {
             .collect()
     }
 
-    /// Returns a set of all text resources that make use of this key via annotations via a ResourceSelector (i.e. as metadata)
+    /// Returns a set of all text resources ([`crate::TextResource`]) that make use of this key via annotations via a ResourceSelector (i.e. as metadata)
     pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
             .map(|annotation| annotation.resources_on_text())
@@ -94,7 +94,7 @@ impl<'store> ResultItem<'store, DataKey> {
             .collect()
     }
 
-    /// Returns a set of all data sets that annotations using this key reference via a DataSetSelector (i.e. metadata)
+    /// Returns a set of all data sets ([`crate::AnnotationDataSet`]) that annotations using this key reference via a DataSetSelector (i.e. metadata)
     pub fn datasets(&self) -> BTreeSet<ResultItem<'store, AnnotationDataSet>> {
         self.annotations()
             .map(|annotation| annotation.datasets().map(|dataset| dataset.clone()))

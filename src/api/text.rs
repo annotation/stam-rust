@@ -16,7 +16,7 @@ where
     'store: 'slf,
 {
     /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`FindRegexMatch'] struct.
+    /// is held by the [`FindRegexMatch`] struct.
     ///
     /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
     /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
@@ -37,25 +37,25 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
+    /// [`self.textselection()`] and then run [`self.find_text()`] on that instead.
     fn find_text<'fragment>(
         &'slf self,
         fragment: &'fragment str,
     ) -> FindTextIter<'store, 'fragment>;
 
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
+    /// The iterator returns [`TextSelection`] items wrapped as [`ResultTextSelection`].
     ///
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
+    /// [`self.textselection()`] and then run [`self.find_text()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store>;
 
-    /// Searches for the multiple text fragment in sequence. Returns a vector with (wrapped) [`TextSelection`] instances.
+    /// Searches for the multiple text fragment in sequence. Returns a vector with [`TextSelection`] instances wrapped as [`ResultTextSelection`].
     ///
     /// Matches must appear in the exact order specified, but *may* have other intermittent text,
     /// determined by the `allow_skip_char` closure. A recommended closure for natural language
@@ -111,14 +111,14 @@ where
         Some(results)
     }
 
-    /// Returns an iterator of ['TextSelection`] instances that represent partitions
+    /// Returns an iterator of [`TextSelection`] instances that represent partitions
     /// of the text given the specified delimiter. No text is modified.
     ///
-    /// The iterator returns wrapped [`TextSelection`] items.
+    /// The iterator returns [`TextSelection`] items as a fat pointer [`ResultTextSelection`]).
     fn split_text<'b>(&'slf self, delimiter: &'b str) -> SplitTextIter<'store, 'b>;
 
     /// Trims all occurrences of any character in `chars` from both the beginning and end of the text,
-    /// returning a smaller TextSelection. No text is modified.
+    /// returning a smaller [`TextSelection`] (as a fat pointer [`ResultTextSelection`]). No text is modified.
     fn trim_text(&'slf self, chars: &[char]) -> Result<ResultTextSelection<'store>, StamError> {
         let mut trimbegin = 0;
         let mut trimend = 0;
@@ -143,7 +143,7 @@ where
     }
 
     /// Trims all occurrences of any character `chars` that pass the supplied function, from both the beginning and end of the text,
-    /// returning a smaller TextSelection. No text is modified.
+    /// returning a smaller [`TextSelection`] (as a fat pointer [`ResultTextSelection`]). No text is modified.
     fn trim_text_with<F>(&'slf self, f: F) -> Result<ResultTextSelection<'store>, StamError>
     where
         F: Fn(char) -> bool,
@@ -170,13 +170,13 @@ where
         ))
     }
 
-    /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
-    /// exists, the existing one will be returned (as a copy, but it will have a `TextSelection.handle()`).
+    /// Returns a [`TextSelection`] that corresponds to the offset. If the TextSelection
+    /// exists, the existing one will be returned (as a copy, but it will have a [`TextSelection.handle()`].
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
 
-    /// The [`TextSelection`] is returned as in a fat pointer (`ResultItem`) that also contains reference to the underlying store.
+    /// The [`TextSelection`] is returned as in a fat pointer ([`ResultTextSelection`]) that also contains reference to the underlying store.
     ///
-    /// Use [`Resource::has_textselection()`] instead if you want to limit to existing text selections on resources.
+    /// Use [`TextResource::known_textselection()`] instead if you want to limit to existing text selections on resources.
     fn textselection(&'slf self, offset: &Offset)
         -> Result<ResultTextSelection<'store>, StamError>;
 }
@@ -215,11 +215,11 @@ impl<'store, 'slf> FindText<'store, 'slf> for ResultItem<'store, TextResource>
 where
     'store: 'slf,
 {
-    /// Returns a [`TextSelection'] that corresponds to the offset. If the TextSelection
+    /// Returns a [`TextSelection`] that corresponds to the offset. If the TextSelection
     /// exists, the existing one will be returned.
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// The [`TextSelection`] is returned in a fat pointer (`WrappedTextSelection`) that also contains reference to the underlying store.
+    /// The [`TextSelection`] is returned in a fat pointer ([`ResultTextSelection`]) that also contains reference to the underlying store.
     fn textselection(&self, offset: &Offset) -> Result<ResultTextSelection<'store>, StamError> {
         match self.as_ref().known_textselection(offset) {
             Ok(Some(handle)) => {
@@ -242,7 +242,7 @@ where
     }
 
     /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`FindRegexMatch'] struct.
+    /// is held by the [`FindRegexMatch`] struct.
     ///
     /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
     /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
@@ -284,8 +284,8 @@ where
     /// This search is case sensitive, use [`Self.find_text_nocase()`] to search case insensitive.
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
+    /// [`Self.textselection()`] and then run [`self.find_text()`] on that instead.
     fn find_text<'fragment>(&self, fragment: &'fragment str) -> FindTextIter<'store, 'fragment> {
         FindTextIter {
             resource: self.clone(),
@@ -297,11 +297,11 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// This search is case insensitive, use [`self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
+    /// [`self.textselection()`] and then run [`self.find_text_nocase()`] on that instead.
     fn find_text_nocase(&self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
             resource: self.clone(),
@@ -324,7 +324,7 @@ where
     'store: 'slf,
 {
     fn text(&'slf self) -> &'store str {
-        let resource = self.store(); //courtesy of WrappedItem
+        let resource = self.store(); //courtesy of ResultItem
         let beginbyte = resource
             .utf8byte(self.begin())
             .expect("utf8byte conversion should succeed");
@@ -390,7 +390,7 @@ where
     'store: 'slf,
 {
     /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`FindRegexMatch'] struct.
+    /// is held by the [`FindRegexMatch`] struct.
     ///
     /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
     /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
@@ -440,7 +440,7 @@ where
     ///
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first and then run `find_text()` on that instead.
     fn find_text<'fragment>(
         &'slf self,
         fragment: &'fragment str,
@@ -458,7 +458,7 @@ where
     /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
     /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
     /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
@@ -478,20 +478,18 @@ where
         }
     }
 
-    /// Returns a [`TextSelection'] that corresponds to the offset **WITHIN** the textselection.
+    /// Returns a [`TextSelection`] that corresponds to the offset **WITHIN** the textselection.
     /// This returns a [`TextSelection`] with absolute coordinates in the resource.
     ///
     /// If the textselection is known (i.e. it has associated annotations), it will be returned as such with a handle (borrowed).
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store (the [`TextResource`]).
-    ///
-    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections (i.e. those pertaining to annotations) only.
+    /// The [`TextSelection`] is returned as in a far pointer (`ResultItem`) that also contains reference to the underlying store (the [`TextResource`]).
     fn textselection(
         &'slf self,
         offset: &Offset,
     ) -> Result<ResultTextSelection<'store>, StamError> {
-        let resource = self.resource(); //courtesy of WrappedItem
+        let resource = self.resource(); //courtesy of ResultItem
         let offset = self.absolute_offset(&offset)?; //turns the relative offset into an absolute one (i.e. offsets in TextResource)
         resource.textselection(&offset)
     }
@@ -580,7 +578,7 @@ where
     'store: 'slf,
 {
     /// Searches the text using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// is held by the [`FindRegexMatch'] struct.
+    /// is held by the [`FindRegexMatch`] struct.
     ///
     /// Passing multiple regular expressions at once is more efficient than calling this function anew for each one.
     /// If capture groups are used in the regular expression, only those parts will be returned (the rest is context). If none are used,
@@ -628,9 +626,9 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first and then run `find_text()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first and then run [`self.find_text()`] on that instead.
     fn find_text<'fragment>(
         &'slf self,
         fragment: &'fragment str,
@@ -645,11 +643,11 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// This search is case insensitive, use [`self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a ['TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
+    /// [`self.textselection()`] and then run [`self.find_text_nocase()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
             resource: self.resource(),
@@ -668,15 +666,13 @@ where
         }
     }
 
-    /// Returns a [`TextSelection'] that corresponds to the offset **WITHIN** the textselection.
+    /// Returns a [`TextSelection`] that corresponds to the offset **WITHIN** the textselection.
     /// This returns a [`TextSelection`] with absolute coordinates in the resource.
     ///
     /// If the textselection is known (i.e. it has associated annotations), it will be returned as such with a handle (borrowed).
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// The [`TextSelection`] is returned as in a far pointer (`WrappedItem`) that also contains reference to the underlying store (the [`TextResource`]).
-    ///
-    /// Use [`Self::has_textselection()`] instead if you want to limit to existing text selections (i.e. those pertaining to annotations) only.
+    /// The [`TextSelection`] is returned as in a far pointer (`ResultItem`) that also contains reference to the underlying store (the [`TextResource`]).
     fn textselection(
         &'slf self,
         offset: &Offset,

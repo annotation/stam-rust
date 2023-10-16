@@ -73,8 +73,8 @@ impl<'store> ResultItem<'store, Annotation> {
         iter.map(|handle| store.dataset(handle).unwrap())
     }
 
-    /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector'])
-    /// Use [`Self.annotations()'] if you want to find the annotations that reference this one (the reverse).
+    /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector`])
+    /// Use [`Self.annotations()`] if you want to find the annotations that reference this one (the reverse).
     /// Results will be in textual order unless recursive is set or a DirectionalSelector is involved.
     pub fn annotations_in_targets(&self, recursive: bool) -> AnnotationsIter<'store> {
         let selector = self.as_ref().target();
@@ -181,7 +181,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
-    /// are in a specific relation with the text selected by this annotation. Returns an iterator over the [`TextSelection`] instances, in textual order.
+    /// are in a specific relation with the text selected by this annotation. Returns an iterator over the [`crate::TextSelection`] instances, in textual order.
     /// (as [`ResultTextSelection`]).
     ///
     /// This method is slight different from `.textselections().related_text()`. This method
@@ -245,11 +245,12 @@ impl<'a> Annotations<'a> {
     }
 }
 
-/// The AnnotationsIter iterates over annotations, it returns ResultItem<Annotation> instances.
+/// The AnnotationsIter iterates over annotations, it returns [`ResultItem<Annotation>`] instances.
 /// The iterator offers a various high-level API methods that operate on a collection of annotations, and
 /// allow to further filter or map annotations.
 ///
-/// The iterator is produced by calling the `annotations()` method that is implemented for several objects.
+/// The iterator is produced by calling the `annotations()` method that is implemented for several objects, such
+/// [`Annotation.annotatations()`]
 pub struct AnnotationsIter<'store> {
     iter: Option<IntersectionIter<'store, AnnotationHandle>>,
     store: &'store AnnotationStore,
@@ -308,8 +309,8 @@ impl<'store> AnnotationsIter<'store> {
         self.collect::<Vec<_>>().into_par_iter()
     }
 
-    /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector'])
-    /// Use [`Self.annotations()'] if you want to find the annotations that reference these ones (the reverse).
+    /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
+    /// Use [`self.annotations()`] if you want to find the annotations that reference these ones (the reverse).
     /// Annotations will be returned sorted chronologically, without duplicates
     pub fn annotations_in_targets(self, recursive: bool) -> AnnotationsIter<'store> {
         let store = self.store;
@@ -326,7 +327,7 @@ impl<'store> AnnotationsIter<'store> {
         AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
     }
 
-    /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector'])
+    /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector`])
     /// Annotations will be returned sorted chronologically, without duplicates
     pub fn annotations(self) -> AnnotationsIter<'store> {
         let store = self.store;

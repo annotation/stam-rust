@@ -61,14 +61,14 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         }
     }
 
-    /// Finds the [`AnnotationData'] in the annotation dataset. Returns an iterator over all matches.
-    /// If you're not interested in returning the results but merely testing their presence, use `test_data` instead.
+    /// Finds the [`AnnotationData`] in the annotation dataset. Returns an iterator over all matches.
+    /// If you're not interested in returning the results but merely testing their presence, use [`self.test_data()`] instead.
     ///
     /// If you pass an empty string literal or boolean to `key`, all keys will be searched.
     ///
-    /// If you already have a `ResultItem<DataKey>` , use `ResultItem<DataKey>.find_data()` instead, it'll be much more efficient.
+    /// If you already have a [`ResultItem<DataKey>`] , use [`ResultItem<DataKey>.find_data()`] instead, it'll be much more efficient.
     ///
-    /// Value is a DataOperator, it is not wrapped in an Option but can be set to `DataOperator::Any` to return all values.
+    /// Value is a [`DataOperator`], it is not wrapped in an Option but can be set to [`DataOperator::Any`] to return all values.
     pub fn find_data<'q>(
         &self,
         key: impl Request<DataKey>,

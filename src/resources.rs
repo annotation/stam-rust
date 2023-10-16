@@ -401,7 +401,7 @@ impl TextResourceBuilder {
         self
     }
 
-    ///Builds a new [`TextResource`] from [`TextResourceBuilder'], consuming the latter
+    ///Builds a new [`TextResource`] from [`TextResourceBuilder`], consuming the latter
     pub fn build(self) -> Result<TextResource, StamError> {
         debug(&self.config, || format!("TextResourceBuilder::build"));
         let mut res: TextResource = self.try_into()?;
@@ -551,7 +551,7 @@ impl TextResource {
     }
 
     /// Low-level method to get a textselection, if the text selection is known, its' handle will be set
-    /// If you don't care about unbound textselection but only known ones, then use `known_textselection()` instead.
+    /// If you don't care about unbound textselection but only known ones, then use [`self.known_textselection()`] instead.
     pub fn textselection_by_offset(&self, offset: &Offset) -> Result<TextSelection, StamError> {
         let (begin, end) = (
             self.beginaligned_cursor(&offset.begin)?,
@@ -600,7 +600,7 @@ impl TextResource {
     }
 
     /// returns a sorted double-ended iterator over all textselections in this resource
-    /// for unsorted (slightly more performant), use [`textresource::textselections_unsorted()`] instead.
+    /// for unsorted (slightly more performant), use [`TextResource::textselections_unsorted()`] instead.
     pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
         self.range(0, self.textlen())
     }
@@ -764,7 +764,7 @@ impl<'store> Text<'store, 'store> for TextResource {
         }
     }
 
-    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in ['utf8byte()`]
+    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in [`self.utf8byte()`]
     fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
         if let Some(charpos) = self.byte2charmap.get(&bytecursor) {
             //exact byte position is in the index, return the position

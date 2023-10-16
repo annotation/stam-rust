@@ -790,7 +790,7 @@ impl<'store> TextSelectionsIter<'store> {
         s
     }
 
-    /// If this acollections refers to a single simple text slice,
+    /// If this collection refers to a single simple text slice,
     /// this returns it. If it contains no text or multiple text references, it returns None.
     pub fn text_simple(self) -> Option<&'store str> {
         let mut iter = self.text();
