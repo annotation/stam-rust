@@ -1,3 +1,15 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module implements some common types that are found throughout the API, both low and high-level.
+
 use datasize::DataSize;
 use sealed::sealed;
 use std::hash::Hash;

@@ -1,3 +1,18 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the high-level API for [`AnnotationData`]. This API is implemented on
+//! [`ResultItem<AnnotationData>`]. Moreover, it defines and implements the [`DataIter`] iterator to iterate over annotations,
+//! which also exposes a rich API. Last, it defines and implements [`Data`], which is a simple collection of AnnotationData,
+//! and can be iterated over.
+
 use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
@@ -106,6 +121,9 @@ impl<'store> ResultItem<'store, AnnotationData> {
 }
 
 #[derive(Clone)]
+/// Holds a collection of annotation data.
+/// This structure is produced by calling [`DataIter.to_cache()`].
+/// Use [`Self.iter()`] to iterate over the collection.
 pub struct Data<'store> {
     pub(crate) array: Cow<'store, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
     pub(crate) store: &'store AnnotationStore,
@@ -122,6 +140,7 @@ impl<'store> Debug for Data<'store> {
 }
 
 impl<'a> Data<'a> {
+    /// Returns an iterator over the data in this collection, the iterator exposes further high-level API methods.
     pub fn iter(&self) -> DataIter<'a> {
         DataIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
@@ -129,16 +148,18 @@ impl<'a> Data<'a> {
         )
     }
 
+    /// Returns the number of data items in this collection.
     pub fn len(&self) -> usize {
         self.array.len()
     }
 
+    /// Returns a boolean indicating whether the collection is empty or not.
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
 
     /// Low-level method to instantiate data from an existing collection
-    /// Use of this function is discouraged in most cases as there is no validity check on the handles you pass.
+    /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
     pub fn from_handles(
         array: Cow<'a, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
         sorted: bool,
@@ -161,7 +182,7 @@ impl<'a> Data<'a> {
 /// The iterator offers a various high-level API methods that operate on a collection of annotation data, and
 /// allow to further filter or map annotations.
 ///
-/// The iterator is produced by calling the `data()` method that is implemented for several objects.
+/// The iterator is produced by calling the `data()` method that is implemented for several objects, such as [`Annotation.data()`]
 pub struct DataIter<'store> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
     store: &'store AnnotationStore,

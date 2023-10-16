@@ -1,3 +1,16 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the high-level API for finding text. The `FindText` trait embodies this API and is implemented on
+//! [`ResultItem<TextResource>`] and [`ResultTextSelection`]. It builds upon the lower-level [`Text`] trait.
+
 use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;
 use crate::error::StamError;

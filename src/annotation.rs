@@ -1,3 +1,18 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the low-level API for [`Annotation`]. It defines and implements the
+//! struct, the handle, and things like serialisation, deserialisation to STAM JSON.
+//!
+//! It also implements [`TargetIter`], an iterator to iterator over the targets of an annotation.
+
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::slice::Iter;
@@ -548,7 +563,7 @@ impl SelfSelector for Annotation {
     }
 }
 
-/// Iterator over the targets (T) for an annotation. Returns handles.
+/// Iterator over the targets (T) for an annotation. This builds upon [`SelectorIter`] and returns handles.
 pub struct TargetIter<'a, T>
 where
     T: Storable,

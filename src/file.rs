@@ -1,3 +1,15 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains some common helper functions for dealing with file I/O
+
 use sealed::sealed;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};

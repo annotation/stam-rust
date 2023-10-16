@@ -1,3 +1,23 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module implements the low-level concept of a [`Store`], which is essentially a vector over certain
+//! items that are [`Storable`]. The items can be retrieved by a [`Handle`], which simply points
+//! at an index in the store vector. The [`StoreFor<T>`] trait is implemented on data types that act
+//! as a store for a particular storable item. An iterator to iterate over all items in a store is available as well: [`StoreIter`]
+//! Do not confuse this more abstract notion of [`Store`] with [`AnnotationStore`].
+//!
+//! This module also implements a structure [`IdMap`] to map public identifiers (strings) to these internal handles.
+//! Moreover, it implements relations maps ([`RelationMap`],[`TripleRelationMap`]) that are used to build the various
+//! reverse indices. These map one type of handle to another and effectively define the edges of the graph model.
+
 use sealed::sealed;
 use serde::Deserialize;
 use std::cmp::Ordering;

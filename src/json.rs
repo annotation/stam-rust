@@ -1,3 +1,17 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the [`ToJson`] and [`FromJson`] trait thare are used
+//! in serialisation to/from STAM JSON. Most of the actual deserialisation/serialisation methods
+//! are implemented alongside the low-level data structures themselves, not here.
+
 use crate::config::{Config, SerializeMode};
 use crate::error::StamError;
 use crate::file::*;

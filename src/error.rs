@@ -1,3 +1,15 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module implements the [`StamError`] type, which encapsulates all different kind of errors this STAM library can produce.
+
 use crate::types::*;
 use std::fmt;
 

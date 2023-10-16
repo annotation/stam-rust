@@ -1,3 +1,15 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module defines and partially implements the [`Text`] trait.
+
 use crate::error::StamError;
 use crate::selector::Offset;
 use crate::types::*;

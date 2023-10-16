@@ -1,3 +1,19 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module implements serialisation and deserialisation to CSV, as defined in the
+//! [STAM CSV Extension](https://github.com/annotation/stam/tree/master/extensions/stam-csv).
+//!
+//! Being a STAM extension, this module is implemented as an extra feature and may be enabled/disabled
+//! at compile time.
+
 use csv;
 use sealed::sealed;
 use serde::{Deserialize, Serialize};

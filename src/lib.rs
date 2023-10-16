@@ -1,3 +1,48 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! STAM is a data model for stand-off text annotation. This is a software library to work with the
+//! model from Rust, and is the primary library/reference implementation for STAM. It aims to
+//! implement the full model as per the [STAM specification](https://github.com/annotation/stam) and most of the
+//! extensions.
+
+//! This is the root module for the STAM library. The STAM library consists of two APIs, a
+//! low-level API and a high-level API, the latter is of most interest to end users and is
+//! implemented in `api/*.rs`.
+//!
+//! High-level API (or mixed low/high):
+//! * [`AnnotationStore`]
+//! * [`ResultItem<Annotation>`](Annotation)
+//! * [`ResultItem<AnnotationDataSet>`](AnnotationDataSet)
+//! * [`ResultItem<AnnotationData>`](AnnotationData)
+//! * [`ResultItem<DataKey>`](DataKey)
+//! * [`DataValue`]
+//! * [`DataOperator`]
+//! * [`ResultItem<TextResource>`](TextResource)
+//! * [`ResultTextSelection`](TextSelection)
+//! * [`TextSelectionOperator`]
+//! * [`Annotations`] - collection
+//! * [`AnnotationsIter`] - iterator
+//! * [`Data`] - collection
+//! * [`DataIter`] - iterator
+//! * [`TextSelectionsIter`] - iterator
+//! * [`Cursor`]
+//! * [`Offset`]
+//!
+//! Low-level API:
+//! * [`Annotation`]
+//! * [`AnnotationDataSet`]
+//! * [`AnnotationData`]
+//! * [`TextSelection`]
+//! * [`TextResource`]
+
 mod annotation;
 mod annotationdata;
 mod annotationdataset;

@@ -1,3 +1,18 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the API for [`DataValue`]. It defines and implements the
+//! struct, the handle, and things like serialisation, deserialisation to STAM JSON.
+//! It also implements the [`DataOperator`].
+//! This API is used both on high and low levels.
+
 use minicbor::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -16,24 +31,34 @@ impl TypeInfo for DataValue {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Encode, Decode)]
 #[serde(tag = "@type", content = "value")]
+/// This type encapsulates a value and its type.
+/// It is held by [`crate::AnnotationData`] alongside a reference to a [`crate::DataKey`], resulting in a key/value pair.
 pub enum DataValue {
     /// No value
     #[n(0)]
     Null,
 
+    /// A string value
     #[n(1)]
     String(#[n(0)] String),
+
+    /// A boolean value
     #[n(2)]
     Bool(#[n(0)] bool),
+
+    /// A numeric integer value
     #[n(3)]
     Int(#[n(0)] isize),
+
+    /// A numeric floating-point value
     #[n(4)]
     Float(#[n(0)] f64),
+
     //Datetime(chrono::DateTime), //TODO
     /// Value is an unordered set
     //Set(HashSet<DataValue>),
 
-    /// Value is an ordered list
+    /// The value is an ordered list
     #[n(5)]
     List(#[n(0)] Vec<DataValue>),
 }
@@ -57,31 +82,51 @@ impl DataSize for DataValue {
 }
 
 #[derive(Clone)]
+/// This type defines a test that can be done on a [`DataValue`] (via [`DataValue.test()`]).
+/// The operator does not merely consist of the operator-part, but also holds the value that is tested against, which may
+/// be one of various types, hence the many variants of this type.
+///
+/// [`DataOperator::Any`] is a special variant of this operator that will always pass.
 pub enum DataOperator<'a> {
     Null,
     Any,
+    /// Tests against a string
     Equals(&'a str),
+    /// Tests against a numeric integer
     EqualsInt(isize),
+    /// Tests against a numeric floating-point value
     EqualsFloat(f64),
     True,
     False,
+    /// The datavalue must be numeric and greater than the value with the operator
     GreaterThan(isize),
+    /// The datavalue must be numeric and greater than or equal to the value with the operator
     GreaterThanOrEqual(isize),
+    /// The datavalue must be numeric and greater than the value with the operator
     GreaterThanFloat(f64),
+    /// The datavalue must be numeric and greater than or equal to the value with the operator
     GreaterThanOrEqualFloat(f64),
+    /// The datavalue must be numeric and less than the value with the operator
     LessThan(isize),
+    /// The datavalue must be numeric and less than or equal to the value with the operator
     LessThanOrEqual(isize),
+    /// The datavalue must be numeric and less than or equal to the value with the operator
     LessThanFloat(f64),
+    /// The datavalue must be numeric and less than or equal to the value with the operator
     LessThanOrEqualFloat(f64),
     HasElement(&'a str),
     HasElementInt(isize),
     HasElementFloat(f64),
+    /// Logical negation, reverses the operator
     Not(Box<DataOperator<'a>>),
+    /// Logical AND operator (conjunction) to combine multiple operators into one
     And(Vec<DataOperator<'a>>),
+    /// Logical OR operator (disjunction) to combine multiple operators into one
     Or(Vec<DataOperator<'a>>),
 }
 
 impl<'a> DataValue {
+    /// This applies a [`DataOperator`] to the data value, and returns a boolean if the values passes the constraints posed by the operator.
     pub fn test(&self, operator: &DataOperator<'a>) -> bool {
         match (self, operator) {
             (_, DataOperator::Any) => true,

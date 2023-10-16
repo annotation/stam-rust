@@ -1,3 +1,16 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the high-level API for [`TextSelection`]. This API is implemented on
+//! [`ResultTextSelection`], which encapsulates a [`TextSelection`] instance.
+
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::AnnotationDataSetHandle;
@@ -23,23 +36,23 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 
 impl<'store> ResultItem<'store, TextSelection> {
-    pub fn wrap(self) -> ResultTextSelection<'store> {
-        ResultTextSelection::Bound(self)
-    }
+    /// Return the begin position (unicode points)
     pub fn begin(&self) -> usize {
         self.as_ref().begin()
     }
 
+    /// Return the end position (unicode points)
     pub fn end(&self) -> usize {
         self.as_ref().end()
     }
 
+    /// Return the resource ([`ResultItem<TextResource>`]) this text selection references.
     pub fn resource(&self) -> ResultItem<'store, TextResource> {
         let rootstore = self.rootstore();
         self.store().as_resultitem(rootstore, rootstore)
     }
 
-    /// Iterates over all annotations that reference this TextSelection, if any.
+    /// Iterates over all annotations that reference this TextSelection
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         if let Some(annotations) = self
             .rootstore()
@@ -56,6 +69,7 @@ impl<'store> ResultItem<'store, TextSelection> {
     }
 
     /// Returns the number of annotations that reference this text selection
+    /// This is more performant than doing `self.annotations().count()`.
     pub fn annotations_len(&self, annotationstore: &'store AnnotationStore) -> usize {
         if let Some(vec) = annotationstore
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
@@ -68,7 +82,7 @@ impl<'store> ResultItem<'store, TextSelection> {
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
-    /// (as [`ResultItem<TextSelection>`]).
+    /// (as [`ResultTextSelection`]).
     /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
     pub fn related_text(
         &self,
@@ -180,6 +194,7 @@ impl<'store> ResultTextSelection<'store> {
         }
     }
 
+    /// Return the [`AnnotationStore`] this text selection references.
     pub fn rootstore(&self) -> &'store AnnotationStore {
         match self {
             Self::Bound(item) => item.rootstore(),
@@ -187,11 +202,14 @@ impl<'store> ResultTextSelection<'store> {
         }
     }
 
+    /// Return the resource ([`ResultItem<TextResource>`]) this text selection references.
     pub fn resource(&self) -> ResultItem<'store, TextResource> {
         let rootstore = self.rootstore();
         self.store().as_resultitem(rootstore, rootstore)
     }
 
+    /// Returns the internal handle used by the TextSelection.
+    /// If the TextSelection is unbound, this will return `None`.
     pub fn handle(&self) -> Option<TextSelectionHandle> {
         match self {
             Self::Bound(item) => Some(item.handle()),
@@ -266,12 +284,18 @@ impl<'store> ResultTextSelectionSet<'store> {
     }
 }
 
+/// This trait allows sorting a collection in textual order, meaning
+/// that items are returned in the same order as they appear in the original text.
 pub trait SortTextualOrder<T>
 where
     T: PartialOrd,
 {
-    /// Sorts items in the iterator in textual order, items that do not relate to text at all will be put at the end with arbitrary sorting
-    /// This method allocates and returns a buffer to do the sorting, it also takes care to remove any duplicates
+    /// Sorts items in the iterator in textual order,
+    /// meaningthat items are returned in the same order as they appear in the original text.
+    /// items that do not relate to text at all will be put at the end with arbitrary sorting
+    /// This method allocates and returns a buffer to do the sorting.
+    ///
+    /// It does deduplication only for iterators over [`TextSelection`], [`ResultTextSelection`].
     fn textual_order(&mut self) -> Vec<T>;
 }
 
@@ -318,6 +342,7 @@ where
             a.partial_cmp(b)
                 .expect("PartialOrd must work for ResultTextSelection")
         });
+        v.dedup();
         v
     }
 }
@@ -373,6 +398,7 @@ where
     fn textual_order(&mut self) -> Vec<TextSelection> {
         let mut v: Vec<_> = self.collect();
         v.sort_unstable_by(|a, b| a.cmp(b));
+        v.dedup();
         v
     }
 }

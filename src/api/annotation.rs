@@ -1,3 +1,18 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the high-level API for [`Annotation`]. This API is implemented on
+//! [`ResultItem<Annotation>`]. Moreover, it defines and implements the [`AnnotationsIter`] iterator to iterate over annotations,
+//! which also exposes a rich API. Last, it defines and implements [`Annotations`], which is a simple collection of annotations,
+//! and can be iterated over.
+
 use rayon::prelude::*;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
@@ -33,6 +48,9 @@ impl<'store> ResultItem<'store, Annotation> {
         iter.map(|handle| store.resource(handle).unwrap())
     }
 
+    /// Returns an iterator over the resources that this annotation (by its target selector) references.
+    /// This returns only resources that are targeted via a [`Selector::ResourceSelector`] and
+    /// returns no duplicates even if a resource is referenced multiple times.
     pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.as_ref()
             .target()
@@ -48,6 +66,9 @@ impl<'store> ResultItem<'store, Annotation> {
             .collect()
     }
 
+    /// Returns an iterator over the resources that this annotation (by its target selector) references.
+    /// This returns only resources that are targeted via a [`Selector::TextSelector`] and
+    /// returns no duplicates even if a resource is referenced multiple times.
     pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.as_ref()
             .target()
@@ -63,7 +84,7 @@ impl<'store> ResultItem<'store, Annotation> {
             .collect()
     }
 
-    /// Returns an iterator over the datasets that this annotation (by its target selector) references
+    /// Returns an iterator over the datasets that this annotation (by its target selector) references via a [`Selector::DataSetSelector`].
     /// This returns no duplicates even if a dataset is referenced multiple times.
     pub fn datasets(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store {
         let selector = self.as_ref().target();
@@ -74,8 +95,8 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector`])
-    /// Use [`Self.annotations()`] if you want to find the annotations that reference this one (the reverse).
-    /// Results will be in textual order unless recursive is set or a DirectionalSelector is involved.
+    /// Use [`Self.annotations()`] if you want to find the annotations that reference this one (the reverse operation).
+    /// Results will be in textual order unless `recursive` is set or a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
     pub fn annotations_in_targets(&self, recursive: bool) -> AnnotationsIter<'store> {
         let selector = self.as_ref().target();
         let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
@@ -89,7 +110,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Iterates over all the annotations that reference this annotation, if any
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     ///
-    /// Note: This does no sorting nor deduplication, if you want results in textual order without duplicates, add `.textual_order()`
+    /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.textual_order()`
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         let annotations = self.store().annotations_by_annotation(self.handle());
         if let Some(annotations) = annotations {
@@ -104,7 +125,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
-    /// They are returned in textual order, except in case if a DirectionSelector is involved, then they are in the exact order as they were selected.
+    /// They are returned in textual order, except in case a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
     pub fn textselections(&self) -> TextSelectionsIter<'store> {
         let textselections = self
             .store()
@@ -113,7 +134,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all text slices this annotation refers to
-    /// They are returned in textual order, or in case if a DirectionSelector is involved, in the exact order as they were selected.
+    /// They are returned in textual order, or in case a [`Selector::DirectionalSelector`] is involved, in the exact order as they were selected.
     pub fn text(&self) -> impl Iterator<Item = &'store str> {
         self.textselections().text()
     }
@@ -130,8 +151,8 @@ impl<'store> ResultItem<'store, Annotation> {
         self.textselections().text_join(delimiter)
     }
 
-    /// Returns the (single!) resource the annotation points to. Only works for TextSelector,
-    /// ResourceSelector and AnnotationSelector, and not for complex selectors.
+    /// Returns the (single!) resource the annotation points to. Only works if this annotation targets using a [`Selector::TextSelector`],
+    /// [`Selector::ResourceSelector`] or [`Selector::AnnotationSelector`], and not for complex selectors.
     /// AnnotationSelectors are followed recursively if needed.
     pub fn resource(&self) -> Option<ResultItem<'store, TextResource>> {
         match self.as_ref().target() {
@@ -152,7 +173,7 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 
-    /// Get an iterator over all data for this annotation
+    /// Get an iterator over all data ([`AnnotationData`]) for this annotation.
     pub fn data(&self) -> DataIter<'store> {
         DataIter::new(
             IntersectionIter::new(Cow::Borrowed(self.as_ref().raw_data()), false),
@@ -160,7 +181,7 @@ impl<'store> ResultItem<'store, Annotation> {
         )
     }
 
-    /// Find data amongst the data for this annotation. Returns an iterator over the data.
+    /// Find data ([`AnnotationData`]) amongst the data for this annotation. Returns an iterator over the data.
     /// If you have a particular annotation data instance and want to test if the annotation uses it, then use [`Self.has_data()`] instead.
     pub fn find_data<'a>(
         &self,
@@ -194,6 +215,9 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 }
 
+/// Holds a collection of annotations.
+/// This structure is produced by calling [`AnnotationsIter.to_cache()`].
+/// Use [`Self.iter()`] to iterate over the collection.
 pub struct Annotations<'store> {
     array: Cow<'store, [AnnotationHandle]>,
     sorted: bool,
@@ -210,6 +234,7 @@ impl<'store> Debug for Annotations<'store> {
 }
 
 impl<'a> Annotations<'a> {
+    /// Returns an iterator over the annotations, the iterator exposes further high-level API methods.
     pub fn iter(&self) -> AnnotationsIter<'a> {
         AnnotationsIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
@@ -217,16 +242,18 @@ impl<'a> Annotations<'a> {
         )
     }
 
+    /// Returns the number of annotations in this collection.
     pub fn len(&self) -> usize {
         self.array.len()
     }
 
+    /// Returns a boolean indicating whether the collection is empty or not.
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
 
-    /// Low-level method to instantiate annotations from an existing collection
-    /// Use of this function is discouraged in most cases as there is no validity check on the handles you pass.
+    /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
+    /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
     pub fn from_handles(
         array: Cow<'a, [AnnotationHandle]>,
         sorted: bool,

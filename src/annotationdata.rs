@@ -1,3 +1,16 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the low-level API for [`AnnotationData`]. It defines and implements the
+//! struct, the handle, and things like serialisation, deserialisation to STAM JSON.
+
 //use Chrono::DateTime;
 use datasize::DataSize;
 use minicbor::{Decode, Encode};
@@ -15,10 +28,10 @@ use crate::types::*;
 
 /// AnnotationData holds the actual content of an annotation; a key/value pair. (the
 /// term *feature* is regularly seen for this in certain annotation paradigms).
-/// Annotation Data is deliberately decoupled from the actual ``Annotation``
+/// Annotation Data is deliberately decoupled from the actual [`crate::Annotation`]
 /// instances so multiple annotation instances can point to the same content
 /// without causing any overhead in storage. Moreover, it facilitates indexing and
-/// searching. The annotation data is part of an `AnnotationDataSet`, which
+/// searching. The annotation data is part of an [`crate::AnnotationDataSet`], which
 /// effectively defines a certain user-defined vocabulary.
 ///
 /// Once instantiated, instances of this type are, by design, largely immutable.

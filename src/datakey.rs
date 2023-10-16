@@ -1,3 +1,16 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the low-level API for [`DataKey`]. It defines and implements the
+//! struct, the handle, and things like serialisation, deserialisation to STAM JSON.
+
 use datasize::DataSize;
 use minicbor::{Decode, Encode};
 use sealed::sealed;
@@ -11,9 +24,10 @@ use crate::error::StamError;
 use crate::store::*;
 use crate::types::*;
 
-/// The DataKey class defines a vocabulary field, it
-/// belongs to a certain [`AnnotationDataSet`]. An `AnnotationData`
-/// in turn makes reference to a DataKey and assigns it a value.
+/// The DataKey structure defines a *vocabulary field* or *feature*, as it is called in some
+/// annotation paradigms. it belongs to a certain [`AnnotationDataSet`]. An
+/// [`crate::AnnotationData`] instance in turn makes reference to a DataKey and assigns it a value,
+/// producing a full key/value pair.
 #[derive(Deserialize, Debug, Clone, DataSize, Encode, Decode)]
 pub struct DataKey {
     //indexed: bool,  //TODO: handle later
@@ -22,7 +36,7 @@ pub struct DataKey {
     #[n(0)] //these macros are for cbor binary (de)serialisation
     intid: Option<DataKeyHandle>,
 
-    /// The Id is the name that identifies this key, it must be unique in the dataset to which it pertains
+    /// The Id is the name (string) that identifies this key, it must be unique in the dataset to which it pertains
     #[serde(rename = "@id")]
     #[n(1)]
     id: String,

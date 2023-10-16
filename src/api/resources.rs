@@ -1,3 +1,16 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the high-level API for [`TextResource`]. This API is implemented on
+//! [`ResultItem<TextResource>`].
+
 use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::api::annotation::AnnotationsIter;

@@ -1,3 +1,16 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the low-level API for [`TextResource`]. It defines and implements the
+//! struct, the handle, and things like serialisation, deserialisation to STAM JSON.
+
 use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::io::prelude::*;

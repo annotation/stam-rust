@@ -1,3 +1,21 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contains the low-level API for [`TextSelection`]. It defines and implements the
+//! struct, the handle, and things like serialisation, deserialisation to STAM JSON.
+//!
+//! It also implements [`TextSelectionSet`], a collection of textselections that can be tested
+//! against as a group. and it implements the various tests (defined by the [`TestTextSelection`]
+//! trait) that can be done on text selections, mediated by the [`TextSelectionOperator`] which is
+//! also directly exposed for the high-level API.
+
 use sealed::sealed;
 use std::cmp::Ordering;
 use std::collections::btree_map;

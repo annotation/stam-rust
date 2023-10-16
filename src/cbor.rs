@@ -1,3 +1,15 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://github.com/annotation/stam-rust
+*/
+
+//! This module contain some helper functions for serialisation/deserialisation to/from CBOR (the binary representation).
+
 use minicbor::{decode::ArrayIterWithCtx, CborLen, Encode};
 use smallvec::SmallVec;
 use std::sync::{Arc, RwLock};
