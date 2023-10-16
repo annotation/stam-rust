@@ -560,6 +560,16 @@ impl<'store> AnnotationsIter<'store> {
         )
     }
 
+    /// Maps annotations to textselections, consuming the iterator. Results will be returned in textual order.
+    /// Unlike [`self.textselections()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    pub fn textselections_unchecked(self) -> TextSelectionsIter<'store> {
+        let store = self.store;
+        TextSelectionsIter::new_with_iterator(
+            Box::new(self.map(|annotation| annotation.textselections()).flatten()),
+            store,
+        )
+    }
+
     /// Returns annotations along with matching text selections, either may occur multiple times!
     /// If an annotation references multiple text selections, they are returned as a set.
     /// Note that results are in chronological annotation order, not textual order.

@@ -275,7 +275,7 @@ impl<'store> ResultTextSelectionSet<'store> {
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let resource = self.resource();
         let store = self.rootstore();
-        TextSelectionsIter::new_with_iterator(
+        TextSelectionsIter::new_with_findtextiterator(
             resource
                 .as_ref()
                 .textselections_by_operator(operator, self.tset),
@@ -409,6 +409,7 @@ pub(crate) enum TextSelectionsSource<'store> {
     LowVec(SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]>), //used with AnnotationStore.textselections_by_selector
     FindIter(FindTextSelectionsIter<'store>), //used with textselections_by_operator()
     TSIter(TextSelectionIter<'store>),        //used by resource.textselections(), double-ended
+    HighIter(Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>),
 }
 
 /// Iterator over TextSelections (yields [`ResultTextSelection`] instances)
@@ -443,6 +444,7 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
+                TextSelectionsSource::HighIter(iter) => iter.next(),
                 TextSelectionsSource::LowVec(handles) => {
                     if let Some((res_handle, tsel_handle)) = handles.get(self.cursor as usize) {
                         let resource = self
@@ -506,8 +508,12 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
             self.cursor = match &self.source {
                 TextSelectionsSource::HighVec(textselections) => textselections.len() as isize - 1,
                 TextSelectionsSource::LowVec(handles) => handles.len() as isize - 1,
+                TextSelectionsSource::HighIter(_) => {
+                    //this is a bit dangerous, no proper error propagation here
+                    unimplemented!("No backward iteration on TextSelectionsSource::HighIter")
+                }
                 TextSelectionsSource::FindIter(_) => {
-                    unimplemented!("No backward iteration on FindIter")
+                    unimplemented!("No backward iteration on TextSelectionsSource::FindIter")
                 }
                 TextSelectionsSource::TSIter(iter) => iter.size_hint().0 as isize,
             };
@@ -543,8 +549,11 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
+                TextSelectionsSource::HighIter(_) => {
+                    unimplemented!("No backward iteration on TextSelectionsSource::HighIter")
+                }
                 TextSelectionsSource::FindIter(_) => {
-                    unimplemented!("No backward iteration on FindIter")
+                    unimplemented!("No backward iteration on TextSelectionsSource::FindIter")
                 }
                 TextSelectionsSource::TSIter(iter) => {
                     if let Some(tsel) = iter.next_back() {
@@ -615,12 +624,28 @@ impl<'store> TextSelectionsIter<'store> {
         }
     }
 
-    pub(crate) fn new_with_iterator(
+    pub(crate) fn new_with_findtextiterator(
         iter: FindTextSelectionsIter<'store>,
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
             source: TextSelectionsSource::FindIter(iter),
+            store,
+            cursor: 0,
+            forward: Some(true),
+            single_annotation_filter: None,
+            annotations_filter: None,
+            single_data_filter: None,
+            data_filter: None,
+        }
+    }
+
+    pub(crate) fn new_with_iterator(
+        iter: Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            source: TextSelectionsSource::HighIter(iter),
             store,
             cursor: 0,
             forward: Some(true),

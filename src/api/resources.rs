@@ -88,7 +88,7 @@ impl<'store> ResultItem<'store, TextResource> {
         refset: impl Into<TextSelectionSet>,
     ) -> TextSelectionsIter<'store> {
         let resource = self.as_ref();
-        TextSelectionsIter::new_with_iterator(
+        TextSelectionsIter::new_with_findtextiterator(
             resource.textselections_by_operator(operator, refset.into()),
             self.rootstore(),
         )
