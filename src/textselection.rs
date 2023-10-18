@@ -639,14 +639,16 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
 
 /// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection`] instances. It
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
-/// [`TextSelection`] instances can be.
+/// [`TextSelection`] instances can be, such as overlap, embedding, adjacency, etc...
 ///
-/// Rather than operator on single [`TextSelection`] instances, te implementation goes a bit
+/// Rather than operator on single [`TextSelection`] instances, the implementation goes a bit
 /// further and can act also on the basis of [`TextSelectionSet`] rather than [`TextSelection`],
 /// allowing you to compare two sets, each containing possibly multiple TextSelections, at once.
+///
+/// Use the various methods on this type to quickly instantiate a variant.
 #[derive(Debug, Clone, Copy)]
 pub enum TextSelectionOperator {
-    /// Both sets occupy cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
+    /// Both sets cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
     Equals { all: bool, negate: bool },
 
     /// All items in both sets must cover the exact same TextSelection. This would be fairly useless, it just means both sets contain only one TextSelection and it's the same one

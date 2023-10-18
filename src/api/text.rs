@@ -24,6 +24,7 @@ use crate::types::*;
 use regex::{Regex, RegexSet};
 use smallvec::{smallvec, SmallVec};
 
+/// This trait provides text-searching methods that operate on structures that hold or represent text content.
 pub trait FindText<'store, 'slf>: Text<'store, 'slf>
 where
     'store: 'slf,

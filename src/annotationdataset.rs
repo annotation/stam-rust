@@ -39,7 +39,7 @@ use std::fmt::Debug;
 /// An `AnnotationDataSet` stores the keys [`DataKey`] and values
 /// [`AnnotationData`] (which in turn encapsulates [`DataValue`]) that are used by annotations.
 /// It effectively defines a certain vocabulary, i.e. key/value pairs.
-/// The `AnnotationDataSet` does not store the [`crate::annotation::Annotation`] instances themselves, those are in
+/// The `AnnotationDataSet` does not store the [`Annotation`](crate::annotation::Annotation) instances themselves, those are in
 /// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
 #[derive(Debug, Clone, DataSize, Encode, Decode)]
 pub struct AnnotationDataSet {

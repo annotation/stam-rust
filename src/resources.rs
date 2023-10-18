@@ -91,6 +91,18 @@ pub struct TextResource {
     config: Config,
 }
 
+/// This is a helper structure to build [`TextResource`] instances in a builder pattern.
+/// Example:
+///
+/// ```
+/// use stam::*;
+/// let mut store = AnnotationStore::default();
+/// store.insert(
+///        TextResourceBuilder::new().with_id("testres").with_text(
+///        "Hello world!",
+///        ).build().unwrap()
+/// );
+/// ```
 #[derive(Deserialize, Debug, Default)]
 pub struct TextResourceBuilder {
     /// Public identifier for the text resource (often the filename/URL)

@@ -447,12 +447,17 @@ where
 }
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
+/// This is a low-level trait that is implemented on the various STAM data structures that
+/// are held in a store, such as [`Annotation`](crate::Annotation), [`AnnotationData`](crate::AnnotationData),[`TextResource`](crate::TextResource), etc..
+/// All storable elements have a [`Handle`], defined by the associated [`Self::HandleType`].
+/// It corresponds directly to their index in a vector, so this type is a simple wrapper around `usize`.
+/// This is a sealed trait, not implementable outside this crate.
 pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     type HandleType: Handle;
     type StoreType: StoreFor<Self>;
 
-    /// Retrieve the internal (numeric) id. For any type T uses in `StoreFor<T>`, this may be None only in the initial
-    /// stage when it is still unbounded to a store.
+    /// Retrieve the internal (numeric) id. For any type T in `StoreFor<T>`, this may return `None` only in the initial
+    /// stage when it is still unbounded to a store, so this is almost always safe to unwrap when used in the public API.
     fn handle(&self) -> Option<Self::HandleType> {
         None
     }
@@ -462,7 +467,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         self.handle().ok_or(StamError::Unbound(""))
     }
 
-    /// Get the public ID
+    /// Get the public identifier
     fn id(&self) -> Option<&str> {
         None
     }
@@ -479,7 +484,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     /// Does this type support an ID?
     fn carries_id() -> bool;
 
-    /// Returns the item as a ResultItem, i.e. a wrapped reference that includes a reference to
+    /// Returns the item of type `T` as a [`ResultItem<T>`], i.e. a wrapped reference that includes a reference to
     /// both this item as well as the store that owns it. All high-level API functions are implemented
     /// on such Result types. You should not need to invoke this yourself.
     fn as_resultitem<'store>(
@@ -501,6 +506,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     }
 
     /// Generate a random ID in a given idmap (adds it to the map and assigns it to the item)
+    /// This is a low-level API method that can not be used publicly due to ownership restrictions.
     fn generate_id(self, idmap: Option<&mut IdMap<Self::HandleType>>) -> Self
     where
         Self: Sized,
@@ -1114,6 +1120,7 @@ where
     }
 }
 
+/// This trait defines the [`self.or_fail`] method that is used to turn an `Option<T>` into `Result<T,StamError>`.
 pub trait StamResult<T>
 where
     T: TypeInfo,

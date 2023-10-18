@@ -28,10 +28,10 @@ use crate::types::*;
 
 /// AnnotationData holds the actual content of an annotation; a key/value pair. (the
 /// term *feature* is regularly seen for this in certain annotation paradigms).
-/// Annotation Data is deliberately decoupled from the actual [`crate::Annotation`]
+/// Annotation Data is deliberately decoupled from the actual [`Annotation`](crate::Annotation)
 /// instances so multiple annotation instances can point to the same content
 /// without causing any overhead in storage. Moreover, it facilitates indexing and
-/// searching. The annotation data is part of an [`crate::AnnotationDataSet`], which
+/// searching. The annotation data is part of an [`AnnotationDataSet`](crate::AnnotationDataSet), which
 /// effectively defines a certain user-defined vocabulary.
 ///
 /// Once instantiated, instances of this type are, by design, largely immutable.
@@ -55,6 +55,7 @@ pub struct AnnotationData {
     value: DataValue,
 }
 
+/// [Handle] to an instance of [`AnnotationData`] in the store.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
 #[cbor(transparent)]
 pub struct AnnotationDataHandle(#[n(0)] u32);

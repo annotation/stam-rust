@@ -15,7 +15,8 @@ use crate::selector::Offset;
 use crate::types::*;
 
 /// This trait provides methods that operate on structures that hold or represent text content.
-/// They are fairly low-level methods but are exposed in the public API.
+/// They are fairly low-level methods but are exposed in the public API. The [`FindText`](crate::FindText).
+/// trait subsequently builds upon this one with high-level search methods.
 pub trait Text<'store, 'slf>
 where
     'store: 'slf,

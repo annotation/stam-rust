@@ -70,6 +70,7 @@ pub struct Annotation {
     target: Selector, //note: Boxing this didn't reduce overall memory footprint, even though Annotation became smaller, probably due to allocator overhead
 }
 
+/// [Handle] to an instance of [`Annotation`] in the store.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
 #[cbor(transparent)]
 pub struct AnnotationHandle(#[n(0)] u32);
