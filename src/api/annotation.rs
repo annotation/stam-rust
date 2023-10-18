@@ -279,7 +279,7 @@ impl<'a> Annotations<'a> {
 /// allow to further filter or map annotations.
 ///
 /// The iterator is produced by calling the `annotations()` method that is implemented for several objects, such
-/// as [`Annotation::annotations()`], or on other iterators like [`DataIter::annotations()`] and [`TextSelectionsIter::annotations()`].
+/// as [`ResultItem<Annotation>::annotations()`], or on other iterators like [`DataIter::annotations()`] and [`TextSelectionsIter::annotations()`].
 pub struct AnnotationsIter<'store> {
     iter: Option<IntersectionIter<'store, AnnotationHandle>>,
     store: &'store AnnotationStore,
