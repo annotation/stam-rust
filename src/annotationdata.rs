@@ -55,7 +55,7 @@ pub struct AnnotationData {
     value: DataValue,
 }
 
-/// [Handle] to an instance of [`AnnotationData`] in the store.
+/// [Handle] to an instance of [`AnnotationData`] in the store ([`AnnotationDataSet`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
 #[cbor(transparent)]
 pub struct AnnotationDataHandle(#[n(0)] u32);
@@ -231,8 +231,8 @@ impl AnnotationData {
     }
 }
 
-/// This is the builder for `AnnotationData`. It contains public IDs or handles that will be resolved.
-/// It is usually not instantiated directly but used via the [`AnnotationBuilder.with_data()`], [`AnnotationBuilder.insert_data()`] or [`AnnotationDataSet.with_data()`] or [`AnnotationDataSet.build_insert_data()`] methods.
+/// This is the builder for [`AnnotationData`]. It contains public IDs or handles that will be resolved.
+/// This structure is usually not instantiated directly but via the [`AnnotationBuilder.with_data()`](crate::AnnotationBuilder::with_data), [`AnnotationStore.insert_data()`] or [`AnnotationDataSet.with_data()`](crate::AnnotationDataSet::with_data()) or [`AnnotationDataSet.build_insert_data()`](crate::AnnotationDataSet::build_insert_data()) methods.
 /// It also does not have its own `build()` method but is resolved via the aforementioned methods.
 #[derive(Deserialize, Clone, Debug)]
 #[serde(tag = "AnnotationData")]

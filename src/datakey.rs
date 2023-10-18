@@ -26,7 +26,7 @@ use crate::types::*;
 
 /// The DataKey structure defines a *vocabulary field* or *feature*, as it is called in some
 /// annotation paradigms. it belongs to a certain [`AnnotationDataSet`]. An
-/// [`crate::AnnotationData`] instance in turn makes reference to a DataKey and assigns it a value,
+/// [`AnnotationData`](crate::AnnotationData) instance in turn makes reference to a DataKey and assigns it a value,
 /// producing a full key/value pair.
 #[derive(Deserialize, Debug, Clone, DataSize, Encode, Decode)]
 pub struct DataKey {
@@ -54,6 +54,7 @@ impl Serialize for DataKey {
     }
 }
 
+/// [Handle] to an instance of [`DataKey`] in the store ([`AnnotationDataSet`])
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
 #[cbor(transparent)]
 pub struct DataKeyHandle(#[n(0)] u16);

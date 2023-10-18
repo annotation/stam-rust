@@ -123,8 +123,8 @@ impl<'store> ResultItem<'store, AnnotationData> {
 
 #[derive(Clone)]
 /// Holds a collection of annotation data.
-/// This structure is produced by calling [`DataIter.to_cache()`].
-/// Use [`Self.iter()`] to iterate over the collection.
+/// This structure is produced by calling [`DataIter::to_cache()`].
+/// Use [`Self::iter()`] to iterate over the collection.
 pub struct Data<'store> {
     pub(crate) array: Cow<'store, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
     pub(crate) store: &'store AnnotationStore,
@@ -142,6 +142,7 @@ impl<'store> Debug for Data<'store> {
 
 impl<'a> Data<'a> {
     /// Returns an iterator over the data in this collection, the iterator exposes further high-level API methods.
+    /// The iterator returns annotations as [`ResultItem<AnnotationData>`].
     pub fn iter(&self) -> DataIter<'a> {
         DataIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
@@ -179,11 +180,11 @@ impl<'a> Data<'a> {
     }
 }
 
-/// `DataIter` iterates over annotation data, it returns `ResultItem<AnnotationData>` instances.
+/// `DataIter` iterates over annotation data, it returns [`ResultItem<AnnotationData>`] instances.
 /// The iterator offers a various high-level API methods that operate on a collection of annotation data, and
 /// allow to further filter or map annotations.
 ///
-/// The iterator is produced by calling the `data()` method that is implemented for several objects, such as [`Annotation.data()`]
+/// The iterator is produced by calling the `data()` method that is implemented for several objects, such as [`Annotation::data()`](crate::Annotation::data())
 pub struct DataIter<'store> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
     store: &'store AnnotationStore,
@@ -276,7 +277,7 @@ impl<'store> DataIter<'store> {
     }
 
     /// Constrain this iterator by a vector of handles (intersection).
-    /// You can use [`Self.to_cache()`] on a DataIter and then later reload it with this method.
+    /// You can use [`Self::to_cache()`] on a DataIter and then later reload it with this method.
     pub fn filter_from(self, data: &Data<'store>) -> Self {
         self.filter_data(data.iter())
     }
@@ -289,12 +290,13 @@ impl<'store> DataIter<'store> {
 
     /// Constrain the iterator to return only the data that is also in the other iterator (intersection)
     ///
-    /// You can cast any existing iterator that produces `ResultItem<AnnotationData>` to a [`DataIter`] using [`DataIter::from_iter()`].
+    /// You can cast any existing iterator that produces [`ResultItem<AnnotationData>`] to a [`DataIter`] using [`DataIter::from_iter()`].
     pub fn filter_data(self, data: DataIter<'store>) -> Self {
         self.merge(data)
     }
 
     /// Find and filter data. Returns an iterator over the data.
+    /// See [`AnnotationStore::find_data()`] for further documentation.
     pub fn find_data<'a>(
         self,
         set: impl Request<AnnotationDataSet>,
@@ -324,13 +326,13 @@ impl<'store> DataIter<'store> {
     }
 
     /// Constrain this iterator to only a single annotationdata
-    /// If you're looking for a lower-level variant, use [`Self.filter_handle()`] instead.
+    /// If you're looking for a lower-level variant, use [`Self::filter_handle()`] instead.
     pub fn filter_annotationdata(self, annotationdata: &ResultItem<AnnotationData>) -> Self {
         self.filter_handle(annotationdata.set().handle(), annotationdata.handle())
     }
 
     /// Constrain this iterator to only a single annotationdata, by handle
-    /// You will like want to use the higher-level method [`Self.filter_annotationdata()`] instead.
+    /// You will like want to use the higher-level method [`Self::filter_annotationdata()`] instead.
     pub fn filter_handle(
         mut self,
         set_handle: AnnotationDataSetHandle,
@@ -362,7 +364,7 @@ impl<'store> DataIter<'store> {
         self
     }
 
-    /// Filter for keys. This is a low-level function, use [`Self.filter_key()`] instead.
+    /// Filter for keys. This is a low-level function, use [`Self::filter_key()`] instead.
     /// This can only be used once.
     pub fn filter_key_handle(
         mut self,
@@ -464,8 +466,8 @@ impl<'store> DataIter<'store> {
     /// Extract a low-level vector of handles from this iterator.
     /// This is different than running `collect()`, which produces high-level objects.
     ///
-    /// An extracted vector can be easily turned back into a DataIter again with [`Self.load()`] or
-    /// used directly as a filter using [`Self.filter_from()`].
+    /// An extracted structure can be easily turned back into a DataIter again with [`Data::iter()`] or
+    /// used directly as a filter using [`Self::filter_from()`].
     pub fn to_cache(self) -> Data<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();

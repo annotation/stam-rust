@@ -47,29 +47,34 @@ impl AnnotationStore {
     }
 
     /// Requests a specific [`Annotation`] from the store to be returned by reference.
-    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`,[`String`] or [`crate::AnnotationHandle`].
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`,[`String`] or [`AnnotationHandle`](crate::AnnotationHandle).
     ///
-    /// The item is returned as a fat pointer [`ResultItem<Annotation>`]) in an Option.
+    /// The item is returned as a fat pointer [`ResultItem<Annotation>`]),
+    /// which exposes the high-level API, in an Option.
     /// Returns `None` if it does not exist.
     pub fn annotation(&self, request: impl Request<Annotation>) -> Option<ResultItem<Annotation>> {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
-    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]) .
+    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]),
+    /// which exposes the high-level API.
     pub fn resources(&self) -> impl Iterator<Item = ResultItem<TextResource>> {
         self.iter()
             .map(|item: &TextResource| item.as_resultitem(self, self))
     }
 
     /// Returns an iterator over all [`AnnotationDataSet`] instances in the store.
-    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]) .
+    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]),
+    /// which exposes the high-level API.
     pub fn datasets<'a>(&'a self) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
         self.iter()
             .map(|item: &AnnotationDataSet| item.as_resultitem(self, self))
     }
 
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
+    /// The resulting iterator yields itemsa as a fat pointer [`ResultItem<Annotation>`]),
+    /// which exposes the high-level API.
     pub fn annotations<'a>(&'a self) -> AnnotationsIter<'a> {
         AnnotationsIter::new(
             IntersectionIter::new_with_iterator(
@@ -215,7 +220,7 @@ impl AnnotationStore {
     ///
     /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.resources_as_metadata()` instead, it'll be much more efficient.
     ///
-    /// See [`Self.find_data()`] for further parameter explanation.
+    /// See [`Self::find_data()`] for further parameter explanation.
     pub fn resources_by_metadata<'store, 'a>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
@@ -247,7 +252,7 @@ impl AnnotationStore {
     ///
     /// If you already have a `ResultItem<AnnotationData>` instance, just use `ResultItem<AnnotationData>.resources_as_metadata()` instead, it'll be much more efficient.
     ///
-    /// See [`Self.find_data()`] for further parameter explanation.
+    /// See [`Self::find_data()`] for further parameter explanation.
     pub fn datasets_by_metadata<'store, 'a>(
         &'store self,
         set: impl Request<AnnotationDataSet>,

@@ -40,7 +40,7 @@ use crate::api::textselection::SortTextualOrder;
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns no duplicates even if a resource is referenced multiple times.
-    /// If you want to distinguish between resources references as metadata and on text, use [`Self.resources_as_metadata()`] or [`Self.resources_on_text()` ] instead.
+    /// If you want to distinguish between resources references as metadata and on text, use [`Self::resources_as_metadata()`] or [`Self::resources_on_text()` ] instead.
     pub fn resources(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> + 'store {
         let selector = self.as_ref().target();
         let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
@@ -96,7 +96,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector`])
-    /// Use [`Self.annotations()`] if you want to find the annotations that reference this one (the reverse operation).
+    /// Use [`Self::annotations()`] if you want to find the annotations that reference this one (the reverse operation).
     /// Results will be in textual order unless `recursive` is set or a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
     pub fn annotations_in_targets(&self, recursive: bool) -> AnnotationsIter<'store> {
         let selector = self.as_ref().target();
@@ -183,7 +183,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Find data ([`AnnotationData`]) amongst the data for this annotation. Returns an iterator over the data.
-    /// If you have a particular annotation data instance and want to test if the annotation uses it, then use [`Self.has_data()`] instead.
+    /// If you have a particular annotation data instance and want to test if the annotation uses it, then use [`Self::has_data()`] instead.
     pub fn find_data<'a>(
         &self,
         set: impl Request<AnnotationDataSet>,
@@ -217,8 +217,8 @@ impl<'store> ResultItem<'store, Annotation> {
 }
 
 /// Holds a collection of annotations.
-/// This structure is produced by calling [`AnnotationsIter.to_cache()`].
-/// Use [`Self.iter()`] to iterate over the collection.
+/// This structure is produced by calling [`AnnotationsIter::to_cache()`].
+/// Use [`Annotations::iter()`] to iterate over the collection.
 pub struct Annotations<'store> {
     array: Cow<'store, [AnnotationHandle]>,
     sorted: bool,
@@ -236,6 +236,7 @@ impl<'store> Debug for Annotations<'store> {
 
 impl<'a> Annotations<'a> {
     /// Returns an iterator over the annotations, the iterator exposes further high-level API methods.
+    /// The iterator returns annotations as [`ResultItem<Annotation>`].
     pub fn iter(&self) -> AnnotationsIter<'a> {
         AnnotationsIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
@@ -407,7 +408,7 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in
     /// all the annotations. This returns data without annotations (sorted chronologically and
-    /// without duplicates), use [`Self.with_data()`] instead if you want to know which annotations
+    /// without duplicates), use [`Self::iter_with_data()`] instead if you want to know which annotations
     /// have which data.
     pub fn data(self) -> DataIter<'store> {
         let store = self.store;
@@ -437,8 +438,8 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Find data for the annotations in this iterator. Returns an iterator over the data (losing the information about annotations).
-    /// If you want specifically know what annotation has what data, use [`Self.iter_with_data()`] instead.
-    /// If you want to constrain annotations by a data search, use [`Self.filter_find_data()`] instead.
+    /// If you want specifically know what annotation has what data, use [`Self::iter_with_data()`] instead.
+    /// If you want to constrain annotations by a data search, use [`Self::filter_find_data()`] instead.
     pub fn find_data<'a>(
         self,
         set: impl Request<AnnotationDataSet>,
@@ -452,14 +453,14 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
-    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
         self.single_data_filter = Some((data.set().handle(), data.handle()));
         self
     }
 
-    /// Constrain the iterator to return only the annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self.filter_annotationdata()`] instead.
-    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
+    /// Constrain the iterator to return only the annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self::filter_annotationdata()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
     pub fn filter_annotationdata_handle(
         mut self,
         set_handle: AnnotationDataSetHandle,
@@ -470,7 +471,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to only return annotations that have data that corresponds with the passed data.
-    /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
         self.data_filter = Some(data);
         self
@@ -480,7 +481,7 @@ impl<'store> AnnotationsIter<'store> {
     /// This is a just shortcut method for `self.filter_data( store.find_data(..).to_cache() )`
     ///
     /// Note: Do not call this method in a loop, it will be very inefficient! Compute it once before and cache it (`let data = store.find_data(..).to_cache()`), then
-    ///       pass the result to [`Self.filter_data(data.clone())`], the clone will be cheap.
+    ///       pass the result to [`Self::filter_data(data.clone())`], the clone will be cheap.
     pub fn filter_find_data<'a>(
         self,
         set: impl Request<AnnotationDataSet>,
@@ -495,7 +496,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Returns an iterator over annotations along with matching data as requested
-    /// via [`Self.filter_data()`], [`Self.filter_find_data()`] or [`Self.filter_annotationdata()`]).
+    /// via [`Self::filter_data()`], [`Self::filter_find_data()`] or [`Self::filter_annotationdata()`]).
     /// Implicit filters on data via e.g. `filter_annotations(data.annotations())` will **NOT** be included.
     /// This consumes the iterator.
     pub fn iter_with_data(self) -> AnnotationsWithDataIter<'store> {
@@ -519,7 +520,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain this iterator to only a single annotation
-    /// This method can only be used once! Use [`Self.filter_annotations()`] to filter on multiple annotations (disjunction).
+    /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
     pub fn filter_annotation(self, annotation: &ResultItem<Annotation>) -> Self {
         if self.iter.is_some() {
             self.filter_handle(annotation.handle())
@@ -528,8 +529,8 @@ impl<'store> AnnotationsIter<'store> {
         }
     }
 
-    /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self.filter_annotation()`] instead.
-    /// This method can only be used once! Use [`Self.filter_annotations()`] to filter on multiple annotations (disjunction).
+    /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self::filter_annotation()`] instead.
+    /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
     pub fn filter_handle(mut self, handle: AnnotationHandle) -> Self {
         if self.iter.is_some() {
             self.iter = Some(self.iter.unwrap().with_singleton(handle));
@@ -661,7 +662,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain this iterator by a vector of handles (intersection).
-    /// You can use [`Self.to_cache()`] on an AnnotationsIter and then later reload it with this method.
+    /// You can use [`Self::to_cache()`] on an AnnotationsIter and then later reload it with this method.
     pub fn filter_from(self, annotations: &Annotations<'store>) -> Self {
         self.filter_annotations(annotations.iter())
     }
@@ -758,7 +759,7 @@ impl<'store> Iterator for AnnotationsIter<'store> {
 }
 
 /// An iterator over annotations along with matching data as requested
-/// via [`AnnotationsIter.filter_data()`], [`AnnotationsIter.filter_find_data()`] or [`AnnotationsIter.filter_annotationdata()`]).
+/// via [`AnnotationsIter::filter_data()`], [`AnnotationsIter::filter_find_data()`] or [`AnnotationsIter::filter_annotationdata()`]).
 /// Implicit filters on data via e.g. `filter_annotations(data.annotations())` will **NOT** be included.
 pub struct AnnotationsWithDataIter<'store>(AnnotationsIter<'store>);
 

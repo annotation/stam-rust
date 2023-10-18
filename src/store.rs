@@ -1120,7 +1120,7 @@ where
     }
 }
 
-/// This trait defines the [`self.or_fail`] method that is used to turn an `Option<T>` into `Result<T,StamError>`.
+/// This trait defines the [`Self::or_fail`] method that is used to turn an `Option<T>` into `Result<T,StamError>`.
 pub trait StamResult<T>
 where
     T: TypeInfo,
@@ -1331,6 +1331,9 @@ where
     */
 }
 
+/// This trait is implemented for types that can serve as a request for a specific item of type `T` from the store.
+/// It is typically implemented on strings (both owned and borrowed) in which case the request is for a particular public identifier,
+/// or it is implemented on handles.
 pub trait Request<T>
 where
     T: Storable,
@@ -1341,15 +1344,15 @@ where
     where
         S: StoreFor<T>;
 
-    /// If this type encapsulated an Id, this returns it (borrowed)
+    /// If this type encapsulates an Id, this returns it (borrowed)
     fn requested_id(&self) -> Option<&str> {
         None
     }
-    /// If this type encapsulated an Id, this returns it (oened)
+    /// If this type encapsulates an Id, this returns it (oened)
     fn requested_id_owned(self) -> Option<String> {
         None
     }
-    /// If this type encapsulated a handle, this returns it
+    /// If this type encapsulates a handle, this returns it
     fn requested_handle(&self) -> Option<T::HandleType> {
         None
     }

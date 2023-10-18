@@ -1497,7 +1497,7 @@ impl AnnotationStore {
     /// Returns all annotations that reference any text selection in the resource.
     /// This is a low-level method, use [`ResultItem<TextResource>.annotations()`] instead for higher-level access.
     ///
-    /// Use [`Self.annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
+    /// Use [`Self::annotations_by_resource_metadata()`] instead if you are looking for annotations that reference the resource as is
     pub(crate) fn annotations_by_resource<'store>(
         &'store self,
         resource_handle: TextResourceHandle,
@@ -1519,7 +1519,7 @@ impl AnnotationStore {
     /// This only returns annotations that directly point at the resource, i.e. are metadata for it. It does not include annotations that
     /// This is a low-level method, use [`ResultItem<TextResource>.annotations(_metadata`] instead for higher-level access.
     ///
-    /// point at a text in the resource, use [`Self.annotations_by_resource()`] instead for those.
+    /// point at a text in the resource, use [`Self::annotations_by_resource()`] instead for those.
     pub(crate) fn annotations_by_resource_metadata(
         &self,
         resource_handle: TextResourceHandle,

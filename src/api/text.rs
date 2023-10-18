@@ -51,10 +51,10 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
-    /// [`self.textselection()`] and then run [`self.find_text()`] on that instead.
+    /// [`FindText::textselection()`] and then run [`FindText::find_text()`] on that instead.
     fn find_text<'fragment>(
         &'slf self,
         fragment: &'fragment str,
@@ -63,10 +63,10 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items wrapped as [`ResultTextSelection`].
     ///
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
-    /// [`self.textselection()`] and then run [`self.find_text()`] on that instead.
+    /// [`FindText::textselection()`] and then run [`FindText::find_text()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store>;
 
     /// Searches for the multiple text fragment in sequence. Returns a vector with [`TextSelection`] instances wrapped as [`ResultTextSelection`].
@@ -185,7 +185,7 @@ where
     }
 
     /// Returns a [`TextSelection`] that corresponds to the offset. If the TextSelection
-    /// exists, the existing one will be returned (as a copy, but it will have a [`TextSelection.handle()`].
+    /// exists, the existing one will be returned (as a copy, but it will have a [`TextSelection::handle()`].
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
 
     /// The [`TextSelection`] is returned as in a fat pointer ([`ResultTextSelection`]) that also contains reference to the underlying store.
@@ -295,11 +295,11 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// This search is case sensitive, use [`Self.find_text_nocase()`] to search case insensitive.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// This search is case sensitive, use [`FindText::find_text_nocase()`] to search case insensitive.
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
-    /// [`Self.textselection()`] and then run [`self.find_text()`] on that instead.
+    /// [`FindText::textselection()`] and then run [`FindText::find_text()`] on that instead.
     fn find_text<'fragment>(&self, fragment: &'fragment str) -> FindTextIter<'store, 'fragment> {
         FindTextIter {
             resource: self.clone(),
@@ -311,11 +311,11 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// This search is case insensitive, use [`self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
+    /// This search is case insensitive, use [`FindText::find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
-    /// [`self.textselection()`] and then run [`self.find_text_nocase()`] on that instead.
+    /// [`FindText::textselection()`] and then run [`FindText::find_text_nocase()`] on that instead.
     fn find_text_nocase(&self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
             resource: self.clone(),
@@ -372,7 +372,7 @@ where
     /// This converts a unicode point to utf-8 byte, all in *relative* offsets to this textselection
     fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
         //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
-        //and can just call this same method on TextResource, which has the proper indices for this
+        //and can just call this same method on [`TextResource`](crate::TextResource), which has the proper indices for this
         let beginbyte = self
             .store()
             .subslice_utf8_offset(self.text())
@@ -383,7 +383,7 @@ where
     /// This converts utf-8 byte to charpos, all in *relative* offsets to this textselection
     fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
         //Convert from and to absolute coordinates so we don't have to reimplemented all the logic
-        //and can just call this same method on TextResource, which has the proper indices for this
+        //and can just call this same method on [`TextResource`](crate::TextResource), which has the proper indices for this
         let beginbyte = self
             .store()
             .subslice_utf8_offset(self.text())
@@ -452,9 +452,9 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
-    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first and then run `find_text()` on that instead.
+    /// If you want to search only a subpart of the text, extract a [`TextSelection`] first and then run [`FindText::find_text()`] on that instead.
     fn find_text<'fragment>(
         &'slf self,
         fragment: &'fragment str,
@@ -469,11 +469,11 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// This search is case insensitive, use [`Self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`Self.find_text_regex()`] instead
+    /// This search is case insensitive, use [`FindText::find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
-    /// [`Self.textselection()`] and then run `find_text_nocase()` on that instead.
+    /// [`FindText::textselection()`] and then run [`FindText::find_text_nocase()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
             resource: self.resource(),
@@ -686,7 +686,7 @@ where
     /// If the textselection is known (i.e. it has associated annotations), it will be returned as such with a handle (borrowed).
     /// If it doesn't exist yet, a new one will be returned, and it won't have a handle, nor will it be added to the store automatically.
     ///
-    /// The [`TextSelection`] is returned as in a far pointer (`ResultItem`) that also contains reference to the underlying store (the [`TextResource`]).
+    /// The [`TextSelection`] is returned as in a far pointer ([`ResultTextSelection`]) that also contains reference to the underlying store (the [`TextResource`]).
     fn textselection(
         &'slf self,
         offset: &Offset,
@@ -698,8 +698,8 @@ where
 
 impl AnnotationStore {
     /// Searches for text in all resources using one or more regular expressions, returns an iterator over TextSelections along with the matching expression, this
-    /// See [`TextResource.find_text_regex()`].
-    /// Note that this method, unlike its counterpart [`TextResource.find_text_regex()`], silently ignores any deeper errors that might occur.
+    /// See [`FindText::find_text_regex()`].
+    /// Note that this method, unlike its counterpart [`FindText::find_text_regex()`], silently ignores any deeper errors that might occur.
     pub fn find_text_regex<'store, 'r>(
         &'store self,
         expressions: &'r [Regex],
@@ -822,8 +822,9 @@ impl<'r, 't> Iterator for Matches<'r, 't> {
     }
 }
 
-/// This match structure is returned by the [`FindRegexIter`] iterator, which is in turn produced by [`TextResource.find_text_regex()`] and searches a text based on regular expressions.
-/// This structure represents a single regular-expression match of the iterator on the text.
+/// This match structure is returned by the [`FindRegexIter`] iterator, which is in turn produced
+/// by [`FindText::find_text_regex()`] and searches a text based on regular expressions. This
+/// structure represents a single regular-expression match of the iterator on the text.
 pub struct FindRegexMatch<'store, 'r> {
     expression: &'r Regex,
     expression_index: usize,
@@ -889,7 +890,7 @@ impl<'store, 'r> FindRegexMatch<'store, 'r> {
     }
 }
 
-/// This iterator is produced by [`TextResource.find_text_regex()`] and searches a text based on regular expressions.
+/// This iterator is produced by [`FindText::find_text_regex()`] and searches a text based on regular expressions.
 pub struct FindRegexIter<'store, 'regex> {
     pub(crate) resource: ResultItem<'store, TextResource>,
     pub(crate) expressions: &'regex [Regex], // allows keeping all of the regular expressions external and borrow it, even if only a subset is found (subset is detected in prior pass by search_by_text())
@@ -1034,7 +1035,7 @@ impl<'store, 'regex> FindRegexIter<'store, 'regex> {
     }
 }
 
-/// This iterator is produced by [`TextResource.find_text()`] and searches a text for a single fragment
+/// This iterator is produced by [`FindText::find_text()`] and searches a text for a single fragment
 pub struct FindTextIter<'a, 'b> {
     pub(crate) resource: ResultItem<'a, TextResource>,
     pub(crate) fragment: &'b str,
@@ -1137,7 +1138,7 @@ impl<'a> Iterator for FindNoCaseTextIter<'a> {
     }
 }
 
-/// This iterator is produced by [`TextResource.split_text()`] and searches a text based on regular expressions.
+/// This iterator is produced by [`FindText::split_text()`] and searches a text based on regular expressions.
 pub struct SplitTextIter<'store, 'b> {
     pub(crate) resource: ResultItem<'store, TextResource>,
     pub(crate) iter: std::str::Split<'store, &'b str>,

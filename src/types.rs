@@ -34,7 +34,7 @@ pub enum Cursor {
     #[n(0)] //these macros are field index numbers for cbor binary (de)serialisation
     BeginAligned(#[n(0)] usize),
 
-    /// Cursor relative to the end of a text. Has a value of 0 or lower. The last character of a text begins at EndAlignedCursor(-1) and ends at EndAlignedCursor(0)
+    /// Cursor relative to the end of a text. Has a value of 0 or lower. The last character of a text begins at `Cursor::EndAligned(-1)` and ends at `Cursor::EndAligned(0)`
     #[serde(rename = "EndAlignedCursor")]
     #[n(1)]
     EndAligned(#[n(0)] isize),
@@ -115,9 +115,13 @@ pub trait Handle:
     }
 }
 
+/// This trait provides some introspection on STAM data types. It is a sealed trait that can not be implemented.
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait TypeInfo {
+    /// Return the type (introspection).
     fn typeinfo() -> Type;
+
+    /// Return the prefix for temporary identifiers of this type
     fn temp_id_prefix() -> &'static str {
         match Self::typeinfo() {
             Type::AnnotationStore => "!Z",
@@ -134,6 +138,7 @@ pub trait TypeInfo {
     }
 }
 
+/// An enumeration of STAM data types. This is used for introspection via [`TypeInfo`].
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Type {
     AnnotationStore,
@@ -192,17 +197,28 @@ impl std::fmt::Display for Type {
     }
 }
 
+/// Data formats for serialisation and deserialisation supported by the library.
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Decode, Encode)]
 pub enum DataFormat {
+    /// STAM JSON, see the [specification](https://github.com/annotation/stam/blob/master/README.md#stam-json)
+    /// The canonical extension used by the library is `.stam.json`.
     #[n(0)]
     Json {
         #[n(0)]
         compact: bool,
     },
 
+    /// Concise Binary Object Representation, a binary format suitable for quick loading and saving, as it also
+    /// holds all indices (unlike STAM JSON/CSV). This should be used for caching only and not as a data interchange
+    /// storage format as the format changes per version of this library (and may even differ based on compile-time options).
+    ///
+    /// The canonical extension used by the library is `.stam.cbor`.
     #[n(1)]
     CBOR,
 
+    /// STAM CSV, see the [specification](https://github.com/annotation/stam/tree/master/extensions/stam-csv)
+    ///
+    /// The canonical extension used by the library is `.stam.csv`.
     #[cfg(feature = "csv")]
     #[n(2)]
     Csv,

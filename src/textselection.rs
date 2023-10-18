@@ -56,6 +56,7 @@ pub struct TextSelection {
     pub(crate) end: usize,
 }
 
+/// [Handle] to an instance of [`TextSelection`] in the store ([`TextResource`]).
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, DataSize, Encode, Decode)]
 #[cbor(transparent)]
 pub struct TextSelectionHandle(#[n(0)] pub(crate) u32); //if this u32 ever changes, make sure to also adapt the CborLen implementation in cbor.rs otherwise things will go horribly wrong
@@ -909,6 +910,7 @@ impl TextSelectionOperator {
     }
 }
 
+/// This trait defines the `test()` methods for testing relations between two text selections (or sets thereof).
 pub trait TestTextSelection {
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two TextSelections.
     /// A boolean is returned with the test result.

@@ -15,7 +15,7 @@ use crate::selector::Offset;
 use crate::types::*;
 
 /// This trait provides methods that operate on structures that hold or represent text content.
-/// They are fairly low-level methods but are exposed in the public API. The [`FindText`](crate::FindText).
+/// They are fairly low-level methods but are exposed in the public API. The [`FindText`](crate::FindText)
 /// trait subsequently builds upon this one with high-level search methods.
 pub trait Text<'store, 'slf>
 where
@@ -25,7 +25,7 @@ where
     fn text(&'slf self) -> &'store str;
 
     /// Returns the length of the text in unicode points
-    /// For bytes, use `Self.text().len()` instead.
+    /// For bytes, use `Self::text().len()` instead.
     fn textlen(&'slf self) -> usize;
 
     /// Returns a string reference to a slice of text as specified by the offset

@@ -184,9 +184,11 @@ impl TryFrom<TextResourceBuilder> for TextResource {
     }
 }
 
+/// [Handle] to an instance of [`TextResource`] in the store ([`AnnotationStore`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
 #[cbor(transparent)]
 pub struct TextResourceHandle(#[n(0)] u32);
+
 #[sealed]
 impl Handle for TextResourceHandle {
     fn new(intid: usize) -> Self {
@@ -397,7 +399,8 @@ impl TextResourceBuilder {
         })
     }
 
-    /// Load a resource from file. The extension determines the type.
+    /// Load a resource from file. The extension determines the type (`json` for STAM JSON or plain text otherwise).
+    /// You also need to pass a configuration, for which you can often just use `Config::default()`.
     pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
             Self::from_json_file(filename, config)
@@ -406,21 +409,27 @@ impl TextResourceBuilder {
         }
     }
 
+    /// Associate a public identifier with the resource
     pub fn with_id(mut self, id: impl Into<String>) -> Self {
         self.id = Some(id.into());
         self
     }
 
+    /// Set a configuration to use for this resource
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = config;
         self
     }
 
+    /// Set the filename associated with the resource. This does **NOT** load
+    /// the resource from file, but merely sets up the association and where to write to.
+    /// Use [`self.from_file`] instead if you want to load from file.
     pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
         self.filename = Some(filename.into());
         self
     }
 
+    /// Explicitly sets the text for the resource
     pub fn with_text(mut self, text: impl Into<String>) -> Self {
         self.text = Some(text.into());
         self
@@ -467,7 +476,7 @@ impl TextResource {
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely
-    /// The use of [`Self.from_string()`] is preferred instead. This method can be dangerous
+    /// The use of [`Self::from_string()`] is preferred instead. This method can be dangerous
     /// if it modifies any existing text of a resource.
     pub fn with_string(mut self, text: impl Into<String>) -> Self {
         self.check_mutation();
@@ -555,7 +564,7 @@ impl TextResource {
 
     /// Finds a known text selection, as specified by the offset. Known textselections
     /// are associated with an annotation. Returns a handle.
-    /// Use the higher-level method [`Self.textselection()`] instead if you want to
+    /// Use the higher-level method [`FindText::textselection()`](crate::FindText::textselection()) instead if you want to
     /// return a textselection regardless of whether it's known or not.
     pub fn known_textselection(
         &self,
@@ -576,7 +585,7 @@ impl TextResource {
     }
 
     /// Low-level method to get a textselection, if the text selection is known, its' handle will be set
-    /// If you don't care about unbound textselection but only known ones, then use [`self.known_textselection()`] instead.
+    /// If you don't care about unbound textselection but only known ones, then use [`Self::known_textselection()`] instead.
     pub fn textselection_by_offset(&self, offset: &Offset) -> Result<TextSelection, StamError> {
         let (begin, end) = (
             self.beginaligned_cursor(&offset.begin)?,
@@ -743,7 +752,7 @@ impl<'store> Text<'store, 'store> for TextResource {
     }
 
     /// Resolves a begin aligne cursor to UTF-8 byteposition
-    /// If you have a Cursor instance, pass it through [`Self.beginaligned_cursor()`] first.
+    /// If you have a Cursor instance, pass it through [`Self::beginaligned_cursor()`] first.
     fn utf8byte(&self, abscursor: usize) -> Result<usize, StamError> {
         if let Some(posindexitem) = self.positionindex.0.get(&abscursor) {
             //exact position is in the position index, return the byte
@@ -845,6 +854,7 @@ impl<'store> Text<'store, 'store> for TextResource {
     }
 }
 
+/// Used as a parameter for [`TextResource::positions()`]
 pub enum PositionMode {
     /// Select only positions where a text selection begins
     Begin,

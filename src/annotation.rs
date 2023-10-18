@@ -205,7 +205,7 @@ impl<'a> AnnotationBuilder<'a> {
     }
 
     /// Set the target to be a [`crate::resources::TextResource`]. Creates a [`Selector::ResourceSelector`]
-    /// Sets the annotation target. Instantiates a new selector. Use [`Self.with_target()`] instead if you already have
+    /// Sets the annotation target. Instantiates a new selector. Use [`Self::with_target()`] instead if you already have
     /// a selector. Under the hood, this will invoke `select()` to obtain a selector.
     pub fn with_target(mut self, selector: SelectorBuilder<'a>) -> Self {
         self.target = Some(selector);

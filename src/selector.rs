@@ -108,14 +108,26 @@ impl Serialize for Offset {
     }
 }
 
+/// The offset mode represents the ways in which the user can specify an [`Offset`], it expresses
+/// whether the cursors ([`Cursor`]) for the begin and end positions of the offset are specified as begin-aligned or end-aligned.
 #[derive(Debug, Clone, Copy, PartialEq, Encode, Decode,DataSize)]
 pub enum OffsetMode {
+    /// Offset where both the begin and end positions are specified using a begin-aligned cursor ([`Cursor::BeginAligned`])
+    /// This is by-far the most common offset mode.
     #[n(0)]
     BeginBegin,
+
+    /// Offset where the begin position is specified using a begin-aligned cursor ([`Cursor::BeginAligned`])
+    /// and the end position using an end-aligned cursor ([`Cursor::EndAligned`])
     #[n(1)]
     BeginEnd,
+
+    /// Offset where both the begin and end positions are specified using an end-aligned cursor ([`Cursor::EndAligned`])
     #[n(2)]
     EndEnd,
+
+    /// Offset where the end position is specified using a begin-aligned cursor ([`Cursor::BeginAligned`])
+    /// and the begin position using an end-aligned cursor ([`Cursor::EndAligned`])
     #[n(3)]
     EndBegin,
 }

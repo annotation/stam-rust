@@ -85,11 +85,8 @@ impl<'store> ResultItem<'store, TextSelection> {
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultTextSelection`]).
-    /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
-    pub fn related_text(
-        &self,
-        operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
+    /// If you are interested in the annotations associated with the found text selections, append `annotations()`.
+    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let tset: TextSelectionSet = self.clone().into();
         self.resource().related_text(operator, tset)
     }
@@ -98,7 +95,7 @@ impl<'store> ResultItem<'store, TextSelection> {
 impl<'store> ResultTextSelection<'store> {
     /// Return a reference to the inner textselection.
     /// This works in all cases but will have a limited lifetime.
-    /// Use [`Self.as_ref()`] instead if you have bound item.
+    /// Use [`Self::as_ref()`] instead if you have bound item.
     pub fn inner(&self) -> &TextSelection {
         match self {
             Self::Bound(item) => item.as_ref(),
@@ -108,7 +105,7 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Return a reference to the textselection in the store.
     /// Only works on bound items.
-    /// Use [`Self.inner()`] instead if
+    /// Use [`Self::inner()`] instead if
     pub fn as_ref(&self) -> Option<&'store TextSelection> {
         match self {
             Self::Bound(item) => Some(item.as_ref()),
@@ -118,7 +115,7 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Return a reference to the textselection in the store.
     /// Only works on bound items.
-    /// Use [`Self.inner()`] instead if
+    /// Use [`Self::inner()`] instead if
     pub fn as_resultitem(&self) -> Option<&ResultItem<'store, TextSelection>> {
         match self {
             Self::Bound(item) => Some(item),
@@ -246,7 +243,7 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
-    /// If you are interested in the annotations associated with the found text selections, then use [`Self.annotations_by_related_text()`] instead.
+    /// If you are interested in the annotations associated with the found text selections, then append `.annotations()`.
     pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let mut tset: TextSelectionSet =
             TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
@@ -272,7 +269,7 @@ impl<'store> ResultTextSelectionSet<'store> {
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the current text selection set. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultItem<TextSelection>`]).
-    /// If you are interested in the annotations associated with the found text selections, then use [`Self.find_annotations()`] instead.
+    /// If you are interested in the annotations associated with the found text selections, then use [`Self::find_annotations()`] instead.
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
         let resource = self.resource();
         let store = self.rootstore();
@@ -794,7 +791,7 @@ impl<'store> TextSelectionsIter<'store> {
     }
 
     /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
-    /// This is a lower-level method, use [`Self.filter_annotation`] instead.
+    /// This is a lower-level method, use [`Self::filter_annotation`] instead.
     pub fn filter_annotation_handle(mut self, annotation: AnnotationHandle) -> Self {
         self.single_annotation_filter = Some(annotation);
         self
@@ -807,14 +804,14 @@ impl<'store> TextSelectionsIter<'store> {
     }
 
     /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item
-    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
         self.single_data_filter = Some((data.set().handle(), data.handle()));
         self
     }
 
-    /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self.filter_annotationdata()`] instead.
-    /// This method can only be used once, to filter by multiple data instances, use [`Self.filter_data()`] instead.
+    /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self::filter_annotationdata()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
     pub fn filter_annotationdata_handle(
         mut self,
         set_handle: AnnotationDataSetHandle,
@@ -825,7 +822,7 @@ impl<'store> TextSelectionsIter<'store> {
     }
 
     /// Constrain the iterator to only return textselections targeted by annotations that have data that corresponds with the passed data.
-    /// If you have a single AnnotationData instance, use [`Self.filter_annotationdata()`] instead.
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
         self.data_filter = Some(data);
         self

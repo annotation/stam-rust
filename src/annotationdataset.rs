@@ -39,8 +39,8 @@ use std::fmt::Debug;
 /// An `AnnotationDataSet` stores the keys [`DataKey`] and values
 /// [`AnnotationData`] (which in turn encapsulates [`DataValue`]) that are used by annotations.
 /// It effectively defines a certain vocabulary, i.e. key/value pairs.
-/// The `AnnotationDataSet` does not store the [`Annotation`](crate::annotation::Annotation) instances themselves, those are in
-/// the `AnnotationStore`. The datasets themselves are also held by the `AnnotationStore`.
+/// The `AnnotationDataSet` does not store the [`Annotation`](crate::annotation::Annotation) instances, those are in
+/// the [`AnnotationStore`]. The datasets themselves are also held by the [`AnnotationStore`].
 #[derive(Debug, Clone, DataSize, Encode, Decode)]
 pub struct AnnotationDataSet {
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership
@@ -521,7 +521,7 @@ impl AnnotationDataSet {
         }
     }
 
-    /// Adds new [`AnnotationData`] to the dataset. Use [`Self.with_data()`] instead if you are using a regular builder pattern.
+    /// Adds new [`AnnotationData`] to the dataset. Use [`Self::with_data()`] instead if you are using a regular builder pattern.
     /// If the data already exists, this returns a handle to the existing data and inserts nothing new.
     /// If the data is new, it returns a handle to the new data.
     ///
@@ -602,7 +602,8 @@ impl AnnotationDataSet {
         result
     }
 
-    /// Build and insert data into the dataset, similar to [`Self.insert_data()`] and [`Self.with_data()`], but takes a prepared `AnnotationDataBuilder` instead.
+    /// Build and insert data into the dataset, similar to [`Self::insert_data()`] and
+    /// [`Self::with_data()`], but takes a prepared [`AnnotationDataBuilder`] instead.
     pub fn build_insert_data(
         &mut self,
         dataitem: AnnotationDataBuilder,
