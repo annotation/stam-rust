@@ -71,8 +71,9 @@ impl<'store> ResultItem<'store, TextSelection> {
 
     /// Returns the number of annotations that reference this text selection
     /// This is more performant than doing `self.annotations().count()`.
-    pub fn annotations_len(&self, annotationstore: &'store AnnotationStore) -> usize {
-        if let Some(vec) = annotationstore
+    pub fn annotations_len(&self) -> usize {
+        if let Some(vec) = self
+            .rootstore()
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
         {
             vec.len()
@@ -237,9 +238,8 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Returns the number of annotations that reference this text selection
     pub fn annotations_len(&self) -> usize {
-        let annotationstore = self.rootstore();
         match self {
-            Self::Bound(item) => item.annotations_len(annotationstore),
+            Self::Bound(item) => item.annotations_len(),
             Self::Unbound(..) => 0,
         }
     }
