@@ -1083,7 +1083,7 @@ impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
         }
     }
 }
-/// This iterator is produced by [`TextResource.find_text_nocase()`] and searches a text for a single fragment, without regard for casing.
+/// This iterator is produced by [`FindText::find_text_nocase()`] and searches a text for a single fragment, without regard for casing.
 /// It has more overhead than the exact (case sensitive) variant [`FindTextIter`].
 pub struct FindNoCaseTextIter<'a> {
     pub(crate) resource: ResultItem<'a, TextResource>,

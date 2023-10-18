@@ -176,7 +176,7 @@ impl PartialEq<DataKey> for str {
 }
 
 impl DataKey {
-    ///Creates a new DataKey which you can add to an AnnotationDataSet using AnnotationDataSet.add_key()
+    ///Creates a new DataKey which you can add to an [`AnnotationDataSet`] using its [`StoreFor<DataKey>.add()`] method.
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
@@ -184,7 +184,7 @@ impl DataKey {
         }
     }
 
-    /// Returns the global id that identifies the key. This is a bit shorter than using get_id()
+    /// Returns the global id that identifies the key.
     pub fn as_str(&self) -> &str {
         self.id.as_str()
     }
