@@ -20,10 +20,11 @@ implement the full model and most extensions.
 What can you do with this library? 
 
 * Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
+* Search in annotations, data and text:
     * Search annotations by data, textual content, relations between text fragments (overlap, embedding, adjacency, etc),
-    * Search in text (incl. via regular expressions) and find annotations.
-    * Elementary text operations with regard for text offsets (splitting text on a delimiter, stripping text)
-    * Search in data (set,key,value) and find annotations
+    * Search in text (incl. via regular expressions) and find annotations targeting found text selections.
+    * Search in data (set,key,value) and find annotations that use the data.
+    * Elementary text operations with regard for text offsets (splitting text on a delimiter, stripping text).
     * Convert between different kind of offsets (absolute, relative to other structures, UTF-8 bytes vs unicode codepoints, etc)
 * Read and write resources and annotations from/to STAM JSON, STAM CSV, or an optimised binary (CBOR) representation
     * The underlying [STAM model](https://github.com/annotation/stam) aims to be clear and simple. It is flexible and 
