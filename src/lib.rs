@@ -15,7 +15,7 @@
 //! implement the full model as per the [STAM specification](https://github.com/annotation/stam) and most of the
 //! extensions.
 //!
-//! What can you do with this library?
+//! **What can you do with this library?**
 //!
 //! * Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
 //! * Search in annotations, data and text:

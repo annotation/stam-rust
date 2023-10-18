@@ -17,7 +17,7 @@ This is a software library to work with the model, written in Rust.
 This is the primary software library for working with the data model. We aim to
 implement the full model and most extensions.
 
-What can you do with this library? 
+**What can you do with this library?**
 
 * Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
 * Search in annotations, data and text:
