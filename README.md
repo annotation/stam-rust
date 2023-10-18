@@ -10,9 +10,29 @@
 
 # STAM Library
 
-[STAM](https://github.com/annotation/stam) is a data model for stand-off text annotation and described in detail [here](https://github.com/annotation/stam). This is a software library to work with the model, written in Rust.
+[STAM](https://github.com/annotation/stam) is a data model for stand-off text
+annotation and described in detail [here](https://github.com/annotation/stam).
+This is a software library to work with the model, written in Rust.
 
-This is the primary software library for working with the data model. We aim to implement the full model and most extensions.
+This is the primary software library for working with the data model. We aim to
+implement the full model and most extensions.
+
+What can you do with this library? 
+
+* Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
+    * Search annotations by data, textual content, relations between text fragments (overlap, embedding, adjacency, etc),
+    * Search in text (incl. via regular expressions) and find annotations.
+    * Elementary text operations with regard for text offsets (splitting text on a delimiter, stripping text)
+    * Search in data (set,key,value) and find annotations
+    * Convert between different kind of offsets (absolute, relative to other structures, UTF-8 bytes vs unicode codepoints, etc)
+* Read and write resources and annotations from/to STAM JSON, STAM CSV, or an optimised binary (CBOR) representation
+    * The underlying [STAM model](https://github.com/annotation/stam) aims to be clear and simple. It is flexible and 
+      does not commit to any vocabulary or annotation paradigm other than stand-off annotation.
+
+This STAM library is intended as a foundation upon which further applications
+can be built that deal with stand-off annotations on text. We implement all 
+the low-level logic in dealing this so you no longer have to and can focus on your 
+actual application. The library is written with performance in mind.
 
 ## Installation
 
