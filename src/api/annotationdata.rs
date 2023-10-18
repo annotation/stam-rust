@@ -184,7 +184,7 @@ impl<'a> Data<'a> {
 /// The iterator offers a various high-level API methods that operate on a collection of annotation data, and
 /// allow to further filter or map annotations.
 ///
-/// The iterator is produced by calling the `data()` method that is implemented for several objects, such as [`Annotation::data()`](crate::Annotation::data())
+/// The iterator is produced by calling the `data()` method that is implemented for several objects, such as [`ResultItem<Annotation>::data()`](crate::ResultItem<Annotation>::data())
 pub struct DataIter<'store> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
     store: &'store AnnotationStore,

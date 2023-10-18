@@ -163,7 +163,10 @@ impl PartialEq<Annotation> for Annotation {
             && self.data == other.data
     }
 }
-/// This is the builder that builds [`Annotation`]. The actual building is done by passing this structure to [`AnnotationStore::annotate()`], there is no `build()` method for this builder.
+/// This is the builder that builds [`Annotation`]. The actual building is done by passing this
+/// structure to [`AnnotationStore::annotate()`], there is no `build()` method for this builder.
+///
+/// See the top-level documentation for [`AnnotationStore`] for a complete usage example.
 #[derive(Deserialize, Debug)]
 #[serde(tag = "Annotation")]
 #[serde(from = "AnnotationJson")]
@@ -429,8 +432,42 @@ impl AnnotationStore {
         Ok((dataset.handle_or_err()?, data_handle))
     }
 
-    /// Builds and inserts an annotation
-    /// In a builder pattenr, use [`self.with_annotation()`] instead
+    /// Builds and inserts an annotation.
+    /// If you're instantiating an annotation store from scratch a builder pattern, then you can use [`Self::with_annotation()`] instead.
+    ///
+    /// ## Example
+    /// ```
+    /// use stam::*;
+    /// fn main() -> Result<(),StamError> {
+    ///     //instantiate a store
+    ///     let mut store = AnnotationStore::new(Config::default())
+    ///         .with_id("example")
+    ///         .add(
+    ///             TextResourceBuilder::new()
+    ///                 .with_id("myresource")
+    ///                 .with_text("Hello world")
+    ///                 .build()?,
+    ///         )?
+    ///         .add(
+    ///             AnnotationDataSet::new(Config::default())
+    ///                 .with_id("mydataset"),
+    ///         )?;
+    ///
+    ///     //do some other stuff in the middle (otherwise you could have just as well used with_annotation())
+    ///
+    ///     //and then annotate annotate:
+    ///     store.annotate(
+    ///         AnnotationBuilder::new()
+    ///             .with_id("A1")
+    ///             .with_target(SelectorBuilder::textselector(
+    ///                 "myresource",
+    ///                 Offset::simple(6, 11),
+    ///             ))
+    ///             .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
+    ///         )?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationHandle, StamError> {
         debug(self.config(), || {
             format!("AnnotationStore.annotate: builder={:?}", builder)

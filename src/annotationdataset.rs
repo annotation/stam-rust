@@ -41,6 +41,8 @@ use std::fmt::Debug;
 /// It effectively defines a certain vocabulary, i.e. key/value pairs.
 /// The `AnnotationDataSet` does not store the [`Annotation`](crate::annotation::Annotation) instances, those are in
 /// the [`AnnotationStore`]. The datasets themselves are also held by the [`AnnotationStore`].
+///
+/// See the top-level documentation for [`AnnotationStore`] for a complete usage example on instantiating a data set.
 #[derive(Debug, Clone, DataSize, Encode, Decode)]
 pub struct AnnotationDataSet {
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::datasets that has the ownership
