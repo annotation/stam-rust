@@ -253,7 +253,7 @@ from `ResultItem` instances (`Annotation`,`TextSelection`,`AnnotationData`)
 through equally named methods.
 
 
-All of these named iterators have a cached counterpart that holds an entire collection in memory. You can go from the former to the latter with `.to_cache()` and from the latter to the format with `.iter()`.
+All of these named iterators have a cached counterpart that holds an entire collection in memory. You can go from the former to the latter with `.to_collection()` and from the latter to the format with `.iter()`.
 
 
 | Iterator                             | Collection             |

@@ -123,7 +123,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
 
 #[derive(Clone)]
 /// Holds a collection of annotation data.
-/// This structure is produced by calling [`DataIter::to_cache()`].
+/// This structure is produced by calling [`DataIter::to_collection()`].
 /// Use [`Self::iter()`] to iterate over the collection.
 pub struct Data<'store> {
     pub(crate) array: Cow<'store, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
@@ -277,7 +277,7 @@ impl<'store> DataIter<'store> {
     }
 
     /// Constrain this iterator by a vector of handles (intersection).
-    /// You can use [`Self::to_cache()`] on a DataIter and then later reload it with this method.
+    /// You can use [`Self::to_collection()`] on a DataIter and then later reload it with this method.
     pub fn filter_from(self, data: &Data<'store>) -> Self {
         self.filter_data(data.iter())
     }
@@ -468,7 +468,7 @@ impl<'store> DataIter<'store> {
     ///
     /// An extracted structure can be easily turned back into a DataIter again with [`Data::iter()`] or
     /// used directly as a filter using [`Self::filter_from()`].
-    pub fn to_cache(self) -> Data<'store> {
+    pub fn to_collection(self) -> Data<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
         if self.operator.is_none() && self.set_test.is_none() && self.key_test.is_none() {
@@ -503,7 +503,7 @@ impl<'store> DataIter<'store> {
 
     /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
     /// This consumes the iterator but takes only the first n elements up to the specified limit.
-    pub fn to_cache_limit(self, limit: usize) -> Data<'store> {
+    pub fn to_collection_limit(self, limit: usize) -> Data<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
         Data {

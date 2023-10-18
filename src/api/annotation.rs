@@ -217,7 +217,7 @@ impl<'store> ResultItem<'store, Annotation> {
 }
 
 /// Holds a collection of annotations.
-/// This structure is produced by calling [`AnnotationsIter::to_cache()`].
+/// This structure is produced by calling [`AnnotationsIter::to_collection()`].
 /// Use [`Annotations::iter()`] to iterate over the collection.
 pub struct Annotations<'store> {
     array: Cow<'store, [AnnotationHandle]>,
@@ -478,9 +478,9 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to only return annotations that have data matching the search parameters.
-    /// This is a just shortcut method for `self.filter_data( store.find_data(..).to_cache() )`
+    /// This is a just shortcut method for `self.filter_data( store.find_data(..).to_collection() )`
     ///
-    /// Note: Do not call this method in a loop, it will be very inefficient! Compute it once before and cache it (`let data = store.find_data(..).to_cache()`), then
+    /// Note: Do not call this method in a loop, it will be very inefficient! Compute it once before and cache it (`let data = store.find_data(..).to_collection()`), then
     ///       pass the result to [`Self::filter_data(data.clone())`], the clone will be cheap.
     pub fn filter_find_data<'a>(
         self,
@@ -492,7 +492,7 @@ impl<'store> AnnotationsIter<'store> {
         'a: 'store,
     {
         let store = self.store;
-        self.filter_data(store.find_data(set, key, value).to_cache())
+        self.filter_data(store.find_data(set, key, value).to_collection())
     }
 
     /// Returns an iterator over annotations along with matching data as requested
@@ -662,7 +662,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain this iterator by a vector of handles (intersection).
-    /// You can use [`Self::to_cache()`] on an AnnotationsIter and then later reload it with this method.
+    /// You can use [`Self::to_collection()`] on an AnnotationsIter and then later reload it with this method.
     pub fn filter_from(self, annotations: &Annotations<'store>) -> Self {
         self.filter_annotations(annotations.iter())
     }
@@ -670,7 +670,7 @@ impl<'store> AnnotationsIter<'store> {
     /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
     /// This consumes the iterator.
     /// Note: This is different than running `collect()`, which produces high-level objects.
-    pub fn to_cache(self) -> Annotations<'store> {
+    pub fn to_collection(self) -> Annotations<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
 
@@ -697,7 +697,7 @@ impl<'store> AnnotationsIter<'store> {
 
     /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
     /// This consumes the iterator but takes only the first n elements up to the specified limit.
-    pub fn to_cache_limit(self, limit: usize) -> Annotations<'store> {
+    pub fn to_collection_limit(self, limit: usize) -> Annotations<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
         Annotations {
@@ -783,7 +783,7 @@ impl<'store> Iterator for AnnotationsWithDataIter<'store> {
                                 continue;
                             }
                         }
-                        let data = dataiter.to_cache();
+                        let data = dataiter.to_collection();
                         if !data.is_empty() {
                             return Some((annotation, data));
                         }
