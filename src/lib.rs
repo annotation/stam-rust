@@ -39,14 +39,14 @@
 //!
 //! High-level API (or mixed low/high):
 //! * [`AnnotationStore`]
-//! * [`ResultItem<Annotation>`](Annotation)
-//! * [`ResultItem<AnnotationDataSet>`](AnnotationDataSet)
-//! * [`ResultItem<AnnotationData>`](AnnotationData)
-//! * [`ResultItem<DataKey>`](DataKey)
+//! * [`ResultItem<Annotation>`](struct.ResultItem.html#impl-ResultItem<'store,+Annotation>)
+//! * [`ResultItem<AnnotationDataSet>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationDataSet>)
+//! * [`ResultItem<AnnotationData>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationData>)
+//! * [`ResultItem<DataKey>`](struct.ResultItem.html#impl-ResultItem<'store,+DataKey>)
 //! * [`DataValue`]
 //! * [`DataOperator`]
-//! * [`ResultItem<TextResource>`](TextResource)
-//! * [`ResultTextSelection`](TextSelection)
+//! * [`ResultItem<TextResource>`](struct.ResultItem.html#impl-ResultItem<'store,+TextResource>)
+//! * [`ResultTextSelection`]
 //! * [`TextSelectionOperator`]
 //! * [`Annotations`] - collection
 //! * [`AnnotationsIter`] - iterator

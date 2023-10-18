@@ -958,6 +958,14 @@ impl<'a, T> Iterator for StoreIterMut<'a, T> {
 /// It allows the item to have some more introspection as it knows who its immediate parent is.
 /// It is heavily used as a return type all throughout the higher-level API. Most API traits
 /// are implemented for a particular variant of this type.
+///
+/// For further documentation, look carefully for the implementation for T that you want information on:
+/// * [Annotation](#impl-ResultItem<'store,+Annotation>)
+/// * [AnnotationData](#impl-ResultItem<'store,+AnnotationData>)
+/// * [AnnotationDataSet](#impl-ResultItem<'store,+AnnotationDataSet>)
+/// * [DataKey](#impl-ResultItem<'store,+DataKey>)
+/// * [TextResource](#impl-ResultItem<'store,+TextResource>)
+/// * [TextSelection](#impl-ResultItem<'store,+TextSelection>)
 pub struct ResultItem<'store, T>
 where
     T: Storable,

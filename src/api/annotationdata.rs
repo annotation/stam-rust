@@ -28,6 +28,7 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 
+/// This is the implementation of the high-level API for [`AnnotationData`].
 impl<'store> ResultItem<'store, AnnotationData> {
     /// Return a reference to the dataset that holds this data
     pub fn set(&self) -> ResultItem<'store, AnnotationDataSet> {

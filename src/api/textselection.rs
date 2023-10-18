@@ -35,6 +35,7 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+/// This is the implementation of the high-level API for [`TextSelection`], though most of it is more commonly used via [`ResultTextSelection`].
 impl<'store> ResultItem<'store, TextSelection> {
     /// Return the begin position (unicode points)
     pub fn begin(&self) -> usize {

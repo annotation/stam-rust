@@ -9,7 +9,7 @@
 */
 
 //! This module contains the low-level API for [`AnnotationStore`]. It defines and implements the
-//! struct, the handle, and things like serialisation, deserialisation to STAM JSON.
+//! struct, the reverse indices and the logic for serialisation, deserialisation to STAM JSON.
 //! Some of the methods are also relevant for the high-level API.
 
 use datasize::data_size;
@@ -40,7 +40,7 @@ use crate::store::*;
 use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
 
-/// An Annotation Store is an unordered collection of annotations, resources and
+/// An Annotation Store is an collection of annotations, resources and
 /// annotation data sets. It can be seen as the *root* of the *graph model* and the glue
 /// that holds everything together. It is the entry point for any stam model.
 #[derive(Debug, Encode, Decode)]
@@ -69,8 +69,9 @@ pub struct AnnotationStore {
     #[n(52)]
     pub(crate) dataset_idmap: IdMap<AnnotationDataSetHandle>,
 
-    //reverse indices:
-    /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores IntIds.
+    // reverse indices:
+    // ---------------------------------------------------------------------------------
+    /// Reverse index for AnnotationDataSet => AnnotationData => Annotation. Stores handles.
     /// The map is always sorted due to how it is constructed, no explicit sorting needed
     #[n(100)]
     pub(crate) dataset_data_annotation_map:

@@ -22,6 +22,7 @@ use crate::IntersectionIter;
 
 use std::borrow::Cow;
 
+/// This is the implementation of the high-level API for [`TextResource`].
 impl<'store> ResultItem<'store, TextResource> {
     /// Returns an iterator over all annotations about this resource as a whole, i.e. Annotations with a ResourceSelector.
     /// Such annotations can be considered metadata.

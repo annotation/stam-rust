@@ -22,6 +22,7 @@ use crate::resources::TextResource;
 use crate::store::*;
 use crate::IntersectionIter;
 
+/// This is the implementation of the high-level API for [`DataKey`].
 impl<'store> ResultItem<'store, DataKey> {
     /// Returns a reference to the dataset that holds this key
     pub fn set(&self) -> ResultItem<'store, AnnotationDataSet> {

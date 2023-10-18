@@ -36,6 +36,7 @@ use crate::IntersectionIter;
 
 use crate::api::textselection::SortTextualOrder;
 
+/// This is the implementation of the high-level API for [`Annotation`].
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns no duplicates even if a resource is referenced multiple times.
