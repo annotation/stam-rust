@@ -760,7 +760,7 @@ impl<'store> TextSelectionsIter<'store> {
     }
 
     /// Iterates over all the annotations make use of text selections in this iterator.
-    /// Unlike [`self.annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant)
+    /// Unlike [`Self::annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant)
     pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
         let store = self.store;
         AnnotationsIter::new(

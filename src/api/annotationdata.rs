@@ -378,7 +378,7 @@ impl<'store> DataIter<'store> {
 
     /// Iterate over the annotations that make use of data in this iterator.
     /// Annotations will be returned chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
-    /// If you want to keep track of what data has what annotations, then use [`self.zip_annotations()`] instead.
+    /// If you want to keep track of what data has what annotations, then use [`Self::zip_annotations()`] instead.
     pub fn annotations(self) -> AnnotationsIter<'store> {
         let store = self.store;
         let mut annotations: Vec<_> = self
@@ -400,7 +400,7 @@ impl<'store> DataIter<'store> {
     }
 
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
-    /// Unlike [`self.annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant)
+    /// Unlike [`Self::annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant)
     pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
         let store = self.store;
         AnnotationsIter::new(

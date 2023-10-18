@@ -339,7 +339,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
-    /// Use [`self.annotations()`] if you want to find the annotations that reference these ones (the reverse).
+    /// Use [`Self::annotations()`] if you want to find the annotations that reference these ones (the reverse).
     /// Annotations will be returned sorted chronologically, without duplicates
     pub fn annotations_in_targets(self, recursive: bool) -> AnnotationsIter<'store> {
         let store = self.store;
@@ -357,8 +357,8 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
-    /// Use [`self.annotations()`] if you want to find the annotations that reference these ones (the reverse).
-    /// Unlike [`self.annotations_in_targets()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    /// Use [`Self::annotations()`] if you want to find the annotations that reference these ones (the reverse).
+    /// Unlike [`Self::annotations_in_targets()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn annotations_in_targets_unchecked(self, recursive: bool) -> AnnotationsIter<'store> {
         let store = self.store;
         AnnotationsIter::new(
@@ -391,7 +391,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector`])
-    /// Unlike [`self.annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    /// Unlike [`Self::annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
         let store = self.store;
         AnnotationsIter::new(
@@ -422,7 +422,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Maps annotations to data, consuming the iterator. Returns a new iterator over the data in all the annotations.
-    /// Unlike [`self.data()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    /// Unlike [`Self::data()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn data_unchecked(self) -> DataIter<'store> {
         let store = self.store;
         DataIter::new(
@@ -563,7 +563,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Maps annotations to textselections, consuming the iterator. Results will be returned in textual order.
-    /// Unlike [`self.textselections()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
+    /// Unlike [`Self::textselections()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn textselections_unchecked(self) -> TextSelectionsIter<'store> {
         let store = self.store;
         TextSelectionsIter::new_with_iterator(
