@@ -682,7 +682,7 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
     }
 
     /// Get a reference to an item from the store
-    /// This is a low-level API method, you usually want to use dedicated high-level methods like `annotation()`, `resource()` instead.
+    /// This is a low-level API method, you usually want to use dedicated high-level methods like [`AnnotationStore::annotation()`](crate::AnnotationStore::annotation()) instead.
     fn get(&self, item: impl Request<T>) -> Result<&T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store().get(handle.as_usize()) {

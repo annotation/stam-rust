@@ -32,7 +32,7 @@ impl TypeInfo for DataValue {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Encode, Decode)]
 #[serde(tag = "@type", content = "value")]
 /// This type encapsulates a value and its type.
-/// It is held by [`crate::AnnotationData`] alongside a reference to a [`crate::DataKey`], resulting in a key/value pair.
+/// It is held by [`AnnotationData`](crate::AnnotationData) alongside a reference to a [`DataKey`](crate::DataKey), resulting in a key/value pair.
 pub enum DataValue {
     /// No value
     #[n(0)]
@@ -127,6 +127,7 @@ pub enum DataOperator<'a> {
 
 impl<'a> DataValue {
     /// This applies a [`DataOperator`] to the data value, and returns a boolean if the values passes the constraints posed by the operator.
+    /// Note that the [`DataOperator`] itself holds the value that is tested against.
     pub fn test(&self, operator: &DataOperator<'a>) -> bool {
         match (self, operator) {
             (_, DataOperator::Any) => true,
