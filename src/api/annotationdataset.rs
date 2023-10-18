@@ -82,6 +82,38 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// If you already have a [`ResultItem<DataKey>`] , use [`ResultItem<DataKey>.find_data()`] instead, it'll be much more efficient.
     ///
     /// Value is a [`DataOperator`], it is not wrapped in an Option but can be set to [`DataOperator::Any`] to return all values.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use stam::*;
+    /// # fn main() -> Result<(),StamError> {
+    /// # let store = AnnotationStore::default()
+    /// #   .with_id("example")
+    /// #   .add(TextResource::from_string(
+    /// #       "myresource",
+    /// #       "Hello world",
+    /// #       Config::default(),
+    /// #   ))?
+    /// #   .add(AnnotationDataSet::new(Config::default()).with_id("mydataset"))?
+    /// #   .with_annotation(
+    /// #       AnnotationBuilder::new()
+    /// #           .with_id("A1")
+    /// #           .with_target(SelectorBuilder::textselector(
+    /// #               "myresource",
+    /// #               Offset::simple(6, 11),
+    /// #           ))
+    /// #           .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
+    /// #   )?;
+    /// //in this store we have a single annotation, and single annotation data with key 'part-of-speech' and value 'noun':
+    /// let dataset = store.dataset("mydataset").or_fail()?;
+    /// for annotationdata in dataset.find_data("part-of-speech", DataOperator::Equals("noun")) {
+    ///     assert_eq!(annotationdata.id(), Some("D1"));
+    ///     assert_eq!(annotationdata.value(), "noun");
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub fn find_data<'q>(
         &self,
         key: impl Request<DataKey>,

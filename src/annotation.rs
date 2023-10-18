@@ -437,36 +437,36 @@ impl AnnotationStore {
     ///
     /// ## Example
     /// ```
-    /// use stam::*;
-    /// fn main() -> Result<(),StamError> {
-    ///     //instantiate a store
-    ///     let mut store = AnnotationStore::new(Config::default())
-    ///         .with_id("example")
-    ///         .add(
-    ///             TextResourceBuilder::new()
-    ///                 .with_id("myresource")
-    ///                 .with_text("Hello world")
-    ///                 .build()?,
-    ///         )?
-    ///         .add(
-    ///             AnnotationDataSet::new(Config::default())
-    ///                 .with_id("mydataset"),
-    ///         )?;
+    /// # use stam::*;
+    /// # fn main() -> Result<(),StamError> {
+    /// //instantiate a store
+    /// let mut store = AnnotationStore::new(Config::default())
+    ///     .with_id("example")
+    ///     .add(
+    ///         TextResourceBuilder::new()
+    ///             .with_id("myresource")
+    ///             .with_text("Hello world")
+    ///             .build()?,
+    ///     )?
+    ///     .add(
+    ///         AnnotationDataSet::new(Config::default())
+    ///             .with_id("mydataset"),
+    ///     )?;
     ///
-    ///     //do some other stuff in the middle (otherwise you could have just as well used with_annotation())
+    /// //do some other stuff in the middle (otherwise you could have just as well used with_annotation())
     ///
-    ///     //and then annotate annotate:
-    ///     store.annotate(
-    ///         AnnotationBuilder::new()
-    ///             .with_id("A1")
-    ///             .with_target(SelectorBuilder::textselector(
-    ///                 "myresource",
-    ///                 Offset::simple(6, 11),
-    ///             ))
-    ///             .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
-    ///         )?;
-    ///     Ok(())
-    /// }
+    /// //and then annotate:
+    /// store.annotate(
+    ///     AnnotationBuilder::new()
+    ///         .with_id("A1")
+    ///         .with_target(SelectorBuilder::textselector(
+    ///             "myresource",
+    ///             Offset::simple(6, 11),
+    ///         ))
+    ///         .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
+    ///     )?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn annotate(&mut self, builder: AnnotationBuilder) -> Result<AnnotationHandle, StamError> {
         debug(self.config(), || {

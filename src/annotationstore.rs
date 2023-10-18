@@ -50,60 +50,60 @@ use crate::types::*;
 /// an annotation on the word *"world"*, indicating that it has *"part-of-speech"* tag *"noun"*.
 ///
 /// ```
-/// use stam::*;
-/// fn main() -> Result<(),StamError> {
-///     let store = AnnotationStore::default()
-///         .with_id("example")
-///         .add(TextResource::from_string(
-///             "myresource",
-///             "Hello world",
-///             Config::default(),
-///         ))?
-///         .add(AnnotationDataSet::new(Config::default()).with_id("mydataset"))?
-///         .with_annotation(
-///             AnnotationBuilder::new()
-///                 .with_id("A1")
-///                 .with_target(SelectorBuilder::textselector(
-///                     "myresource",
-///                     Offset::simple(6, 11),
-///                 ))
-///                 .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
-///         )?;
-///     Ok(())
-/// }
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let store = AnnotationStore::default()
+///     .with_id("example")
+///     .add(TextResource::from_string(
+///         "myresource",
+///         "Hello world",
+///         Config::default(),
+///     ))?
+///     .add(AnnotationDataSet::new(Config::default()).with_id("mydataset"))?
+///     .with_annotation(
+///         AnnotationBuilder::new()
+///             .with_id("A1")
+///             .with_target(SelectorBuilder::textselector(
+///                 "myresource",
+///                 Offset::simple(6, 11),
+///             ))
+///             .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
+///     )?;
+/// #    Ok(())
+/// # }
 /// ```
 ///
 /// This can also be done a bit more verbosely as follows (but the end result is identical as above), here we explicitly build the [`AnnotationDataSet`]
 /// first and then add the annotation:
 ///
 /// ```
-/// use stam::*;
-/// fn main() -> Result<(),StamError> {
-///     let store = AnnotationStore::new(Config::default())
-///         .with_id("example")
-///         .add(
-///             TextResourceBuilder::new()
-///                 .with_id("myresource")
-///                 .with_text("Hello world")
-///                 .build()?,
-///         )?
-///         .add(
-///             AnnotationDataSet::new(Config::default())
-///                 .with_id("mydataset")
-///                 .add(DataKey::new("part-of-speech"))?
-///                 .with_data_with_id("part-of-speech", "noun", "D1")?,
-///         )?
-///         .with_annotation(
-///             AnnotationBuilder::new()
-///                 .with_id("A1")
-///                 .with_target(SelectorBuilder::textselector(
-///                     "myresource",
-///                     Offset::simple(6, 11),
-///                 ))
-///                 .with_existing_data("mydataset", "D1"),
-///         )?;
-///     Ok(())
-/// }
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let store = AnnotationStore::new(Config::default())
+///     .with_id("example")
+///     .add(
+///         TextResourceBuilder::new()
+///             .with_id("myresource")
+///             .with_text("Hello world")
+///             .build()?,
+///     )?
+///     .add(
+///         AnnotationDataSet::new(Config::default())
+///             .with_id("mydataset")
+///             .add(DataKey::new("part-of-speech"))?
+///             .with_data_with_id("part-of-speech", "noun", "D1")?,
+///     )?
+///     .with_annotation(
+///         AnnotationBuilder::new()
+///             .with_id("A1")
+///             .with_target(SelectorBuilder::textselector(
+///                 "myresource",
+///                 Offset::simple(6, 11),
+///             ))
+///             .with_existing_data("mydataset", "D1"),
+///     )?;
+/// #  Ok(())
+/// # }
 /// ```
 ///
 /// In this example we used the builder pattern with [`AnnotationStore::with_annotation()`] and an [`AnnotationBuilder`].

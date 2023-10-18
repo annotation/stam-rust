@@ -138,6 +138,38 @@ impl AnnotationStore {
     ///
     /// Note: If you pass a `key` you must also pass `set`, otherwise the key will be ignored!! You can not
     ///       search for keys if you don't know their set!
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use stam::*;
+    /// # fn main() -> Result<(),StamError> {
+    /// # let store = AnnotationStore::default()
+    /// #   .with_id("example")
+    /// #   .add(TextResource::from_string(
+    /// #       "myresource",
+    /// #       "Hello world",
+    /// #       Config::default(),
+    /// #   ))?
+    /// #   .add(AnnotationDataSet::new(Config::default()).with_id("mydataset"))?
+    /// #   .with_annotation(
+    /// #       AnnotationBuilder::new()
+    /// #           .with_id("A1")
+    /// #           .with_target(SelectorBuilder::textselector(
+    /// #               "myresource",
+    /// #               Offset::simple(6, 11),
+    /// #           ))
+    /// #           .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
+    /// #   )?;
+    /// //in this store we have a single annotation, and single annotation data with key 'part-of-speech' and value 'noun':
+    /// for annotationdata in store.find_data("mydataset", "part-of-speech", DataOperator::Equals("noun")) {
+    ///     assert_eq!(annotationdata.id(), Some("D1"));
+    ///     assert_eq!(annotationdata.value(), "noun");
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
+    ///
     pub fn find_data<'store, 'q>(
         &'store self,
         set: impl Request<AnnotationDataSet>,
