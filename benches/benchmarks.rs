@@ -2,10 +2,10 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use stam::{
     Annotation, AnnotationBuilder, AnnotationDataSet, AnnotationHandle, AnnotationStore, BuildItem,
-    Config, DataOperator, FindText, Handle, Offset, Regex, SelectorBuilder, StoreFor, Text,
-    TextResource, TextSelectionOperator,
+    Config, DataOperator, FindText, Handle, Offset, Regex, SelectorBuilder, StoreFor, TextResource,
+    TextSelectionOperator,
 };
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 mod common;
 use crate::common::*;
