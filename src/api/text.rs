@@ -640,7 +640,7 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a [`TextSelection`] first and then run [`self.find_text()`] on that instead.
     fn find_text<'fragment>(
@@ -657,11 +657,11 @@ where
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
     /// The iterator returns [`TextSelection`] items.
     ///
-    /// This search is case insensitive, use [`self.find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
-    /// For more complex and powerful searching use [`self.find_text_regex()`] instead
+    /// This search is case insensitive, use [`FindText::find_text()`] to search case sensitive. This variant is slightly less performant than the exact variant.
+    /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
     /// If you want to search only a subpart of the text, extract a [`TextSelection`] first with
-    /// [`self.textselection()`] and then run [`self.find_text_nocase()`] on that instead.
+    /// [`FindText::textselection()`] and then run [`FindText::find_text_nocase()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
             resource: self.resource(),

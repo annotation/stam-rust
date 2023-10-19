@@ -423,7 +423,7 @@ impl TextResourceBuilder {
 
     /// Set the filename associated with the resource. This does **NOT** load
     /// the resource from file, but merely sets up the association and where to write to.
-    /// Use [`self.from_file`] instead if you want to load from file.
+    /// Use [`Self::from_file()`] instead if you want to load from file.
     pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
         self.filename = Some(filename.into());
         self
@@ -798,7 +798,7 @@ impl<'store> Text<'store, 'store> for TextResource {
         }
     }
 
-    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in [`self.utf8byte()`]
+    /// Convert utf8 byte to unicode point. O(n), not as efficient as the reverse operation in [`Self::utf8byte()`]
     fn utf8byte_to_charpos(&self, bytecursor: usize) -> Result<usize, StamError> {
         if let Some(charpos) = self.byte2charmap.get(&bytecursor) {
             //exact byte position is in the index, return the position

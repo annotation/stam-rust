@@ -828,9 +828,9 @@ impl AnnotationStore {
         Ok(())
     }
 
-    /// Shortcut to write an AnnotationStore to a STAM JSON file, writes to the same file as was loaded.
+    /// Shortcut to write an AnnotationStore to file, writes to the same file and in the same format as was loaded.
     /// Returns an error if no filename was associated yet.
-    /// Use [`AnnotationStore.to_file`] instead if you want to write elsewhere.
+    /// Use [`AnnotationStore::to_file()`] instead if you want to write elsewhere.
     ///
     /// Note: If multiple stores were loaded and merged, this will write all merged results in place of the first loaded store!
     pub fn save(&self) -> Result<(), StamError> {
@@ -937,7 +937,8 @@ impl AnnotationStore {
         self
     }
 
-    /// Shortcut method that calls add_resource under the hood and returns a reference to it
+    /// Shortcut method to load a resource from file and add it to the store. Returns a handle,
+    /// wrap it in a call to `self.resource()` to get the resource itself.
     pub fn add_resource_from_file(
         &mut self,
         filename: &str,

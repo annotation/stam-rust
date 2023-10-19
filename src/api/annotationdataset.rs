@@ -75,7 +75,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     }
 
     /// Finds the [`AnnotationData`] in the annotation dataset. Returns an iterator over all matches.
-    /// If you're not interested in returning the results but merely testing their presence, use [`self.test_data()`] instead.
+    /// If you're not interested in returning the results but merely testing their presence, use [`Self::test_data()`] instead.
     ///
     /// If you pass an empty string literal or boolean to `key`, all keys will be searched.
     ///

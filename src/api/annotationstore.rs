@@ -124,7 +124,7 @@ impl AnnotationStore {
     /// This returns an iterator over all matches.
     ///
     /// If you are not interested in returning the results but merely testing the presence of particular data,
-    /// then use [`self.test_data()`] instead..
+    /// then use [`Self::test_data()`] instead..
     ///
     /// You can pass a boolean (true/false, doesn't matter) or empty string literal for `set` or `key` to represent *any* set/key.
     /// To search for any value, `value` must be explicitly set to [`DataOperator::Any`] to return all values.
