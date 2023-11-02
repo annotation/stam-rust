@@ -319,14 +319,16 @@ fn textselectionoperator_embed_1vs1() {
     assert!(a.test(
         &TextSelectionOperator::Embedded {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &b
     ));
     assert!(!b.test(
         &TextSelectionOperator::Embedded {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &a
     ));
@@ -355,14 +357,16 @@ fn textselectionoperator_embed_false_1vs1() {
     assert!(!a.test(
         &TextSelectionOperator::Embedded {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &b
     ));
     assert!(!b.test(
         &TextSelectionOperator::Embedded {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &a
     ));
@@ -383,28 +387,33 @@ fn textselectionoperator_precedes_1vs1() {
     assert!(a.test(
         &TextSelectionOperator::Before {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &b
     ));
     assert!(!b.test(
         &TextSelectionOperator::Before {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &a
     ));
     assert!(b.test(
         &TextSelectionOperator::After {
             all: false,
-            negate: false
+
+            negate: false,
+            limit: None
         },
         &a
     ));
     assert!(!a.test(
         &TextSelectionOperator::After {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &b
     ));
@@ -425,28 +434,32 @@ fn textselectionoperator_precedes2_1vs1() {
     assert!(a.test(
         &TextSelectionOperator::Before {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &b
     ));
     assert!(!b.test(
         &TextSelectionOperator::Before {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &a
     ));
     assert!(b.test(
         &TextSelectionOperator::After {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &a
     ));
     assert!(!a.test(
         &TextSelectionOperator::After {
             all: false,
-            negate: false
+            negate: false,
+            limit: None
         },
         &b
     ));

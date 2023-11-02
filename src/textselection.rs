@@ -665,15 +665,30 @@ pub enum TextSelectionOperator {
 
     /// All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
     /// If modifier `all` is set: All TextSelections in A are embedded by all TextSelection in B (cf. textfabric's `]]`)
-    Embedded { all: bool, negate: bool },
+    /// The `limit`, if set, constrains the lookup range (in unicode points)
+    Embedded {
+        all: bool,
+        negate: bool,
+        limit: Option<usize>,
+    },
 
     /// Each TextSelections in A comes before a textselection in B
     /// If modifier `all` is set: All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
-    Before { all: bool, negate: bool },
+    /// The `limit`, if set, constrains the lookup range (in unicode points)
+    Before {
+        all: bool,
+        negate: bool,
+        limit: Option<usize>,
+    },
 
     /// Each TextSeleciton In A succeeds (comes after) a textselection in B
     /// If modifier `all` is set: All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
-    After { all: bool, negate: bool },
+    /// The `limit`, if set, constrains the lookup range (in unicode points)
+    After {
+        all: bool,
+        negate: bool,
+        limit: Option<usize>,
+    },
 
     /// Each TextSelection in A is ends where at least one TextSelection in B begins.
     /// If modifier `all` is set: The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
@@ -744,6 +759,7 @@ impl TextSelectionOperator {
         Self::Embedded {
             all: false,
             negate: false,
+            limit: None,
         }
     }
 
@@ -751,6 +767,7 @@ impl TextSelectionOperator {
         Self::Before {
             all: false,
             negate: false,
+            limit: None,
         }
     }
 
@@ -758,6 +775,7 @@ impl TextSelectionOperator {
         Self::After {
             all: false,
             negate: false,
+            limit: None,
         }
     }
 
@@ -803,6 +821,28 @@ impl TextSelectionOperator {
         }
     }
 
+    /// Constrains the operator to a limit range (in unicode points)
+    pub fn with_limit(self, limit: usize) -> Self {
+        match self {
+            Self::Embedded { all, negate, .. } => Self::Embedded {
+                all,
+                negate,
+                limit: Some(limit),
+            },
+            Self::Before { all, negate, .. } => Self::Before {
+                all,
+                negate,
+                limit: Some(limit),
+            },
+            Self::After { all, negate, .. } => Self::After {
+                all,
+                negate,
+                limit: Some(limit),
+            },
+            _ => self,
+        }
+    }
+
     pub fn toggle_negate(&self) -> Self {
         match self {
             Self::Equals { all, negate } => Self::Equals {
@@ -817,17 +857,20 @@ impl TextSelectionOperator {
                 all: *all,
                 negate: !negate,
             },
-            Self::Embedded { all, negate } => Self::Embedded {
+            Self::Embedded { all, negate, limit } => Self::Embedded {
                 all: *all,
                 negate: !negate,
+                limit: *limit,
             },
-            Self::Before { all, negate } => Self::Before {
+            Self::Before { all, negate, limit } => Self::Before {
                 all: *all,
                 negate: !negate,
+                limit: *limit,
             },
-            Self::After { all, negate } => Self::After {
+            Self::After { all, negate, limit } => Self::After {
                 all: *all,
                 negate: !negate,
+                limit: *limit,
             },
             Self::Precedes { all, negate } => Self::Precedes {
                 all: *all,
@@ -870,17 +913,20 @@ impl TextSelectionOperator {
                 all: !all,
                 negate: *negate,
             },
-            Self::Embedded { all, negate } => Self::Embedded {
+            Self::Embedded { all, negate, limit } => Self::Embedded {
                 all: !all,
                 negate: *negate,
+                limit: *limit,
             },
-            Self::Before { all, negate } => Self::Before {
+            Self::Before { all, negate, limit } => Self::Before {
                 all: !all,
                 negate: *negate,
+                limit: *limit,
             },
-            Self::After { all, negate } => Self::After {
+            Self::After { all, negate, limit } => Self::After {
                 all: !all,
                 negate: *negate,
+                limit: *limit,
             },
             Self::Precedes { all, negate } => Self::Precedes {
                 all: !all,
@@ -1098,14 +1144,17 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Embedded {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Before {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::After {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Precedes {
                 all: false,
@@ -1147,6 +1196,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Embedded {
                 all: true,
                 negate: false,
+                ..
             } => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
                 for item in self.iter() {
@@ -1164,6 +1214,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Before {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::SameEnd {
                 all: true,
@@ -1176,6 +1227,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::After {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::SameBegin {
                 all: true,
@@ -1241,14 +1293,17 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Embedded {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Before {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::After {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Precedes {
                 all: false,
@@ -1290,6 +1345,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Embedded {
                 all: true,
                 negate: false,
+                ..
             } => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
                 for item in self.iter() {
@@ -1307,6 +1363,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Before {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::SameEnd {
                 all: true,
@@ -1319,6 +1376,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::After {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::SameBegin {
                 all: true,
@@ -1371,11 +1429,32 @@ impl TestTextSelection for TextSelection {
                 // TextSelection embeds reftextsel
                 reftextsel.begin >= self.begin && reftextsel.end <= self.end
             }
+            TextSelectionOperator::Embedded {
+                negate: false,
+                limit: Some(limit),
+                ..
+            } => {
+                // TextSelection is embedded reftextsel
+                self.begin >= reftextsel.begin
+                    && self.end <= reftextsel.end
+                    && self.begin - reftextsel.begin >= *limit
+                    && reftextsel.end - self.end >= *limit
+            }
             TextSelectionOperator::Embedded { negate: false, .. } => {
                 // TextSelection is embedded reftextsel
                 self.begin >= reftextsel.begin && self.end <= reftextsel.end
             }
+            TextSelectionOperator::Before {
+                negate: false,
+                limit: Some(limit),
+                ..
+            } => self.end <= reftextsel.begin && reftextsel.begin - self.end >= *limit,
             TextSelectionOperator::Before { negate: false, .. } => self.end <= reftextsel.begin,
+            TextSelectionOperator::After {
+                negate: false,
+                limit: Some(limit),
+                ..
+            } => self.begin >= reftextsel.end && self.begin - reftextsel.end >= *limit,
             TextSelectionOperator::After { negate: false, .. } => self.begin >= reftextsel.end,
             TextSelectionOperator::Precedes { negate: false, .. } => self.end == reftextsel.begin,
             TextSelectionOperator::Succeeds { negate: false, .. } => reftextsel.end == self.begin,
@@ -1425,14 +1504,17 @@ impl TestTextSelection for TextSelection {
             | TextSelectionOperator::Embedded {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Before {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::After {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Precedes {
                 all: false,
@@ -1472,14 +1554,17 @@ impl TestTextSelection for TextSelection {
             | TextSelectionOperator::Embedded {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Before {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::After {
                 all: true,
                 negate: false,
+                ..
             } => {
                 if refset.is_empty() {
                     return false;
@@ -1673,10 +1758,21 @@ impl<'store> FindTextSelectionsIter<'store> {
                     false, //search backwards! end must be in range above
                 ));
             }
-            TextSelectionOperator::After { .. } => {
+            TextSelectionOperator::After { limit, .. } => {
                 //self comes after found items, so find items before self:
-                self.textseliters
-                    .push((self.resource.range(0, self.refset.begin().unwrap()), true));
+                let begin = if let Some(limit) = limit {
+                    if limit >= self.refset.begin().unwrap() {
+                        0
+                    } else {
+                        self.refset.begin().unwrap() - limit
+                    }
+                } else {
+                    0
+                };
+                self.textseliters.push((
+                    self.resource.range(begin, self.refset.begin().unwrap()),
+                    true,
+                ));
             }
             TextSelectionOperator::Succeeds { .. } => {
                 self.textseliters.push((
@@ -1687,13 +1783,15 @@ impl<'store> FindTextSelectionsIter<'store> {
                     false, //search backwards!! end must be in range above
                 ));
             }
-            TextSelectionOperator::Before { .. } => {
+            TextSelectionOperator::Before { limit, .. } => {
                 //self comes before found items, so find items after self:
-                self.textseliters.push((
-                    self.resource
-                        .range(self.refset.end().unwrap(), self.resource.textlen()),
-                    true,
-                ));
+                let end = if let Some(limit) = limit {
+                    self.refset.end().unwrap() + limit
+                } else {
+                    self.resource.textlen()
+                };
+                self.textseliters
+                    .push((self.resource.range(self.refset.end().unwrap(), end), true));
             }
             TextSelectionOperator::Precedes { .. } => {
                 self.textseliters.push((
@@ -1702,10 +1800,32 @@ impl<'store> FindTextSelectionsIter<'store> {
                     true,
                 ));
             }
+            TextSelectionOperator::Embedded {
+                limit: Some(limit), ..
+            } => {
+                let halfway = self.resource.textlen() / 2;
+                for reftextselection in self.refset.iter() {
+                    if reftextselection.begin() <= halfway {
+                        let begin = if reftextselection.begin() > limit {
+                            reftextselection.begin() - limit
+                        } else {
+                            0
+                        };
+                        self.textseliters
+                            .push((self.resource.range(begin, reftextselection.end()), true));
+                    } else {
+                        let mut end = reftextselection.end() + limit;
+                        if end > self.resource.textlen() {
+                            end = self.resource.textlen();
+                        }
+                        self.textseliters.push((
+                            self.resource.range(reftextselection.end(), end),
+                            false, //search backwards!!
+                        ));
+                    }
+                }
+            }
             TextSelectionOperator::Overlaps { .. } | TextSelectionOperator::Embedded { .. } => {
-                //this is more efficient for reference text selections at the beginning of a text than at the end
-                //(we could reverse the iterator to more efficiently find fragments more at the end, but then we have bookkeeping to do to store and finally revert
-                //the results, as they need to be returned in textual order)
                 let halfway = self.resource.textlen() / 2;
                 for reftextselection in self.refset.iter() {
                     if reftextselection.begin() <= halfway {
