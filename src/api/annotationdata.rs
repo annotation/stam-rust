@@ -178,6 +178,18 @@ impl<'a> Data<'a> {
     pub fn take(mut self) -> Vec<(AnnotationDataSetHandle, AnnotationDataHandle)> {
         self.array.to_mut().to_vec()
     }
+
+    /// Tests if the collection contains a specific element
+    pub fn contains(&self, handle: &(AnnotationDataSetHandle, AnnotationDataHandle)) -> bool {
+        if self.sorted {
+            match self.array.binary_search(&handle) {
+                Ok(_) => true,
+                Err(_) => false,
+            }
+        } else {
+            self.array.contains(&handle)
+        }
+    }
 }
 
 /// `DataIter` iterates over annotation data, it returns [`ResultItem<AnnotationData>`] instances.

@@ -272,6 +272,18 @@ impl<'a> Annotations<'a> {
     pub fn take(mut self) -> Vec<AnnotationHandle> {
         self.array.to_mut().to_vec()
     }
+
+    /// Tests if the collection contains a specific element
+    pub fn contains(&self, handle: &AnnotationHandle) -> bool {
+        if self.sorted {
+            match self.array.binary_search(&handle) {
+                Ok(_) => true,
+                Err(_) => false,
+            }
+        } else {
+            self.array.contains(&handle)
+        }
+    }
 }
 
 /// The AnnotationsIter iterates over annotations, it returns [`ResultItem<Annotation>`] instances.
