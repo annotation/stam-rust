@@ -665,7 +665,7 @@ pub enum TextSelectionOperator {
 
     /// All TextSelections in A are embedded by a TextSelection in B (cf. textfabric's `]]`)
     /// If modifier `all` is set: All TextSelections in A are embedded by all TextSelection in B (cf. textfabric's `]]`)
-    /// The `limit`, if set, constrains the lookup range (in unicode points)
+    /// The `limit`, if set, constrains the lookup range (in unicode points), which can positively affect performance
     Embedded {
         all: bool,
         negate: bool,
@@ -674,7 +674,7 @@ pub enum TextSelectionOperator {
 
     /// Each TextSelections in A comes before a textselection in B
     /// If modifier `all` is set: All TextSelections in A precede (come before) all textselections in B. There is no overlap (cf. textfabric's `<<`)
-    /// The `limit`, if set, constrains the lookup range (in unicode points)
+    /// The `limit`, if set, constrains the lookup range (in unicode points), which can positively affect performance
     Before {
         all: bool,
         negate: bool,
@@ -683,7 +683,7 @@ pub enum TextSelectionOperator {
 
     /// Each TextSeleciton In A succeeds (comes after) a textselection in B
     /// If modifier `all` is set: All TextSelections in A succeed (come after) all textselections in B. There is no overlap (cf. textfabric's `>>`)
-    /// The `limit`, if set, constrains the lookup range (in unicode points)
+    /// The `limit`, if set, constrains the lookup range (in unicode points), which can positively affect performance
     After {
         all: bool,
         negate: bool,
