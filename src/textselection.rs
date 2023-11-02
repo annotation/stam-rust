@@ -690,11 +690,11 @@ pub enum TextSelectionOperator {
         limit: Option<usize>,
     },
 
-    /// Each TextSelection in A is ends where at least one TextSelection in B begins.
+    /// Each TextSelection in A ends where at least one TextSelection in B begins.
     /// If modifier `all` is set: The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
     Precedes { all: bool, negate: bool },
 
-    /// Each TextSelection in A is begis where at least one TextSelection in A ends.
+    /// Each TextSelection in A begis where at least one TextSelection in A ends.
     /// If modifier `all` is set: The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
     Succeeds { all: bool, negate: bool },
 
