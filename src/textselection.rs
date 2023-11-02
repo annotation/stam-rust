@@ -1437,8 +1437,8 @@ impl TestTextSelection for TextSelection {
                 // TextSelection is embedded reftextsel
                 self.begin >= reftextsel.begin
                     && self.end <= reftextsel.end
-                    && self.begin - reftextsel.begin >= *limit
-                    && reftextsel.end - self.end >= *limit
+                    && self.begin - reftextsel.begin <= *limit
+                    && reftextsel.end - self.end <= *limit
             }
             TextSelectionOperator::Embedded { negate: false, .. } => {
                 // TextSelection is embedded reftextsel
@@ -1448,13 +1448,13 @@ impl TestTextSelection for TextSelection {
                 negate: false,
                 limit: Some(limit),
                 ..
-            } => self.end <= reftextsel.begin && reftextsel.begin - self.end >= *limit,
+            } => self.end <= reftextsel.begin && reftextsel.begin - self.end <= *limit,
             TextSelectionOperator::Before { negate: false, .. } => self.end <= reftextsel.begin,
             TextSelectionOperator::After {
                 negate: false,
                 limit: Some(limit),
                 ..
-            } => self.begin >= reftextsel.end && self.begin - reftextsel.end >= *limit,
+            } => self.begin >= reftextsel.end && self.begin - reftextsel.end <= *limit,
             TextSelectionOperator::After { negate: false, .. } => self.begin >= reftextsel.end,
             TextSelectionOperator::Precedes { negate: false, .. } => self.end == reftextsel.begin,
             TextSelectionOperator::Succeeds { negate: false, .. } => reftextsel.end == self.begin,

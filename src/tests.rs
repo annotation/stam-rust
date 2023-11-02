@@ -340,6 +340,35 @@ fn textselectionoperator_embed_1vs1() {
         &a
     ));
 }
+#[test]
+fn textselectionoperator_embed_test_limit() {
+    let a = TextSelection {
+        intid: None,
+        begin: 12,
+        end: 24,
+    };
+    let b = TextSelection {
+        intid: None,
+        begin: 16,
+        end: 20,
+    };
+    assert!(b.test(
+        &TextSelectionOperator::Embedded {
+            all: false,
+            negate: false,
+            limit: Some(4),
+        },
+        &a,
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::Embedded {
+            all: false,
+            negate: false,
+            limit: Some(1)
+        },
+        &a
+    ));
+}
 
 #[test]
 fn textselectionoperator_embed_false_1vs1() {
