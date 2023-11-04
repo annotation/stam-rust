@@ -123,6 +123,22 @@ mod tests;
 use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
 
+#[derive(Debug)]
+pub(crate) enum Filter<'a> {
+    AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
+    DataKey(AnnotationDataSetHandle, DataKeyHandle),
+    Annotation(AnnotationHandle),
+    TextResource(TextResourceHandle),
+    DataOperator(DataOperator<'a>),
+    TextSelectionOperator(TextSelectionOperator),
+    Annotations(Annotations<'a>),
+    Data(Data<'a>),
+
+    //these have the advantage the collections are external references
+    BorrowedAnnotations(&'a Annotations<'a>),
+    BorrowedData(&'a Data<'a>),
+}
+
 // Lazy iterator computing an intersection
 pub(crate) struct IntersectionIter<'a, T>
 where
