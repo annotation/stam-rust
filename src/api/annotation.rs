@@ -458,7 +458,9 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
-    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] or [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
         self.filters
             .push(Filter::AnnotationData(data.set().handle(), data.handle()));
@@ -466,7 +468,9 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self::filter_annotationdata()`] instead.
-    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] or [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     pub fn filter_annotationdata_handle(
         mut self,
         set_handle: AnnotationDataSetHandle,
@@ -478,8 +482,12 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Constrain the iterator to only return annotations that have data that corresponds with the passed data.
+    ///
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     /// If you have a borrowed reference, use [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(data.annotations())`.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
         self.filters.push(Filter::Data(data));
         self
@@ -488,6 +496,9 @@ impl<'store> AnnotationsIter<'store> {
     /// Constrain the iterator to only return annotations that have data that corresponds with the passed data.
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     /// If you have a owned data, use [`Self::filter_data()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(data.annotations())`.
     pub fn filter_data_byref(mut self, data: &'store Data<'store>) -> Self {
         self.filters.push(Filter::BorrowedData(data));
         self
@@ -496,7 +507,9 @@ impl<'store> AnnotationsIter<'store> {
     /// Constrain the iterator to only return annotations that have data matching the search parameters.
     /// This is a just shortcut method for `self.filter_data( store.find_data(..).to_collection() )`
     ///
-    /// Note: Do not call this method in a loop, it will be very inefficient! Compute it once before and cache it (`let data = store.find_data(..).to_collection()`), then
+    ///
+    /// Note: This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    ////      Do not call this method in a loop, it will be very inefficient! Compute it once before and cache it (`let data = store.find_data(..).to_collection()`), then
     ///       pass the result to [`Self::filter_data(data.clone())`], the clone will be cheap.
     pub fn filter_find_data<'a>(
         self,

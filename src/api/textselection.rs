@@ -795,6 +795,8 @@ impl<'store> TextSelectionsIter<'store> {
     }
 
     /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection.
     pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
         self.filters.push(Filter::Annotation(annotation.handle()));
         self
@@ -802,25 +804,35 @@ impl<'store> TextSelectionsIter<'store> {
 
     /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
     /// This is a lower-level method, use [`Self::filter_annotation`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection.
     pub fn filter_annotation_handle(mut self, annotation: AnnotationHandle) -> Self {
         self.filters.push(Filter::Annotation(annotation));
         self
     }
 
     /// Filter by annotations. Only text selections will be returned that are a part of any of the specified annotations.
+    /// If you have a borrowed reference, use [`Self::filter_annotations_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection.
     pub fn filter_annotations(mut self, annotations: Annotations<'store>) -> Self {
         self.filters.push(Filter::Annotations(annotations));
         self
     }
 
     /// Filter by annotations. Only text selections will be returned that are a part of any of the specified annotations.
+    /// If you have owned annotations, use [`Self::filter_annotations()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection.
     pub fn filter_annotations_byref(mut self, annotations: &'store Annotations<'store>) -> Self {
         self.filters.push(Filter::BorrowedAnnotations(annotations));
         self
     }
 
     /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item
-    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] or [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
         self.filters
             .push(Filter::AnnotationData(data.set().handle(), data.handle()));
@@ -828,7 +840,9 @@ impl<'store> TextSelectionsIter<'store> {
     }
 
     /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item. This is a lower-level method that takes handles, use [`Self::filter_annotationdata()`] instead.
-    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
+    /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] or [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
     pub fn filter_annotationdata_handle(
         mut self,
         set_handle: AnnotationDataSetHandle,
@@ -841,6 +855,9 @@ impl<'store> TextSelectionsIter<'store> {
 
     /// Constrain the iterator to only return textselections targeted by annotations that have data that corresponds with the passed data.
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    /// If you have a borrowed reference, use [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
         self.filters.push(Filter::Data(data));
         self
@@ -848,6 +865,9 @@ impl<'store> TextSelectionsIter<'store> {
 
     /// Constrain the iterator to only return textselections targeted by annotations that have data that corresponds with the passed data.
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    /// If you have owned data, use [`Self::filter_data()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
     pub fn filter_data_byref(mut self, data: &'store Data<'store>) -> Self {
         self.filters.push(Filter::BorrowedData(data));
         self
