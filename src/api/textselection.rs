@@ -698,6 +698,11 @@ impl<'store> TextSelectionsIter<'store> {
                         return false;
                     }
                 }
+                Filter::TextResource(resource) => {
+                    if textselection.resource().handle() != *resource {
+                        return false;
+                    }
+                }
                 _ => unimplemented!("Filter {:?} not implemented for AnnotatationsIter", filter),
             }
         }
@@ -845,6 +850,17 @@ impl<'store> TextSelectionsIter<'store> {
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     pub fn filter_data_byref(mut self, data: &'store Data<'store>) -> Self {
         self.filters.push(Filter::BorrowedData(data));
+        self
+    }
+
+    /// Constrain this iterator to only return text selections that reference a particular resource
+    pub fn filter_resource(self, resource: &ResultItem<TextResource>) -> Self {
+        self.filter_resource_handle(resource.handle())
+    }
+
+    /// Constrain this iterator to only return text selections that reference a particular resource
+    pub fn filter_resource_handle(mut self, handle: TextResourceHandle) -> Self {
+        self.filters.push(Filter::TextResource(handle));
         self
     }
 

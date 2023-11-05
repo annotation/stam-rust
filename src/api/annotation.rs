@@ -27,7 +27,7 @@ use crate::api::annotationdata::{Data, DataIter};
 use crate::api::textselection::TextSelectionsIter;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::resources::TextResource;
+use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Selector, SelectorKind};
 use crate::store::*;
 use crate::textselection::{
@@ -554,6 +554,25 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
+    /// Constrain this iterator to only return annotations that reference a particular resource
+    pub fn filter_resource(self, resource: &ResultItem<TextResource>) -> Self {
+        if self.iter.is_some() {
+            self.filter_resource_handle(resource.handle())
+        } else {
+            self
+        }
+    }
+
+    /// Constrain this iterator to only return annotations that reference a particular resource
+    pub fn filter_resource_handle(mut self, handle: TextResourceHandle) -> Self {
+        if self.iter.is_some() {
+            self.filters.push(Filter::TextResource(handle));
+            self
+        } else {
+            self
+        }
+    }
+
     /// Find all text selections that are related to any text selections of annotations in this iterator, the operator
     /// determines the type of the relation. Shortcut method for `.textselections().related_text(operator)`.
     pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
@@ -761,6 +780,14 @@ impl<'store> AnnotationsIter<'store> {
                 }
                 Filter::TextSelectionOperator(operator) => {
                     if !annotation.related_text(*operator).test() {
+                        return false;
+                    }
+                }
+                Filter::TextResource(resource_handle) => {
+                    if !annotation
+                        .resources()
+                        .any(|resource| resource.handle() == *resource_handle)
+                    {
                         return false;
                     }
                 }
