@@ -27,7 +27,7 @@ use crate::textselection::{
     TextSelectionHandle, TextSelectionOperator, TextSelectionSet,
 };
 use crate::types::*;
-use crate::IntersectionIter;
+use crate::{Filter, IntersectionIter};
 use sealed::sealed;
 
 use rayon::prelude::*;
@@ -418,10 +418,8 @@ pub struct TextSelectionsIter<'store> {
     store: &'store AnnotationStore,
     /// Direction of iteration
     forward: Option<bool>,
-    annotations_filter: Option<Annotations<'store>>,
-    single_annotation_filter: Option<AnnotationHandle>,
-    single_data_filter: Option<(AnnotationDataSetHandle, AnnotationDataHandle)>,
-    data_filter: Option<Data<'store>>,
+
+    filters: SmallVec<[Filter<'store>; 1]>,
 }
 
 impl<'store> Iterator for TextSelectionsIter<'store> {
@@ -487,12 +485,8 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
                     }
                 }
             };
-            if result.is_some() && self.annotations_filter.is_some()
-                || self.single_annotation_filter.is_some()
-            {
-                if !self.pass_filter(result.as_ref().unwrap()) {
-                    continue;
-                }
+            if result.is_some() && !self.test_filters(result.as_ref().unwrap()) {
+                continue;
             }
             return result;
         }
@@ -565,7 +559,7 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
                     }
                 }
             };
-            if result.is_some() && !self.pass_filter(result.as_ref().unwrap()) {
+            if result.is_some() && !self.test_filters(result.as_ref().unwrap()) {
                 continue;
             }
             return result;
@@ -583,10 +577,7 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
-            single_annotation_filter: None,
-            annotations_filter: None,
-            single_data_filter: None,
-            data_filter: None,
+            filters: SmallVec::new(),
         }
     }
 
@@ -599,10 +590,7 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
-            single_annotation_filter: None,
-            annotations_filter: None,
-            single_data_filter: None,
-            data_filter: None,
+            filters: SmallVec::new(),
         }
     }
 
@@ -615,10 +603,7 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
-            single_annotation_filter: None,
-            annotations_filter: None,
-            single_data_filter: None,
-            data_filter: None,
+            filters: SmallVec::new(),
         }
     }
 
@@ -631,10 +616,7 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: Some(true),
-            single_annotation_filter: None,
-            annotations_filter: None,
-            single_data_filter: None,
-            data_filter: None,
+            filters: SmallVec::new(),
         }
     }
 
@@ -647,10 +629,7 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: Some(true),
-            single_annotation_filter: None,
-            annotations_filter: None,
-            single_data_filter: None,
-            data_filter: None,
+            filters: SmallVec::new(),
         }
     }
 
@@ -663,40 +642,67 @@ impl<'store> TextSelectionsIter<'store> {
             store,
             cursor: 0,
             forward: None,
-            single_annotation_filter: None,
-            annotations_filter: None,
-            single_data_filter: None,
-            data_filter: None,
+            filters: SmallVec::new(),
         }
     }
 
     /// Checks whether the textsections passes the filters (if any)
-    fn pass_filter(&self, textselection: &ResultTextSelection<'store>) -> bool {
-        if let Some(annotation) = self.single_annotation_filter {
-            if !textselection.annotations().filter_handle(annotation).test() {
-                return false;
+    fn test_filters(&self, textselection: &ResultTextSelection<'store>) -> bool {
+        if self.filters.is_empty() {
+            return true;
+        }
+        let mut annotationfilter: Option<AnnotationsIter> = None;
+        for filter in self.filters.iter() {
+            match filter {
+                Filter::Annotation(handle) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter = annotationfilter.map(|iter| iter.filter_handle(*handle));
+                }
+                Filter::Annotations(annotations) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter =
+                        annotationfilter.map(|iter| iter.filter_annotations(annotations.iter()));
+                }
+                Filter::BorrowedAnnotations(annotations) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter =
+                        annotationfilter.map(|iter| iter.filter_annotations(annotations.iter()));
+                }
+                Filter::AnnotationData(set, data) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter =
+                        annotationfilter.map(|iter| iter.filter_annotationdata_handle(*set, *data));
+                }
+                Filter::Data(data) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter = annotationfilter.map(|iter| iter.filter_data_byref(data));
+                }
+                Filter::BorrowedData(data) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter = annotationfilter.map(|iter| iter.filter_data_byref(data));
+                }
+                Filter::TextSelectionOperator(operator) => {
+                    if !textselection.related_text(*operator).test() {
+                        return false;
+                    }
+                }
+                _ => unimplemented!("Filter {:?} not implemented for AnnotatationsIter", filter),
             }
         }
-        if let Some(annotations) = &self.annotations_filter {
-            if !textselection
-                .annotations()
-                .filter_annotations(annotations.iter())
-                .test()
-            {
-                return false;
-            }
-        }
-        if let Some((set_handle, data_handle)) = self.single_data_filter {
-            if !textselection
-                .annotations()
-                .filter_annotationdata_handle(set_handle, data_handle)
-                .test()
-            {
-                return false;
-            }
-        }
-        if let Some(data) = &self.data_filter {
-            if !textselection.annotations().filter_data_byref(data).test() {
+        if let Some(annotationfilter) = annotationfilter {
+            if !annotationfilter.test() {
                 return false;
             }
         }
@@ -785,27 +791,34 @@ impl<'store> TextSelectionsIter<'store> {
 
     /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
     pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
-        self.single_annotation_filter = Some(annotation.handle());
+        self.filters.push(Filter::Annotation(annotation.handle()));
         self
     }
 
     /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
     /// This is a lower-level method, use [`Self::filter_annotation`] instead.
     pub fn filter_annotation_handle(mut self, annotation: AnnotationHandle) -> Self {
-        self.single_annotation_filter = Some(annotation);
+        self.filters.push(Filter::Annotation(annotation));
         self
     }
 
     /// Filter by annotations. Only text selections will be returned that are a part of any of the specified annotations.
     pub fn filter_annotations(mut self, annotations: Annotations<'store>) -> Self {
-        self.annotations_filter = Some(annotations);
+        self.filters.push(Filter::Annotations(annotations));
+        self
+    }
+
+    /// Filter by annotations. Only text selections will be returned that are a part of any of the specified annotations.
+    pub fn filter_annotations_byref(mut self, annotations: &'store Annotations<'store>) -> Self {
+        self.filters.push(Filter::BorrowedAnnotations(annotations));
         self
     }
 
     /// Constrain the iterator to return only textselections targeted by annotations that have this exact data item
     /// This method can only be used once, to filter by multiple data instances, use [`Self::filter_data()`] instead.
     pub fn filter_annotationdata(mut self, data: &ResultItem<'store, AnnotationData>) -> Self {
-        self.single_data_filter = Some((data.set().handle(), data.handle()));
+        self.filters
+            .push(Filter::AnnotationData(data.set().handle(), data.handle()));
         self
     }
 
@@ -816,14 +829,22 @@ impl<'store> TextSelectionsIter<'store> {
         set_handle: AnnotationDataSetHandle,
         data_handle: AnnotationDataHandle,
     ) -> Self {
-        self.single_data_filter = Some((set_handle, data_handle));
+        self.filters
+            .push(Filter::AnnotationData(set_handle, data_handle));
         self
     }
 
     /// Constrain the iterator to only return textselections targeted by annotations that have data that corresponds with the passed data.
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
-        self.data_filter = Some(data);
+        self.filters.push(Filter::Data(data));
+        self
+    }
+
+    /// Constrain the iterator to only return textselections targeted by annotations that have data that corresponds with the passed data.
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    pub fn filter_data_byref(mut self, data: &'store Data<'store>) -> Self {
+        self.filters.push(Filter::BorrowedData(data));
         self
     }
 
