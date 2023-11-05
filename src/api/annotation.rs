@@ -733,7 +733,7 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// See if the filters match for the annotation
-    /// This does not include any filters directly on annotations, as those is handled already by the underlying IntersectionsIter
+    /// This does not include any filters directly on annotations, as those are handled already by the underlying IntersectionsIter
     fn test_filters(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
         if self.filters.is_empty() {
             return true;

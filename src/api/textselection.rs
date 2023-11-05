@@ -696,8 +696,7 @@ impl<'store> TextSelectionsIter<'store> {
             }
         }
         if let Some(data) = &self.data_filter {
-            if !textselection.annotations().filter_data(data.clone()).test() {
-                //MAYBE TODO: this clone may be a bit too expensive?
+            if !textselection.annotations().filter_data_byref(data).test() {
                 return false;
             }
         }

@@ -22,8 +22,9 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::IntersectionIter;
+use crate::{Filter, IntersectionIter};
 use rayon::prelude::*;
+use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
@@ -201,9 +202,7 @@ pub struct DataIter<'store> {
     iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
     store: &'store AnnotationStore,
 
-    operator: Option<DataOperator<'store>>,
-    set_test: Option<AnnotationDataSetHandle>,
-    key_test: Option<DataKeyHandle>,
+    filters: SmallVec<[Filter<'store>; 1]>,
 
     //for optimisations:
     last_set_handle: Option<AnnotationDataSetHandle>,
@@ -217,24 +216,20 @@ impl<'store> DataIter<'store> {
     ) -> Self {
         Self {
             iter: Some(iter),
+            filters: SmallVec::new(),
             store,
             last_set_handle: None,
             last_set: None,
-            operator: None,
-            set_test: None,
-            key_test: None,
         }
     }
 
     pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
         Self {
             iter: None,
+            filters: SmallVec::new(),
             store,
             last_set_handle: None,
             last_set: None,
-            operator: None,
-            set_test: None,
-            key_test: None,
         }
     }
 
@@ -250,11 +245,9 @@ impl<'store> DataIter<'store> {
             .collect();
         Self {
             iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
+            filters: SmallVec::new(),
             last_set_handle: None,
             last_set: None,
-            operator: None,
-            set_test: None,
-            key_test: None,
             store,
         }
     }
@@ -365,14 +358,14 @@ impl<'store> DataIter<'store> {
             //don't bother actually adding the operator, this is a no-op
             return self;
         }
-        self.operator = Some(operator);
+        self.filters.push(Filter::DataOperator(operator));
         self
     }
 
     /// Filter for sets
     /// This can only be used once.
     pub(crate) fn filter_set_handle(mut self, set_handle: AnnotationDataSetHandle) -> Self {
-        self.set_test = Some(set_handle);
+        self.filters.push(Filter::AnnotationDataSet(set_handle));
         self
     }
 
@@ -383,8 +376,7 @@ impl<'store> DataIter<'store> {
         set_handle: AnnotationDataSetHandle,
         key_handle: DataKeyHandle,
     ) -> Self {
-        self.set_test = Some(set_handle);
-        self.key_test = Some(key_handle);
+        self.filters.push(Filter::DataKey(set_handle, key_handle));
         self
     }
 
@@ -483,8 +475,8 @@ impl<'store> DataIter<'store> {
     pub fn to_collection(self) -> Data<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
-        if self.operator.is_none() && self.set_test.is_none() && self.key_test.is_none() {
-            //we can be a bit more performant if we have no operator:
+        if self.filters.is_empty() {
+            //we can be a bit more performant if we have no lazy filters:
             if let Some(iter) = self.iter {
                 Data {
                     array: Cow::Owned(iter.collect()),
@@ -542,6 +534,35 @@ impl<'store> DataIter<'store> {
             true //empty iterators can be considered sorted
         }
     }
+
+    /// See if the filters match for the annotation data
+    /// This does not include any filters directly on annotationdata, as those are handled already by the underlying IntersectionsIter
+    fn test_filters(&self, data: &ResultItem<'store, AnnotationData>) -> bool {
+        if self.filters.is_empty() {
+            return true;
+        }
+        for filter in self.filters.iter() {
+            match filter {
+                Filter::AnnotationDataSet(set_handle) => {
+                    if *set_handle != data.set().handle() {
+                        return false;
+                    }
+                }
+                Filter::DataKey(set_handle, key_handle) => {
+                    if *set_handle != data.set().handle() || *key_handle != data.key().handle() {
+                        return false;
+                    }
+                }
+                Filter::DataOperator(op) => {
+                    if !data.test(false, op) {
+                        return false;
+                    }
+                }
+                _ => unimplemented!("Filter {:?} not implemented for DataIter", filter),
+            }
+        }
+        true
+    }
 }
 
 impl<'store> Iterator for DataIter<'store> {
@@ -551,11 +572,6 @@ impl<'store> Iterator for DataIter<'store> {
         loop {
             if let Some(iter) = self.iter.as_mut() {
                 if let Some((set_handle, data_handle)) = iter.next() {
-                    if let Some(test_set) = self.set_test {
-                        if set_handle != test_set {
-                            continue;
-                        }
-                    }
                     //optimisation so we don't have to grab the same set over and over:
                     let dataset = if Some(set_handle) == self.last_set_handle {
                         self.last_set.as_ref().unwrap()
@@ -568,16 +584,8 @@ impl<'store> Iterator for DataIter<'store> {
                     let data = dataset
                         .annotationdata(data_handle)
                         .expect("data must exist");
-                    if let Some(test_key) = self.key_test {
-                        if test_key != data.key().handle() {
-                            continue;
-                        }
-                    }
-                    if let Some(operator) = self.operator.as_ref() {
-                        if !data.test(false, operator) {
-                            //data does not pass the value test
-                            continue;
-                        }
+                    if !self.test_filters(&data) {
+                        continue;
                     }
                     return Some(data);
                 } else {

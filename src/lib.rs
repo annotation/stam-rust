@@ -124,8 +124,10 @@ use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
 
 #[derive(Debug)]
+/// A filter that is evaluated lazily, applied on [`AnnotationsIter`], [`DataIter`],[`TextSelectionsIter`]
 pub(crate) enum Filter<'a> {
     AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
+    AnnotationDataSet(AnnotationDataSetHandle),
     DataKey(AnnotationDataSetHandle, DataKeyHandle),
     Annotation(AnnotationHandle),
     TextResource(TextResourceHandle),
