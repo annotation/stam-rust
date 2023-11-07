@@ -27,7 +27,7 @@ use crate::textselection::{
     TextSelectionHandle, TextSelectionOperator, TextSelectionSet,
 };
 use crate::types::*;
-use crate::{Filter, FilterMode, IntersectionIter};
+use crate::{Filter, FilterMode, IntersectionIter, TextMode};
 use sealed::sealed;
 
 use rayon::prelude::*;
@@ -717,6 +717,36 @@ impl<'store> TextSelectionsIter<'store> {
                         return false;
                     }
                 }
+                Filter::Text(reftext, textmode, _delimiter) => {
+                    let text = textselection.text();
+                    match textmode {
+                        TextMode::Exact => {
+                            if text != reftext.as_str() {
+                                return false;
+                            }
+                        }
+                        TextMode::Lowercase => {
+                            if text.to_lowercase() != reftext.as_str() {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                Filter::BorrowedText(reftext, textmode, _delimiter) => {
+                    let text = textselection.text();
+                    match *textmode {
+                        TextMode::Exact => {
+                            if text != *reftext {
+                                return false;
+                            }
+                        }
+                        TextMode::Lowercase => {
+                            if text.to_lowercase() != *reftext {
+                                return false;
+                            }
+                        }
+                    }
+                }
                 _ => unimplemented!("Filter {:?} not implemented for AnnotatationsIter", filter),
             }
         }
@@ -912,6 +942,43 @@ impl<'store> TextSelectionsIter<'store> {
     pub fn filter_data_byref_multi(mut self, data: &'store Data<'store>) -> Self {
         self.filters
             .push(Filter::BorrowedData(data, FilterMode::All));
+        self
+    }
+
+    /// Constrain the iterator to only return annotations that have text matching the specified text
+    ///
+    /// If you have a borrowed reference, use [`Self::filter_text_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    ///
+    /// The `delimiter` parameter determines how multiple possible non-contiguous text selections are joined prior to comparison, you most likely want to set it to either a space or an empty string.
+    pub fn filter_text(mut self, text: String, case_sensitive: bool) -> Self {
+        if case_sensitive {
+            self.filters.push(Filter::Text(text, TextMode::Exact, " ")); //delimiter (last parameter) is irrelevant in this context
+        } else {
+            self.filters
+                .push(Filter::Text(text.to_lowercase(), TextMode::Lowercase, " "));
+        }
+        self
+    }
+
+    /// Constrain the iterator to only return annotations that have text matching the specified text
+    ///
+    /// Important note: If you set `case_sensitive` to false, then YOU must ensure the passed reference is lowercased! Use [`Self.filter_text()`] instead if you can't guarantee this.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    ///
+    /// The `delimiter` parameter determines how multiple possible non-contiguous text selections are joined prior to comparison, you most likely want to set it to either a space or an empty string.
+    pub fn filter_text_byref(mut self, text: &'store str, case_sensitive: bool) -> Self {
+        self.filters.push(Filter::BorrowedText(
+            text,
+            if case_sensitive {
+                TextMode::Lowercase
+            } else {
+                TextMode::Exact
+            },
+            " ", //delimiter is irrelevant in this context
+        ));
         self
     }
 
