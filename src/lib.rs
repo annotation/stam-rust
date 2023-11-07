@@ -123,6 +123,12 @@ mod tests;
 use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
 
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub(crate) enum FilterMode {
+    Any,
+    All,
+}
+
 #[derive(Debug)]
 /// A filter that is evaluated lazily, applied on [`AnnotationsIter`], [`DataIter`],[`TextSelectionsIter`]
 pub(crate) enum Filter<'a> {
@@ -134,11 +140,11 @@ pub(crate) enum Filter<'a> {
     DataOperator(DataOperator<'a>),
     TextSelectionOperator(TextSelectionOperator),
     Annotations(Annotations<'a>),
-    Data(Data<'a>),
+    Data(Data<'a>, FilterMode),
 
     //these have the advantage the collections are external references
     BorrowedAnnotations(&'a Annotations<'a>),
-    BorrowedData(&'a Data<'a>),
+    BorrowedData(&'a Data<'a>, FilterMode),
 }
 
 // Lazy iterator computing an intersection

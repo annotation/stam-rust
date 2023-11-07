@@ -27,7 +27,7 @@ use crate::textselection::{
     TextSelectionHandle, TextSelectionOperator, TextSelectionSet,
 };
 use crate::types::*;
-use crate::{Filter, IntersectionIter};
+use crate::{Filter, FilterMode, IntersectionIter};
 use sealed::sealed;
 
 use rayon::prelude::*;
@@ -681,17 +681,31 @@ impl<'store> TextSelectionsIter<'store> {
                     annotationfilter =
                         annotationfilter.map(|iter| iter.filter_annotationdata_handle(*set, *data));
                 }
-                Filter::Data(data) => {
+                Filter::Data(data, FilterMode::Any) => {
                     if annotationfilter.is_none() {
                         annotationfilter = Some(textselection.annotations());
                     }
                     annotationfilter = annotationfilter.map(|iter| iter.filter_data_byref(data));
                 }
-                Filter::BorrowedData(data) => {
+                Filter::BorrowedData(data, FilterMode::Any) => {
                     if annotationfilter.is_none() {
                         annotationfilter = Some(textselection.annotations());
                     }
                     annotationfilter = annotationfilter.map(|iter| iter.filter_data_byref(data));
+                }
+                Filter::Data(data, FilterMode::All) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter =
+                        annotationfilter.map(|iter| iter.filter_data_byref_multi(data));
+                }
+                Filter::BorrowedData(data, FilterMode::All) => {
+                    if annotationfilter.is_none() {
+                        annotationfilter = Some(textselection.annotations());
+                    }
+                    annotationfilter =
+                        annotationfilter.map(|iter| iter.filter_data_byref_multi(data));
                 }
                 Filter::TextSelectionOperator(operator) => {
                     if !textselection.related_text(*operator).test() {
@@ -859,7 +873,7 @@ impl<'store> TextSelectionsIter<'store> {
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
-        self.filters.push(Filter::Data(data));
+        self.filters.push(Filter::Data(data, FilterMode::Any));
         self
     }
 
@@ -869,7 +883,35 @@ impl<'store> TextSelectionsIter<'store> {
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
     pub fn filter_data_byref(mut self, data: &'store Data<'store>) -> Self {
-        self.filters.push(Filter::BorrowedData(data));
+        self.filters
+            .push(Filter::BorrowedData(data, FilterMode::Any));
+        self
+    }
+
+    /// Constrain the iterator to only return textselections targeted by annotations that, in a single annotation, have data that corresponds with *ALL* of the items in the passed data.
+    /// All items have to be found or none will be returned.
+    ///
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    /// If you have a borrowed reference, use [`Self::filter_data_byref_multi()`] instead.
+    /// If you want to check for *ANY* match rather than requiring multiple matches in a single annotation, then use [`Self::filter_data()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    pub fn filter_data_multi(mut self, data: Data<'store>) -> Self {
+        self.filters.push(Filter::Data(data, FilterMode::All));
+        self
+    }
+
+    /// Constrain the iterator to only return textselections targeted by annotations that, in a single annotation, has data that corresponds with *ALL* of the items in the passed data.
+    /// All items have to be found or none will be returned.
+    ///
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    /// If you have owned data, use [`Self::filter_data_multi()`] instead.
+    /// If you want to check for *ANY* match rather than requiring multiple matches in a single annotation, then use [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    pub fn filter_data_byref_multi(mut self, data: &'store Data<'store>) -> Self {
+        self.filters
+            .push(Filter::BorrowedData(data, FilterMode::All));
         self
     }
 

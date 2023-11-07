@@ -33,7 +33,7 @@ use crate::store::*;
 use crate::textselection::{
     ResultTextSelection, ResultTextSelectionSet, TextSelectionOperator, TextSelectionSet,
 };
-use crate::{Filter, IntersectionIter};
+use crate::{Filter, FilterMode, IntersectionIter};
 
 use crate::api::textselection::SortTextualOrder;
 
@@ -481,26 +481,56 @@ impl<'store> AnnotationsIter<'store> {
         self
     }
 
-    /// Constrain the iterator to only return annotations that have data that corresponds with the passed data.
+    /// Constrain the iterator to only return annotations that have data that corresponds with any of the items in the passed data.
     ///
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     /// If you have a borrowed reference, use [`Self::filter_data_byref()`] instead.
+    /// If you want to check whether multiple data are ALL found in a single annotation, then use [`Self::filter_data_multi()`].
     ///
     /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(data.annotations())`.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
-        self.filters.push(Filter::Data(data));
+        self.filters.push(Filter::Data(data, FilterMode::Any));
         self
     }
 
-    /// Constrain the iterator to only return annotations that have data that corresponds with the passed data.
+    /// Constrain the iterator to only return annotations that have data that corresponds with any of the items in the passed data.
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     /// If you have a owned data, use [`Self::filter_data()`] instead.
+    /// If you want to check whether multiple data are ALL found in a single annotation, then use [`Self::filter_data_byref_multi()`].
     ///
     /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(data.annotations())`.
     pub fn filter_data_byref(mut self, data: &'store Data<'store>) -> Self {
-        self.filters.push(Filter::BorrowedData(data));
+        self.filters
+            .push(Filter::BorrowedData(data, FilterMode::Any));
+        self
+    }
+
+    /// Constrain the iterator to only return annotations that, in a single annotation, has data that corresponds with *ALL* of the items in the passed data.
+    /// All items have to be found or none will be returned.
+    ///
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    /// If you have a borrowed reference, use [`Self::filter_data_byref_multi()`] instead.
+    /// If you want to check for *ANY* match rather than requiring multiple matches in a single annotation, then use [`Self::filter_data()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    pub fn filter_data_multi(mut self, data: Data<'store>) -> Self {
+        self.filters.push(Filter::Data(data, FilterMode::All));
+        self
+    }
+
+    /// Constrain the iterator to only return annotations that, in a single annotation, has data that corresponds with *ALL* of the items in the passed data.
+    /// All items have to be found or none will be returned.
+    ///
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    /// If you have owned data, use [`Self::filter_data_multi()`] instead.
+    /// If you want to check for *ANY* match rather than requiring multiple matches in a single annotation, then use [`Self::filter_data_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    pub fn filter_data_byref_multi(mut self, data: &'store Data<'store>) -> Self {
+        self.filters
+            .push(Filter::BorrowedData(data, FilterMode::All));
         self
     }
 
@@ -779,17 +809,37 @@ impl<'store> AnnotationsIter<'store> {
                     }
                     datafilter = datafilter.map(|dataiter| dataiter.filter_handle(*set, *data));
                 }
-                Filter::Data(data) => {
+                Filter::Data(data, FilterMode::Any) => {
                     if datafilter.is_none() {
                         datafilter = Some(annotation.data());
                     }
                     datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
                 }
-                Filter::BorrowedData(data) => {
+                Filter::BorrowedData(data, FilterMode::Any) => {
                     if datafilter.is_none() {
                         datafilter = Some(annotation.data());
                     }
                     datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
+                }
+                Filter::Data(data, FilterMode::All) => {
+                    if datafilter.is_none() {
+                        datafilter = Some(annotation.data());
+                    }
+                    let expected_count = data.len();
+                    if datafilter.unwrap().filter_data(data.iter()).count() != expected_count {
+                        return false;
+                    }
+                    datafilter = None;
+                }
+                Filter::BorrowedData(data, FilterMode::All) => {
+                    if datafilter.is_none() {
+                        datafilter = Some(annotation.data());
+                    }
+                    let expected_count = data.len();
+                    if datafilter.unwrap().filter_data(data.iter()).count() != expected_count {
+                        return false;
+                    }
+                    datafilter = None;
                 }
                 Filter::TextSelectionOperator(operator) => {
                     if !annotation.related_text(*operator).test() {
@@ -862,10 +912,10 @@ impl<'store> Iterator for AnnotationsWithDataIter<'store> {
                                 Filter::AnnotationData(set, data) => {
                                     dataiter = dataiter.filter_handle(*set, *data);
                                 }
-                                Filter::Data(data) => {
+                                Filter::Data(data, _) => {
                                     dataiter = dataiter.filter_data(data.iter());
                                 }
-                                Filter::BorrowedData(data) => {
+                                Filter::BorrowedData(data, _) => {
                                     dataiter = dataiter.filter_data(data.iter());
                                 }
                                 _ => {}
