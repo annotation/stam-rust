@@ -6,6 +6,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::api::{AnnotationsIter, DataIter, TextSelectionsIter};
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
+use crate::store::*;
 use crate::textselection::TextSelectionOperator;
 use crate::AnnotationDataSetHandle;
 use crate::TextResourceHandle;
@@ -29,6 +30,11 @@ pub struct Query<'a> {
 
 #[derive(Debug)]
 pub enum Constraint<'a> {
+    TextResource(&'a str),
+    DataKey {
+        set: &'a str,
+        key: &'a str,
+    },
     FindData {
         set: &'a str,
         key: &'a str,
@@ -40,6 +46,8 @@ pub enum Constraint<'a> {
 impl<'a> Constraint<'a> {
     pub fn keyword(&self) -> &'static str {
         match self {
+            Self::TextResource { .. } => "RESOURCE",
+            Self::DataKey { .. } => "DATA",
             Self::FindData { .. } => "DATA",
             Self::Text { .. } => "TEXT",
         }
@@ -58,13 +66,13 @@ impl<'a> Constraint<'a> {
                 let (set, remainder, _) = get_arg(querystring)?;
                 let (key, remainder, _) = get_arg(remainder)?;
                 querystring = remainder;
-                let operator = if querystring.is_empty() {
-                    DataOperator::Any
+                if querystring.is_empty() {
+                    Self::DataKey { set, key }
                 } else {
                     let (opstr, remainder, _) = get_arg(querystring)?;
                     let (value, remainder, valuetype) = get_arg(remainder)?;
                     querystring = remainder;
-                    match (opstr, valuetype) {
+                    let operator = match (opstr, valuetype) {
                         ("=", ArgType::String) => DataOperator::Equals(value),
                         ("=", ArgType::Integer) => DataOperator::EqualsInt(
                             value.parse().expect("str->int conversion should work"),
@@ -115,9 +123,9 @@ impl<'a> Constraint<'a> {
                             DataOperator::Or(values)
                         }
                         _ => return Err(StamError::QuerySyntaxError(format!("Invalid combination of operator and value: '{}' and '{}', type {:?}", opstr,value,valuetype), ""))
-                    }
-                };
-                Self::FindData { set, key, operator }
+                    };
+                    Self::FindData { set, key, operator }
+                }
             }
             Some(x) => {
                 return Err(StamError::QuerySyntaxError(
@@ -160,7 +168,7 @@ impl<'a> Query<'a> {
 impl<'a> TryFrom<&'a str> for Query<'a> {
     type Error = StamError;
     fn try_from(mut querystring: &'a str) -> Result<Self, Self::Error> {
-        let mut end: usize = 0;
+        let mut end: usize;
         if let Some("SELECT") = querystring.split(" ").next() {
             end = 7;
         } else {
@@ -250,16 +258,31 @@ impl<'store> AnnotationStore {
         match query.resulttype {
             Some(Type::Annotation) => {
                 let mut iter = match constraintsiter.next() {
+                    Some(&Constraint::TextResource(res)) => {
+                        self.resource(res).or_fail()?.annotations()
+                    }
+                    Some(&Constraint::DataKey { set, key }) => {
+                        self.find_data(set, key, DataOperator::Any).annotations()
+                    }
                     Some(&Constraint::FindData {
                         set,
                         key,
                         ref operator,
                     }) => self.find_data(set, key, operator.clone()).annotations(),
-                    Some(&Constraint::Text(text)) => todo!("implement store.find_text()"),
+                    Some(&Constraint::Text(text)) => {
+                        TextSelectionsIter::new_with_iterator(Box::new(self.find_text(text)), self)
+                            .annotations()
+                    }
                     None => self.annotations(),
                 };
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
+                        &Constraint::TextResource(res) => {
+                            iter = iter.filter_resource(&self.resource(res).or_fail()?);
+                        }
+                        &Constraint::DataKey { set, key } => {
+                            iter = iter.filter_find_data(set, key, DataOperator::Any)
+                        }
                         &Constraint::FindData {
                             set,
                             key,
@@ -267,6 +290,7 @@ impl<'store> AnnotationStore {
                         } => {
                             iter = iter.filter_find_data(set, key, operator.clone());
                         }
+                        &Constraint::Text(text) => iter = iter.filter_text_byref(text, true, " "),
                         c => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -287,9 +311,12 @@ impl<'store> AnnotationStore {
                         key,
                         ref operator,
                     }) => self.find_data(set, key, operator.clone()),
-                    Some(Constraint::Text(..)) => {
+                    Some(c) => {
                         return Err(StamError::QuerySyntaxError(
-                            format!("TEXT constraint is not valid for DATA return type"),
+                            format!(
+                                "Constraint {} is not valid for DATA return type",
+                                c.keyword()
+                            ),
                             "",
                         ))
                     }
@@ -317,8 +344,8 @@ impl<'store> AnnotationStore {
                 }
                 Ok(ResultIter::Data(iter))
             }
+            None => unreachable!("Query must have a result type"),
             _ => unimplemented!("Query result type not implemented"),
-            None => unreachable!("query must have a result type"),
         }
     }
 }
