@@ -70,6 +70,9 @@ pub enum StamError {
     /// This error is raised when there is an error in regular expressions
     RegexError(regex::Error, &'static str),
 
+    /// A syntax error in query syntax
+    QuerySyntaxError(String, &'static str),
+
     SerializationError(String),
     DeserializationError(String),
 
@@ -156,6 +159,13 @@ impl From<&StamError> for String {
             }
             StamError::RegexError(err, contextmsg) => {
                 format!("RegexError: {} ({})", err, contextmsg)
+            }
+            StamError::QuerySyntaxError(err, contextmsg) => {
+                format!(
+                    "QuerySyntaxError: Malformed query: {} ({})",
+                    err.as_str(),
+                    contextmsg
+                )
             }
             StamError::SerializationError(err) => {
                 format!("SerializationError: Serialization failed: {}", err)
