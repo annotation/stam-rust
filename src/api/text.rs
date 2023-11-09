@@ -14,7 +14,7 @@
 use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;
 use crate::error::StamError;
-use crate::resources::TextResource;
+use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::Offset;
 use crate::store::*;
 use crate::text::Text;
@@ -302,7 +302,9 @@ where
     /// [`FindText::textselection()`] and then run [`FindText::find_text()`] on that instead.
     fn find_text<'fragment>(&self, fragment: &'fragment str) -> FindTextIter<'store, 'fragment> {
         FindTextIter {
-            resource: self.clone(),
+            store: self.rootstore(),
+            resources: smallvec!(self.handle()),
+            resourcecursor: 0,
             fragment,
             offset: Offset::whole(),
         }
@@ -460,7 +462,9 @@ where
         fragment: &'fragment str,
     ) -> FindTextIter<'store, 'fragment> {
         FindTextIter {
-            resource: self.resource(),
+            store: self.rootstore(),
+            resources: smallvec!(self.resource().handle()),
+            resourcecursor: 0,
             fragment,
             offset: Offset::from(self),
         }
@@ -648,7 +652,9 @@ where
         fragment: &'fragment str,
     ) -> FindTextIter<'store, 'fragment> {
         FindTextIter {
-            resource: self.resource(),
+            store: self.rootstore(),
+            resources: smallvec!(self.resource().handle()),
+            resourcecursor: 0,
             fragment,
             offset: Offset::from(self),
         }
@@ -714,6 +720,23 @@ impl AnnotationStore {
                     .ok() //ignore errors!
             })
             .flatten()
+    }
+
+    pub fn find_text<'store, 'fragment>(
+        &'store self,
+        fragment: &'fragment str,
+    ) -> FindTextIter<'store, 'fragment> {
+        FindTextIter {
+            store: self,
+            resources: self
+                .resources
+                .iter()
+                .filter_map(|x| x.as_ref().map(|res| res.handle().unwrap()))
+                .collect(),
+            resourcecursor: 0,
+            fragment,
+            offset: Offset::whole(),
+        }
     }
 }
 
@@ -1037,49 +1060,57 @@ impl<'store, 'regex> FindRegexIter<'store, 'regex> {
 
 /// This iterator is produced by [`FindText::find_text()`] and searches a text for a single fragment
 pub struct FindTextIter<'a, 'b> {
-    pub(crate) resource: ResultItem<'a, TextResource>,
+    pub(crate) store: &'a AnnotationStore,
+    pub(crate) resources: SmallVec<[TextResourceHandle; 1]>,
     pub(crate) fragment: &'b str,
+    pub(crate) resourcecursor: usize,
     pub(crate) offset: Offset,
 }
 
 impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
     type Item = ResultTextSelection<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
-            let beginbytepos = self
-                .resource
-                .subslice_utf8_offset(text)
-                .expect("bytepos must be valid");
-            if let Some(foundbytepos) = text.find(self.fragment) {
-                let endbytepos = foundbytepos + self.fragment.len();
-                let newbegin = self
-                    .resource
-                    .utf8byte_to_charpos(beginbytepos + foundbytepos)
-                    .expect("utf-8 byte must resolve to valid charpos");
-                let newend = self
-                    .resource
-                    .utf8byte_to_charpos(beginbytepos + endbytepos)
-                    .expect("utf-8 byte must resolve to valid charpos");
-                //set offset for next run
-                self.offset = Offset {
-                    begin: Cursor::BeginAligned(newend),
-                    end: self.offset.end,
-                };
-                match self
-                    .resource
-                    .textselection(&Offset::simple(newbegin, newend))
-                {
-                    Ok(textselection) => Some(textselection),
-                    Err(e) => {
-                        eprintln!("WARNING: FindTextIter ended prematurely: {}", e);
-                        None
+        loop {
+            if let Some(resourcehandle) = self.resources.get(self.resourcecursor).copied() {
+                let resource = self
+                    .store
+                    .resource(resourcehandle)
+                    .expect("resource must exist");
+                if let Some(text) = resource.text_by_offset(&self.offset).ok() {
+                    let beginbytepos = resource
+                        .subslice_utf8_offset(text)
+                        .expect("bytepos must be valid");
+                    if let Some(foundbytepos) = text.find(self.fragment) {
+                        let endbytepos = foundbytepos + self.fragment.len();
+                        let newbegin = resource
+                            .utf8byte_to_charpos(beginbytepos + foundbytepos)
+                            .expect("utf-8 byte must resolve to valid charpos");
+                        let newend = resource
+                            .utf8byte_to_charpos(beginbytepos + endbytepos)
+                            .expect("utf-8 byte must resolve to valid charpos");
+                        //set offset for next run
+                        self.offset = Offset {
+                            begin: Cursor::BeginAligned(newend),
+                            end: self.offset.end,
+                        };
+                        match resource.textselection(&Offset::simple(newbegin, newend)) {
+                            Ok(textselection) => return Some(textselection),
+                            Err(e) => {
+                                eprintln!("WARNING: FindTextIter ended prematurely: {}", e);
+                                return None;
+                            }
+                        }
+                    } else {
+                        self.resourcecursor += 1;
+                        self.offset = Offset::whole();
                     }
+                } else {
+                    self.resourcecursor += 1;
+                    self.offset = Offset::whole();
                 }
             } else {
-                None
+                return None;
             }
-        } else {
-            None
         }
     }
 }
