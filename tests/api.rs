@@ -1891,3 +1891,25 @@ fn query_parse2() -> Result<(), StamError> {
     assert_eq!(count, 1);
     Ok(())
 }
+
+#[test]
+fn query() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
+    let mut count = 0;
+    let refdata = store
+        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .next()
+        .expect("reference data must exist");
+    match store.query(query)? {
+        ResultIter::Annotations(iter) => {
+            for annotation in iter {
+                assert!(annotation.has_data(&refdata));
+                count += 1;
+            }
+        }
+        _ => assert!(false, "wrong return type"),
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
