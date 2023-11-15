@@ -271,6 +271,7 @@ impl<'store> AnnotationStore {
     pub fn query(&'store self, query: Query<'store>) -> Result<ResultIter<'store>, StamError> {
         let mut constraintsiter = query.constraints.iter();
         match query.resulttype {
+            /////////////////////////////////////////////////////////////////////////
             Some(Type::Annotation) => {
                 let mut iter = match constraintsiter.next() {
                     Some(&Constraint::TextResource(res)) => {
@@ -320,6 +321,60 @@ impl<'store> AnnotationStore {
                 }
                 Ok(ResultIter::Annotations(iter))
             }
+            /////////////////////////////////////////////////////////////////////////
+            Some(Type::TextSelection) => {
+                let mut iter = match constraintsiter.next() {
+                    Some(&Constraint::TextResource(res)) => {
+                        self.resource(res).or_fail()?.annotations().textselections()
+                    }
+                    Some(&Constraint::DataKey { set, key }) => self
+                        .find_data(set, key, DataOperator::Any)
+                        .annotations()
+                        .textselections(),
+                    Some(&Constraint::FindData {
+                        set,
+                        key,
+                        ref operator,
+                    }) => self
+                        .find_data(set, key, operator.clone())
+                        .annotations()
+                        .textselections(),
+                    Some(&Constraint::Text(text)) => {
+                        TextSelectionsIter::new_with_iterator(Box::new(self.find_text(text)), self)
+                    }
+                    Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
+                    None => self.annotations().textselections(),
+                };
+                while let Some(constraint) = constraintsiter.next() {
+                    match constraint {
+                        &Constraint::TextResource(res) => {
+                            iter = iter.filter_resource(&self.resource(res).or_fail()?);
+                        }
+                        &Constraint::DataKey { set, key } => {
+                            iter = iter.filter_find_data(set, key, DataOperator::Any)
+                        }
+                        &Constraint::FindData {
+                            set,
+                            key,
+                            ref operator,
+                        } => {
+                            iter = iter.filter_find_data(set, key, operator.clone());
+                        }
+                        &Constraint::Text(text) => iter = iter.filter_text_byref(text, true),
+                        c => {
+                            return Err(StamError::QuerySyntaxError(
+                                format!(
+                                    "Constraint {} is not implemented for queries over annotations",
+                                    c.keyword()
+                                ),
+                                "",
+                            ))
+                        }
+                    }
+                }
+                Ok(ResultIter::TextSelections(iter))
+            }
+            /////////////////////////////////////////////////////////////////////////
             Some(Type::AnnotationData) => {
                 let mut iter = match constraintsiter.next() {
                     Some(&Constraint::FindData {
