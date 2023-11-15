@@ -1805,3 +1805,67 @@ fn ex7_textselections_scale_test_succeeds() -> Result<(), StamError> {
 
     Ok(())
 }
+
+#[test]
+fn query_parse() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA set key = value;";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::FindData { set, key, operator } = constraint {
+            assert_eq!(*set, "set");
+            assert_eq!(*key, "key");
+            assert_eq!(*operator, DataOperator::Equals("value"));
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn query_parse_quoted() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\" = \"value\";";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::FindData { set, key, operator } = constraint {
+            assert_eq!(*set, "set");
+            assert_eq!(*key, "key");
+            assert_eq!(*operator, DataOperator::Equals("value"));
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn query_parse2() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE TEXT blah;";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::Text(value) = constraint {
+            assert_eq!(*value, "blah");
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}

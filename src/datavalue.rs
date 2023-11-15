@@ -81,7 +81,7 @@ impl DataSize for DataValue {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 /// This type defines a test that can be done on a [`DataValue`] (via [`DataValue::test()`]).
 /// The operator does not merely consist of the operator-part, but also holds the value that is tested against, which may
 /// be one of various types, hence the many variants of this type.
