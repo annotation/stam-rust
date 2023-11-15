@@ -26,6 +26,7 @@ pub struct Query<'a> {
     querytype: QueryType,
     resulttype: Option<Type>,
     constraints: Vec<Constraint<'a>>,
+    subqueries: Vec<Query<'a>>,
 }
 
 #[derive(Debug)]
@@ -34,6 +35,13 @@ pub enum Constraint<'a> {
     DataKey {
         set: &'a str,
         key: &'a str,
+    },
+    DataVariable(&'a str),
+    ResourceVariable(&'a str),
+    TextVariable(&'a str),
+    TextRelation {
+        var: &'a str,
+        operator: TextSelectionOperator,
     },
     FindData {
         set: &'a str,
@@ -48,9 +56,10 @@ pub enum Constraint<'a> {
 impl<'a> Constraint<'a> {
     pub fn keyword(&self) -> &'static str {
         match self {
-            Self::TextResource { .. } => "RESOURCE",
-            Self::FindData { .. } | Self::DataKey { .. } => "DATA",
-            Self::Text { .. } => "TEXT",
+            Self::TextResource { .. } | Self::ResourceVariable(..) => "RESOURCE",
+            Self::TextRelation { .. } => "RELATION",
+            Self::FindData { .. } | Self::DataKey { .. } | Self::DataVariable(..) => "DATA",
+            Self::Text { .. } | Self::TextVariable(..) => "TEXT",
             Self::Union { .. } => "UNION",
         }
     }
@@ -58,75 +67,133 @@ impl<'a> Constraint<'a> {
     pub(crate) fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
         let constraint = match querystring.split(" ").next() {
             Some("TEXT") => {
-                querystring = querystring[4..].trim_start();
+                querystring = querystring["TEXT".len()..].trim_start();
                 let (arg, remainder, _) = get_arg(querystring)?;
                 querystring = remainder;
-                Self::Text(arg)
+                if arg.starts_with("?") && arg.len() > 1 {
+                    Self::TextVariable(&arg[1..])
+                } else {
+                    Self::Text(arg)
+                }
+            }
+            Some("RESOURCE") => {
+                querystring = querystring["RESOURCE".len()..].trim_start();
+                let (arg, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                if arg.starts_with("?") && arg.len() > 1 {
+                    Self::ResourceVariable(&arg[1..])
+                } else {
+                    Self::TextResource(arg)
+                }
+            }
+            Some("RELATION") => {
+                querystring = querystring["RELATION".len()..].trim_start();
+                let (var, remainder, _) = get_arg(querystring)?;
+                if !var.starts_with("?") {
+                    return Err(StamError::QuerySyntaxError(
+                        format!(
+                            "Expected variable after 'RELATION' keyword, got '{}'",
+                            remainder.split(" ").next().unwrap_or("(empty string)")
+                        ),
+                        "",
+                    ));
+                }
+                querystring = remainder;
+                let (op, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                let operator = match op {
+                    "EQUALS" => TextSelectionOperator::equals(),
+                    "EMBEDS" => TextSelectionOperator::embeds(),
+                    "EMBEDDED" => TextSelectionOperator::embedded(),
+                    "OVERLAPS" => TextSelectionOperator::overlaps(),
+                    "PRECEDES" => TextSelectionOperator::precedes(),
+                    "SUCCEEDS" => TextSelectionOperator::succeeds(),
+                    "SAMEBEGIN" => TextSelectionOperator::samebegin(),
+                    "SAMEEND" => TextSelectionOperator::sameend(),
+                    "BEFORE" => TextSelectionOperator::before(),
+                    "AFTER" => TextSelectionOperator::after(),
+                    _ => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                            "Expected text relation operator keyword for 'RELATION', got unexpected '{}'",
+                            op
+                        ),
+                            "",
+                        ))
+                    }
+                };
+                Self::TextRelation { var, operator }
             }
             Some("DATA") => {
-                querystring = querystring[4..].trim_start();
-                let (set, remainder, _) = get_arg(querystring)?;
-                let (key, remainder, _) = get_arg(remainder)?;
-                querystring = remainder;
-                if querystring.is_empty() {
-                    Self::DataKey { set, key }
-                } else {
-                    let (opstr, remainder, _) = get_arg(querystring)?;
-                    let (value, remainder, valuetype) = get_arg(remainder)?;
+                querystring = querystring["DATA".len()..].trim_start();
+                if querystring.starts_with("?") {
+                    let (var, remainder, _) = get_arg(querystring)?;
                     querystring = remainder;
-                    let operator = match (opstr, valuetype) {
-                        ("=", ArgType::String) => DataOperator::Equals(value),
-                        ("=", ArgType::Integer) => DataOperator::EqualsInt(
-                            value.parse().expect("str->int conversion should work"),
-                        ),
-                        ("=", ArgType::Float) => DataOperator::EqualsFloat(
-                            value.parse().expect("str->float conversion should work"),
-                        ),
-                        ("!=", ArgType::String) => {
-                            DataOperator::Not(Box::new(DataOperator::Equals(value)))
-                        }
-                        ("!=", ArgType::Integer) => {
-                            DataOperator::Not(Box::new(DataOperator::EqualsInt(
+                    Self::DataVariable(&var[1..])
+                } else {
+                    let (set, remainder, _) = get_arg(querystring)?;
+                    let (key, remainder, _) = get_arg(remainder)?;
+                    querystring = remainder;
+                    if querystring.is_empty() {
+                        Self::DataKey { set, key }
+                    } else {
+                        let (opstr, remainder, _) = get_arg(querystring)?;
+                        let (value, remainder, valuetype) = get_arg(remainder)?;
+                        querystring = remainder;
+                        let operator = match (opstr, valuetype) {
+                            ("=", ArgType::String) => DataOperator::Equals(value),
+                            ("=", ArgType::Integer) => DataOperator::EqualsInt(
                                 value.parse().expect("str->int conversion should work"),
-                            )))
-                        }
-                        ("!=", ArgType::Float) => {
-                            DataOperator::Not(Box::new(DataOperator::EqualsFloat(
+                            ),
+                            ("=", ArgType::Float) => DataOperator::EqualsFloat(
                                 value.parse().expect("str->float conversion should work"),
-                            )))
-                        }
-                        (">", ArgType::Integer) => DataOperator::GreaterThan(
-                            value.parse().expect("str->int conversion should work"),
-                        ),
-                        (">=", ArgType::Integer) => DataOperator::GreaterThanOrEqual(
-                            value.parse().expect("str->int conversion should work"),
-                        ),
-                        ("<", ArgType::Integer) => DataOperator::LessThan(
-                            value.parse().expect("str->int conversion should work"),
-                        ),
-                        ("<=", ArgType::Integer) => DataOperator::LessThanOrEqual(
-                            value.parse().expect("str->int conversion should work"),
-                        ),
-                        (">", ArgType::Float) => DataOperator::GreaterThanFloat(
-                            value.parse().expect("str->float conversion should work"),
-                        ),
-                        (">=", ArgType::Float) => DataOperator::GreaterThanOrEqualFloat(
-                            value.parse().expect("str->float conversion should work"),
-                        ),
-                        ("<", ArgType::Float) => DataOperator::LessThanFloat(
-                            value.parse().expect("str->float conversion should work"),
-                        ),
-                        ("<=", ArgType::Float) => DataOperator::LessThanOrEqualFloat(
-                            value.parse().expect("str->float conversion should work"),
-                        ),
-                        ("=", ArgType::List) => {
-                            let values: Vec<_> =
-                                value.split("|").map(|x| DataOperator::Equals(x)).collect();
-                            DataOperator::Or(values)
-                        }
-                        _ => return Err(StamError::QuerySyntaxError(format!("Invalid combination of operator and value: '{}' and '{}', type {:?}", opstr,value,valuetype), ""))
-                    };
-                    Self::FindData { set, key, operator }
+                            ),
+                            ("!=", ArgType::String) => {
+                                DataOperator::Not(Box::new(DataOperator::Equals(value)))
+                            }
+                            ("!=", ArgType::Integer) => {
+                                DataOperator::Not(Box::new(DataOperator::EqualsInt(
+                                    value.parse().expect("str->int conversion should work"),
+                                )))
+                            }
+                            ("!=", ArgType::Float) => {
+                                DataOperator::Not(Box::new(DataOperator::EqualsFloat(
+                                    value.parse().expect("str->float conversion should work"),
+                                )))
+                            }
+                            (">", ArgType::Integer) => DataOperator::GreaterThan(
+                                value.parse().expect("str->int conversion should work"),
+                            ),
+                            (">=", ArgType::Integer) => DataOperator::GreaterThanOrEqual(
+                                value.parse().expect("str->int conversion should work"),
+                            ),
+                            ("<", ArgType::Integer) => DataOperator::LessThan(
+                                value.parse().expect("str->int conversion should work"),
+                            ),
+                            ("<=", ArgType::Integer) => DataOperator::LessThanOrEqual(
+                                value.parse().expect("str->int conversion should work"),
+                            ),
+                            (">", ArgType::Float) => DataOperator::GreaterThanFloat(
+                                value.parse().expect("str->float conversion should work"),
+                            ),
+                            (">=", ArgType::Float) => DataOperator::GreaterThanOrEqualFloat(
+                                value.parse().expect("str->float conversion should work"),
+                            ),
+                            ("<", ArgType::Float) => DataOperator::LessThanFloat(
+                                value.parse().expect("str->float conversion should work"),
+                            ),
+                            ("<=", ArgType::Float) => DataOperator::LessThanOrEqualFloat(
+                                value.parse().expect("str->float conversion should work"),
+                            ),
+                            ("=", ArgType::List) => {
+                                let values: Vec<_> =
+                                    value.split("|").map(|x| DataOperator::Equals(x)).collect();
+                                DataOperator::Or(values)
+                            }
+                            _ => return Err(StamError::QuerySyntaxError(format!("Invalid combination of operator and value: '{}' and '{}', type {:?}", opstr,value,valuetype), ""))
+                        };
+                        Self::FindData { set, key, operator }
+                    }
                 }
             }
             Some(x) => {
@@ -153,6 +220,7 @@ impl<'a> Query<'a> {
             querytype,
             resulttype,
             constraints: Vec::new(),
+            subqueries: Vec::new(),
         }
     }
 
@@ -177,11 +245,8 @@ impl<'a> Query<'a> {
     pub fn resulttype(&self) -> Option<Type> {
         self.resulttype
     }
-}
 
-impl<'a> TryFrom<&'a str> for Query<'a> {
-    type Error = StamError;
-    fn try_from(mut querystring: &'a str) -> Result<Self, Self::Error> {
+    pub fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
         let mut end: usize;
         if let Some("SELECT") = querystring.split(" ").next() {
             end = 7;
@@ -233,7 +298,7 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
         let mut constraints = Vec::new();
         match querystring.split(" ").next() {
             Some("WHERE") => querystring = querystring["WHERE".len()..].trim_start(),
-            Some("") | None => {} //no-op (select all, end of query, no where clause)
+            Some("{") | Some("") | None => {} //no-op (select all, end of query, no where clause)
             _ => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -244,17 +309,56 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
                 ));
             }
         }
-        while !querystring.is_empty() {
+
+        //parse constraints
+        while !querystring.is_empty() && querystring.trim_start().chars().nth(0) != Some('{') {
             let (constraint, remainder) = Constraint::parse(querystring)?;
             querystring = remainder;
             constraints.push(constraint);
         }
-        Ok(Self {
-            name,
-            querytype: QueryType::Select,
-            resulttype,
-            constraints,
-        })
+
+        //parse subqueries
+        let mut subqueries = Vec::new();
+        if querystring.trim_start().chars().nth(0) == Some('{') {
+            querystring = &querystring[1..].trim_start();
+            while querystring.starts_with("SELECT") {
+                let (subquery, remainder) = Self::parse(querystring)?;
+                subqueries.push(subquery);
+                querystring = remainder.trim_start();
+            }
+            if querystring.trim_start().chars().nth(0) == Some('}') {
+                querystring = &querystring[1..].trim_start();
+            } else {
+                return Err(StamError::QuerySyntaxError(
+                    "Missing '}' to close subqueries block".to_string(),
+                    "",
+                ));
+            }
+        }
+        Ok((
+            Self {
+                name,
+                querytype: QueryType::Select,
+                resulttype,
+                constraints,
+                subqueries,
+            },
+            querystring,
+        ))
+    }
+}
+
+impl<'a> TryFrom<&'a str> for Query<'a> {
+    type Error = StamError;
+    fn try_from(querystring: &'a str) -> Result<Self, Self::Error> {
+        let (query, remainder) = Query::parse(querystring)?;
+        if !remainder.trim().is_empty() {
+            return Err(StamError::QuerySyntaxError(
+                format!("Expected end of statement, got '{}'", remainder),
+                "",
+            ));
+        }
+        Ok(query)
     }
 }
 
@@ -263,6 +367,11 @@ pub enum ResultIter<'a> {
     Annotations(AnnotationsIter<'a>),
     Data(DataIter<'a>),
     TextSelections(TextSelectionsIter<'a>),
+}
+
+/// Execution context for queries
+struct QueryContext<'a, 'q> {
+    stack: Vec<(&'q Query<'a>, ResultIter<'a>)>,
 }
 
 impl<'store> AnnotationStore {
