@@ -13,10 +13,12 @@
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
-use crate::annotationdataset::AnnotationDataSetHandle;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::{Annotations, AnnotationsIter};
 use crate::api::annotationdata::Data;
+use crate::datakey::DataKey;
+use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle, TextSelectionIter};
 use crate::selector::{Offset, OffsetMode};
@@ -905,6 +907,25 @@ impl<'store> TextSelectionsIter<'store> {
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
         self.filters.push(Filter::Data(data, FilterMode::Any));
         self
+    }
+
+    /// Constrain the iterator to only return text selections targeted by annotations that have data matching the search parameters.
+    /// This is a just shortcut method for `self.filter_data( store.find_data(..).to_collection() )`
+    ///
+    /// Note: This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    ////      Do not call this method in a loop, it will be very inefficient! Compute it once before and cache it (`let data = store.find_data(..).to_collection()`), then
+    ///       pass the result to [`Self::filter_data(data.clone())`], the clone will be cheap.
+    pub fn filter_find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: DataOperator<'a>,
+    ) -> Self
+    where
+        'a: 'store,
+    {
+        let store = self.store;
+        self.filter_data(store.find_data(set, key, value).to_collection())
     }
 
     /// Constrain the iterator to only return textselections targeted by annotations that have data that corresponds with the passed data.
