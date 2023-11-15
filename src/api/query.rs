@@ -165,6 +165,18 @@ impl<'a> Query<'a> {
     pub fn iter(&self) -> std::slice::Iter<Constraint<'a>> {
         self.constraints.iter()
     }
+
+    pub fn name(&self) -> Option<&'a str> {
+        self.name
+    }
+
+    pub fn querytype(&self) -> QueryType {
+        self.querytype
+    }
+
+    pub fn resulttype(&self) -> Option<Type> {
+        self.resulttype
+    }
 }
 
 impl<'a> TryFrom<&'a str> for Query<'a> {
@@ -220,7 +232,7 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
         }
         let mut constraints = Vec::new();
         match querystring.split(" ").next() {
-            Some("WHERE") => querystring = querystring[end..].trim_start(),
+            Some("WHERE") => querystring = querystring["WHERE".len()..].trim_start(),
             Some("") | None => {} //no-op (select all, end of query, no where clause)
             _ => {
                 return Err(StamError::QuerySyntaxError(
