@@ -41,15 +41,17 @@ pub enum Constraint<'a> {
         operator: DataOperator<'a>,
     },
     Text(&'a str),
+    /// Disjunction
+    Union(Vec<Constraint<'a>>),
 }
 
 impl<'a> Constraint<'a> {
     pub fn keyword(&self) -> &'static str {
         match self {
             Self::TextResource { .. } => "RESOURCE",
-            Self::DataKey { .. } => "DATA",
-            Self::FindData { .. } => "DATA",
+            Self::FindData { .. } | Self::DataKey { .. } => "DATA",
             Self::Text { .. } => "TEXT",
+            Self::Union { .. } => "UNION",
         }
     }
 
@@ -244,6 +246,7 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
     }
 }
 
+/// This type abstracts over all the main iterators
 pub enum ResultIter<'a> {
     Annotations(AnnotationsIter<'a>),
     Data(DataIter<'a>),
@@ -273,6 +276,7 @@ impl<'store> AnnotationStore {
                         TextSelectionsIter::new_with_iterator(Box::new(self.find_text(text)), self)
                             .annotations()
                     }
+                    Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
                     None => self.annotations(),
                 };
                 while let Some(constraint) = constraintsiter.next() {
@@ -395,7 +399,7 @@ fn get_arg_type(s: &str) -> ArgType {
     }
 }
 
-fn get_arg<'a>(mut querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), StamError> {
+fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), StamError> {
     let mut quote = false;
     let mut escaped = false;
     let mut begin = 0;

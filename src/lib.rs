@@ -75,7 +75,6 @@ mod datavalue;
 mod error;
 mod file;
 mod json;
-mod query;
 mod resources;
 mod selector;
 mod store;
