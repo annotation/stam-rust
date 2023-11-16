@@ -1901,14 +1901,16 @@ fn query() -> Result<(), StamError> {
         .find_data("myset", "type", DataOperator::Equals("phrase"))
         .next()
         .expect("reference data must exist");
-    match store.query(query)? {
-        ResultIter::Annotations(iter) => {
-            for annotation in iter {
-                assert!(annotation.has_data(&refdata));
-                count += 1;
+    for results in store.query(query) {
+        for result in results.iter() {
+            match result {
+                QueryResultItem::Annotation(annotation) => {
+                    count += 1;
+                    assert!(annotation.has_data(&refdata));
+                }
+                _ => assert!(false, "wrong return type"),
             }
         }
-        _ => assert!(false, "wrong return type"),
     }
     assert_eq!(count, 1);
     Ok(())

@@ -1,16 +1,18 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-use crate::annotation::AnnotationHandle;
-use crate::annotationdata::AnnotationDataHandle;
+use crate::annotation::{Annotation, AnnotationHandle};
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::{AnnotationsIter, DataIter, TextSelectionsIter};
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
-use crate::store::*;
 use crate::textselection::TextSelectionOperator;
 use crate::AnnotationDataSetHandle;
-use crate::TextResourceHandle;
+use crate::{store::*, ResultTextSelection};
 use crate::{types::*, DataOperator};
+use crate::{TextResource, TextResourceHandle};
+
+use smallvec::SmallVec;
 
 use std::borrow::Cow;
 
@@ -26,7 +28,7 @@ pub struct Query<'a> {
     querytype: QueryType,
     resulttype: Option<Type>,
     constraints: Vec<Constraint<'a>>,
-    subqueries: Vec<Query<'a>>,
+    subquery: Option<Box<Query<'a>>>,
 }
 
 #[derive(Debug)]
@@ -220,7 +222,7 @@ impl<'a> Query<'a> {
             querytype,
             resulttype,
             constraints: Vec::new(),
-            subqueries: Vec::new(),
+            subquery: None,
         }
     }
 
@@ -317,20 +319,20 @@ impl<'a> Query<'a> {
             constraints.push(constraint);
         }
 
-        //parse subqueries
-        let mut subqueries = Vec::new();
+        //parse subquery
+        let mut subquery = None;
         if querystring.trim_start().chars().nth(0) == Some('{') {
             querystring = &querystring[1..].trim_start();
-            while querystring.starts_with("SELECT") {
-                let (subquery, remainder) = Self::parse(querystring)?;
-                subqueries.push(subquery);
+            if querystring.starts_with("SELECT") {
+                let (sq, remainder) = Self::parse(querystring)?;
+                subquery = Some(Box::new(sq));
                 querystring = remainder.trim_start();
             }
             if querystring.trim_start().chars().nth(0) == Some('}') {
                 querystring = &querystring[1..].trim_start();
             } else {
                 return Err(StamError::QuerySyntaxError(
-                    "Missing '}' to close subqueries block".to_string(),
+                    "Missing '}' to close subquery block".to_string(),
                     "",
                 ));
             }
@@ -341,7 +343,7 @@ impl<'a> Query<'a> {
                 querytype: QueryType::Select,
                 resulttype,
                 constraints,
-                subqueries,
+                subquery,
             },
             querystring,
         ))
@@ -369,45 +371,147 @@ pub enum ResultIter<'a> {
     TextSelections(TextSelectionsIter<'a>),
 }
 
-/// Execution context for queries
-struct QueryContext<'a, 'q> {
-    stack: Vec<(&'q Query<'a>, ResultIter<'a>)>,
+#[derive(Clone, Debug)]
+pub enum QueryResultItem<'store> {
+    None,
+    TextSelection(ResultTextSelection<'store>),
+    Annotation(ResultItem<'store, Annotation>),
+    TextResource(ResultItem<'store, TextResource>),
+    AnnotationData(ResultItem<'store, AnnotationData>),
+}
+
+pub struct QueryState<'store> {
+    /// The iterator for the current query
+    iterator: ResultIter<'store>,
+
+    // note: this captures the result of the current state, in order to make it available for subsequent deeper iterators
+    result: QueryResultItem<'store>,
+}
+
+pub struct QueryIter<'store> {
+    store: &'store AnnotationStore,
+
+    /// A flattened representation of the queries
+    queries: Vec<Query<'store>>,
+
+    /// States in the stack hold iterators, each stack item corresponds to one further level of nesting
+    statestack: Vec<QueryState<'store>>,
+
+    /// Signals that we're done with the entire stack
+    done: bool,
+}
+
+/// Represents an entire result row, each result stems from a query
+pub struct QueryResultItems<'store> {
+    items: SmallVec<[QueryResultItem<'store>; 4]>,
 }
 
 impl<'store> AnnotationStore {
     /// Instantiates a query, returns an iterator.
     /// No actual querying is done yet until you use the iterator.
-    pub fn query(&'store self, query: Query<'store>) -> Result<ResultIter<'store>, StamError> {
+    pub fn query(&'store self, query: Query<'store>) -> QueryIter<'store> {
+        let mut iter = QueryIter {
+            store: self,
+            queries: Vec::new(),
+            statestack: Vec::new(),
+            done: false,
+        };
+        //flatten nested subqueries into an array
+        let mut query = Some(query);
+        while let Some(mut q) = query.take() {
+            let subquery = q.subquery.take();
+            iter.queries.push(q);
+            query = subquery.map(|x| *x);
+        }
+        iter
+    }
+}
+
+impl<'store> QueryIter<'store> {
+    pub fn store(&self) -> &'store AnnotationStore {
+        self.store
+    }
+
+    /// Initializes a new state
+    pub fn init_state(&mut self) -> Result<bool, StamError> {
+        let queryindex = self.statestack.len();
+        let query = self.queries.get(queryindex).expect("query must exist");
+        let store = self.store();
         let mut constraintsiter = query.constraints.iter();
-        match query.resulttype {
+
+        let iter = match query.resulttype {
             /////////////////////////////////////////////////////////////////////////
             Some(Type::Annotation) => {
                 let mut iter = match constraintsiter.next() {
                     Some(&Constraint::TextResource(res)) => {
-                        self.resource(res).or_fail()?.annotations()
+                        store.resource(res).or_fail()?.annotations()
+                    }
+                    Some(&Constraint::ResourceVariable(var)) => {
+                        let resource = self.resolve_resourcevar(var)?;
+                        resource.annotations()
                     }
                     Some(&Constraint::DataKey { set, key }) => {
-                        self.find_data(set, key, DataOperator::Any).annotations()
+                        store.find_data(set, key, DataOperator::Any).annotations()
+                    }
+                    Some(&Constraint::DataVariable(var)) => {
+                        let data = self.resolve_datavar(var)?;
+                        data.annotations()
                     }
                     Some(&Constraint::FindData {
                         set,
                         key,
                         ref operator,
-                    }) => self.find_data(set, key, operator.clone()).annotations(),
-                    Some(&Constraint::Text(text)) => {
-                        TextSelectionsIter::new_with_iterator(Box::new(self.find_text(text)), self)
-                            .annotations()
+                    }) => store.find_data(set, key, operator.clone()).annotations(),
+                    Some(&Constraint::Text(text)) => TextSelectionsIter::new_with_iterator(
+                        Box::new(store.find_text(text)),
+                        store,
+                    )
+                    .annotations(),
+                    Some(&Constraint::TextVariable(var)) => {
+                        if let Ok(tsel) = self.resolve_textvar(var) {
+                            tsel.annotations()
+                        } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                            annotation.textselections().annotations()
+                        } else {
+                            return Err(StamError::QuerySyntaxError(
+                                format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                                "",
+                            ));
+                        }
+                    }
+                    Some(&Constraint::TextRelation { var, operator }) => {
+                        if let Ok(tsel) = self.resolve_textvar(var) {
+                            tsel.related_text(operator).annotations()
+                        } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                            annotation
+                                .textselections()
+                                .related_text(operator)
+                                .annotations()
+                        } else {
+                            return Err(StamError::QuerySyntaxError(
+                                format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                                "",
+                            ));
+                        }
                     }
                     Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
-                    None => self.annotations(),
+                    None => store.annotations(),
                 };
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         &Constraint::TextResource(res) => {
-                            iter = iter.filter_resource(&self.resource(res).or_fail()?);
+                            iter = iter.filter_resource(&store.resource(res).or_fail()?);
+                        }
+                        &Constraint::ResourceVariable(varname) => {
+                            let resource = self.resolve_resourcevar(varname)?;
+                            iter = iter.filter_resource(resource);
                         }
                         &Constraint::DataKey { set, key } => {
                             iter = iter.filter_find_data(set, key, DataOperator::Any)
+                        }
+                        &Constraint::DataVariable(varname) => {
+                            let data = self.resolve_datavar(varname)?;
+                            iter = iter.filter_annotationdata(data);
                         }
                         &Constraint::FindData {
                             set,
@@ -417,6 +521,43 @@ impl<'store> AnnotationStore {
                             iter = iter.filter_find_data(set, key, operator.clone());
                         }
                         &Constraint::Text(text) => iter = iter.filter_text_byref(text, true, " "),
+                        &Constraint::TextVariable(var) => {
+                            if let Ok(tsel) = self.resolve_textvar(var) {
+                                iter = iter.filter_annotations(tsel.annotations())
+                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                                iter = iter
+                                    .filter_annotations(annotation.textselections().annotations())
+                            } else {
+                                return Err(StamError::QuerySyntaxError(
+                                    format!(
+                                        "Variable ?{} of type TEXT or ANNOTATION not found",
+                                        var
+                                    ),
+                                    "",
+                                ));
+                            }
+                        }
+                        &Constraint::TextRelation { var, operator } => {
+                            if let Ok(tsel) = self.resolve_textvar(var) {
+                                iter = iter
+                                    .filter_annotations(tsel.related_text(operator).annotations())
+                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                                iter = iter.filter_annotations(
+                                    annotation
+                                        .textselections()
+                                        .related_text(operator)
+                                        .annotations(),
+                                )
+                            } else {
+                                return Err(StamError::QuerySyntaxError(
+                                    format!(
+                                        "Variable ?{} of type TEXT or ANNOTATION not found",
+                                        var
+                                    ),
+                                    "",
+                                ));
+                            }
+                        }
                         c => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -433,31 +574,60 @@ impl<'store> AnnotationStore {
             /////////////////////////////////////////////////////////////////////////
             Some(Type::TextSelection) => {
                 let mut iter = match constraintsiter.next() {
-                    Some(&Constraint::TextResource(res)) => {
-                        self.resource(res).or_fail()?.annotations().textselections()
+                    Some(&Constraint::TextResource(res)) => store
+                        .resource(res)
+                        .or_fail()?
+                        .annotations()
+                        .textselections(),
+                    Some(&Constraint::ResourceVariable(varname)) => {
+                        let resource = self.resolve_resourcevar(varname)?;
+                        resource.textselections()
                     }
-                    Some(&Constraint::DataKey { set, key }) => self
+                    Some(&Constraint::DataKey { set, key }) => store
                         .find_data(set, key, DataOperator::Any)
                         .annotations()
                         .textselections(),
+                    Some(&Constraint::DataVariable(varname)) => {
+                        let data = self.resolve_datavar(varname)?;
+                        data.annotations().textselections()
+                    }
                     Some(&Constraint::FindData {
                         set,
                         key,
                         ref operator,
-                    }) => self
+                    }) => store
                         .find_data(set, key, operator.clone())
                         .annotations()
                         .textselections(),
-                    Some(&Constraint::Text(text)) => {
-                        TextSelectionsIter::new_with_iterator(Box::new(self.find_text(text)), self)
+                    Some(&Constraint::Text(text)) => TextSelectionsIter::new_with_iterator(
+                        Box::new(store.find_text(text)),
+                        store,
+                    ),
+                    Some(&Constraint::TextVariable(var)) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!("Constraint on TEXT ?{} is useless as a constraint", var),
+                            "",
+                        ));
+                    }
+                    Some(&Constraint::TextRelation { var, operator }) => {
+                        if let Ok(tsel) = self.resolve_textvar(var) {
+                            tsel.related_text(operator)
+                        } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                            annotation.textselections().related_text(operator)
+                        } else {
+                            return Err(StamError::QuerySyntaxError(
+                                format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                                "",
+                            ));
+                        }
                     }
                     Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
-                    None => self.annotations().textselections(),
+                    None => store.annotations().textselections(),
                 };
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         &Constraint::TextResource(res) => {
-                            iter = iter.filter_resource(&self.resource(res).or_fail()?);
+                            iter = iter.filter_resource(&store.resource(res).or_fail()?);
                         }
                         &Constraint::DataKey { set, key } => {
                             iter = iter.filter_find_data(set, key, DataOperator::Any)
@@ -470,6 +640,9 @@ impl<'store> AnnotationStore {
                             iter = iter.filter_find_data(set, key, operator.clone());
                         }
                         &Constraint::Text(text) => iter = iter.filter_text_byref(text, true),
+                        &Constraint::TextRelation { .. } => {
+                            todo!("implement"); //TODO!
+                        }
                         c => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -490,7 +663,7 @@ impl<'store> AnnotationStore {
                         set,
                         key,
                         ref operator,
-                    }) => self.find_data(set, key, operator.clone()),
+                    }) => store.find_data(set, key, operator.clone()),
                     Some(c) => {
                         return Err(StamError::QuerySyntaxError(
                             format!(
@@ -500,7 +673,7 @@ impl<'store> AnnotationStore {
                             "",
                         ))
                     }
-                    None => self.data(),
+                    None => store.data(),
                 };
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
@@ -509,7 +682,7 @@ impl<'store> AnnotationStore {
                             key,
                             ref operator,
                         } => {
-                            iter = iter.filter_data(self.find_data(set, key, operator.clone()));
+                            iter = iter.filter_data(store.find_data(set, key, operator.clone()));
                         }
                         c => {
                             return Err(StamError::QuerySyntaxError(
@@ -526,7 +699,183 @@ impl<'store> AnnotationStore {
             }
             None => unreachable!("Query must have a result type"),
             _ => unimplemented!("Query result type not implemented"),
+        }?;
+
+        self.statestack.push(QueryState {
+            iterator: iter,
+            result: QueryResultItem::None,
+        });
+        // Do the first iteration (may remove this and other elements from the stack again if it fails)
+        Ok(self.next_state())
+    }
+
+    /// Advances the query state on the stack, return true if a new result was obtained (stored in the state's result buffer),
+    /// Pops items off the stack if they no longer yield result.
+    /// If no result at all can be obtained anymore, false is returned.
+    pub fn next_state(&mut self) -> bool {
+        while !self.statestack.is_empty() {
+            if let Some(mut state) = self.statestack.pop() {
+                //we pop the state off the stack (we put it back again in cases where it's an undepleted iterator)
+                //but this allows us to take full ownership and not have a mutable borrow,
+                //which would get in the way as we also need to inspect prior results from the stack (immutably)
+                loop {
+                    match &mut state.iterator {
+                        ResultIter::TextSelections(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::TextSelection(result);
+                                self.statestack.push(state);
+                                return true;
+                            } else {
+                                break; //iterator depleted
+                            }
+                        }
+                        ResultIter::Annotations(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::Annotation(result);
+                                self.statestack.push(state);
+                                return true;
+                            } else {
+                                break; //iterator depleted
+                            }
+                        }
+                        ResultIter::Data(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::AnnotationData(result);
+                                self.statestack.push(state);
+                                return true;
+                            } else {
+                                break; //iterator depleted
+                            }
+                        }
+                        _ => unimplemented!("further iterators not implemented yet"), //TODO
+                    }
+                }
+            }
         }
+        //mark as done (otherwise the iterator would restart from scratch again)
+        self.done = true;
+        false
+    }
+
+    pub(crate) fn build_result(&self) -> QueryResultItems<'store> {
+        let mut items = SmallVec::new();
+        for stackitem in self.statestack.iter() {
+            items.push(stackitem.result.clone());
+        }
+        QueryResultItems { items }
+    }
+
+    fn resolve_datavar(
+        &self,
+        name: &str,
+    ) -> Result<&ResultItem<'store, AnnotationData>, StamError> {
+        for (i, state) in self.statestack.iter().enumerate() {
+            let query = self.queries.get(i).expect("query must exist");
+            if query.name() == Some(name) {
+                if let QueryResultItem::AnnotationData(data) = &state.result {
+                    return Ok(data);
+                }
+            }
+        }
+        return Err(StamError::QuerySyntaxError(
+            format!("Variable ?{} of type DATA not found", name),
+            "",
+        ));
+    }
+
+    fn resolve_annotationvar(
+        &self,
+        name: &str,
+    ) -> Result<&ResultItem<'store, Annotation>, StamError> {
+        for (i, state) in self.statestack.iter().enumerate() {
+            let query = self.queries.get(i).expect("query must exist");
+            if query.name() == Some(name) {
+                if let QueryResultItem::Annotation(annotation) = &state.result {
+                    return Ok(annotation);
+                }
+            }
+        }
+        return Err(StamError::QuerySyntaxError(
+            format!("Variable ?{} of type ANNOTATION not found", name),
+            "",
+        ));
+    }
+
+    fn resolve_textvar(&self, name: &str) -> Result<&ResultTextSelection<'store>, StamError> {
+        for (i, state) in self.statestack.iter().enumerate() {
+            let query = self.queries.get(i).expect("query must exist");
+            if query.name() == Some(name) {
+                if let QueryResultItem::TextSelection(textsel) = &state.result {
+                    return Ok(textsel);
+                }
+            }
+        }
+        return Err(StamError::QuerySyntaxError(
+            format!("Variable ?{} of type TEXT not found", name),
+            "",
+        ));
+    }
+
+    fn resolve_resourcevar(
+        &self,
+        name: &str,
+    ) -> Result<&ResultItem<'store, TextResource>, StamError> {
+        for (i, state) in self.statestack.iter().enumerate() {
+            let query = self.queries.get(i).expect("query must exist");
+            if query.name() == Some(name) {
+                if let QueryResultItem::TextResource(resource) = &state.result {
+                    return Ok(resource);
+                }
+            }
+        }
+        return Err(StamError::QuerySyntaxError(
+            format!("Variable ?{} of type RESOURCE not found", name),
+            "",
+        ));
+    }
+}
+
+impl<'store> Iterator for QueryIter<'store> {
+    type Item = QueryResultItems<'store>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            //iterator has been marked as done, do nothing else
+            return None;
+        }
+
+        //populate the entire stack, producing a result at each level
+        while self.statestack.len() < self.queries.len() {
+            match self.init_state() {
+                Ok(false) => {
+                    //if we didn't succeed in preparing the next iteration, it means the entire stack is depleted and we're done
+                    return None;
+                }
+                Err(e) => {
+                    eprintln!("STAM Query error: {}", e);
+                    return None;
+                }
+                Ok(true) => continue,
+            }
+        }
+
+        //read the result in the stack's result buffer
+        let result = self.build_result();
+
+        // prepare the result buffer for next iteration
+        self.next_state();
+
+        return Some(result);
+    }
+}
+
+impl<'store> QueryResultItems<'store> {
+    pub fn iter(&self) -> impl Iterator<Item = &QueryResultItem<'store>> {
+        self.items.iter()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&QueryResultItem<'store>> {
+        self.items.get(index)
     }
 }
 
