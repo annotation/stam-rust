@@ -640,8 +640,22 @@ impl<'store> QueryIter<'store> {
                             iter = iter.filter_find_data(set, key, operator.clone());
                         }
                         &Constraint::Text(text) => iter = iter.filter_text_byref(text, true),
-                        &Constraint::TextRelation { .. } => {
-                            todo!("implement"); //TODO!
+                        &Constraint::TextRelation { var, operator } => {
+                            if let Ok(tsel) = self.resolve_textvar(var) {
+                                iter = iter.filter_textselections(tsel.related_text(operator))
+                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                                iter = iter.filter_textselections(
+                                    annotation.textselections().related_text(operator),
+                                )
+                            } else {
+                                return Err(StamError::QuerySyntaxError(
+                                    format!(
+                                        "Variable ?{} of type TEXT or ANNOTATION not found",
+                                        var
+                                    ),
+                                    "",
+                                ));
+                            }
                         }
                         c => {
                             return Err(StamError::QuerySyntaxError(
