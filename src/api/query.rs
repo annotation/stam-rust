@@ -124,7 +124,10 @@ impl<'a> Constraint<'a> {
                         ))
                     }
                 };
-                Self::TextRelation { var, operator }
+                Self::TextRelation {
+                    var: &var[1..],
+                    operator,
+                }
             }
             Some("DATA") => {
                 querystring = querystring["DATA".len()..].trim_start();
@@ -231,6 +234,10 @@ impl<'a> Query<'a> {
         self
     }
 
+    pub fn subquery(&self) -> Option<&Query<'a>> {
+        self.subquery.as_deref()
+    }
+
     /// Iterates over all constraints in the Query
     pub fn iter(&self) -> std::slice::Iter<Constraint<'a>> {
         self.constraints.iter()
@@ -313,7 +320,10 @@ impl<'a> Query<'a> {
         }
 
         //parse constraints
-        while !querystring.is_empty() && querystring.trim_start().chars().nth(0) != Some('{') {
+        while !querystring.is_empty()
+            && querystring.trim_start().chars().nth(0) != Some('{')
+            && querystring.trim_start().chars().nth(0) != Some('}')
+        {
             let (constraint, remainder) = Constraint::parse(querystring)?;
             querystring = remainder;
             constraints.push(constraint);

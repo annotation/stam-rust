@@ -647,7 +647,7 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
 /// allowing you to compare two sets, each containing possibly multiple TextSelections, at once.
 ///
 /// Use the various methods on this type to quickly instantiate a variant.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TextSelectionOperator {
     /// Both sets cover the exact same TextSelections, and all are covered (cf. textfabric's `==`), commutative, transitive
     Equals { all: bool, negate: bool },
