@@ -37,6 +37,8 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+pub type TextSelections = Vec<(TextResourceHandle, TextSelectionHandle)>;
+
 /// This is the implementation of the high-level API for [`TextSelection`], though most of it is more commonly used via [`ResultTextSelection`].
 impl<'store> ResultItem<'store, TextSelection> {
     /// Return the begin position (unicode points)
@@ -596,10 +598,7 @@ impl<'store> TextSelectionsIter<'store> {
         }
     }
 
-    pub fn from_handles(
-        data: Vec<(TextResourceHandle, TextSelectionHandle)>,
-        store: &'store AnnotationStore,
-    ) -> Self {
+    pub fn from_handles(data: TextSelections, store: &'store AnnotationStore) -> Self {
         Self {
             source: TextSelectionsSource::LowVec(data.into_iter().collect()),
             store,
@@ -648,7 +647,7 @@ impl<'store> TextSelectionsIter<'store> {
         }
     }
 
-    /// Checks whether the textsections passes the filters (if any)
+    /// Checks whether the textselection passes the filters (if any)
     fn test_filters(&self, textselection: &ResultTextSelection<'store>) -> bool {
         if self.filters.is_empty() {
             return true;
@@ -760,7 +759,7 @@ impl<'store> TextSelectionsIter<'store> {
         true
     }
 
-    pub fn to_handles(self) -> Vec<(TextResourceHandle, TextSelectionHandle)> {
+    pub fn to_handles(self) -> TextSelections {
         match self.source {
             TextSelectionsSource::LowVec(v) => v.into_iter().collect(),
             _ => self
@@ -775,7 +774,7 @@ impl<'store> TextSelectionsIter<'store> {
         }
     }
 
-    pub fn to_handles_limit(self, limit: usize) -> Vec<(TextResourceHandle, TextSelectionHandle)> {
+    pub fn to_handles_limit(self, limit: usize) -> TextSelections {
         match self.source {
             TextSelectionsSource::LowVec(v) => v.into_iter().take(limit).collect(),
             _ => self
@@ -1012,6 +1011,23 @@ impl<'store> TextSelectionsIter<'store> {
     pub fn filter_resource_handle(mut self, handle: TextResourceHandle) -> Self {
         self.filters.push(Filter::TextResource(handle));
         self
+    }
+
+    /// Constrain this iterator to only return text selections that are also in the other collection
+    pub fn filter_textselections(self, textselections: TextSelectionsIter) -> Self {
+        let mut textselections: Vec<_> = textselections.to_handles();
+        textselections.sort_unstable();
+        let store = self.store;
+        TextSelectionsIter::new_with_iterator(
+            Box::new(self.filter(move |tsel| {
+                let handle = (tsel.resource().handle(), tsel.handle().unwrap());
+                match textselections.binary_search(&handle) {
+                    Ok(_) => true,
+                    Err(_) => false,
+                }
+            })),
+            store,
+        )
     }
 
     /// Find all text selections that are related to any text selections in this iterator, the operator
