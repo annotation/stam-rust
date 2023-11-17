@@ -3,7 +3,7 @@
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::{AnnotationsIter, DataIter, TextSelectionsIter};
+use crate::api::{AnnotationsIter, DataIter, ResourcesIter, TextSelectionsIter};
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
 use crate::textselection::TextSelectionOperator;
@@ -379,6 +379,7 @@ pub enum ResultIter<'a> {
     Annotations(AnnotationsIter<'a>),
     Data(DataIter<'a>),
     TextSelections(TextSelectionsIter<'a>),
+    Resources(ResourcesIter<'a>),
 }
 
 #[derive(Clone, Debug)]
@@ -451,6 +452,60 @@ impl<'store> QueryIter<'store> {
 
         let iter = match query.resulttype {
             /////////////////////////////////////////////////////////////////////////
+            Some(Type::TextResource) => {
+                let mut iter = match constraintsiter.next() {
+                    Some(&Constraint::DataKey { set, key }) => store
+                        .find_data(set, key, DataOperator::Any)
+                        .annotations()
+                        .resources(),
+                    Some(&Constraint::DataVariable(var)) => {
+                        let data = self.resolve_datavar(var)?;
+                        data.annotations().resources()
+                    }
+                    Some(&Constraint::FindData {
+                        set,
+                        key,
+                        ref operator,
+                    }) => store
+                        .find_data(set, key, operator.clone())
+                        .annotations()
+                        .resources(),
+                    Some(c) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                                "Constraint {} is not implemented for queries over resources",
+                                c.keyword()
+                            ),
+                            "",
+                        ))
+                    }
+                    None => store.resources(),
+                };
+                while let Some(constraint) = constraintsiter.next() {
+                    match constraint {
+                        &Constraint::DataKey { set, key } => {
+                            iter = iter.filter_find_data(set, key, DataOperator::Any)
+                        }
+                        &Constraint::FindData {
+                            set,
+                            key,
+                            ref operator,
+                        } => {
+                            iter = iter.filter_find_data(set, key, operator.clone());
+                        }
+                        c => {
+                            return Err(StamError::QuerySyntaxError(
+                                format!(
+                                    "Constraint {} is not implemented for queries over resources",
+                                    c.keyword()
+                                ),
+                                "",
+                            ))
+                        }
+                    }
+                }
+                Ok(ResultIter::Resources(iter))
+            }
             Some(Type::Annotation) => {
                 let mut iter = match constraintsiter.next() {
                     Some(&Constraint::TextResource(res)) => {
@@ -584,11 +639,9 @@ impl<'store> QueryIter<'store> {
             /////////////////////////////////////////////////////////////////////////
             Some(Type::TextSelection) => {
                 let mut iter = match constraintsiter.next() {
-                    Some(&Constraint::TextResource(res)) => store
-                        .resource(res)
-                        .or_fail()?
-                        .annotations()
-                        .textselections(),
+                    Some(&Constraint::TextResource(res)) => {
+                        store.resource(res).or_fail()?.textselections()
+                    }
                     Some(&Constraint::ResourceVariable(varname)) => {
                         let resource = self.resolve_resourcevar(varname)?;
                         resource.textselections()

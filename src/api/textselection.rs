@@ -17,6 +17,7 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::{Annotations, AnnotationsIter};
 use crate::api::annotationdata::Data;
+use crate::api::resources::ResourcesIter;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
@@ -748,7 +749,7 @@ impl<'store> TextSelectionsIter<'store> {
                         }
                     }
                 }
-                _ => unimplemented!("Filter {:?} not implemented for AnnotatationsIter", filter),
+                _ => unimplemented!("Filter {:?} not implemented for TextSelectionsIter", filter),
             }
         }
         if let Some(annotationfilter) = annotationfilter {
@@ -837,6 +838,18 @@ impl<'store> TextSelectionsIter<'store> {
             ),
             store,
         )
+    }
+
+    /// Iterate over the resources used by the text selections in this iterator. No duplicates are returned and results are in chronological order.
+    pub fn resources(self) -> ResourcesIter<'store> {
+        let mut resources: Vec<TextResourceHandle> = Vec::new();
+        let store = self.store;
+        for textselection in self {
+            resources.push(textselection.resource().handle())
+        }
+        resources.sort_unstable();
+        resources.dedup();
+        ResourcesIter::new(IntersectionIter::new(Cow::Owned(resources), true), store)
     }
 
     /// Filter by a single annotation. Only text selections will be returned that are a part of the specified annotation.
