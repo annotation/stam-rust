@@ -1937,3 +1937,35 @@ fn query() -> Result<(), StamError> {
     assert_eq!(count, 1);
     Ok(())
 }
+
+#[test]
+fn query_subquery() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; }".try_into()?;
+    let mut count = 0;
+    let refdata = store
+        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .next()
+        .expect("reference data must exist");
+    let refdata2 = store
+        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .next()
+        .expect("reference data must exist");
+    let queryresults = store.query(query);
+    let names = queryresults.names();
+    for results in queryresults {
+        count += 1;
+        if let QueryResultItem::Annotation(annotation) = results.get_by_name(&names, "phrase")? {
+            assert!(annotation.has_data(&refdata));
+        } else {
+            assert!(false, "did not get phrase");
+        }
+        if let QueryResultItem::Annotation(annotation) = results.get_by_name(&names, "sentence")? {
+            assert!(annotation.has_data(&refdata2));
+        } else {
+            assert!(false, "did not get sentence");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
