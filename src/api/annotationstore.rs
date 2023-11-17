@@ -18,6 +18,7 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::AnnotationsIter;
 use crate::api::annotationdata::DataIter;
+use crate::api::resources::ResourcesIter;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
@@ -57,11 +58,20 @@ impl AnnotationStore {
     }
 
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
-    /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]),
+    /// Items are returned as a fat pointer [`ResultItem<TextResource>`]),
     /// which exposes the high-level API.
-    pub fn resources(&self) -> impl Iterator<Item = ResultItem<TextResource>> {
-        self.iter()
-            .map(|item: &TextResource| item.as_resultitem(self, self))
+    pub fn resources<'a>(&'a self) -> ResourcesIter<'a> {
+        ResourcesIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(
+                    self.iter().map(|res: &'a TextResource| {
+                        res.handle().expect("resource must have handle")
+                    }),
+                ),
+                true,
+            ),
+            self,
+        )
     }
 
     /// Returns an iterator over all [`AnnotationDataSet`] instances in the store.

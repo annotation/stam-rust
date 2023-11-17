@@ -24,6 +24,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotationdata::{Data, DataIter};
+use crate::api::resources::ResourcesIter;
 use crate::api::textselection::TextSelectionsIter;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
@@ -42,48 +43,62 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns no duplicates even if a resource is referenced multiple times.
     /// If you want to distinguish between resources references as metadata and on text, use [`Self::resources_as_metadata()`] or [`Self::resources_on_text()` ] instead.
-    pub fn resources(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> + 'store {
+    pub fn resources(&self) -> ResourcesIter<'store> {
         let selector = self.as_ref().target();
         let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
         //                                                                               ^--- recurse
         let store = self.store();
-        iter.map(|handle| store.resource(handle).unwrap())
+        let sorted = false;
+        ResourcesIter::new(
+            IntersectionIter::new_with_iterator(Box::new(iter), sorted),
+            store,
+        )
     }
 
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::ResourceSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
-        self.as_ref()
+    pub fn resources_as_metadata(&self) -> ResourcesIter<'store> {
+        let collection: BTreeSet<TextResourceHandle> = self
+            .as_ref()
             .target()
             .iter(self.store(), true)
             .filter_map(|selector| {
                 if let Selector::ResourceSelector(res_handle) = selector.as_ref() {
-                    let store = self.store();
-                    store.resource(*res_handle)
+                    Some(*res_handle)
                 } else {
                     None
                 }
             })
-            .collect()
+            .collect();
+        let store = self.store();
+        ResourcesIter::new(
+            IntersectionIter::new(Cow::Owned(collection.into_iter().collect()), true), //MAYBE TODO: remove the extra allocation+iteration
+            store,
+        )
     }
 
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::TextSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
-        self.as_ref()
+    pub fn resources_on_text(&self) -> ResourcesIter<'store> {
+        let collection: BTreeSet<TextResourceHandle> = self
+            .as_ref()
             .target()
             .iter(self.store(), true)
             .filter_map(|selector| {
                 if let Selector::TextSelector(res_handle, ..) = selector.as_ref() {
-                    let store = self.store();
-                    store.resource(*res_handle)
+                    Some(*res_handle)
                 } else {
                     None
                 }
             })
-            .collect()
+            .collect();
+        let store = self.store();
+        ResourcesIter::new(
+            IntersectionIter::new(Cow::Owned(collection.into_iter().collect()), true), //MAYBE TODO: remove the extra allocation+iteration
+            store,
+        )
     }
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references via a [`Selector::DataSetSelector`].
@@ -757,6 +772,54 @@ impl<'store> AnnotationsIter<'store> {
                 ),
             )
         })
+    }
+
+    /// Maps annotations to resources, consuming the iterator.
+    pub fn resources(self) -> ResourcesIter<'store> {
+        let store = self.store;
+        let collection: BTreeSet<_> = self
+            .map(|annotation| annotation.resources())
+            .flatten()
+            .collect();
+        ResourcesIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(collection.into_iter().map(|x| x.handle())),
+                true,
+            ),
+            store,
+        )
+    }
+
+    /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a ResourceSelector (i.e. annotations as metadata)
+    pub fn resources_as_metadata(self) -> ResourcesIter<'store> {
+        let store = self.store;
+        let collection: BTreeSet<_> = self
+            .map(|annotation| annotation.resources_as_metadata())
+            .flatten()
+            .collect();
+        ResourcesIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(collection.into_iter().map(|x| x.handle())),
+                true,
+            ),
+            store,
+        )
+    }
+
+    /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a TextSelect (i.e. annotations on the text)
+    pub fn resources_on_text(self) -> ResourcesIter<'store> {
+        let store = self.store;
+        let collection: BTreeSet<_> = self
+            .map(|annotation| annotation.resources_on_text())
+            .flatten()
+            .collect();
+        ResourcesIter::new(
+            IntersectionIter::new_with_iterator(
+                Box::new(collection.into_iter().map(|x| x.handle())),
+                true,
+            ),
+            store,
+        )
     }
 
     /// Produces the union between two annotation iterators
