@@ -13,6 +13,7 @@ use crate::{types::*, DataOperator};
 use crate::{TextResource, TextResourceHandle};
 
 use smallvec::SmallVec;
+use std::collections::HashMap;
 
 use std::borrow::Cow;
 
@@ -412,6 +413,20 @@ pub struct QueryIter<'store> {
     done: bool,
 }
 
+pub struct QueryNames(HashMap<String, usize>);
+
+impl QueryNames {
+    pub fn get(&self, mut name: &str) -> Result<usize, StamError> {
+        if name.starts_with("&") {
+            name = &name[1..];
+        }
+        self.0
+            .get(name)
+            .copied()
+            .ok_or_else(|| StamError::QuerySyntaxError(format!("Variable ?{} not found", name), ""))
+    }
+}
+
 /// Represents an entire result row, each result stems from a query
 pub struct QueryResultItems<'store> {
     items: SmallVec<[QueryResultItem<'store>; 4]>,
@@ -441,6 +456,16 @@ impl<'store> AnnotationStore {
 impl<'store> QueryIter<'store> {
     pub fn store(&self) -> &'store AnnotationStore {
         self.store
+    }
+
+    pub fn names(&self) -> QueryNames {
+        let mut map = HashMap::new();
+        for (i, query) in self.queries.iter().enumerate() {
+            if let Some(name) = query.name {
+                map.insert(name.to_string(), i);
+            }
+        }
+        QueryNames(map)
     }
 
     /// Initializes a new state
@@ -915,7 +940,7 @@ impl<'store> QueryIter<'store> {
 impl<'store> Iterator for QueryIter<'store> {
     type Item = QueryResultItems<'store>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next<'q>(&'q mut self) -> Option<Self::Item> {
         if self.done {
             //iterator has been marked as done, do nothing else
             return None;
@@ -947,12 +972,28 @@ impl<'store> Iterator for QueryIter<'store> {
 }
 
 impl<'store> QueryResultItems<'store> {
+    /// Iterator over all results
     pub fn iter(&self) -> impl Iterator<Item = &QueryResultItem<'store>> {
         self.items.iter()
     }
 
+    /// Returns a result by index number
     pub fn get(&self, index: usize) -> Option<&QueryResultItem<'store>> {
         self.items.get(index)
+    }
+
+    /// Returns a result by variable name
+    pub fn get_by_name(
+        &self,
+        names: &QueryNames,
+        var: &str,
+    ) -> Result<&QueryResultItem<'store>, StamError> {
+        self.items.get(names.get(var)?).ok_or_else(|| {
+            StamError::QuerySyntaxError(
+                format!("Variable ?{} not found in the result set", var),
+                "",
+            )
+        })
     }
 }
 
