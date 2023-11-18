@@ -408,11 +408,11 @@ where
 /// Source for TextSelectionsIter
 pub(crate) enum TextSelectionsSource<'store> {
     HighVec(Vec<ResultTextSelection<'store>>),
-    LowVec(SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]>), //used with AnnotationStore.textselections_by_selector
-    TextSelections(Cow<'store, [(TextResourceHandle, TextSelectionHandle)]>), //used with TextSelections
-    FindIter(FindTextSelectionsIter<'store>), //used with textselections_by_operator()
-    TSIter(TextSelectionIter<'store>),        //used by resource.textselections(), double-ended
-    HighIter(Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>),
+    SmallHandlesVec(SmallVec<[(TextResourceHandle, TextSelectionHandle); 2]>), //used with AnnotationStore.textselections_by_selector
+    Handles(Cow<'store, [(TextResourceHandle, TextSelectionHandle)]>), //used with TextSelections
+    FindTextSelectionsIter(FindTextSelectionsIter<'store>), //used with textselections_by_operator()
+    TextSelectionIter(TextSelectionIter<'store>), //used by resource.textselections(), double-ended
+    DynIterator(Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>),
 }
 
 /// Iterator over TextSelections (yields [`ResultTextSelection`] instances)
@@ -445,8 +445,8 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
-                TextSelectionsSource::HighIter(iter) => iter.next(),
-                TextSelectionsSource::LowVec(handles) => {
+                TextSelectionsSource::DynIterator(iter) => iter.next(),
+                TextSelectionsSource::SmallHandlesVec(handles) => {
                     if let Some((res_handle, tsel_handle)) = handles.get(self.cursor as usize) {
                         let resource = self
                             .store
@@ -464,7 +464,7 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
-                TextSelectionsSource::TextSelections(handles) => {
+                TextSelectionsSource::Handles(handles) => {
                     if let Some((res_handle, tsel_handle)) = handles.get(self.cursor as usize) {
                         let resource = self
                             .store
@@ -482,7 +482,7 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
-                TextSelectionsSource::FindIter(iter) => {
+                TextSelectionsSource::FindTextSelectionsIter(iter) => {
                     if let Some(tsel_handle) = iter.next() {
                         let resource = iter.resource();
                         let tsel: &TextSelection = resource
@@ -496,7 +496,7 @@ impl<'store> Iterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
-                TextSelectionsSource::TSIter(iter) => {
+                TextSelectionsSource::TextSelectionIter(iter) => {
                     if let Some(tsel) = iter.next() {
                         let resource = iter.resource();
                         self.cursor += 1; //not really used in this context
@@ -522,16 +522,16 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
             self.forward = Some(false);
             self.cursor = match &self.source {
                 TextSelectionsSource::HighVec(textselections) => textselections.len() as isize - 1,
-                TextSelectionsSource::TextSelections(handles) => handles.len() as isize - 1,
-                TextSelectionsSource::LowVec(handles) => handles.len() as isize - 1,
-                TextSelectionsSource::HighIter(_) => {
+                TextSelectionsSource::Handles(handles) => handles.len() as isize - 1,
+                TextSelectionsSource::SmallHandlesVec(handles) => handles.len() as isize - 1,
+                TextSelectionsSource::DynIterator(_) => {
                     //this is a bit dangerous, no proper error propagation here
                     unimplemented!("No backward iteration on TextSelectionsSource::HighIter")
                 }
-                TextSelectionsSource::FindIter(_) => {
+                TextSelectionsSource::FindTextSelectionsIter(_) => {
                     unimplemented!("No backward iteration on TextSelectionsSource::FindIter")
                 }
-                TextSelectionsSource::TSIter(iter) => iter.size_hint().0 as isize,
+                TextSelectionsSource::TextSelectionIter(iter) => iter.size_hint().0 as isize,
             };
         }
         loop {
@@ -547,7 +547,7 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
-                TextSelectionsSource::TextSelections(handles) => {
+                TextSelectionsSource::Handles(handles) => {
                     if let Some((res_handle, tsel_handle)) = handles.get(self.cursor as usize) {
                         let resource = self
                             .store
@@ -565,7 +565,7 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
-                TextSelectionsSource::LowVec(handles) => {
+                TextSelectionsSource::SmallHandlesVec(handles) => {
                     if let Some((res_handle, tsel_handle)) = handles.get(self.cursor as usize) {
                         let resource = self
                             .store
@@ -583,13 +583,13 @@ impl<'store> DoubleEndedIterator for TextSelectionsIter<'store> {
                         None
                     }
                 }
-                TextSelectionsSource::HighIter(_) => {
+                TextSelectionsSource::DynIterator(_) => {
                     unimplemented!("No backward iteration on TextSelectionsSource::HighIter")
                 }
-                TextSelectionsSource::FindIter(_) => {
+                TextSelectionsSource::FindTextSelectionsIter(_) => {
                     unimplemented!("No backward iteration on TextSelectionsSource::FindIter")
                 }
-                TextSelectionsSource::TSIter(iter) => {
+                TextSelectionsSource::TextSelectionIter(iter) => {
                     if let Some(tsel) = iter.next_back() {
                         let resource = iter.resource();
                         self.cursor -= 1; //not really used in this context
@@ -628,7 +628,7 @@ impl<'store> TextSelectionsIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            source: TextSelectionsSource::LowVec(data),
+            source: TextSelectionsSource::SmallHandlesVec(data),
             store,
             cursor: 0,
             forward: None,
@@ -638,7 +638,7 @@ impl<'store> TextSelectionsIter<'store> {
 
     pub fn from_handles(data: TextSelections<'store>, store: &'store AnnotationStore) -> Self {
         Self {
-            source: TextSelectionsSource::TextSelections(data.take()),
+            source: TextSelectionsSource::Handles(data.take()),
             store,
             cursor: 0,
             forward: None,
@@ -651,7 +651,7 @@ impl<'store> TextSelectionsIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            source: TextSelectionsSource::FindIter(iter),
+            source: TextSelectionsSource::FindTextSelectionsIter(iter),
             store,
             cursor: 0,
             forward: Some(true),
@@ -664,7 +664,7 @@ impl<'store> TextSelectionsIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            source: TextSelectionsSource::HighIter(iter),
+            source: TextSelectionsSource::DynIterator(iter),
             store,
             cursor: 0,
             forward: Some(true),
@@ -677,7 +677,7 @@ impl<'store> TextSelectionsIter<'store> {
         store: &'store AnnotationStore,
     ) -> Self {
         Self {
-            source: TextSelectionsSource::TSIter(iter),
+            source: TextSelectionsSource::TextSelectionIter(iter),
             store,
             cursor: 0,
             forward: None,
@@ -800,7 +800,7 @@ impl<'store> TextSelectionsIter<'store> {
     pub fn to_collection(self) -> TextSelections<'store> {
         let store = self.store;
         match self.source {
-            TextSelectionsSource::LowVec(v) => TextSelections {
+            TextSelectionsSource::SmallHandlesVec(v) => TextSelections {
                 array: v.into_iter().collect(),
                 sorted: false, //sorted by handle? no. we're more typically sorted in textual order (but not always)
                 store,
@@ -824,7 +824,7 @@ impl<'store> TextSelectionsIter<'store> {
     pub fn to_collection_limit(self, limit: usize) -> TextSelections<'store> {
         let store = self.store;
         match self.source {
-            TextSelectionsSource::LowVec(v) => TextSelections {
+            TextSelectionsSource::SmallHandlesVec(v) => TextSelections {
                 array: v.into_iter().take(limit).collect(),
                 sorted: false,
                 store,
