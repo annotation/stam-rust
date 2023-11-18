@@ -454,8 +454,11 @@ where
 /// This is a sealed trait, not implementable outside this crate.
 pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     type HandleType: Handle;
+    type StoreHandleType: Copy + Ord + Debug;
     type FullHandleType: Copy + Ord + Debug;
     type StoreType: StoreFor<Self>;
+
+    fn fullhandle(parent: Self::StoreHandleType, handle: Self::HandleType) -> Self::FullHandleType;
 
     /// Retrieve the internal (numeric) id. For any type T in `StoreFor<T>`, this may return `None` only in the initial
     /// stage when it is still unbounded to a store, so this is almost always safe to unwrap when used in the public API.
@@ -1053,6 +1056,14 @@ where
     fn cmp(&self, other: &Self) -> Ordering {
         self.handle().cmp(&other.handle())
     }
+}
+
+pub trait FullHandle<T>
+where
+    T: Storable,
+{
+    /// Returns the full handle (which may be a combination of multiple handles) to find this item
+    fn fullhandle(&self) -> T::FullHandleType;
 }
 
 impl<'store, T> ResultItem<'store, T>

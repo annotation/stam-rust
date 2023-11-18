@@ -149,6 +149,7 @@ impl TypeInfo for AnnotationDataSet {
 #[sealed]
 impl Storable for AnnotationDataSet {
     type HandleType = AnnotationDataSetHandle;
+    type StoreHandleType = ();
     type FullHandleType = Self::HandleType;
     type StoreType = AnnotationStore;
 
@@ -168,6 +169,13 @@ impl Storable for AnnotationDataSet {
     }
     fn carries_id() -> bool {
         true
+    }
+
+    fn fullhandle(
+        _storehandle: Self::StoreHandleType,
+        handle: Self::HandleType,
+    ) -> Self::FullHandleType {
+        handle
     }
 }
 
@@ -615,12 +623,12 @@ impl AnnotationDataSet {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }
 
-    ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references as [`ResultItem<AnnotationData>`].
+    ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references to [`AnnotationData`].
     pub fn data(&self) -> StoreIter<AnnotationData> {
         <Self as StoreFor<AnnotationData>>::iter(self)
     }
 
-    /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references as [`ResultItem<DataKey>`]
+    /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references to [`DataKey`]
     pub fn keys(&self) -> StoreIter<DataKey> {
         <Self as StoreFor<DataKey>>::iter(self)
     }

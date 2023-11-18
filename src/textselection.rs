@@ -156,6 +156,7 @@ impl TypeInfo for TextSelection {
 #[sealed]
 impl Storable for TextSelection {
     type HandleType = TextSelectionHandle;
+    type StoreHandleType = TextResourceHandle;
     type FullHandleType = (TextResourceHandle, TextSelectionHandle);
     type StoreType = TextResource;
 
@@ -172,6 +173,13 @@ impl Storable for TextSelection {
 
     fn carries_id() -> bool {
         false
+    }
+
+    fn fullhandle(
+        storehandle: Self::StoreHandleType,
+        handle: Self::HandleType,
+    ) -> Self::FullHandleType {
+        (storehandle, handle)
     }
 }
 

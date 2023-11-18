@@ -28,41 +28,56 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fmt::Debug;
 
+impl<'store> FullHandle<TextResource> for ResultItem<'store, TextResource> {
+    fn fullhandle(&self) -> <TextResource as Storable>::FullHandleType {
+        self.handle()
+    }
+}
+
 /// This is the implementation of the high-level API for [`TextResource`].
 impl<'store> ResultItem<'store, TextResource> {
     /// Returns an iterator over all annotations about this resource as a whole, i.e. Annotations with a ResourceSelector.
     /// Such annotations can be considered metadata.
-    pub fn annotations_as_metadata(&self) -> AnnotationsIter<'store> {
-        let store = self.store();
-        if let Some(annotations) = store.annotations_by_resource_metadata(self.handle()) {
-            AnnotationsIter::new(
-                IntersectionIter::new(Cow::Borrowed(annotations), true),
-                self.store(),
-            )
+    pub fn annotations_as_metadata(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        if let Some(annotations) = self.store().annotations_by_resource_metadata(self.handle()) {
+            MaybeIter::new_sorted(FromHandles::new(annotations.iter().copied(), self.store()))
         } else {
-            AnnotationsIter::new_empty(self.store())
+            MaybeIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations about any text in this resource i.e. Annotations with a TextSelector.
-    pub fn annotations_on_text(&self) -> AnnotationsIter<'store> {
-        let store = self.store();
-        if let Some(iter) = store.annotations_by_resource(self.handle()) {
+    pub fn annotations_on_text(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        if let Some(iter) = self.store().annotations_by_resource(self.handle()) {
             let mut data: Vec<_> = iter.collect();
             data.sort_unstable();
             data.dedup();
-            AnnotationsIter::new(IntersectionIter::new(Cow::Owned(data), true), self.store())
+            MaybeIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
         } else {
-            AnnotationsIter::new_empty(self.store())
+            MaybeIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations that reference this resource, both annotations that can be considered metadata as well
     /// annotations that reference a portion of the text.
     /// Use `annotations_as_metadata()` or `annotations_on_text()` instead if you want to differentiate the two.
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
-        self.annotations_as_metadata()
-            .union(self.annotations_on_text())
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        let mut data: Vec<_> = self
+            .store()
+            .annotations_by_resource_metadata(self.handle())
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect();
+        data.extend(
+            self.store()
+                .annotations_by_resource(self.handle())
+                .into_iter()
+                .flatten(),
+        );
+        data.sort_unstable();
+        data.dedup();
+        MaybeIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -120,6 +135,7 @@ impl<'store> ResultItem<'store, TextResource> {
     }
 }
 
+/*
 /// The ResourcesIter iterates over text resources, it returns [`ResultItem<Annotation>`] instances.
 /// The iterator offers a various high-level API methods that operate on a collection of annotations, and
 /// allow to further filter or map annotations.
@@ -436,28 +452,48 @@ impl<'store> Iterator for ResourcesIter<'store> {
         None
     }
 }
+*/
 
 /// Holds a collection of resources.
 /// This structure is produced by calling [`ResourcesIter::to_collection()`].
 /// Use [`Resources::iter()`] to iterate over the collection.
-pub type Resources<'store> = Collection<'store, TextResource>;
+pub type Resources<'store> = Handles<'store, TextResource>;
 
-impl<'store> IntoIterator for Collection<'store, TextResource> {
-    type Item = ResultItem<'store, TextResource>;
-    type IntoIter = ResourcesIter<'store>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let sorted = self.sorted;
-        let store = self.store;
-        Self::IntoIter::new(IntersectionIter::new(self.take(), sorted), store)
+impl<'store, I> FullHandleToResultItem<'store, TextResource>
+    for FromHandles<'store, TextResource, I>
+where
+    I: Iterator<Item = TextResourceHandle>,
+{
+    fn get_item(&self, handle: TextResourceHandle) -> Option<ResultItem<'store, TextResource>> {
+        self.store.resource(handle)
     }
 }
 
-impl<'store> Collection<'store, TextResource> {
-    pub fn iter(&self) -> ResourcesIter<'store> {
-        ResourcesIter::new(
-            IntersectionIter::new(self.array.clone(), self.sorted),
-            self.store,
-        )
+pub trait ResourcesIterator<'store>: Iterator<Item = ResultItem<'store, TextResource>>
+where
+    Self: Sized,
+{
+    /// Iterates over all the annotations for all resources in this iterator.
+    /// The iterator will be consumed and an extra buffer is allocated.
+    /// Annotations will be returned sorted chronologically and returned without duplicates
+    ///
+    /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
+    fn annotations(
+        self,
+    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+        let mut annotations: Vec<_> = self
+            .map(|resource| resource.annotations())
+            .flatten()
+            .collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        MaybeIter::new_sorted(annotations.into_iter())
     }
+}
+
+impl<'store, I> ResourcesIterator<'store> for I
+where
+    I: Iterator<Item = ResultItem<'store, TextResource>>,
+{
+    //blanket implementation
 }

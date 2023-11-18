@@ -257,6 +257,7 @@ impl ToJson for TextResource {}
 #[sealed]
 impl Storable for TextResource {
     type HandleType = TextResourceHandle;
+    type StoreHandleType = ();
     type FullHandleType = Self::HandleType;
     type StoreType = AnnotationStore;
 
@@ -277,6 +278,12 @@ impl Storable for TextResource {
 
     fn carries_id() -> bool {
         true
+    }
+    fn fullhandle(
+        _storehandle: Self::StoreHandleType,
+        handle: Self::HandleType,
+    ) -> Self::FullHandleType {
+        handle
     }
 }
 

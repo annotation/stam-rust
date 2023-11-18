@@ -16,9 +16,7 @@ use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::annotation::AnnotationsIter;
-use crate::api::annotationdata::DataIter;
-use crate::api::resources::ResourcesIter;
+use crate::api::*;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
@@ -60,17 +58,10 @@ impl AnnotationStore {
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<TextResource>`]),
     /// which exposes the high-level API.
-    pub fn resources<'a>(&'a self) -> ResourcesIter<'a> {
-        ResourcesIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(
-                    self.iter().map(|res: &'a TextResource| {
-                        res.handle().expect("resource must have handle")
-                    }),
-                ),
-                true,
-            ),
-            self,
+    pub fn resources<'a>(&'a self) -> impl Iterator<Item = ResultItem<TextResource>> {
+        MaybeIter::new_sorted(
+            self.iter()
+                .map(|item: &TextResource| item.as_resultitem(self, self)),
         )
     }
 
@@ -78,23 +69,19 @@ impl AnnotationStore {
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]),
     /// which exposes the high-level API.
     pub fn datasets<'a>(&'a self) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
-        self.iter()
-            .map(|item: &AnnotationDataSet| item.as_resultitem(self, self))
+        MaybeIter::new_sorted(
+            self.iter()
+                .map(|item: &AnnotationDataSet| item.as_resultitem(self, self)),
+        )
     }
 
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
-    /// The resulting iterator yields itemsa as a fat pointer [`ResultItem<Annotation>`]),
+    /// The resulting iterator yields items as a fat pointer [`ResultItem<Annotation>`]),
     /// which exposes the high-level API.
-    pub fn annotations<'a>(&'a self) -> AnnotationsIter<'a> {
-        AnnotationsIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(
-                    self.iter()
-                        .map(|a: &'a Annotation| a.handle().expect("annotation must have handle")),
-                ),
-                true,
-            ),
-            self,
+    pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<'a, Annotation>> {
+        MaybeIter::new_sorted(
+            self.iter()
+                .map(|a: &'a Annotation| a.as_resultitem(self, self)),
         )
     }
 
@@ -185,7 +172,7 @@ impl AnnotationStore {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: DataOperator<'q>,
-    ) -> DataIter<'store>
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>
     where
         'q: 'store,
     {
@@ -194,24 +181,20 @@ impl AnnotationStore {
                 //delegate to the dataset
                 return dataset.find_data(key, value);
             } else {
-                return DataIter::new_empty(self);
+                return Box::new(MaybeIter::new_empty());
             }
         }
 
         //all datasets
         if let Some((_, key_handle)) = self.find_data_request_resolver(set, key) {
             //iterate over all datasets
-            let iter: Box<
-                dyn Iterator<Item = (AnnotationDataSetHandle, AnnotationDataHandle)> + 'store,
-            > = Box::new(
+            let rootstore = self;
+            let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> = Box::new(
                 self.datasets()
                     .map(move |dataset| {
                         dataset.as_ref().data().filter_map(move |annotationdata| {
                             if key_handle.is_none() || key_handle.unwrap() == annotationdata.key() {
-                                Some((
-                                    dataset.handle(),
-                                    annotationdata.handle().expect("data must have handle"),
-                                ))
+                                Some(annotationdata.as_resultitem(dataset.as_ref(), rootstore))
                             } else {
                                 None
                             }
@@ -220,19 +203,20 @@ impl AnnotationStore {
                     .flatten(),
             );
             if let DataOperator::Any = value {
-                DataIter::new(IntersectionIter::new_with_iterator(iter, true), self)
+                iter
             } else {
-                DataIter::new(IntersectionIter::new_with_iterator(iter, true), self)
-                    .filter_value(value)
+                std::mem::replace(&mut iter, iter.filter_value(value))
             }
         } else {
-            DataIter::new_empty(self)
+            Box::new(MaybeIter::new_empty());
         }
     }
 
     /// Returns an iterator over all data in all sets.
     /// If possible, use a more constrained method (on [`AnnotationDataSet`] or a [`DataKey`]), it will have better performance.
-    pub fn data<'store>(&'store self) -> DataIter<'store> {
+    pub fn data<'store>(
+        &'store self,
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> {
         self.find_data(false, false, DataOperator::Any)
     }
 

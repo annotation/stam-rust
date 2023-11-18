@@ -121,6 +121,7 @@ mod tests;
 
 use smallvec::{smallvec, SmallVec};
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 
 // Lazy iterator computing an intersection
 pub(crate) struct IntersectionIter<'a, T>
@@ -144,6 +145,7 @@ where
 {
     iter: Option<Box<dyn Iterator<Item = T> + 'a>>,
     array: Option<Cow<'a, [T]>>,
+    set: Option<BTreeSet<T>>,
     singleton: Option<T>,
     sorted: bool,
 }
@@ -157,6 +159,8 @@ where
     fn len(&self) -> Option<usize> {
         if let Some(array) = &self.array {
             return Some(array.len());
+        } else if let Some(set) = &self.set {
+            return Some(set.len());
         } else if self.singleton.is_some() {
             return Some(1);
         }
@@ -166,6 +170,8 @@ where
     fn take_item(&mut self, index: usize) -> Option<T> {
         if let Some(array) = &self.array {
             return array.get(index).map(|x| *x);
+        } else if let Some(set) = self.set.as_mut() {
+            return set.pop_first();
         } else if let Some(iter) = self.iter.as_mut() {
             return iter.next();
         } else if self.singleton.is_some() {
@@ -194,8 +200,24 @@ where
         let source = IntersectionSource {
             array: None,
             iter: Some(iter),
+            set: None,
             singleton: None,
             sorted,
+        };
+        Self {
+            cursors: smallvec!(0),
+            sources: smallvec!(source),
+            abort: false,
+        }
+    }
+
+    pub(crate) fn new_with_set(set: BTreeSet<T>) -> Self {
+        let source = IntersectionSource {
+            array: None,
+            iter: None,
+            set: Some(set),
+            singleton: None,
+            sorted: true,
         };
         Self {
             cursors: smallvec!(0),
@@ -213,8 +235,26 @@ where
         let source = IntersectionSource {
             array: Some(data),
             iter: None,
+            set: None,
             singleton: None,
             sorted,
+        };
+        self.insert_source(source);
+        self
+    }
+
+    pub(crate) fn with_set(mut self, data: BTreeSet<T>) -> Self {
+        if data.is_empty() {
+            //don't bother, empty data invalidates the whole iterator
+            self.abort = true;
+            return self;
+        }
+        let source = IntersectionSource {
+            array: None,
+            iter: None,
+            set: Some(data),
+            singleton: None,
+            sorted: true,
         };
         self.insert_source(source);
         self
@@ -224,6 +264,7 @@ where
         let source = IntersectionSource {
             array: None,
             iter: None,
+            set: None,
             singleton: Some(data),
             sorted: true,
         };
@@ -243,7 +284,7 @@ where
                 if source.len() == Some(1) {
                     //singletons before everything else
                     break;
-                } else if refsource.array.is_none() {
+                } else if refsource.array.is_none() || refsource.set.is_none() {
                     //pass: arrays go at the end
                 } else if (source.sorted == refsource.sorted) && (refsource.len() > source.len()) {
                     //shorter before longer (allows us to discard quicker)
@@ -271,6 +312,8 @@ where
         for source in other.sources {
             if source.array.is_some() {
                 self = self.with(source.array.unwrap(), source.sorted);
+            } else if source.set.is_some() {
+                self = self.with_set(source.set.unwrap());
             } else if let Some(iter) = source.iter {
                 let data = iter.collect(); //consume the iterator, we can only have an iterator in the first position
                 self = self.with(Cow::Owned(data), source.sorted);
@@ -283,6 +326,8 @@ where
 
     /// Extends this iterator with another one. This is a *union* and not an *intersection*.
     /// However, all additional constraints on either iterator are preserved (and those are intersections).
+    /// The union is taken only from the primary source in either IntersectionIter, as such
+    /// you should only use this with simple IntersectionIters.
     pub(crate) fn union(mut self, mut other: IntersectionIter<'a, T>) -> Self {
         //edge-cases first:
         if self.sources.is_empty() {
@@ -301,10 +346,7 @@ where
         } else {
             if let Some(Cow::Borrowed(_)) = self.sources[0].array {
                 //we have take ownership (= make a clone) because we'll be extending this array later
-                self.sources[0]
-                    .array
-                    .as_mut()
-                    .map(|array| *array = Cow::Owned(array.to_vec()));
+                self.sources[0].array.as_mut().map(|array| array.to_mut());
             } else if self.sources[0].iter.is_some() {
                 //similar as above: we have to consume our iterator first and turn it into an owned collection, otherwise we can't extend it
                 let iter = self.sources[0].iter.take().unwrap();
@@ -315,16 +357,33 @@ where
                     let iter2 = other.sources[0].iter.take().unwrap();
                     array.extend(iter2);
                 } else if let Some(array2) = other.sources[0].array.as_ref() {
-                    array.extend(array2.iter().map(|x| *x));
+                    array.extend(array2.iter().copied());
+                } else if let Some(set) = other.sources[0].set.as_ref() {
+                    array.extend(set.iter().copied());
+                }
+                self.sources[0].sorted = false; //we can no longer guarantee any sorting
+            } else if let Some(set) = self.sources[0].set.as_mut() {
+                if other.sources[0].iter.is_some() {
+                    let iter2 = other.sources[0].iter.take().unwrap();
+                    set.extend(iter2);
+                } else if let Some(array2) = other.sources[0].array.as_ref() {
+                    set.extend(array2.iter().copied());
+                } else if let Some(set2) = other.sources[0].set.as_ref() {
+                    set.extend(set2.iter().copied());
                 }
             }
-            self.sources[0].sorted = false; //we can no longer guarantee any sorting
         }
 
         //copy any further constraints on the other iterator
         for (i, source) in other.sources.into_iter().enumerate() {
-            if i > 0 && source.array.is_some() {
-                self = self.with(source.array.unwrap(), source.sorted);
+            if i > 0 {
+                if source.array.is_some() {
+                    self = self.with(source.array.unwrap(), source.sorted);
+                } else if source.set.is_some() {
+                    self = self.with_set(source.set.unwrap());
+                } else if source.singleton.is_some() {
+                    self = self.with_singleton(source.singleton.unwrap());
+                }
             }
         }
         self
@@ -393,6 +452,27 @@ where
                             break;
                         }
                     }
+                } else if let Some(data) = &mut right.set {
+                    if data.contains(&item) {
+                        if left_sorted {
+                            // the left is sorted so we can discount 'lesser than' items from the right side
+                            // in subsequent iterations by moving the cursor ahead
+                            // this is an extra optimisation
+                            data.retain(|i| i > &item)
+                        }
+                        //item found! continue with next source to ensure item is also in there
+                        continue;
+                    } else {
+                        found = false;
+                        let last = data.last();
+                        if left_sorted && last.is_some() && last.unwrap() <= &item {
+                            // because the left hand side is sorted and we're at the end of this right array,
+                            // we can abort the whole IntersectionIter, no more results will be found
+                            // this is an extra optimisation
+                            self.abort = true;
+                        }
+                        break;
+                    }
                 } else if let Some(iter) = right.iter.as_mut() {
                     //iterators normally don't occur on the right hand side (because they can't be reused), EXCEPT when the left hand side is a singleton or array with length 1
                     for x in iter {
@@ -445,6 +525,7 @@ mod test {
     #![allow(unused_imports)]
     use super::IntersectionIter;
     use std::borrow::Cow;
+    use std::collections::BTreeSet;
 
     /*
     fn setup_example() -> Result<AnnotationStore, StamError> {
@@ -505,6 +586,14 @@ mod test {
         iter = iter.with(Cow::Owned(vec![5]), true);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![5]);
+    }
+
+    #[test]
+    fn test_intersectioniter_set() {
+        let mut iter = IntersectionIter::new_with_set(BTreeSet::from([1, 2, 3, 4, 5]));
+        iter = iter.with_set(BTreeSet::from([1, 3, 5, 7]));
+        let v: Vec<_> = iter.collect();
+        assert_eq!(v, vec![1, 3, 5]);
     }
 
     #[test]

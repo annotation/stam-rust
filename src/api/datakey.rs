@@ -11,16 +11,20 @@
 //! This module contains the high-level API for [`DataKey`]. This API is implemented on
 //! [`ResultItem<DataKey>`].
 
-use std::borrow::Cow;
 use std::collections::BTreeSet;
 
-use crate::annotationdataset::AnnotationDataSet;
-use crate::api::annotation::AnnotationsIter;
-use crate::api::annotationdata::DataIter;
-use crate::datakey::DataKey;
+use crate::annotationdata::AnnotationData;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
+use crate::api::*;
+use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::IntersectionIter;
+
+impl<'store> FullHandle<DataKey> for ResultItem<'store, DataKey> {
+    fn fullhandle(&self) -> <DataKey as Storable>::FullHandleType {
+        (self.set().handle(), self.handle())
+    }
+}
 
 /// This is the implementation of the high-level API for [`DataKey`].
 impl<'store> ResultItem<'store, DataKey> {
@@ -37,30 +41,24 @@ impl<'store> ResultItem<'store, DataKey> {
 
     /// Returns an iterator over all data ([`crate::AnnotationData`]) that makes use of this key.
     /// Use methods on this iterator like [`DataIter.filter_value()`] to further constrain the results.
-    pub fn data(&self) -> DataIter<'store> {
+    pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> {
         let store = self.store();
         if let Some(vec) = store.data_by_key(self.handle()) {
             let iter = vec
                 .iter()
                 .map(|datahandle| (store.handle().unwrap(), *datahandle));
-            DataIter::new(
-                IntersectionIter::new_with_iterator(Box::new(iter), true),
-                self.rootstore(),
-            )
+            MaybeIter::new_sorted(FromHandles::new(iter, self.rootstore()))
         } else {
-            DataIter::new_empty(self.rootstore())
+            MaybeIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations ([`crate::Annotation`]) that make use of this key.
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();
         let annotations: Vec<_> = annotationstore.annotations_by_key(set_handle, self.handle()); //MAYBE TODO: extra reverse index so we can borrow directly?
-        AnnotationsIter::new(
-            IntersectionIter::new(Cow::Owned(annotations), true),
-            self.rootstore(),
-        )
+        MaybeIter::new_sorted(FromHandles::new(annotations.into_iter(), self.rootstore()))
     }
 
     /// Returns the number of annotations that make use of this key.

@@ -29,6 +29,12 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 
+impl<'store> FullHandle<AnnotationData> for ResultItem<'store, AnnotationData> {
+    fn fullhandle(&self) -> <AnnotationData as Storable>::FullHandleType {
+        (self.set().handle(), self.handle())
+    }
+}
+
 /// This is the implementation of the high-level API for [`AnnotationData`].
 impl<'store> ResultItem<'store, AnnotationData> {
     /// Return a reference to the dataset that holds this data
@@ -53,18 +59,18 @@ impl<'store> ResultItem<'store, AnnotationData> {
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
     /// The iterator returns the annotations as [`ResultItem<Annotation>`].
     /// Especially useful in combination with a call to  [`ResultItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         let set_handle = self.store().handle().expect("set must have handle");
         if let Some(annotations) = self
             .rootstore()
             .annotations_by_data_indexlookup(set_handle, self.handle())
         {
-            AnnotationsIter::new(
-                IntersectionIter::new(Cow::Borrowed(annotations), true),
+            MaybeIter::new_sorted(FromHandles::new(
+                annotations.iter().copied(),
                 self.rootstore(),
-            )
+            ))
         } else {
-            AnnotationsIter::new_empty(self.rootstore())
+            MaybeIter::new_empty()
         }
     }
 
@@ -89,127 +95,57 @@ impl<'store> ResultItem<'store, AnnotationData> {
         }
     }
 
-    /// Returns a set of all text resources that make use of this data via annotations (either as metadata or on text)
-    pub fn resources(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+    /// Returns an iterator over all text resources that make use of this data via annotations (either as metadata or on text)
+    pub fn resources(
+        &self,
+    ) -> <BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter {
         self.annotations()
-            .map(|annotation| annotation.resources().map(|resource| resource.clone()))
+            .map(|annotation| annotation.resources())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
     }
 
     /// Returns an set of all text resources that make use of this data via annotations via a ResourceSelector (i.e. as metadata)
-    pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+    pub fn resources_as_metadata(
+        &self,
+    ) -> <BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter {
         self.annotations()
             .map(|annotation| annotation.resources_as_metadata())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
     }
 
     /// Returns an iterator over all text resources that make use of this data via annotations via a TextSelector (i.e. on text)
-    pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+    pub fn resources_on_text(
+        &self,
+    ) -> <BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter {
         self.annotations()
             .map(|annotation| annotation.resources_on_text())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
     }
 
     /// Returns an iterator over all data sets that annotations using this data reference via a DataSetSelector (i.e. as metadata)
-    pub fn datasets(&self) -> BTreeSet<ResultItem<'store, AnnotationDataSet>> {
+    pub fn datasets(
+        &self,
+    ) -> <BTreeSet<ResultItem<'store, AnnotationDataSet>> as IntoIterator>::IntoIter {
         self.annotations()
-            .map(|annotation| annotation.datasets().map(|dataset| dataset.clone()))
+            .map(|annotation| annotation.datasets())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
     }
 }
 
-pub type Data<'store> = Collection<'store, AnnotationData>;
+pub type Data<'store> = Handles<'store, AnnotationData>;
 
-impl<'store> IntoIterator for Collection<'store, AnnotationData> {
-    type Item = ResultItem<'store, AnnotationData>;
-    type IntoIter = DataIter<'store>;
+//pub type DataIter<'store> = ResultItemIter<'store, AnnotationData>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        let sorted = self.sorted;
-        let store = self.store;
-        Self::IntoIter::new(IntersectionIter::new(self.take(), sorted), store)
-    }
-}
-
-impl<'store> Collection<'store, AnnotationData> {
-    pub fn iter(&self) -> DataIter<'store> {
-        DataIter::new(
-            IntersectionIter::new(self.array.clone(), self.sorted),
-            self.store,
-        )
-    }
-}
-
-/// `DataIter` iterates over annotation data, it returns [`ResultItem<AnnotationData>`] instances.
-/// The iterator offers a various high-level API methods that operate on a collection of annotation data, and
-/// allow to further filter or map annotations.
-///
-/// The iterator is produced by calling the `data()` method that is implemented for several objects, such as [`ResultItem<Annotation>::data()`](crate::ResultItem<Annotation>::data())
-pub struct DataIter<'store> {
-    iter: Option<IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>>,
-    store: &'store AnnotationStore,
-
-    filters: SmallVec<[Filter<'store>; 1]>,
-
-    //for optimisations:
-    last_set_handle: Option<AnnotationDataSetHandle>,
-    last_set: Option<ResultItem<'store, AnnotationDataSet>>,
-}
-
-impl<'store> AbortableIterator for DataIter<'store> {
-    fn abort(&mut self) {
-        self.iter.as_mut().map(|iter| iter.abort = true);
-    }
-}
-impl<'store> TestableIterator for DataIter<'store> {}
-
+/*
 impl<'store> DataIter<'store> {
-    pub(crate) fn new(
-        iter: IntersectionIter<'store, (AnnotationDataSetHandle, AnnotationDataHandle)>,
-        store: &'store AnnotationStore,
-    ) -> Self {
-        Self {
-            iter: Some(iter),
-            filters: SmallVec::new(),
-            store,
-            last_set_handle: None,
-            last_set: None,
-        }
-    }
-
-    pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
-        Self {
-            iter: None,
-            filters: SmallVec::new(),
-            store,
-            last_set_handle: None,
-            last_set: None,
-        }
-    }
-
-    /// Builds a new data iterator from any other iterator of annotationdata
-    /// Eagerly consumes the iterator.
-    pub fn from_iter(
-        iter: impl Iterator<Item = ResultItem<'store, AnnotationData>>,
-        sorted: bool,
-        store: &'store AnnotationStore,
-    ) -> Self {
-        let data: Vec<_> = iter
-            .map(|data| (data.set().handle(), data.handle()))
-            .collect();
-        Self {
-            iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
-            filters: SmallVec::new(),
-            last_set_handle: None,
-            last_set: None,
-            store,
-        }
-    }
-
     /// Transform the iterator into a parallel iterator; subsequent iterator methods like `filter` and `map` will run in parallel.
     /// This first consumes the sequential iterator into a newly allocated buffer.
     ///
@@ -223,14 +159,11 @@ impl<'store> DataIter<'store> {
     /// Constrain the iterator to return only the data used by the specified annotation
     pub fn filter_annotation(mut self, annotation: &ResultItem<'store, Annotation>) -> Self {
         let annotation_data = annotation.as_ref().raw_data();
-        if self.iter.is_some() {
-            self.iter = Some(
-                self.iter
-                    .unwrap()
-                    .with(Cow::Borrowed(annotation_data), true),
-            );
-        }
-        self
+        self.filter_data(Handles::new(
+            Cow::Borrowed(annotation_data),
+            false,
+            self.store,
+        ))
     }
 
     /// Constrain the iterator to return only the data used by the specified annotations
@@ -254,7 +187,7 @@ impl<'store> DataIter<'store> {
     /// Constrain the iterator to return only the data that is also in the other iterator (intersection)
     ///
     /// You can cast any existing iterator that produces [`ResultItem<AnnotationData>`] to a [`DataIter`] using [`DataIter::from_iter()`].
-    pub fn filter_data(self, data: DataIter<'store>) -> Self {
+    pub fn filter_data(self, data: &Data<'store>) -> Self {
         self.intersection(data)
     }
 
@@ -402,73 +335,28 @@ impl<'store> DataIter<'store> {
         })
         .flatten()
     }
+}
+*/
 
-    /// Produces the union between two data iterators
-    /// Any filters on either iterator remain valid!
-    pub fn union(mut self, other: DataIter<'store>) -> DataIter<'store> {
-        if self.iter.is_some() && other.iter.is_some() {
-            self.filters.extend(other.filters.into_iter());
-            self.iter = Some(self.iter.unwrap().union(other.iter.unwrap()));
-        } else if self.iter.is_none() {
-            return other;
-        }
-        self
-    }
-
-    /// Produces the intersection between two data iterators
-    /// Any filters on either iterator remain valid!
-    pub fn intersection(mut self, other: DataIter<'store>) -> DataIter<'store> {
-        if self.iter.is_some() && other.iter.is_some() {
-            self.filters.extend(other.filters.into_iter());
-            self.iter = Some(self.iter.unwrap().intersection(other.iter.unwrap()));
-        } else if self.iter.is_none() {
-            return other;
-        }
-        self
-    }
-
-    /// Extract a low-level vector of handles from this iterator.
-    /// This is different than running `collect()`, which produces high-level objects.
-    ///
-    /// An extracted structure can be easily turned back into a DataIter again with [`Data::iter()`] or
-    /// used directly as a filter using [`Self::filter_from()`].
-    pub fn to_collection(self) -> Data<'store> {
-        let store = self.store;
-        let sorted = self.returns_sorted();
-        // go to higher-level (needed to deal with the filters) and back to handles
-        Data {
-            array: self
-                .map(|annotationdata| (annotationdata.set().handle(), annotationdata.handle()))
-                .collect(),
-            sorted,
-            store,
-        }
-    }
-
-    /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
-    /// This consumes the iterator but takes only the first n elements up to the specified limit.
-    pub fn to_collection_limit(self, limit: usize) -> Data<'store> {
-        let store = self.store;
-        let sorted = self.returns_sorted();
-        Data {
-            array: self
-                .take(limit)
-                .map(|annotationdata| (annotationdata.set().handle(), annotationdata.handle()))
-                .collect(),
-            store,
-            sorted,
-        }
-    }
-
-    /// Does this iterator return items in sorted order?
-    pub fn returns_sorted(&self) -> bool {
-        if let Some(iter) = self.iter.as_ref() {
-            iter.returns_sorted()
+impl<'store, I> FullHandleToResultItem<'store, AnnotationData>
+    for FromHandles<'store, AnnotationData, I>
+where
+    I: Iterator<Item = (AnnotationDataSetHandle, AnnotationDataHandle)>,
+{
+    fn get_item(
+        &self,
+        handle: (AnnotationDataSetHandle, AnnotationDataHandle),
+    ) -> Option<ResultItem<'store, AnnotationData>> {
+        if let Some(dataset) = self.store.dataset(handle.0) {
+            dataset.annotationdata(handle.1)
         } else {
-            true //empty iterators can be considered sorted
+            None
         }
     }
+}
 
+/*
+impl<'store> ResultItemIterator<'store, AnnotationData> for ResultItemIter<'store, AnnotationData> {
     /// See if the filters match for the annotation data
     /// This does not include any filters directly on annotationdata, as those are handled already by the underlying IntersectionsIter
     fn test_filters(&self, data: &ResultItem<'store, AnnotationData>) -> bool {
@@ -498,37 +386,161 @@ impl<'store> DataIter<'store> {
         true
     }
 }
+*/
 
-impl<'store> Iterator for DataIter<'store> {
-    type Item = ResultItem<'store, AnnotationData>;
+pub trait DataIterator<'store>: Iterator<Item = ResultItem<'store, AnnotationData>>
+where
+    Self: Sized,
+{
+    /// Iterate over the annotations that make use of data in this iterator.
+    /// Annotations will be returned chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
+    fn annotations(
+        self,
+    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+        let mut annotations: Vec<_> = self.map(|data| data.annotations()).flatten().collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        MaybeIter::new_sorted(annotations.into_iter())
+    }
 
+    fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::DataKey(key.set().handle(), key.handle()),
+        }
+    }
+
+    fn filter_key_handle(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+    ) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::DataKey(set, key),
+        }
+    }
+
+    fn filter_key_handle_value(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+        value: DataOperator<'store>,
+    ) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(set, key, value),
+        }
+    }
+
+    fn filter_value(self, operator: DataOperator<'store>) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::DataOperator(operator),
+        }
+    }
+
+    fn filter_data(mut self, data: Data) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::Data(data, FilterMode::Any),
+        }
+    }
+
+    fn filter_annotationdata(
+        self,
+        data: &ResultItem<'store, AnnotationData>,
+    ) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
+        }
+    }
+
+    fn filter_data_handle(
+        self,
+        set: AnnotationDataSetHandle,
+        data: AnnotationDataHandle,
+    ) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::AnnotationData(set, data),
+        }
+    }
+
+    /*
+    fn apply_filters<F: FromIterator<Filter<'store>>>(
+        self,
+        filters: F,
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> {
+        let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> = Box::new(self);
+        for filter in filters {
+            std::mem::replace(
+                &mut iter,
+                FilteredData {
+                    inner: *iter,
+                    filter,
+                },
+            );
+        }
+        iter
+    }
+    */
+}
+
+impl<'store, I> DataIterator<'store> for I
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationData>>,
+{
+    //blanket implementation
+}
+
+pub struct FilteredData<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationData>>,
+{
+    inner: I,
+    filter: Filter<'store>,
+}
+
+impl<'store, I> Iterator for FilteredData<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationData>>,
+{
+    type Item = ResultItem<'store, Annotation>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(iter) = self.iter.as_mut() {
-                if let Some((set_handle, data_handle)) = iter.next() {
-                    //optimisation so we don't have to grab the same set over and over:
-                    let dataset = if Some(set_handle) == self.last_set_handle {
-                        self.last_set.as_ref().unwrap()
-                    } else {
-                        self.last_set_handle = Some(set_handle);
-                        self.last_set =
-                            Some(self.store.dataset(set_handle).expect("set must exist"));
-                        self.last_set.as_ref().unwrap()
-                    };
-                    let data = dataset
-                        .annotationdata(data_handle)
-                        .expect("data must exist");
-                    if !self.test_filters(&data) {
-                        continue;
-                    }
-                    return Some(data);
-                } else {
-                    break;
+            if let Some(item) = self.inner.next() {
+                if self.test_filter(&item) {
+                    Some(item)
                 }
             } else {
-                break;
+                None
             }
         }
-        None
+    }
+}
+
+impl<'store, I> FilteredData<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationData>>,
+{
+    fn test_filter(&self, data: &ResultItem<'store, AnnotationData>) -> bool {
+        match &self.filter {
+            Filter::AnnotationData(set_handle, data_handle) => {
+                data.handle() == data_handle && data.set().handle() == set_handle
+            }
+            Filter::Data(data, _) => data.contains(data.fullhandle()).next().is_some(),
+            Filter::DataKey(set_handle, key_handle) => {
+                data.key().handle() == key_handle && data.set().handle() == set_handle
+            }
+            Filter::DataOperator(operator) => data.test(false, &operator),
+            Filter::DataKeyAndOperator(set_handle, key_handle, operator) => {
+                data.key().handle() == key_handle
+                    && data.set().handle() == set_handle
+                    && data.test(false, &operator)
+            }
+            _ => unimplemented!("Filter {:?} not implemented for FilteredData", self.filter),
+        }
     }
 }
