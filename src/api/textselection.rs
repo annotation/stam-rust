@@ -1132,6 +1132,16 @@ impl<'store> Debug for TextSelections<'store> {
     }
 }
 
+impl<'store> IntoIterator for TextSelections<'store> {
+    type Item = ResultTextSelection<'store>;
+    type IntoIter = TextSelectionsIter<'store>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let store = self.store;
+        TextSelectionsIter::from_handles(self, store)
+    }
+}
+
 impl<'a> HandleCollection<'a> for TextSelections<'a> {
     type Handle = (TextResourceHandle, TextSelectionHandle);
     type Item = ResultTextSelection<'a>;

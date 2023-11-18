@@ -141,6 +141,15 @@ impl<'store> Debug for Data<'store> {
     }
 }
 
+impl<'store> IntoIterator for Data<'store> {
+    type Item = ResultItem<'store, AnnotationData>;
+    type IntoIter = DataIter<'store>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DataIter::new(IntersectionIter::new(self.array, self.sorted), self.store)
+    }
+}
+
 impl<'a> HandleCollection<'a> for Data<'a> {
     type Handle = (AnnotationDataSetHandle, AnnotationDataHandle);
     type Item = ResultItem<'a, AnnotationData>;

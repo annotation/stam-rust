@@ -248,6 +248,15 @@ impl<'store> Debug for Annotations<'store> {
     }
 }
 
+impl<'store> IntoIterator for Annotations<'store> {
+    type Item = ResultItem<'store, Annotation>;
+    type IntoIter = AnnotationsIter<'store>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        AnnotationsIter::new(IntersectionIter::new(self.array, self.sorted), self.store)
+    }
+}
+
 impl<'a> HandleCollection<'a> for Annotations<'a> {
     type Handle = AnnotationHandle;
     type Item = ResultItem<'a, Annotation>;

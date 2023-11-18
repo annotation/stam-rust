@@ -34,6 +34,7 @@ pub struct Query<'a> {
 
 #[derive(Debug)]
 pub enum Constraint<'a> {
+    //Id(&'a str),
     TextResource(&'a str),
     DataKey {
         set: &'a str,
@@ -59,6 +60,7 @@ pub enum Constraint<'a> {
 impl<'a> Constraint<'a> {
     pub fn keyword(&self) -> &'static str {
         match self {
+            //      Self::Id(..) => "ID",
             Self::TextResource { .. } | Self::ResourceVariable(..) => "RESOURCE",
             Self::TextRelation { .. } => "RELATION",
             Self::FindData { .. } | Self::DataKey { .. } | Self::DataVariable(..) => "DATA",
@@ -79,6 +81,14 @@ impl<'a> Constraint<'a> {
                     Self::Text(arg)
                 }
             }
+            /*
+            Some("ID") => {
+                querystring = querystring["ID".len()..].trim_start();
+                let (arg, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                Self::Id(arg)
+            }
+            */
             Some("RESOURCE") => {
                 querystring = querystring["RESOURCE".len()..].trim_start();
                 let (arg, remainder, _) = get_arg(querystring)?;

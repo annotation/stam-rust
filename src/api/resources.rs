@@ -455,6 +455,15 @@ impl<'store> Debug for Resources<'store> {
     }
 }
 
+impl<'store> IntoIterator for Resources<'store> {
+    type Item = ResultItem<'store, TextResource>;
+    type IntoIter = ResourcesIter<'store>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ResourcesIter::new(IntersectionIter::new(self.array, self.sorted), self.store)
+    }
+}
+
 impl<'a> HandleCollection<'a> for Resources<'a> {
     type Handle = TextResourceHandle;
     type Item = ResultItem<'a, TextResource>;
