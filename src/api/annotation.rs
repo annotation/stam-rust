@@ -232,77 +232,25 @@ impl<'store> ResultItem<'store, Annotation> {
 /// Holds a collection of annotations.
 /// This structure is produced by calling [`AnnotationsIter::to_collection()`].
 /// Use [`Annotations::iter()`] to iterate over the collection.
-#[derive(Clone)]
-pub struct Annotations<'store> {
-    array: Cow<'store, [AnnotationHandle]>,
-    sorted: bool,
-    store: &'store AnnotationStore,
-}
+pub type Annotations<'store> = Collection<'store, Annotation>;
 
-impl<'store> Debug for Annotations<'store> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Annotations")
-            .field("array", &self.array)
-            .field("sorted", &self.sorted)
-            .finish()
-    }
-}
-
-impl<'store> IntoIterator for Annotations<'store> {
+impl<'store> IntoIterator for Collection<'store, Annotation> {
     type Item = ResultItem<'store, Annotation>;
     type IntoIter = AnnotationsIter<'store>;
 
     fn into_iter(self) -> Self::IntoIter {
-        AnnotationsIter::new(IntersectionIter::new(self.array, self.sorted), self.store)
+        let sorted = self.sorted;
+        let store = self.store;
+        AnnotationsIter::new(IntersectionIter::new(self.take(), sorted), store)
     }
 }
 
-impl<'a> HandleCollection<'a> for Annotations<'a> {
-    type Handle = AnnotationHandle;
-    type Item = ResultItem<'a, Annotation>;
-    type Iter = AnnotationsIter<'a>;
-
-    fn array(&self) -> &Cow<'a, [Self::Handle]> {
-        &self.array
-    }
-
-    fn returns_sorted(&self) -> bool {
-        self.sorted
-    }
-
-    fn store(&self) -> &'a AnnotationStore {
-        self.store
-    }
-
-    /// Returns an iterator over the annotations, the iterator exposes further high-level API methods.
-    /// The iterator returns annotations as [`ResultItem<Annotation>`].
-    fn iter(&self) -> AnnotationsIter<'a> {
+impl<'store> Collection<'store, Annotation> {
+    pub fn iter(&self) -> AnnotationsIter<'store> {
         AnnotationsIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
             self.store,
         )
-    }
-
-    /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
-    /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
-    fn from_handles(
-        array: Cow<'a, [Self::Handle]>,
-        sorted: bool,
-        store: &'a AnnotationStore,
-    ) -> Self {
-        Self {
-            array,
-            sorted,
-            store,
-        }
-    }
-
-    /// Low-level method to take the underlying vector of handles
-    fn take(mut self) -> Vec<Self::Handle>
-    where
-        Self: Sized,
-    {
-        self.array.to_mut().to_vec()
     }
 }
 
@@ -871,24 +819,10 @@ impl<'store> AnnotationsIter<'store> {
     pub fn to_collection(self) -> Annotations<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
-
-        //handle special case where we may be able to just clone the reference (Cow::Borrowed) from the iterator
-        if self.iter.is_some()
-            && self.iter.as_ref().unwrap().sources.len() == 1
-            && self.iter.as_ref().unwrap().sources[0].array.is_some()
-            && self.filters.is_empty()
-        {
-            Annotations {
-                array: self.iter.unwrap().sources[0].array.clone().unwrap(),
-                store,
-                sorted,
-            }
-        } else {
-            Annotations {
-                array: Cow::Owned(self.map(|x| x.handle()).collect()),
-                store,
-                sorted,
-            }
+        Annotations {
+            array: self.map(|x| x.handle()).collect(),
+            store,
+            sorted,
         }
     }
 
@@ -898,7 +832,7 @@ impl<'store> AnnotationsIter<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
         Annotations {
-            array: Cow::Owned(self.take(limit).map(|x| x.handle()).collect()),
+            array: self.take(limit).map(|x| x.handle()).collect(),
             store,
             sorted,
         }

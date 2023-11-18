@@ -122,77 +122,25 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 }
 
-#[derive(Clone)]
-/// Holds a collection of annotation data.
-/// This structure is produced by calling [`DataIter::to_collection()`].
-/// Use [`Self::iter()`] to iterate over the collection.
-pub struct Data<'store> {
-    pub(crate) array: Cow<'store, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
-    pub(crate) store: &'store AnnotationStore,
-    pub(crate) sorted: bool,
-}
+pub type Data<'store> = Collection<'store, AnnotationData>;
 
-impl<'store> Debug for Data<'store> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Data")
-            .field("array", &self.array)
-            .field("sorted", &self.sorted)
-            .finish()
-    }
-}
-
-impl<'store> IntoIterator for Data<'store> {
+impl<'store> IntoIterator for Collection<'store, AnnotationData> {
     type Item = ResultItem<'store, AnnotationData>;
     type IntoIter = DataIter<'store>;
 
     fn into_iter(self) -> Self::IntoIter {
-        DataIter::new(IntersectionIter::new(self.array, self.sorted), self.store)
+        let sorted = self.sorted;
+        let store = self.store;
+        Self::IntoIter::new(IntersectionIter::new(self.take(), sorted), store)
     }
 }
 
-impl<'a> HandleCollection<'a> for Data<'a> {
-    type Handle = (AnnotationDataSetHandle, AnnotationDataHandle);
-    type Item = ResultItem<'a, AnnotationData>;
-    type Iter = DataIter<'a>;
-
-    fn array(&self) -> &Cow<'a, [Self::Handle]> {
-        &self.array
-    }
-
-    fn returns_sorted(&self) -> bool {
-        self.sorted
-    }
-
-    fn store(&self) -> &'a AnnotationStore {
-        self.store
-    }
-
-    /// Returns an iterator over the data in this collection, the iterator exposes further high-level API methods.
-    /// The iterator returns annotations as [`ResultItem<AnnotationData>`].
-    fn iter(&self) -> DataIter<'a> {
+impl<'store> Collection<'store, AnnotationData> {
+    pub fn iter(&self) -> DataIter<'store> {
         DataIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
             self.store,
         )
-    }
-
-    /// Low-level method to instantiate data from an existing collection
-    /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
-    fn from_handles(
-        array: Cow<'a, [Self::Handle]>,
-        sorted: bool,
-        store: &'a AnnotationStore,
-    ) -> Self {
-        Self {
-            array,
-            sorted,
-            store,
-        }
-    }
-
-    /// Low-level method to take the underlying vector of handles
-    fn take(mut self) -> Vec<Self::Handle> {
-        self.array.to_mut().to_vec()
     }
 }
 
@@ -487,33 +435,13 @@ impl<'store> DataIter<'store> {
     pub fn to_collection(self) -> Data<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
-        if self.filters.is_empty() {
-            //we can be a bit more performant if we have no lazy filters:
-            if let Some(iter) = self.iter {
-                Data {
-                    array: Cow::Owned(iter.collect()),
-                    sorted,
-                    store,
-                }
-            } else {
-                Data {
-                    array: Cow::Owned(Vec::new()),
-                    sorted,
-                    store,
-                }
-            }
-        } else {
-            // go to higher-level (needed to deal with the operator) and back to handles
-            Data {
-                array: Cow::Owned(
-                    self.map(|annotationdata| {
-                        (annotationdata.set().handle(), annotationdata.handle())
-                    })
-                    .collect(),
-                ),
-                sorted,
-                store,
-            }
+        // go to higher-level (needed to deal with the filters) and back to handles
+        Data {
+            array: self
+                .map(|annotationdata| (annotationdata.set().handle(), annotationdata.handle()))
+                .collect(),
+            sorted,
+            store,
         }
     }
 
@@ -523,11 +451,10 @@ impl<'store> DataIter<'store> {
         let store = self.store;
         let sorted = self.returns_sorted();
         Data {
-            array: Cow::Owned(
-                self.take(limit)
-                    .map(|annotationdata| (annotationdata.set().handle(), annotationdata.handle()))
-                    .collect(),
-            ),
+            array: self
+                .take(limit)
+                .map(|annotationdata| (annotationdata.set().handle(), annotationdata.handle()))
+                .collect(),
             store,
             sorted,
         }

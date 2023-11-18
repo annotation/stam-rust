@@ -40,52 +40,95 @@ use crate::datavalue::DataOperator;
 use crate::resources::TextResourceHandle;
 use crate::textselection::TextSelectionOperator;
 
+use crate::store::*;
+use crate::types::*;
+
 use std::borrow::Cow;
+use std::fmt::Debug;
 
-pub trait HandleCollection<'store>
+/// Holds a collection of items. The collection may be either
+/// owned or borrowed from the store (usually from a reverse index).
+/// The items in the collection by definition refer to the [`AnnotationStore`], as
+/// internally the collection only keeps handles and a reference to the store.
+///
+/// This structure is produced by calling a [`to_collection()`]. method
+#[derive(Clone)]
+pub struct Collection<'store, T>
 where
-    Self: 'store + Sized,
+    T: Storable,
 {
-    type Handle: Copy + Ord;
-    type Item;
-    type Iter: Iterator<Item = Self::Item>;
+    array: Cow<'store, [T::FullHandleType]>,
+    /// Sorted by handle? (i.e. chronologically)
+    sorted: bool,
+    store: &'store AnnotationStore,
+}
 
-    fn array(&self) -> &Cow<'store, [Self::Handle]>;
-    fn returns_sorted(&self) -> bool;
-    fn store(&self) -> &'store AnnotationStore;
+impl<'store, T> Debug for Collection<'store, T>
+where
+    T: Storable,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = format!("Collection<{}>", T::typeinfo());
+        f.debug_struct(s.as_str())
+            .field("array", &self.array)
+            .field("sorted", &self.sorted)
+            .finish()
+    }
+}
 
-    fn iter(&self) -> Self::Iter;
+impl<'store, T> Collection<'store, T>
+where
+    T: Storable,
+{
+    fn returns_sorted(&self) -> bool {
+        self.sorted
+    }
+
+    fn store(&self) -> &'store AnnotationStore {
+        self.store
+    }
 
     /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
     /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
     fn from_handles(
-        array: Cow<'store, [Self::Handle]>,
+        array: Cow<'store, [T::FullHandleType]>,
         sorted: bool,
         store: &'store AnnotationStore,
-    ) -> Self;
+    ) -> Self {
+        Self {
+            array,
+            sorted,
+            store,
+        }
+    }
 
-    /// Low-level method to take the underlying vector of handles
-    fn take(self) -> Vec<Self::Handle>;
+    /// Low-level method to take out the underlying vector of handles
+    fn take(mut self) -> Cow<'store, [T::FullHandleType]>
+    where
+        Self: Sized,
+    {
+        self.array
+    }
 
     /// Returns the number of items in this collection.
     fn len(&self) -> usize {
-        self.array().len()
+        self.array.len()
     }
 
     /// Returns a boolean indicating whether the collection is empty or not.
     fn is_empty(&self) -> bool {
-        self.array().is_empty()
+        self.array.is_empty()
     }
 
     /// Tests if the collection contains a specific element
-    fn contains(&self, handle: &Self::Handle) -> bool {
+    fn contains(&self, handle: &T::FullHandleType) -> bool {
         if self.returns_sorted() {
-            match self.array().binary_search(&handle) {
+            match self.array.binary_search(&handle) {
                 Ok(_) => true,
                 Err(_) => false,
             }
         } else {
-            self.array().contains(&handle)
+            self.array.contains(&handle)
         }
     }
 }
