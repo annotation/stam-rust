@@ -730,48 +730,30 @@ impl<'store> AnnotationsIter<'store> {
     pub fn resources(self) -> ResourcesIter<'store> {
         let store = self.store;
         let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources())
+            .map(|annotation| annotation.resources().map(|x| x.handle()))
             .flatten()
             .collect();
-        ResourcesIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(collection.into_iter().map(|x| x.handle())),
-                true,
-            ),
-            store,
-        )
+        ResourcesIter::new(IntersectionIter::new_with_set(collection), store)
     }
 
     /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a ResourceSelector (i.e. annotations as metadata)
     pub fn resources_as_metadata(self) -> ResourcesIter<'store> {
         let store = self.store;
         let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources_as_metadata())
+            .map(|annotation| annotation.resources_as_metadata().map(|x| x.handle()))
             .flatten()
             .collect();
-        ResourcesIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(collection.into_iter().map(|x| x.handle())),
-                true,
-            ),
-            store,
-        )
+        ResourcesIter::new(IntersectionIter::new_with_set(collection), store)
     }
 
     /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a TextSelect (i.e. annotations on the text)
     pub fn resources_on_text(self) -> ResourcesIter<'store> {
         let store = self.store;
         let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources_on_text())
+            .map(|annotation| annotation.resources_on_text().map(|x| x.handle()))
             .flatten()
             .collect();
-        ResourcesIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(collection.into_iter().map(|x| x.handle())),
-                true,
-            ),
-            store,
-        )
+        ResourcesIter::new(IntersectionIter::new_with_set(collection), store)
     }
 
     /// Produces the union between two annotation iterators
