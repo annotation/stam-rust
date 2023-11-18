@@ -415,3 +415,70 @@ impl<'store> Iterator for ResourcesIter<'store> {
         None
     }
 }
+
+/// Holds a collection of resources.
+/// This structure is produced by calling [`ResourcesIter::to_collection()`].
+/// Use [`Resources::iter()`] to iterate over the collection.
+pub struct Resources<'store> {
+    array: Cow<'store, [TextResourceHandle]>,
+    sorted: bool,
+    store: &'store AnnotationStore,
+}
+
+impl<'store> Debug for Resources<'store> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Resources")
+            .field("array", &self.array)
+            .field("sorted", &self.sorted)
+            .finish()
+    }
+}
+
+impl<'a> HandleCollection<'a> for Resources<'a> {
+    type Handle = TextResourceHandle;
+    type Item = ResultItem<'a, TextResource>;
+    type Iter = ResourcesIter<'a>;
+
+    fn array(&self) -> &Cow<'a, [Self::Handle]> {
+        &self.array
+    }
+
+    fn returns_sorted(&self) -> bool {
+        self.sorted
+    }
+
+    fn store(&self) -> &'a AnnotationStore {
+        self.store
+    }
+
+    /// Returns an iterator over the resources, the iterator exposes further high-level API methods.
+    /// The iterator returns resources as [`ResultItem<TextResource>`].
+    fn iter(&self) -> ResourcesIter<'a> {
+        ResourcesIter::new(
+            IntersectionIter::new(self.array.clone(), self.sorted),
+            self.store,
+        )
+    }
+
+    /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
+    /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
+    fn from_handles(
+        array: Cow<'a, [Self::Handle]>,
+        sorted: bool,
+        store: &'a AnnotationStore,
+    ) -> Self {
+        Self {
+            array,
+            sorted,
+            store,
+        }
+    }
+
+    /// Low-level method to take the underlying vector of handles
+    fn take(mut self) -> Vec<Self::Handle>
+    where
+        Self: Sized,
+    {
+        self.array.to_mut().to_vec()
+    }
+}
