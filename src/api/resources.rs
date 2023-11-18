@@ -62,7 +62,7 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Use `annotations_as_metadata()` or `annotations_on_text()` instead if you want to differentiate the two.
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         self.annotations_as_metadata()
-            .extend(self.annotations_on_text())
+            .union(self.annotations_on_text())
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -303,6 +303,30 @@ impl<'store> ResourcesIter<'store> {
     pub fn filter_data_byref_multi(mut self, data: &'store Data<'store>) -> Self {
         self.filters
             .push(Filter::BorrowedData(data, FilterMode::All));
+        self
+    }
+
+    /// Produces the union between two resource iterators
+    /// Any filters on either iterator remain valid!
+    pub fn union(mut self, other: ResourcesIter<'store>) -> ResourcesIter<'store> {
+        if self.iter.is_some() && other.iter.is_some() {
+            self.filters.extend(other.filters.into_iter());
+            self.iter = Some(self.iter.unwrap().union(other.iter.unwrap()));
+        } else if self.iter.is_none() {
+            return other;
+        }
+        self
+    }
+
+    /// Produces the intersection between two resource iterators
+    /// Any filters on either iterator remain valid!
+    pub fn intersection(mut self, other: ResourcesIter<'store>) -> ResourcesIter<'store> {
+        if self.iter.is_some() && other.iter.is_some() {
+            self.filters.extend(other.filters.into_iter());
+            self.iter = Some(self.iter.unwrap().intersection(other.iter.unwrap()));
+        } else if self.iter.is_none() {
+            return other;
+        }
         self
     }
 

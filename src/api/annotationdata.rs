@@ -298,7 +298,7 @@ impl<'store> DataIter<'store> {
     ///
     /// You can cast any existing iterator that produces [`ResultItem<AnnotationData>`] to a [`DataIter`] using [`DataIter::from_iter()`].
     pub fn filter_data(self, data: DataIter<'store>) -> Self {
-        self.merge(data)
+        self.intersection(data)
     }
 
     /// Find and filter data. Returns an iterator over the data.
@@ -447,10 +447,11 @@ impl<'store> DataIter<'store> {
     }
 
     /// Produces the union between two data iterators
-    /// Any constraints on either iterator remain valid!
-    pub fn extend(mut self, other: DataIter<'store>) -> DataIter<'store> {
+    /// Any filters on either iterator remain valid!
+    pub fn union(mut self, other: DataIter<'store>) -> DataIter<'store> {
         if self.iter.is_some() && other.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+            self.filters.extend(other.filters.into_iter());
+            self.iter = Some(self.iter.unwrap().union(other.iter.unwrap()));
         } else if self.iter.is_none() {
             return other;
         }
@@ -458,10 +459,11 @@ impl<'store> DataIter<'store> {
     }
 
     /// Produces the intersection between two data iterators
-    /// Any constraints on either iterator remain valid!
-    pub fn merge(mut self, other: DataIter<'store>) -> DataIter<'store> {
+    /// Any filters on either iterator remain valid!
+    pub fn intersection(mut self, other: DataIter<'store>) -> DataIter<'store> {
         if self.iter.is_some() && other.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().merge(other.iter.unwrap()));
+            self.filters.extend(other.filters.into_iter());
+            self.iter = Some(self.iter.unwrap().intersection(other.iter.unwrap()));
         } else if self.iter.is_none() {
             return other;
         }

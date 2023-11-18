@@ -166,6 +166,7 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Returns the (single!) resource the annotation points to. Only works if this annotation targets using a [`Selector::TextSelector`],
     /// [`Selector::ResourceSelector`] or [`Selector::AnnotationSelector`], and not for complex selectors.
+    /// Use [`Self::resources()`] if want to iterate over all resources instead.
     /// AnnotationSelectors are followed recursively if needed.
     pub fn resource(&self) -> Option<ResultItem<'store, TextResource>> {
         match self.as_ref().target() {
@@ -629,7 +630,7 @@ impl<'store> AnnotationsIter<'store> {
     pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
         if self.iter.is_some() {
             if annotations.iter.is_some() {
-                self.iter = Some(self.iter.unwrap().merge(annotations.iter.unwrap()));
+                self.iter = Some(self.iter.unwrap().intersection(annotations.iter.unwrap()));
             } else {
                 //invalidate the iterator, there will be no results
                 self.abort();
@@ -817,10 +818,11 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Produces the union between two annotation iterators
-    /// Any constraints on either iterator remain valid!
-    pub fn extend(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
+    /// Any filters on either iterator remain valid!
+    pub fn union(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
         if self.iter.is_some() && other.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+            self.filters.extend(other.filters.into_iter());
+            self.iter = Some(self.iter.unwrap().union(other.iter.unwrap()));
         } else if self.iter.is_none() {
             return other;
         }
@@ -828,10 +830,11 @@ impl<'store> AnnotationsIter<'store> {
     }
 
     /// Produces the intersection between two annotation iterators
-    /// Any constraints on either iterator remain valid!
-    pub fn merge(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
+    /// Any filters on either iterator remain valid!
+    pub fn intersection(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
         if self.iter.is_some() && other.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().extend(other.iter.unwrap()));
+            self.filters.extend(other.filters.into_iter());
+            self.iter = Some(self.iter.unwrap().intersection(other.iter.unwrap()));
         } else if self.iter.is_none() {
             return other;
         }

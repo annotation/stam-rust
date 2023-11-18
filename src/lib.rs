@@ -267,7 +267,7 @@ where
 
     /// Merges another IntersectionIter into the current one. This effectively
     /// iterates over the intersection of both.
-    pub(crate) fn merge(mut self, other: IntersectionIter<'a, T>) -> Self {
+    pub(crate) fn intersection(mut self, other: IntersectionIter<'a, T>) -> Self {
         for source in other.sources {
             if source.array.is_some() {
                 self = self.with(source.array.unwrap(), source.sorted);
@@ -283,7 +283,7 @@ where
 
     /// Extends this iterator with another one. This is a *union* and not an *intersection*.
     /// However, all additional constraints on either iterator are preserved (and those are intersections).
-    pub(crate) fn extend(mut self, mut other: IntersectionIter<'a, T>) -> Self {
+    pub(crate) fn union(mut self, mut other: IntersectionIter<'a, T>) -> Self {
         //edge-cases first:
         if self.sources.is_empty() {
             return other;
@@ -557,21 +557,21 @@ mod test {
     }
 
     #[test]
-    fn test_intersectioniter_merge() {
+    fn test_intersectioniter_intersection() {
         let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
         iter = iter.with(Cow::Owned(vec![1, 3, 5]), true);
         let iter2 = IntersectionIter::new(Cow::Owned(vec![5, 6]), true);
-        iter = iter.merge(iter2);
+        iter = iter.intersection(iter2);
         iter = iter.with(Cow::Owned(vec![5]), true);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![5]);
     }
 
     #[test]
-    fn test_intersectioniter_extend() {
+    fn test_intersectioniter_union() {
         let mut iter = IntersectionIter::new(Cow::Owned(vec![1, 2, 3, 4, 5]), true);
         let iter2 = IntersectionIter::new(Cow::Owned(vec![6, 7]), true);
-        iter = iter.extend(iter2);
+        iter = iter.union(iter2);
         let v: Vec<_> = iter.collect();
         assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7]);
     }
