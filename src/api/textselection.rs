@@ -108,9 +108,9 @@ impl<'store> ResultTextSelection<'store> {
         }
     }
 
-    /// Return a reference to the textselection in the store.
+    /// Return a reference to the textselection in the store, with the appropriate lifetime.
     /// Only works on bound items.
-    /// Use [`Self::inner()`] instead if
+    /// Use [`Self::inner()`] instead if you want something that always works.
     pub fn as_ref(&self) -> Option<&'store TextSelection> {
         match self {
             Self::Bound(item) => Some(item.as_ref()),
@@ -120,7 +120,6 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Return a reference to the textselection in the store.
     /// Only works on bound items.
-    /// Use [`Self::inner()`] instead if
     pub fn as_resultitem(&self) -> Option<&ResultItem<'store, TextSelection>> {
         match self {
             Self::Bound(item) => Some(item),
@@ -213,7 +212,7 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Returns the internal handle used by the TextSelection.
-    /// If the TextSelection is unbound, this will return `None`.
+    /// If the TextSelection is unbound, this will return `None` by definition.
     pub fn handle(&self) -> Option<TextSelectionHandle> {
         match self {
             Self::Bound(item) => Some(item.handle()),
@@ -221,6 +220,7 @@ impl<'store> ResultTextSelection<'store> {
         }
     }
 
+    /// Takes ownership of the TextSelection, only works on unbound items, returns an error otherwise.
     pub fn take(self) -> Result<TextSelection, StamError> {
         match self {
             Self::Bound(_) => Err(StamError::AlreadyBound(
@@ -231,6 +231,7 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Iterates over all annotations that are referenced by this TextSelection, if any.
+    /// For unbound selections, this returns an empty iterator by definition.
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         match self {
             Self::Bound(item) => item.annotations(),
@@ -239,6 +240,7 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Returns the number of annotations that reference this text selection
+    /// For unbound selections, this is always 0.
     pub fn annotations_len(&self) -> usize {
         match self {
             Self::Bound(item) => item.annotations_len(),
