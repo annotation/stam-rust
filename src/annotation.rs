@@ -134,6 +134,7 @@ impl TypeInfo for Annotation {
 #[sealed]
 impl Storable for Annotation {
     type HandleType = AnnotationHandle;
+    type FullHandleType = Self::HandleType;
     type StoreType = AnnotationStore;
 
     fn id(&self) -> Option<&str> {

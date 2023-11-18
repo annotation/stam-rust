@@ -454,6 +454,7 @@ where
 /// This is a sealed trait, not implementable outside this crate.
 pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
     type HandleType: Handle;
+    type FullHandleType: Copy + Ord;
     type StoreType: StoreFor<Self>;
 
     /// Retrieve the internal (numeric) id. For any type T in `StoreFor<T>`, this may return `None` only in the initial

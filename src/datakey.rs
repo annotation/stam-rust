@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 //use serde_json::Result;
 
-use crate::annotationdataset::AnnotationDataSet;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::error::StamError;
 use crate::store::*;
 use crate::types::*;
@@ -128,6 +128,7 @@ impl TypeInfo for DataKey {
 #[sealed]
 impl Storable for DataKey {
     type HandleType = DataKeyHandle;
+    type FullHandleType = (AnnotationDataSetHandle, DataKeyHandle);
     type StoreType = AnnotationDataSet;
 
     fn id(&self) -> Option<&str> {

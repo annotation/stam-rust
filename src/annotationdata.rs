@@ -19,7 +19,7 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
-use crate::annotationdataset::AnnotationDataSet;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataValue;
 use crate::error::StamError;
@@ -100,6 +100,7 @@ impl TypeInfo for AnnotationData {
 #[sealed]
 impl Storable for AnnotationData {
     type HandleType = AnnotationDataHandle;
+    type FullHandleType = (AnnotationDataSetHandle, AnnotationDataHandle);
     type StoreType = AnnotationDataSet;
 
     fn handle(&self) -> Option<AnnotationDataHandle> {

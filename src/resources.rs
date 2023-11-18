@@ -257,6 +257,7 @@ impl ToJson for TextResource {}
 #[sealed]
 impl Storable for TextResource {
     type HandleType = TextResourceHandle;
+    type FullHandleType = Self::HandleType;
     type StoreType = AnnotationStore;
 
     fn id(&self) -> Option<&str> {

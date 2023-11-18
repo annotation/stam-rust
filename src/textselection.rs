@@ -156,6 +156,7 @@ impl TypeInfo for TextSelection {
 #[sealed]
 impl Storable for TextSelection {
     type HandleType = TextSelectionHandle;
+    type FullHandleType = (TextResourceHandle, TextSelectionHandle);
     type StoreType = TextResource;
 
     fn id(&self) -> Option<&str> {
