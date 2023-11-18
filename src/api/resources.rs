@@ -18,6 +18,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::{Annotations, AnnotationsIter};
 use crate::api::annotationdata::Data;
 use crate::api::textselection::TextSelectionsIter;
+use crate::api::HandleCollection;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::resources::{TextResource, TextResourceHandle};
@@ -28,6 +29,7 @@ use crate::{Filter, FilterMode, IntersectionIter};
 use rayon::prelude::*;
 use smallvec::SmallVec;
 use std::borrow::Cow;
+use std::fmt::Debug;
 
 /// This is the implementation of the high-level API for [`TextResource`].
 impl<'store> ResultItem<'store, TextResource> {
@@ -306,6 +308,16 @@ impl<'store> ResourcesIter<'store> {
             .push(Filter::BorrowedData(data, FilterMode::All));
         self
     }
+
+    /// Does this iterator return items in sorted order?
+    pub fn returns_sorted(&self) -> bool {
+        if let Some(iter) = self.iter.as_ref() {
+            iter.returns_sorted()
+        } else {
+            true //empty iterators can be considered sorted
+        }
+    }
+
     /// See if the filters match for the resource
     /// This does not include any filters directly on resources, as those are handled already by the underlying IntersectionsIter
     fn test_filters(&self, resource: &ResultItem<'store, TextResource>) -> bool {

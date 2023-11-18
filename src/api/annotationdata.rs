@@ -18,6 +18,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::AnnotationsIter;
+use crate::api::HandleCollection;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::TextResource;
@@ -141,30 +142,36 @@ impl<'store> Debug for Data<'store> {
     }
 }
 
-impl<'a> Data<'a> {
+impl<'a> HandleCollection<'a> for Data<'a> {
+    type Handle = (AnnotationDataSetHandle, AnnotationDataHandle);
+    type Item = ResultItem<'a, AnnotationData>;
+    type Iter = DataIter<'a>;
+
+    fn array(&self) -> &Cow<'a, [Self::Handle]> {
+        &self.array
+    }
+
+    fn returns_sorted(&self) -> bool {
+        self.sorted
+    }
+
+    fn store(&self) -> &'a AnnotationStore {
+        self.store
+    }
+
     /// Returns an iterator over the data in this collection, the iterator exposes further high-level API methods.
     /// The iterator returns annotations as [`ResultItem<AnnotationData>`].
-    pub fn iter(&self) -> DataIter<'a> {
+    fn iter(&self) -> DataIter<'a> {
         DataIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
             self.store,
         )
     }
 
-    /// Returns the number of data items in this collection.
-    pub fn len(&self) -> usize {
-        self.array.len()
-    }
-
-    /// Returns a boolean indicating whether the collection is empty or not.
-    pub fn is_empty(&self) -> bool {
-        self.array.is_empty()
-    }
-
     /// Low-level method to instantiate data from an existing collection
     /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
-    pub fn from_handles(
-        array: Cow<'a, [(AnnotationDataSetHandle, AnnotationDataHandle)]>,
+    fn from_handles(
+        array: Cow<'a, [Self::Handle]>,
         sorted: bool,
         store: &'a AnnotationStore,
     ) -> Self {
@@ -176,20 +183,8 @@ impl<'a> Data<'a> {
     }
 
     /// Low-level method to take the underlying vector of handles
-    pub fn take(mut self) -> Vec<(AnnotationDataSetHandle, AnnotationDataHandle)> {
+    fn take(mut self) -> Vec<Self::Handle> {
         self.array.to_mut().to_vec()
-    }
-
-    /// Tests if the collection contains a specific element
-    pub fn contains(&self, handle: &(AnnotationDataSetHandle, AnnotationDataHandle)) -> bool {
-        if self.sorted {
-            match self.array.binary_search(&handle) {
-                Ok(_) => true,
-                Err(_) => false,
-            }
-        } else {
-            self.array.contains(&handle)
-        }
     }
 }
 

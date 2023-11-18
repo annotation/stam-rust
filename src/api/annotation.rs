@@ -250,30 +250,36 @@ impl<'store> Debug for Annotations<'store> {
     }
 }
 
-impl<'a> Annotations<'a> {
+impl<'a> HandleCollection<'a> for Annotations<'a> {
+    type Handle = AnnotationHandle;
+    type Item = ResultItem<'a, Annotation>;
+    type Iter = AnnotationsIter<'a>;
+
+    fn array(&self) -> &Cow<'a, [Self::Handle]> {
+        &self.array
+    }
+
+    fn returns_sorted(&self) -> bool {
+        self.sorted
+    }
+
+    fn store(&self) -> &'a AnnotationStore {
+        self.store
+    }
+
     /// Returns an iterator over the annotations, the iterator exposes further high-level API methods.
     /// The iterator returns annotations as [`ResultItem<Annotation>`].
-    pub fn iter(&self) -> AnnotationsIter<'a> {
+    fn iter(&self) -> AnnotationsIter<'a> {
         AnnotationsIter::new(
             IntersectionIter::new(self.array.clone(), self.sorted),
             self.store,
         )
     }
 
-    /// Returns the number of annotations in this collection.
-    pub fn len(&self) -> usize {
-        self.array.len()
-    }
-
-    /// Returns a boolean indicating whether the collection is empty or not.
-    pub fn is_empty(&self) -> bool {
-        self.array.is_empty()
-    }
-
     /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
     /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
-    pub fn from_handles(
-        array: Cow<'a, [AnnotationHandle]>,
+    fn from_handles(
+        array: Cow<'a, [Self::Handle]>,
         sorted: bool,
         store: &'a AnnotationStore,
     ) -> Self {
@@ -285,20 +291,11 @@ impl<'a> Annotations<'a> {
     }
 
     /// Low-level method to take the underlying vector of handles
-    pub fn take(mut self) -> Vec<AnnotationHandle> {
+    fn take(mut self) -> Vec<Self::Handle>
+    where
+        Self: Sized,
+    {
         self.array.to_mut().to_vec()
-    }
-
-    /// Tests if the collection contains a specific element
-    pub fn contains(&self, handle: &AnnotationHandle) -> bool {
-        if self.sorted {
-            match self.array.binary_search(&handle) {
-                Ok(_) => true,
-                Err(_) => false,
-            }
-        } else {
-            self.array.contains(&handle)
-        }
     }
 }
 

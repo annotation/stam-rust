@@ -18,6 +18,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::api::annotation::{Annotations, AnnotationsIter};
 use crate::api::annotationdata::Data;
 use crate::api::resources::ResourcesIter;
+use crate::api::HandleCollection;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
