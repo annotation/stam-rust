@@ -17,8 +17,7 @@ use crate::annotation::Annotation;
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::annotation::AnnotationsIter;
-use crate::api::HandleCollection;
+use crate::api::*;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::TextResource;
@@ -203,6 +202,13 @@ pub struct DataIter<'store> {
     last_set_handle: Option<AnnotationDataSetHandle>,
     last_set: Option<ResultItem<'store, AnnotationDataSet>>,
 }
+
+impl<'store> AbortableIterator for DataIter<'store> {
+    fn abort(&mut self) {
+        self.iter.as_mut().map(|iter| iter.abort = true);
+    }
+}
+impl<'store> TestableIterator for DataIter<'store> {}
 
 impl<'store> DataIter<'store> {
     pub(crate) fn new(
@@ -514,11 +520,6 @@ impl<'store> DataIter<'store> {
             store,
             sorted,
         }
-    }
-
-    /// Returns true if the iterator has items, false otherwise
-    pub fn test(mut self) -> bool {
-        self.next().is_some()
     }
 
     /// Does this iterator return items in sorted order?

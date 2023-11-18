@@ -31,7 +31,14 @@ pub use resources::*;
 pub use text::*;
 pub use textselection::*;
 
+use crate::annotation::AnnotationHandle;
+use crate::annotationdata::AnnotationDataHandle;
+use crate::annotationdataset::AnnotationDataSetHandle;
 use crate::annotationstore::AnnotationStore;
+use crate::datakey::DataKeyHandle;
+use crate::datavalue::DataOperator;
+use crate::resources::TextResourceHandle;
+use crate::textselection::TextSelectionOperator;
 
 use std::borrow::Cow;
 
@@ -81,4 +88,56 @@ where
             self.array().contains(&handle)
         }
     }
+}
+
+pub trait TestableIterator: Iterator
+where
+    Self: Sized,
+{
+    /// Returns true if the iterator has items, false otherwise
+    fn test(mut self) -> bool {
+        self.next().is_some()
+    }
+}
+
+pub trait AbortableIterator: Iterator
+where
+    Self: Sized,
+{
+    /// Set the iterator to abort, no further results will be returned
+    fn abort(&mut self);
+}
+
+// Auxiliary data structures the API relies on internally:
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub(crate) enum FilterMode {
+    Any,
+    All,
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub(crate) enum TextMode {
+    Exact,
+    Lowercase,
+}
+
+#[derive(Debug)]
+/// A filter that is evaluated lazily, applied on [`AnnotationsIter`], [`DataIter`],[`TextSelectionsIter`]
+pub(crate) enum Filter<'a> {
+    AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
+    AnnotationDataSet(AnnotationDataSetHandle),
+    DataKey(AnnotationDataSetHandle, DataKeyHandle),
+    Annotation(AnnotationHandle),
+    TextResource(TextResourceHandle),
+    DataOperator(DataOperator<'a>),
+    TextSelectionOperator(TextSelectionOperator),
+    Annotations(Annotations<'a>),
+    Data(Data<'a>, FilterMode),
+    Text(String, TextMode, &'a str), //the last string represents the delimiter for joining text
+
+    //these have the advantage the collections are external references
+    BorrowedAnnotations(&'a Annotations<'a>),
+    BorrowedData(&'a Data<'a>, FilterMode),
+    BorrowedText(&'a str, TextMode, &'a str), //the last string represents the delimiter for joining text
 }

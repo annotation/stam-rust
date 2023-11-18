@@ -23,9 +23,7 @@ use crate::annotation::{Annotation, AnnotationHandle, TargetIter};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::annotationdata::{Data, DataIter};
-use crate::api::resources::ResourcesIter;
-use crate::api::textselection::TextSelectionsIter;
+use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::resources::{TextResource, TextResourceHandle};
@@ -35,8 +33,6 @@ use crate::textselection::{
 };
 use crate::*;
 use crate::{Filter, FilterMode, IntersectionIter, TextMode};
-
-use crate::api::textselection::SortTextualOrder;
 
 /// This is the implementation of the high-level API for [`Annotation`].
 impl<'store> ResultItem<'store, Annotation> {
@@ -896,16 +892,6 @@ impl<'store> AnnotationsIter<'store> {
         }
     }
 
-    /// Set the iterator to abort, no further results will be returned
-    pub fn abort(&mut self) {
-        self.iter.as_mut().map(|iter| iter.abort = true);
-    }
-
-    /// Returns true if the iterator has items, false otherwise
-    pub fn test(mut self) -> bool {
-        self.next().is_some()
-    }
-
     /// See if the filters match for the annotation
     /// This does not include any filters directly on annotations, as those are handled already by the underlying IntersectionsIter
     fn test_filters(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
@@ -1025,6 +1011,13 @@ impl<'store> AnnotationsIter<'store> {
         true
     }
 }
+
+impl<'store> AbortableIterator for AnnotationsIter<'store> {
+    fn abort(&mut self) {
+        self.iter.as_mut().map(|iter| iter.abort = true);
+    }
+}
+impl<'store> TestableIterator for AnnotationsIter<'store> {}
 
 impl<'store> Iterator for AnnotationsIter<'store> {
     type Item = ResultItem<'store, Annotation>;

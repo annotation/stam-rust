@@ -15,10 +15,7 @@ use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::annotation::{Annotations, AnnotationsIter};
-use crate::api::annotationdata::Data;
-use crate::api::resources::ResourcesIter;
-use crate::api::HandleCollection;
+use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
@@ -1081,11 +1078,6 @@ impl<'store> TextSelectionsIter<'store> {
         self.map(|textselection| textselection.text())
     }
 
-    /// Returns true if the iterator has items, false otherwise
-    pub fn test(mut self) -> bool {
-        self.next().is_some()
-    }
-
     /// Returns all underlying text concatenated into a single String
     pub fn text_join(self, delimiter: &str) -> String {
         let mut s = String::new();
@@ -1111,6 +1103,8 @@ impl<'store> TextSelectionsIter<'store> {
         }
     }
 }
+
+impl TestableIterator for TextSelectionsIter<'_> {}
 
 #[sealed]
 impl TypeInfo for Option<ResultTextSelection<'_>> {
