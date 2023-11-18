@@ -38,8 +38,7 @@ use rayon::prelude::*;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::cmp::Ordering;
-
-pub type TextSelections = Vec<(TextResourceHandle, TextSelectionHandle)>;
+use std::fmt::Debug;
 
 /// This is the implementation of the high-level API for [`TextSelection`], though most of it is more commonly used via [`ResultTextSelection`].
 impl<'store> ResultItem<'store, TextSelection> {
@@ -602,7 +601,7 @@ impl<'store> TextSelectionsIter<'store> {
 
     pub fn from_handles(data: TextSelections, store: &'store AnnotationStore) -> Self {
         Self {
-            source: TextSelectionsSource::LowVec(data.into_iter().collect()),
+            source: TextSelectionsSource::LowVec(data.take().into_iter().collect()),
             store,
             cursor: 0,
             forward: None,
@@ -761,34 +760,52 @@ impl<'store> TextSelectionsIter<'store> {
         true
     }
 
-    pub fn to_handles(self) -> TextSelections {
+    pub fn to_collection(self) -> TextSelections<'store> {
+        let store = self.store;
         match self.source {
-            TextSelectionsSource::LowVec(v) => v.into_iter().collect(),
-            _ => self
-                .filter_map(|textselection| {
-                    if let Some(handle) = textselection.handle() {
-                        Some((textselection.resource().handle(), handle))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
+            TextSelectionsSource::LowVec(v) => TextSelections {
+                array: v.into_iter().collect(),
+                sorted: false, //sorted by handle? no. we're more typically sorted in textual order (but not always)
+                store,
+            },
+            _ => TextSelections {
+                array: self
+                    .filter_map(|textselection| {
+                        if let Some(handle) = textselection.handle() {
+                            Some((textselection.resource().handle(), handle))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                sorted: false,
+                store,
+            },
         }
     }
 
-    pub fn to_handles_limit(self, limit: usize) -> TextSelections {
+    pub fn to_collection_limit(self, limit: usize) -> TextSelections<'store> {
+        let store = self.store;
         match self.source {
-            TextSelectionsSource::LowVec(v) => v.into_iter().take(limit).collect(),
-            _ => self
-                .take(limit)
-                .filter_map(|textselection| {
-                    if let Some(handle) = textselection.handle() {
-                        Some((textselection.resource().handle(), handle))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
+            TextSelectionsSource::LowVec(v) => TextSelections {
+                array: v.into_iter().take(limit).collect(),
+                sorted: false,
+                store,
+            },
+            _ => TextSelections {
+                array: self
+                    .take(limit)
+                    .filter_map(|textselection| {
+                        if let Some(handle) = textselection.handle() {
+                            Some((textselection.resource().handle(), handle))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                sorted: false,
+                store,
+            },
         }
     }
 
@@ -1029,7 +1046,7 @@ impl<'store> TextSelectionsIter<'store> {
 
     /// Constrain this iterator to only return text selections that are also in the other collection
     pub fn filter_textselections(self, textselections: TextSelectionsIter) -> Self {
-        let mut textselections: Vec<_> = textselections.to_handles();
+        let mut textselections: Vec<_> = textselections.to_collection().take();
         textselections.sort_unstable();
         let store = self.store;
         TextSelectionsIter::new_with_iterator(
@@ -1097,5 +1114,70 @@ impl<'store> TextSelectionsIter<'store> {
 impl TypeInfo for Option<ResultTextSelection<'_>> {
     fn typeinfo() -> Type {
         Type::TextSelection
+    }
+}
+
+/// Holds a collection of text selections pertaining to resources.
+/// This structure is produced by calling [`ResourcesIter::to_collection()`].
+/// Use [`Resources::iter()`] to iterate over the collection.
+#[derive(Clone)]
+pub struct TextSelections<'store> {
+    array: Cow<'store, [(TextResourceHandle, TextSelectionHandle)]>,
+    sorted: bool,
+    store: &'store AnnotationStore,
+}
+
+impl<'store> Debug for TextSelections<'store> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Resources")
+            .field("array", &self.array)
+            .field("sorted", &self.sorted)
+            .finish()
+    }
+}
+
+impl<'a> HandleCollection<'a> for TextSelections<'a> {
+    type Handle = (TextResourceHandle, TextSelectionHandle);
+    type Item = ResultTextSelection<'a>;
+    type Iter = TextSelectionsIter<'a>;
+
+    fn array(&self) -> &Cow<'a, [Self::Handle]> {
+        &self.array
+    }
+
+    fn returns_sorted(&self) -> bool {
+        self.sorted
+    }
+
+    fn store(&self) -> &'a AnnotationStore {
+        self.store
+    }
+
+    /// Returns an iterator over the text selections, the iterator exposes further high-level API methods.
+    /// The iterator returns text selections as [`ResultTextSelection`].
+    fn iter(&self) -> TextSelectionsIter<'a> {
+        TextSelectionsIter::from_handles(self.clone(), self.store)
+    }
+
+    /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
+    /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
+    fn from_handles(
+        array: Cow<'a, [Self::Handle]>,
+        sorted: bool,
+        store: &'a AnnotationStore,
+    ) -> Self {
+        Self {
+            array,
+            sorted,
+            store,
+        }
+    }
+
+    /// Low-level method to take the underlying vector of handles
+    fn take(mut self) -> Vec<Self::Handle>
+    where
+        Self: Sized,
+    {
+        self.array.to_mut().to_vec()
     }
 }

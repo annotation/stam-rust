@@ -235,6 +235,7 @@ impl<'store> ResultItem<'store, Annotation> {
 /// Holds a collection of annotations.
 /// This structure is produced by calling [`AnnotationsIter::to_collection()`].
 /// Use [`Annotations::iter()`] to iterate over the collection.
+#[derive(Clone)]
 pub struct Annotations<'store> {
     array: Cow<'store, [AnnotationHandle]>,
     sorted: bool,

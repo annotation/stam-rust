@@ -34,9 +34,8 @@ pub use textselection::*;
 use crate::annotationstore::AnnotationStore;
 
 use std::borrow::Cow;
-use std::fmt::Debug;
 
-pub trait HandleCollection<'store>: Debug
+pub trait HandleCollection<'store>
 where
     Self: 'store + Sized,
 {
