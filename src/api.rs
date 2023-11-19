@@ -80,17 +80,17 @@ impl<'store, T> Collection<'store, T>
 where
     T: Storable,
 {
-    fn returns_sorted(&self) -> bool {
+    pub fn returns_sorted(&self) -> bool {
         self.sorted
     }
 
-    fn store(&self) -> &'store AnnotationStore {
+    pub fn store(&self) -> &'store AnnotationStore {
         self.store
     }
 
     /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
     /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
-    fn from_handles(
+    pub fn from_handles(
         array: Cow<'store, [T::FullHandleType]>,
         sorted: bool,
         store: &'store AnnotationStore,
@@ -103,7 +103,7 @@ where
     }
 
     /// Low-level method to take out the underlying vector of handles
-    fn take(mut self) -> Cow<'store, [T::FullHandleType]>
+    pub fn take(self) -> Cow<'store, [T::FullHandleType]>
     where
         Self: Sized,
     {
@@ -111,17 +111,17 @@ where
     }
 
     /// Returns the number of items in this collection.
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.array.len()
     }
 
     /// Returns a boolean indicating whether the collection is empty or not.
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
 
     /// Tests if the collection contains a specific element
-    fn contains(&self, handle: &T::FullHandleType) -> bool {
+    pub fn contains(&self, handle: &T::FullHandleType) -> bool {
         if self.returns_sorted() {
             match self.array.binary_search(&handle) {
                 Ok(_) => true,
