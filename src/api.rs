@@ -43,6 +43,7 @@ use crate::textselection::TextSelectionOperator;
 use crate::store::*;
 use crate::types::*;
 
+use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fmt::Debug;
 
@@ -76,6 +77,9 @@ where
     }
 }
 
+pub type CollectionHandleIter<'col, T> =
+    std::iter::Copied<std::slice::Iter<'col, <T as Storable>::FullHandleType>>;
+
 impl<'store, T> Collection<'store, T>
 where
     T: Storable,
@@ -97,6 +101,29 @@ where
     ) -> Self {
         Self {
             array,
+            sorted,
+            store,
+        }
+    }
+
+    pub fn from_iter(
+        iter: impl Iterator<Item = T::FullHandleType>,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        let mut sorted = true;
+        let mut v = Vec::new();
+        let mut prev: Option<T::FullHandleType> = None;
+        for item in iter {
+            if let Some(p) = prev {
+                if p > item {
+                    sorted = false;
+                }
+            }
+            v.push(item);
+            prev = Some(item);
+        }
+        Self {
+            array: Cow::Owned(v),
             sorted,
             store,
         }
@@ -145,7 +172,7 @@ where
     }
 
     /// Returns an iterator over the low-level handles in this collection
-    pub fn handles<'a>(&'a self) -> impl Iterator<Item = T::FullHandleType> + 'a {
+    pub fn handles<'col>(&'col self) -> CollectionHandleIter<'col, T> {
         self.array.iter().copied()
     }
 
@@ -325,4 +352,15 @@ pub(crate) enum Filter<'a> {
     BorrowedAnnotations(&'a Annotations<'a>),
     BorrowedData(&'a Data<'a>, FilterMode),
     BorrowedText(&'a str, TextMode, &'a str), //the last string represents the delimiter for joining text
+}
+
+/// Iterator over the items in a collection
+pub struct ResultItemIter<'store, 'col, T>
+where
+    T: Storable,
+{
+    iter: CollectionHandleIter<'col, T>,
+    store: &'store AnnotationStore,
+
+    filters: SmallVec<[Filter<'store>; 1]>,
 }
