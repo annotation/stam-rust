@@ -122,13 +122,155 @@ where
 
     /// Tests if the collection contains a specific element
     pub fn contains(&self, handle: &T::FullHandleType) -> bool {
-        if self.returns_sorted() {
+        if self.sorted {
             match self.array.binary_search(&handle) {
                 Ok(_) => true,
                 Err(_) => false,
             }
         } else {
             self.array.contains(&handle)
+        }
+    }
+
+    /// Tests if the collection contains a specific element and returns the index
+    pub fn position(&self, handle: &T::FullHandleType) -> Option<usize> {
+        if self.sorted {
+            match self.array.binary_search(&handle) {
+                Ok(index) => Some(index),
+                Err(_) => None,
+            }
+        } else {
+            self.array.iter().position(|x| x == handle)
+        }
+    }
+
+    /// Returns an iterator over the low-level handles in this collection
+    pub fn handles<'a>(&'a self) -> impl Iterator<Item = T::FullHandleType> + 'a {
+        self.array.iter().copied()
+    }
+
+    /// Computes the union between two collections, retains order and ensures there are no duplicates
+    /// Modifies the collection in-place to accommodate the other
+    pub fn union(&mut self, other: &Self) {
+        match other.len() {
+            0 => return,                                    //edge-case
+            1 => self.add(other.handles().next().unwrap()), //edge-case
+            _ => {
+                let mut updated = false;
+                let mut offset = 0;
+                for item in other.handles() {
+                    if self.sorted && other.sorted {
+                        //optimisation if both are sorted
+                        match self.array[offset..].binary_search(&item) {
+                            Ok(index) => offset = index + 1,
+                            Err(index) => {
+                                offset = index + 1;
+                                updated = true;
+                                self.add_unchecked(item);
+                            }
+                        }
+                    } else {
+                        if !self.contains(&item) {
+                            //will do either binary or linear search
+                            updated = true;
+                            self.add_unchecked(item);
+                        }
+                    }
+                }
+                if self.sorted && updated {
+                    //resort
+                    self.array.to_mut().sort_unstable();
+                }
+            }
+        }
+    }
+
+    /// Computes the intersection between two collections, retains order
+    /// Modifies the collection in-place to match the other
+    pub fn intersection(&mut self, other: &Self) {
+        match (self.len(), other.len()) {
+            (0, _) | (_, 0) =>
+            //edge-case: empty result because one of the collections is empty
+            {
+                self.array.to_mut().clear();
+                return;
+            }
+            (len, otherlen) => {
+                if len == otherlen && self.sorted && other.sorted {
+                    //edge-case: number of elements are equal, check if all elements are equal
+                    if self.handles().zip(other.handles()).all(|(x, y)| x == y) {
+                        return;
+                    }
+                } else if otherlen < len {
+                    //check if we need to modify the vector in place or if we can just copy the other
+                    if self.contains_subset(other) {
+                        self.array = other.array.clone(); //may be cheap if borrowed, expensive if owned
+                        return;
+                    }
+                } else if len < otherlen {
+                    //check if we need to modify the vector in place or if we can just copy the other
+                    if other.contains_subset(self) {
+                        return; //nothing to do
+                    }
+                }
+            }
+        }
+        let mut offset = 0;
+        // this takes ownership and will clone the array if it was borrowed
+        self.array.to_mut().retain(|x| {
+            if self.sorted && other.sorted {
+                //optimisation if both are sorted
+                match other.array[offset..].binary_search(x) {
+                    Ok(index) => {
+                        offset = index + 1;
+                        true
+                    }
+                    Err(index) => {
+                        offset = index + 1;
+                        false
+                    }
+                }
+            } else {
+                other.contains(x) //will do either binary or linear search
+            }
+        });
+    }
+
+    /// Checks if the collections contains another (need not be contingent)
+    pub fn contains_subset(&self, subset: &Self) -> bool {
+        for handle in subset.handles() {
+            if !self.contains(&handle) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Sorts the collection in chronological order (i.e. the handles are sorted)
+    /// Note that this is *NOT* the same as textual order.
+    pub fn sort(&mut self) {
+        if !self.sorted {
+            self.array.to_mut().sort_unstable();
+            self.sorted = true;
+        }
+    }
+
+    /// Adds an item to the collection, this does *NOT* check for duplicates and MAY invalidate any existing sorting
+    pub(crate) fn add_unchecked(&mut self, item: T::FullHandleType) {
+        self.array.to_mut().push(item);
+    }
+
+    /// Adds an item to the collection, this checks for duplicates and respects existing sorting (if any),
+    /// so this comes with performance overhead. Use [`Self.union()`] to add multiple items at once more efficiently.
+    pub fn add(&mut self, item: T::FullHandleType) {
+        if self.sorted {
+            if let Err(pos) = self.array.binary_search(&item) {
+                self.array.to_mut().insert(pos, item)
+            }
+        } else {
+            if !self.contains(&item) {
+                self.array.to_mut().push(item);
+            }
         }
     }
 }
