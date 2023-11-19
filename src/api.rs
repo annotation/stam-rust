@@ -47,14 +47,14 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fmt::Debug;
 
-/// Holds a collection of items. The collection may be either
+/// Holds a collection of items by handle. The collection may be either
 /// owned or borrowed from the store (usually from a reverse index).
 /// The items in the collection by definition refer to the [`AnnotationStore`], as
 /// internally the collection only keeps handles and a reference to the store.
 ///
 /// This structure is produced by calling a [`to_collection()`]. method
 #[derive(Clone)]
-pub struct Collection<'store, T>
+pub struct Handles<'store, T>
 where
     T: Storable,
 {
@@ -64,7 +64,7 @@ where
     store: &'store AnnotationStore,
 }
 
-impl<'store, T> Debug for Collection<'store, T>
+impl<'store, T> Debug for Handles<'store, T>
 where
     T: Storable,
 {
@@ -77,10 +77,10 @@ where
     }
 }
 
-pub type CollectionHandleIter<'col, T> =
-    std::iter::Copied<std::slice::Iter<'col, <T as Storable>::FullHandleType>>;
+pub type HandlesIter<'a, T> =
+    std::iter::Copied<std::slice::Iter<'a, <T as Storable>::FullHandleType>>;
 
-impl<'store, T> Collection<'store, T>
+impl<'store, T> Handles<'store, T>
 where
     T: Storable,
 {
@@ -92,9 +92,9 @@ where
         self.store
     }
 
-    /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed).
+    /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed from the store).
     /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
-    pub fn from_handles(
+    pub fn new(
         array: Cow<'store, [T::FullHandleType]>,
         sorted: bool,
         store: &'store AnnotationStore,
@@ -142,6 +142,11 @@ where
         self.array.len()
     }
 
+    /// Returns the number of items in this collection.
+    pub fn get(&self, index: usize) -> Option<T::FullHandleType> {
+        self.array.get(index).copied()
+    }
+
     /// Returns a boolean indicating whether the collection is empty or not.
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
@@ -172,7 +177,7 @@ where
     }
 
     /// Returns an iterator over the low-level handles in this collection
-    pub fn handles<'col>(&'col self) -> CollectionHandleIter<'col, T> {
+    pub fn iter<'a>(&'a self) -> HandlesIter<'a, T> {
         self.array.iter().copied()
     }
 
@@ -354,13 +359,76 @@ pub(crate) enum Filter<'a> {
     BorrowedText(&'a str, TextMode, &'a str), //the last string represents the delimiter for joining text
 }
 
-/// Iterator over the items in a collection
-pub struct ResultItemIter<'store, 'col, T>
+pub(crate) enum ResultItemIterSource<'store, T>
 where
     T: Storable,
 {
-    iter: CollectionHandleIter<'col, T>,
-    store: &'store AnnotationStore,
+    None,
+    HandlesArray(Handles<'store, T>), //internally, the array of handles is either owned or borrowed from the store
+    HandlesIter(Box<dyn Iterator<Item = T::FullHandleType> + 'store>), //MAYBE TODO: this lifetime bound may technically be not exactly right
+}
 
-    filters: SmallVec<[Filter<'store>; 1]>,
+/// Iterator over the items that can be turned into ResultItem
+pub struct ResultItemIter<'store, T>
+where
+    T: Storable,
+{
+    source: ResultItemIterSource<'store, T>,
+    store: &'store AnnotationStore,
+    sorted: bool,
+}
+
+impl<'store, T> Iterator for ResultItemIter<'store, T>
+where
+    T: Storable,
+{
+    type Item = ResultItem<'store, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let ResultItemIterSource::HandlesArray(handles) = self.source {
+            let cursor = self.cursor;
+            self.cursor += 1;
+            handles.get(cursor)
+        } else if let ResultItemIterSource::HandlesIter(iter) = &mut self.source {
+            iter.next()
+        }
+    }
+}
+
+impl<'store, T: Storable> ResultItemIter<'store, T> {
+    pub fn from_collection(collection: Handles<'store, T>) -> Self {
+        collection.into()
+    }
+
+    /// Borrows from a collection held by the AnnotationStore
+    pub(crate) fn borrow_from(
+        array: &'store [T],
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self::from_collection(Handles {
+            array: Cow::Borrowed(array),
+            sorted,
+            store,
+        })
+    }
+
+    ///Returns a dummy iterator
+    pub fn new_empty(store: &'store AnnotationStore) -> Self {
+        Self {
+            source: ResultItemIterSource::None,
+            sorted: false,
+            store,
+        }
+    }
+}
+
+impl<'store, T: Storable> From<Handles<'store, T>> for ResultItemIterSource<'store, T> {
+    fn from(value: Handles<'store, T>) -> Self {
+        Self {
+            store: value.store(),
+            sorted: value.returns_sorted(),
+            source: ResultItemIterSource::Handles(value),
+        }
+    }
 }

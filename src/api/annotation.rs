@@ -137,6 +137,19 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 
+    /// Iterates over all the annotations that reference this annotation, if any
+    /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
+    ///
+    /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.textual_order()`
+    pub fn annotations2(&self) -> ResultItemIter<'store, Annotation> {
+        if let Some(annotations) = self.store().annotations_by_annotation(self.handle()) {
+            ResultItemIter::borrow_from(annotations, true, self.store());
+        } else {
+            //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
+            ResultItemIter::new_empty(self.store())
+        }
+    }
+
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
     /// They are returned in textual order, except in case a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
     pub fn textselections(&self) -> TextSelectionsIter<'store> {
@@ -232,9 +245,9 @@ impl<'store> ResultItem<'store, Annotation> {
 /// Holds a collection of annotations.
 /// This structure is produced by calling [`AnnotationsIter::to_collection()`].
 /// Use [`Annotations::iter()`] to iterate over the collection.
-pub type Annotations<'store> = Collection<'store, Annotation>;
+pub type Annotations<'store> = Handles<'store, Annotation>;
 
-impl<'store> IntoIterator for Collection<'store, Annotation> {
+impl<'store> IntoIterator for Handles<'store, Annotation> {
     type Item = ResultItem<'store, Annotation>;
     type IntoIter = AnnotationsIter<'store>;
 
@@ -242,15 +255,6 @@ impl<'store> IntoIterator for Collection<'store, Annotation> {
         let sorted = self.sorted;
         let store = self.store;
         AnnotationsIter::new(IntersectionIter::new(self.take(), sorted), store)
-    }
-}
-
-impl<'store> Collection<'store, Annotation> {
-    pub fn iter(&self) -> AnnotationsIter<'store> {
-        AnnotationsIter::new(
-            IntersectionIter::new(self.array.clone(), self.sorted),
-            self.store,
-        )
     }
 }
 
@@ -1015,5 +1019,146 @@ impl<'store> Iterator for AnnotationsWithDataIter<'store> {
             }
         }
         None
+    }
+}
+
+impl<'store, 'col> Iterator for ResultItemIter<'store, Annotation> {
+    type Item = ResultItem<'store, Annotation>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(handle) = self.iter.next() {
+                if let Some(annotation) = self.store.annotation(handle) {
+                    if !self.test_filters(&annotation) {
+                        continue;
+                    }
+                    return Some(annotation);
+                }
+            } else {
+                break;
+            }
+        }
+        None
+    }
+}
+
+impl<'store, 'col> ResultItemIter<'store, Annotation> {
+    /// See if the filters match for the annotation
+    /// This does not include any filters directly on annotations, as those are handled already by the underlying IntersectionsIter
+    fn test_filters(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
+        if self.filters.is_empty() {
+            return true;
+        }
+        let mut datafilter: Option<DataIter> = None;
+        for filter in self.filters.iter() {
+            match filter {
+                Filter::AnnotationData(set, data) => {
+                    if datafilter.is_none() {
+                        datafilter = Some(annotation.data());
+                    }
+                    datafilter = datafilter.map(|dataiter| dataiter.filter_handle(*set, *data));
+                }
+                Filter::Data(data, FilterMode::Any) => {
+                    if datafilter.is_none() {
+                        datafilter = Some(annotation.data());
+                    }
+                    datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
+                }
+                Filter::BorrowedData(data, FilterMode::Any) => {
+                    if datafilter.is_none() {
+                        datafilter = Some(annotation.data());
+                    }
+                    datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
+                }
+                Filter::Data(data, FilterMode::All) => {
+                    if datafilter.is_none() {
+                        datafilter = Some(annotation.data());
+                    }
+                    let expected_count = data.len();
+                    if datafilter.unwrap().filter_data(data.iter()).count() != expected_count {
+                        return false;
+                    }
+                    datafilter = None;
+                }
+                Filter::BorrowedData(data, FilterMode::All) => {
+                    if datafilter.is_none() {
+                        datafilter = Some(annotation.data());
+                    }
+                    let expected_count = data.len();
+                    if datafilter.unwrap().filter_data(data.iter()).count() != expected_count {
+                        return false;
+                    }
+                    datafilter = None;
+                }
+                Filter::TextSelectionOperator(operator) => {
+                    if !annotation.related_text(*operator).test() {
+                        return false;
+                    }
+                }
+                Filter::TextResource(resource_handle) => {
+                    if !annotation
+                        .resources()
+                        .any(|resource| resource.handle() == *resource_handle)
+                    {
+                        return false;
+                    }
+                }
+                Filter::Text(reftext, textmode, delimiter) => {
+                    if let Some(text) = annotation.text_simple() {
+                        match textmode {
+                            TextMode::Exact => {
+                                if text != reftext.as_str() {
+                                    return false;
+                                }
+                            }
+                            TextMode::Lowercase => {
+                                if text.to_lowercase() != reftext.as_str() {
+                                    return false;
+                                }
+                            }
+                        }
+                    } else {
+                        let mut text = annotation.text_join(delimiter);
+                        if *textmode == TextMode::Lowercase {
+                            text = text.to_lowercase();
+                        }
+                        if text != reftext.as_str() {
+                            return false;
+                        }
+                    }
+                }
+                Filter::BorrowedText(reftext, textmode, delimiter) => {
+                    if let Some(text) = annotation.text_simple() {
+                        match textmode {
+                            TextMode::Exact => {
+                                if text != *reftext {
+                                    return false;
+                                }
+                            }
+                            TextMode::Lowercase => {
+                                if text.to_lowercase() != *reftext {
+                                    return false;
+                                }
+                            }
+                        }
+                    } else {
+                        let mut text = annotation.text_join(delimiter);
+                        if *textmode == TextMode::Lowercase {
+                            text = text.to_lowercase();
+                        }
+                        if text != *reftext {
+                            return false;
+                        }
+                    }
+                }
+                _ => unimplemented!("Filter {:?} not implemented for AnnotatationsIter", filter),
+            }
+        }
+        if let Some(datafilter) = datafilter {
+            if !datafilter.test() {
+                return false;
+            }
+        }
+        true
     }
 }
