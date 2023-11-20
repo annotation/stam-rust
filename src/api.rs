@@ -32,6 +32,7 @@ pub use text::*;
 pub use textselection::*;
 
 use crate::annotation::AnnotationHandle;
+use crate::annotation::TargetIter;
 use crate::annotationdata::AnnotationDataHandle;
 use crate::annotationdataset::AnnotationDataSetHandle;
 use crate::annotationstore::AnnotationStore;
@@ -367,6 +368,9 @@ where
     HandlesArray(Handles<'store, T>), //internally, the array of handles is either owned or borrowed from the store
     HandlesIter(Box<dyn Iterator<Item = T::FullHandleType> + 'store>), //MAYBE TODO: this lifetime bound may technically be not exactly right
     HandlesDoubleEndedIter(Box<dyn DoubleEndedIterator<Item = T::FullHandleType> + 'store>), //MAYBE TODO: this lifetime bound may technically be not exactly right
+    TargetIter(TargetIter<'store, T>),
+    /// A high-level (dynamic) iterator
+    PassIter(Box<dyn Iterator<Item = ResultItem<'store, T>> + 'store>),
 }
 
 /// Iterator over the items that can be turned into ResultItem
@@ -400,6 +404,17 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            if let ResultItemIterSource::PassIter(iter) = &mut self.source {
+                //pass-through iterator that is already high-level
+                if let Some(item) = iter.next() {
+                    if !self.test_filters(&item) {
+                        continue;
+                    }
+                    return Some(item);
+                }
+                return None;
+            }
+
             //get the handle
             let handle = if let ResultItemIterSource::HandlesArray(handles) = self.source {
                 let cursor = self.cursor.unwrap_or(0);
@@ -408,6 +423,8 @@ where
             } else if let ResultItemIterSource::HandlesIter(iter) = &mut self.source {
                 iter.next()
             } else if let ResultItemIterSource::HandlesDoubleEndedIter(iter) = &mut self.source {
+                iter.next()
+            } else if let ResultItemIterSource::TargetIter(iter) = &mut self.source {
                 iter.next()
             } else {
                 unreachable!("source not implemented")
@@ -456,6 +473,20 @@ where
                 self.source =
                     ResultItemIterSource::HandlesArray(Handles::from_iter(iter, self.store));
                 continue; //now we can
+            } else if let ResultItemIterSource::TargetIter(iter) = &mut self.source {
+                // we can't iterate backward on this one, we have no choice but
+                // to collect the entire iterator first.
+                self.source =
+                    ResultItemIterSource::HandlesArray(Handles::from_iter(iter, self.store));
+                continue; //now we can
+            } else if let ResultItemIterSource::PassIter(iter) = &mut self.source {
+                // we can't iterate backward on this one, we have no choice but
+                // to collect the entire iterator first (into low-level handles):
+                self.source = ResultItemIterSource::HandlesArray(Handles::from_iter(
+                    iter.map(|x| x.handle()),
+                    self.store,
+                ));
+                continue; //now we can
             } else {
                 unreachable!("source not implemented")
             };
@@ -483,6 +514,30 @@ impl<'store, T> ResultItemIter<'store, T>
 where
     T: Storable,
 {
+    /// Owned vector
+    pub fn from_vec(
+        value: Vec<T::FullHandleType>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self::from_handles(Handles::new(Cow::Owned(value), sorted, store))
+    }
+
+    /// From a high-level iterator
+    pub fn from_iterator(
+        iter: Box<dyn Iterator<Item = ResultItem<'store, T>>>,
+        sorted: bool,
+        store: &'store AnnotationStore,
+    ) -> Self {
+        Self {
+            store,
+            source: ResultItemIterSource::PassIter(iter),
+            sorted,
+            cursor: None,
+            filters: SmallVec::new(),
+        }
+    }
+
     pub fn from_handles(handles: Handles<'store, T>) -> Self {
         handles.into()
     }
@@ -498,6 +553,17 @@ where
             sorted,
             store,
         })
+    }
+
+    /// Low-level method
+    pub fn from_targetiter(targetiter: TargetIter<'store, T>, sorted: bool) -> Self {
+        Self {
+            store: targetiter.iter.store,
+            source: ResultItemIterSource::TargetIter(targetiter),
+            sorted,
+            cursor: None,
+            filters: SmallVec::new(),
+        }
     }
 
     ///Returns a dummy iterator
@@ -523,3 +589,5 @@ impl<'store, T: Storable> From<Handles<'store, T>> for ResultItemIter<'store, T>
         }
     }
 }
+
+impl<'store, T: Storable> From<Vec<T::FullHandleType>> for ResultItemIter<'store, T> {}

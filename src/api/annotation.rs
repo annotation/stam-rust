@@ -114,10 +114,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
         let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
-        AnnotationsIter::new(
-            IntersectionIter::new_with_iterator(Box::new(iter), sorted),
-            self.store(),
-        )
+        ResultItemIter::from_targetiter(iter, sorted)
     }
 
     /// Iterates over all the annotations that reference this annotation, if any
@@ -125,28 +122,15 @@ impl<'store> ResultItem<'store, Annotation> {
     ///
     /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.textual_order()`
     pub fn annotations(&self) -> AnnotationsIter<'store> {
-        let annotations = self.store().annotations_by_annotation(self.handle());
-        if let Some(annotations) = annotations {
-            AnnotationsIter::new(
-                IntersectionIter::new(Cow::Borrowed(annotations), true),
-                self.store(),
-            )
-        } else {
-            //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
-            AnnotationsIter::new_empty(self.store())
-        }
+        self.annotations_handles().into()
     }
 
-    /// Iterates over all the annotations that reference this annotation, if any
-    /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
-    ///
-    /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.textual_order()`
-    pub fn annotations2(&self) -> ResultItemIter<'store, Annotation> {
+    /// Low-level method
+    pub fn annotations_handles(&self) -> Handles<'store, Annotation> {
         if let Some(annotations) = self.store().annotations_by_annotation(self.handle()) {
-            ResultItemIter::borrow_from(annotations, true, self.store());
+            Handles::new(Cow::Borrowed(&annotations), true, self.store())
         } else {
-            //useless iter that won't yield anything, used only to have a simpler return type and save wrapping the whole thing in an Option
-            ResultItemIter::new_empty(self.store())
+            Handles::new_empty()
         }
     }
 
@@ -171,7 +155,7 @@ impl<'store> ResultItem<'store, Annotation> {
         self.textselections().text_simple()
     }
 
-    /// Returns all underlying text for this annotation concatenated
+    /// Returns all underlying text for this annotation concatenatedhttps://en.wikipedia.org/wiki/TempleOS
     /// Shortcut for `.textselections().text_join()`
     pub fn text_join(&self, delimiter: &str) -> String {
         self.textselections().text_join(delimiter)
@@ -258,54 +242,9 @@ impl<'store> IntoIterator for Handles<'store, Annotation> {
     }
 }
 
-/// The AnnotationsIter iterates over annotations, it returns [`ResultItem<Annotation>`] instances.
-/// The iterator offers a various high-level API methods that operate on a collection of annotations, and
-/// allow to further filter or map annotations.
-///
-/// The iterator is produced by calling the `annotations()` method that is implemented for several objects, such
-/// as [`ResultItem<Annotation>::annotations()`], or on other iterators like [`DataIter::annotations()`] and [`TextSelectionsIter::annotations()`].
-pub struct AnnotationsIter<'store> {
-    iter: Option<IntersectionIter<'store, AnnotationHandle>>,
-    store: &'store AnnotationStore,
-
-    filters: SmallVec<[Filter<'store>; 1]>,
-}
+pub type AnnotationsIter<'store> = ResultItemIter<'store, Annotation>;
 
 impl<'store> AnnotationsIter<'store> {
-    pub(crate) fn new(
-        iter: IntersectionIter<'store, AnnotationHandle>,
-        store: &'store AnnotationStore,
-    ) -> Self {
-        Self {
-            iter: Some(iter),
-            filters: SmallVec::new(),
-            store,
-        }
-    }
-
-    pub(crate) fn new_empty(store: &'store AnnotationStore) -> Self {
-        Self {
-            iter: None,
-            filters: SmallVec::new(),
-            store,
-        }
-    }
-
-    /// Builds a new annotation iterator from any other iterator of annotations.
-    /// Eagerly consumes the iterator first.
-    pub fn from_iter(
-        iter: impl Iterator<Item = ResultItem<'store, Annotation>>,
-        sorted: bool,
-        store: &'store AnnotationStore,
-    ) -> Self {
-        let data: Vec<_> = iter.map(|a| a.handle()).collect();
-        Self {
-            iter: Some(IntersectionIter::new(Cow::Owned(data), sorted)),
-            filters: SmallVec::new(),
-            store,
-        }
-    }
-
     /// Transform the iterator into a parallel iterator; subsequent iterator methods like `filter` and `map` will run in parallel.
     /// This first consumes the sequential iterator into a newly allocated buffer.
     ///
@@ -329,7 +268,7 @@ impl<'store> AnnotationsIter<'store> {
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
+        ResultItemIterator::from_vec(annotations, true, store)
     }
 
     /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
@@ -337,18 +276,12 @@ impl<'store> AnnotationsIter<'store> {
     /// Unlike [`Self::annotations_in_targets()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn annotations_in_targets_unchecked(self, recursive: bool) -> AnnotationsIter<'store> {
         let store = self.store;
-        AnnotationsIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(
-                    self.map(move |annotation| {
-                        annotation
-                            .annotations_in_targets(recursive)
-                            .map(|a| a.handle())
-                    })
+        ResultItemIterator::from_iterator(
+            Box::new(
+                self.map(move |annotation| annotation.annotations_in_targets(recursive))
                     .flatten(),
-                ),
-                false,
             ),
+            true,
             store,
         )
     }
@@ -363,21 +296,16 @@ impl<'store> AnnotationsIter<'store> {
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        AnnotationsIter::new(IntersectionIter::new(Cow::Owned(annotations), true), store)
+        ResultItemIterator::from_vec(annotations, true, store)
     }
 
     /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector`])
     /// Unlike [`Self::annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
         let store = self.store;
-        AnnotationsIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(
-                    self.map(|annotation| annotation.annotations().map(|a| a.handle()))
-                        .flatten(),
-                ),
-                false,
-            ),
+        ResultItemIterator::from_iterator(
+            Box::new(self.map(|annotation| annotation.annotations()).flatten()),
+            false,
             store,
         )
     }
@@ -823,125 +751,6 @@ impl<'store> AnnotationsIter<'store> {
             sorted,
         }
     }
-
-    /// See if the filters match for the annotation
-    /// This does not include any filters directly on annotations, as those are handled already by the underlying IntersectionsIter
-    fn test_filters(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
-        if self.filters.is_empty() {
-            return true;
-        }
-        let mut datafilter: Option<DataIter> = None;
-        for filter in self.filters.iter() {
-            match filter {
-                Filter::AnnotationData(set, data) => {
-                    if datafilter.is_none() {
-                        datafilter = Some(annotation.data());
-                    }
-                    datafilter = datafilter.map(|dataiter| dataiter.filter_handle(*set, *data));
-                }
-                Filter::Data(data, FilterMode::Any) => {
-                    if datafilter.is_none() {
-                        datafilter = Some(annotation.data());
-                    }
-                    datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
-                }
-                Filter::BorrowedData(data, FilterMode::Any) => {
-                    if datafilter.is_none() {
-                        datafilter = Some(annotation.data());
-                    }
-                    datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
-                }
-                Filter::Data(data, FilterMode::All) => {
-                    if datafilter.is_none() {
-                        datafilter = Some(annotation.data());
-                    }
-                    let expected_count = data.len();
-                    if datafilter.unwrap().filter_data(data.iter()).count() != expected_count {
-                        return false;
-                    }
-                    datafilter = None;
-                }
-                Filter::BorrowedData(data, FilterMode::All) => {
-                    if datafilter.is_none() {
-                        datafilter = Some(annotation.data());
-                    }
-                    let expected_count = data.len();
-                    if datafilter.unwrap().filter_data(data.iter()).count() != expected_count {
-                        return false;
-                    }
-                    datafilter = None;
-                }
-                Filter::TextSelectionOperator(operator) => {
-                    if !annotation.related_text(*operator).test() {
-                        return false;
-                    }
-                }
-                Filter::TextResource(resource_handle) => {
-                    if !annotation
-                        .resources()
-                        .any(|resource| resource.handle() == *resource_handle)
-                    {
-                        return false;
-                    }
-                }
-                Filter::Text(reftext, textmode, delimiter) => {
-                    if let Some(text) = annotation.text_simple() {
-                        match textmode {
-                            TextMode::Exact => {
-                                if text != reftext.as_str() {
-                                    return false;
-                                }
-                            }
-                            TextMode::Lowercase => {
-                                if text.to_lowercase() != reftext.as_str() {
-                                    return false;
-                                }
-                            }
-                        }
-                    } else {
-                        let mut text = annotation.text_join(delimiter);
-                        if *textmode == TextMode::Lowercase {
-                            text = text.to_lowercase();
-                        }
-                        if text != reftext.as_str() {
-                            return false;
-                        }
-                    }
-                }
-                Filter::BorrowedText(reftext, textmode, delimiter) => {
-                    if let Some(text) = annotation.text_simple() {
-                        match textmode {
-                            TextMode::Exact => {
-                                if text != *reftext {
-                                    return false;
-                                }
-                            }
-                            TextMode::Lowercase => {
-                                if text.to_lowercase() != *reftext {
-                                    return false;
-                                }
-                            }
-                        }
-                    } else {
-                        let mut text = annotation.text_join(delimiter);
-                        if *textmode == TextMode::Lowercase {
-                            text = text.to_lowercase();
-                        }
-                        if text != *reftext {
-                            return false;
-                        }
-                    }
-                }
-                _ => unimplemented!("Filter {:?} not implemented for AnnotatationsIter", filter),
-            }
-        }
-        if let Some(datafilter) = datafilter {
-            if !datafilter.test() {
-                return false;
-            }
-        }
-        true
-    }
 }
 
 impl<'store> AbortableIterator for AnnotationsIter<'store> {
@@ -1021,6 +830,8 @@ impl<'store> Iterator for AnnotationsWithDataIter<'store> {
         None
     }
 }
+
+pub trait AnnotationsIterator {}
 
 impl<'store> ResultItemIter<'store, Annotation> {}
 
