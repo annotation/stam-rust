@@ -1022,27 +1022,13 @@ impl<'store> Iterator for AnnotationsWithDataIter<'store> {
     }
 }
 
-impl<'store, 'col> Iterator for ResultItemIter<'store, Annotation> {
-    type Item = ResultItem<'store, Annotation>;
+impl<'store> ResultItemIter<'store, Annotation> {}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(handle) = self.iter.next() {
-                if let Some(annotation) = self.store.annotation(handle) {
-                    if !self.test_filters(&annotation) {
-                        continue;
-                    }
-                    return Some(annotation);
-                }
-            } else {
-                break;
-            }
-        }
-        None
+impl<'store> ResultItemIterator<'store, Annotation> for ResultItemIter<'store, Annotation> {
+    fn get_item(&self, handle: AnnotationHandle) -> Option<ResultItem<'store, Annotation>> {
+        self.store.annotation(handle)
     }
-}
 
-impl<'store, 'col> ResultItemIter<'store, Annotation> {
     /// See if the filters match for the annotation
     /// This does not include any filters directly on annotations, as those are handled already by the underlying IntersectionsIter
     fn test_filters(&self, annotation: &ResultItem<'store, Annotation>) -> bool {

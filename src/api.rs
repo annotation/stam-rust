@@ -366,6 +366,7 @@ where
     None,
     HandlesArray(Handles<'store, T>), //internally, the array of handles is either owned or borrowed from the store
     HandlesIter(Box<dyn Iterator<Item = T::FullHandleType> + 'store>), //MAYBE TODO: this lifetime bound may technically be not exactly right
+    HandlesDoubleEndedIter(Box<dyn DoubleEndedIterator<Item = T::FullHandleType> + 'store>), //MAYBE TODO: this lifetime bound may technically be not exactly right
 }
 
 /// Iterator over the items that can be turned into ResultItem
@@ -376,37 +377,123 @@ where
     source: ResultItemIterSource<'store, T>,
     store: &'store AnnotationStore,
     sorted: bool,
+    cursor: Option<usize>,
+    filters: SmallVec<[Filter<'store>; 1]>,
+}
+
+/// This internal trait is implemented for various forms of [`ResultItemIter<'store,T>`]
+pub(crate) trait ResultItemIterator<'store, T>
+where
+    T: Storable,
+{
+    fn get_item(&self, handle: T::FullHandleType) -> Option<ResultItem<'store, T>>;
+
+    fn test_filters(&self, item: &ResultItem<'store, T>) -> bool;
 }
 
 impl<'store, T> Iterator for ResultItemIter<'store, T>
 where
-    T: Storable,
+    T: Storable + 'store,
+    Self: ResultItemIterator<'store, T>,
 {
     type Item = ResultItem<'store, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let ResultItemIterSource::HandlesArray(handles) = self.source {
-            let cursor = self.cursor;
-            self.cursor += 1;
-            handles.get(cursor)
-        } else if let ResultItemIterSource::HandlesIter(iter) = &mut self.source {
-            iter.next()
+        loop {
+            //get the handle
+            let handle = if let ResultItemIterSource::HandlesArray(handles) = self.source {
+                let cursor = self.cursor.unwrap_or(0);
+                self.cursor = Some(cursor + 1);
+                handles.get(cursor)
+            } else if let ResultItemIterSource::HandlesIter(iter) = &mut self.source {
+                iter.next()
+            } else if let ResultItemIterSource::HandlesDoubleEndedIter(iter) = &mut self.source {
+                iter.next()
+            } else {
+                unreachable!("source not implemented")
+            };
+
+            //turn the handle into an item
+            if let Some(handle) = handle {
+                if let Some(item) = self.get_item(handle) {
+                    //test if the item passes the filters
+                    if !self.test_filters(&item) {
+                        continue;
+                    }
+                    return Some(item);
+                } else {
+                    //invalid handle, failed to get an item (shouldn't happen under ordinary circumstances), skip it
+                    continue;
+                }
+            } else {
+                return None;
+            }
         }
     }
 }
 
-impl<'store, T: Storable> ResultItemIter<'store, T> {
-    pub fn from_collection(collection: Handles<'store, T>) -> Self {
-        collection.into()
+impl<'store, T> DoubleEndedIterator for ResultItemIter<'store, T>
+where
+    T: Storable + 'store,
+    Self: ResultItemIterator<'store, T>,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            //get the handle
+            let handle = if let ResultItemIterSource::HandlesArray(handles) = self.source {
+                let cursor = self.cursor.unwrap_or(1);
+                self.cursor = Some(cursor + 1); //cursor iterates forward, 1-indexed
+                if cursor > handles.len() {
+                    None
+                } else {
+                    handles.get(handles.len() - cursor)
+                }
+            } else if let ResultItemIterSource::HandlesDoubleEndedIter(iter) = &mut self.source {
+                iter.next_back()
+            } else if let ResultItemIterSource::HandlesIter(iter) = &mut self.source {
+                // we can't iterate backward on this one, we have no choice but
+                // to collect the entire iterator first.
+                self.source =
+                    ResultItemIterSource::HandlesArray(Handles::from_iter(iter, self.store));
+                continue; //now we can
+            } else {
+                unreachable!("source not implemented")
+            };
+
+            //turn the handle into an item
+            if let Some(handle) = handle {
+                if let Some(item) = self.get_item(handle) {
+                    //test if the item passes the filters
+                    if !self.test_filters(&item) {
+                        continue;
+                    }
+                    return Some(item);
+                } else {
+                    //invalid handle, failed to get an item (shouldn't happen under ordinary circumstances), skip it
+                    continue;
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl<'store, T> ResultItemIter<'store, T>
+where
+    T: Storable,
+{
+    pub fn from_handles(handles: Handles<'store, T>) -> Self {
+        handles.into()
     }
 
     /// Borrows from a collection held by the AnnotationStore
     pub(crate) fn borrow_from(
-        array: &'store [T],
+        array: &'store [T::FullHandleType],
         sorted: bool,
         store: &'store AnnotationStore,
     ) -> Self {
-        Self::from_collection(Handles {
+        Self::from_handles(Handles {
             array: Cow::Borrowed(array),
             sorted,
             store,
@@ -418,17 +505,21 @@ impl<'store, T: Storable> ResultItemIter<'store, T> {
         Self {
             source: ResultItemIterSource::None,
             sorted: false,
+            cursor: None,
             store,
+            filters: SmallVec::new(),
         }
     }
 }
 
-impl<'store, T: Storable> From<Handles<'store, T>> for ResultItemIterSource<'store, T> {
+impl<'store, T: Storable> From<Handles<'store, T>> for ResultItemIter<'store, T> {
     fn from(value: Handles<'store, T>) -> Self {
         Self {
             store: value.store(),
             sorted: value.returns_sorted(),
-            source: ResultItemIterSource::Handles(value),
+            source: ResultItemIterSource::HandlesArray(value),
+            cursor: None,
+            filters: SmallVec::new(),
         }
     }
 }
