@@ -14,13 +14,19 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 
-use crate::annotationdataset::AnnotationDataSet;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::api::annotation::AnnotationsIter;
 use crate::api::annotationdata::DataIter;
-use crate::datakey::DataKey;
+use crate::datakey::{DataKey, DataKeyHandle};
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::IntersectionIter;
+
+impl<'store> FullHandle<DataKey> for ResultItem<'store, DataKey> {
+    fn fullhandle(&self) -> <DataKey as Storable>::FullHandleType {
+        (self.set().handle(), self.handle())
+    }
+}
 
 /// This is the implementation of the high-level API for [`DataKey`].
 impl<'store> ResultItem<'store, DataKey> {

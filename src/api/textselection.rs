@@ -37,6 +37,12 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
+impl<'store> FullHandle<TextSelection> for ResultItem<'store, TextSelection> {
+    fn fullhandle(&self) -> <TextSelection as Storable>::FullHandleType {
+        (self.resource().handle(), self.handle())
+    }
+}
+
 /// This is the implementation of the high-level API for [`TextSelection`], though most of it is more commonly used via [`ResultTextSelection`].
 impl<'store> ResultItem<'store, TextSelection> {
     /// Return the begin position (unicode points)
@@ -1154,20 +1160,4 @@ impl TypeInfo for Option<ResultTextSelection<'_>> {
 /// Holds a collection of text selections pertaining to resources.
 /// This structure is produced by calling [`ResourcesIter::to_collection()`].
 /// Use [`Resources::iter()`] to iterate over the collection.
-pub type TextSelections<'store> = Collection<'store, TextSelection>;
-
-impl<'store> IntoIterator for Collection<'store, TextSelection> {
-    type Item = ResultTextSelection<'store>;
-    type IntoIter = TextSelectionsIter<'store>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let store = self.store;
-        TextSelectionsIter::from_handles(self, store)
-    }
-}
-
-impl<'store> Collection<'store, TextSelection> {
-    pub fn iter(&self) -> TextSelectionsIter<'store> {
-        TextSelectionsIter::from_handles(self.clone(), self.store)
-    }
-}
+pub type TextSelections<'store> = Handles<'store, TextSelection>;

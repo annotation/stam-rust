@@ -31,8 +31,8 @@ pub use resources::*;
 pub use text::*;
 pub use textselection::*;
 
-use crate::annotation::AnnotationHandle;
 use crate::annotation::TargetIter;
+use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::AnnotationDataHandle;
 use crate::annotationdataset::AnnotationDataSetHandle;
 use crate::annotationstore::AnnotationStore;
@@ -48,10 +48,11 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fmt::Debug;
 
-/// Holds a collection of items by handle. The collection may be either
+/// Holds a collection of items. The collection may be either
 /// owned or borrowed from the store (usually from a reverse index).
+///
 /// The items in the collection by definition refer to the [`AnnotationStore`], as
-/// internally the collection only keeps handles and a reference to the store.
+/// internally the collection only keeps *fully qualified* handles and a reference to the store.
 ///
 /// This structure is produced by calling a [`to_collection()`]. method
 #[derive(Clone)]
@@ -103,6 +104,14 @@ where
         Self {
             array,
             sorted,
+            store,
+        }
+    }
+
+    pub fn new_empty(store: &'store AnnotationStore) -> Self {
+        Self {
+            array: Cow::Owned(Vec::new()),
+            sorted: false,
             store,
         }
     }
@@ -186,12 +195,12 @@ where
     /// Modifies the collection in-place to accommodate the other
     pub fn union(&mut self, other: &Self) {
         match other.len() {
-            0 => return,                                    //edge-case
-            1 => self.add(other.handles().next().unwrap()), //edge-case
+            0 => return,                                 //edge-case
+            1 => self.add(other.iter().next().unwrap()), //edge-case
             _ => {
                 let mut updated = false;
                 let mut offset = 0;
-                for item in other.handles() {
+                for item in other.iter() {
                     if self.sorted && other.sorted {
                         //optimisation if both are sorted
                         match self.array[offset..].binary_search(&item) {
@@ -231,7 +240,7 @@ where
             (len, otherlen) => {
                 if len == otherlen && self.sorted && other.sorted {
                     //edge-case: number of elements are equal, check if all elements are equal
-                    if self.handles().zip(other.handles()).all(|(x, y)| x == y) {
+                    if self.iter().zip(other.iter()).all(|(x, y)| x == y) {
                         return;
                     }
                 } else if otherlen < len {
@@ -271,7 +280,7 @@ where
 
     /// Checks if the collections contains another (need not be contingent)
     pub fn contains_subset(&self, subset: &Self) -> bool {
-        for handle in subset.handles() {
+        for handle in subset.iter() {
             if !self.contains(&handle) {
                 return false;
             }
@@ -343,6 +352,7 @@ pub(crate) enum TextMode {
 #[derive(Debug)]
 /// A filter that is evaluated lazily, applied on [`AnnotationsIter`], [`DataIter`],[`TextSelectionsIter`]
 pub(crate) enum Filter<'a> {
+    Pass, //dummy filter, does nothing
     AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
     AnnotationDataSet(AnnotationDataSetHandle),
     DataKey(AnnotationDataSetHandle, DataKeyHandle),
@@ -350,7 +360,7 @@ pub(crate) enum Filter<'a> {
     TextResource(TextResourceHandle),
     DataOperator(DataOperator<'a>),
     TextSelectionOperator(TextSelectionOperator),
-    Annotations(Annotations<'a>),
+    Annotations(Handles<'a, Annotation>), //box needed because ResultItemIter again has Filters
     Data(Data<'a>, FilterMode),
     Text(String, TextMode, &'a str), //the last string represents the delimiter for joining text
 
@@ -368,7 +378,10 @@ where
     HandlesArray(Handles<'store, T>), //internally, the array of handles is either owned or borrowed from the store
     HandlesIter(Box<dyn Iterator<Item = T::FullHandleType> + 'store>), //MAYBE TODO: this lifetime bound may technically be not exactly right
     HandlesDoubleEndedIter(Box<dyn DoubleEndedIterator<Item = T::FullHandleType> + 'store>), //MAYBE TODO: this lifetime bound may technically be not exactly right
-    TargetIter(TargetIter<'store, T>),
+
+    /// A targetiter has only atomic handles, no full ones, so we need to pass the store handle along handle, use () if not applicable
+    TargetIter(T::StoreHandleType, TargetIter<'store, T>),
+
     /// A high-level (dynamic) iterator
     PassIter(Box<dyn Iterator<Item = ResultItem<'store, T>> + 'store>),
 }
@@ -385,6 +398,18 @@ where
     filters: SmallVec<[Filter<'store>; 1]>,
 }
 
+impl<'store, T> Debug for ResultItemIter<'store, T>
+where
+    T: Storable,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = format!("ResultItemIter<{}>", T::typeinfo());
+        f.debug_struct(s.as_str())
+            .field("sorted", &self.sorted)
+            .finish()
+    }
+}
+
 /// This internal trait is implemented for various forms of [`ResultItemIter<'store,T>`]
 pub(crate) trait ResultItemIterator<'store, T>
 where
@@ -392,6 +417,7 @@ where
 {
     fn get_item(&self, handle: T::FullHandleType) -> Option<ResultItem<'store, T>>;
 
+    /// Test other filters
     fn test_filters(&self, item: &ResultItem<'store, T>) -> bool;
 }
 
@@ -399,6 +425,8 @@ impl<'store, T> Iterator for ResultItemIter<'store, T>
 where
     T: Storable + 'store,
     Self: ResultItemIterator<'store, T>,
+    ResultItem<'store, T>: FullHandle<T>,
+    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
 {
     type Item = ResultItem<'store, T>;
 
@@ -416,7 +444,8 @@ where
             }
 
             //get the handle
-            let handle = if let ResultItemIterSource::HandlesArray(handles) = self.source {
+            let fullhandle = if let ResultItemIterSource::HandlesArray(handles) = self.source {
+                //advance the cursor
                 let cursor = self.cursor.unwrap_or(0);
                 self.cursor = Some(cursor + 1);
                 handles.get(cursor)
@@ -424,15 +453,15 @@ where
                 iter.next()
             } else if let ResultItemIterSource::HandlesDoubleEndedIter(iter) = &mut self.source {
                 iter.next()
-            } else if let ResultItemIterSource::TargetIter(iter) = &mut self.source {
-                iter.next()
+            } else if let ResultItemIterSource::TargetIter(parenthandle, iter) = &mut self.source {
+                iter.next().map(|x| T::fullhandle(*parenthandle, x))
             } else {
                 unreachable!("source not implemented")
             };
 
             //turn the handle into an item
-            if let Some(handle) = handle {
-                if let Some(item) = self.get_item(handle) {
+            if let Some(fullhandle) = fullhandle {
+                if let Some(item) = self.get_item(fullhandle) {
                     //test if the item passes the filters
                     if !self.test_filters(&item) {
                         continue;
@@ -453,11 +482,13 @@ impl<'store, T> DoubleEndedIterator for ResultItemIter<'store, T>
 where
     T: Storable + 'store,
     Self: ResultItemIterator<'store, T>,
+    ResultItem<'store, T>: FullHandle<T>,
+    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             //get the handle
-            let handle = if let ResultItemIterSource::HandlesArray(handles) = self.source {
+            let fullhandle = if let ResultItemIterSource::HandlesArray(handles) = self.source {
                 let cursor = self.cursor.unwrap_or(1);
                 self.cursor = Some(cursor + 1); //cursor iterates forward, 1-indexed
                 if cursor > handles.len() {
@@ -473,17 +504,19 @@ where
                 self.source =
                     ResultItemIterSource::HandlesArray(Handles::from_iter(iter, self.store));
                 continue; //now we can
-            } else if let ResultItemIterSource::TargetIter(iter) = &mut self.source {
+            } else if let ResultItemIterSource::TargetIter(parenthandle, iter) = &mut self.source {
                 // we can't iterate backward on this one, we have no choice but
                 // to collect the entire iterator first.
-                self.source =
-                    ResultItemIterSource::HandlesArray(Handles::from_iter(iter, self.store));
+                self.source = ResultItemIterSource::HandlesArray(Handles::from_iter(
+                    iter.map(|x| T::fullhandle(*parenthandle, x)),
+                    self.store,
+                ));
                 continue; //now we can
             } else if let ResultItemIterSource::PassIter(iter) = &mut self.source {
                 // we can't iterate backward on this one, we have no choice but
                 // to collect the entire iterator first (into low-level handles):
                 self.source = ResultItemIterSource::HandlesArray(Handles::from_iter(
-                    iter.map(|x| x.handle()),
+                    iter.map(|x| x.fullhandle()),
                     self.store,
                 ));
                 continue; //now we can
@@ -492,8 +525,8 @@ where
             };
 
             //turn the handle into an item
-            if let Some(handle) = handle {
-                if let Some(item) = self.get_item(handle) {
+            if let Some(fullhandle) = fullhandle {
+                if let Some(item) = self.get_item(fullhandle) {
                     //test if the item passes the filters
                     if !self.test_filters(&item) {
                         continue;
@@ -513,7 +546,14 @@ where
 impl<'store, T> ResultItemIter<'store, T>
 where
     T: Storable,
+    Self: ResultItemIterator<'store, T>,
+    ResultItem<'store, T>: FullHandle<T>,
+    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
 {
+    pub fn returns_sorted(&self) -> bool {
+        self.sorted
+    }
+
     /// Owned vector
     pub fn from_vec(
         value: Vec<T::FullHandleType>,
@@ -556,10 +596,14 @@ where
     }
 
     /// Low-level method
-    pub fn from_targetiter(targetiter: TargetIter<'store, T>, sorted: bool) -> Self {
+    pub fn from_targetiter(
+        targetiter: TargetIter<'store, T>,
+        sorted: bool,
+        parenthandle: T::StoreHandleType, //a targetiter has no full handles, so we need to pass the parent handle, just pass () if not applicable
+    ) -> Self {
         Self {
             store: targetiter.iter.store,
-            source: ResultItemIterSource::TargetIter(targetiter),
+            source: ResultItemIterSource::TargetIter(parenthandle, targetiter),
             sorted,
             cursor: None,
             filters: SmallVec::new(),
@@ -576,6 +620,138 @@ where
             filters: SmallVec::new(),
         }
     }
+
+    /// Consumes the iterator and returns the underlying handles
+    /// If the underlying representation is borrowed and their are no further filters, then this is optimised to come at no cost (O(1)).
+    pub fn into_handles(self) -> Handles<'store, T> {
+        self.into()
+    }
+
+    /// Produces the intersection between this iterator and the result (handles) of another.
+    /// This fully consumes the iterator a new one and does not apply further filters yet!
+    /// The results do not include duplicates.
+    /// If both collections were sorted, the result will be too.
+    pub fn intersection(mut self, other: &Handles<'store, T>) -> Self {
+        self.buffer();
+        if let ResultItemIterSource::HandlesArray(handles) = &mut self.source {
+            handles.intersection(&other);
+        } else {
+            unreachable!("buffer didn't return properly");
+        }
+        self
+    }
+
+    /// Produces the union between this iterator and the result (handles) of another.
+    /// This fully consumes the iterator a new one and does not apply further filters yet!
+    /// The results do not include duplicates.
+    /// If both collections were sorted, the result will be too.
+    pub fn union(mut self, other: &Handles<'store, T>) -> Self {
+        self.buffer();
+        if let ResultItemIterSource::HandlesArray(handles) = &mut self.source {
+            handles.union(other);
+        } else {
+            unreachable!("buffer didn't return properly");
+        }
+        self
+    }
+
+    /// Consumes any underlying iterators into a buffer
+    pub(crate) fn buffer(&mut self) {
+        self.source = match self.source {
+            ResultItemIterSource::HandlesIter(inneriter) => ResultItemIterSource::HandlesArray(
+                Handles::new(inneriter.collect(), self.sorted, self.store),
+            ),
+            ResultItemIterSource::HandlesDoubleEndedIter(inneriter) => {
+                ResultItemIterSource::HandlesArray(Handles::new(
+                    inneriter.collect(),
+                    self.sorted,
+                    self.store,
+                ))
+            }
+            ResultItemIterSource::PassIter(inneriter) => {
+                ResultItemIterSource::HandlesArray(Handles::new(
+                    inneriter.map(|x| x.fullhandle()).collect(),
+                    self.sorted,
+                    self.store,
+                ))
+            }
+            ResultItemIterSource::TargetIter(parenthandle, inneriter) => {
+                ResultItemIterSource::HandlesArray(Handles::new(
+                    inneriter.map(|x| T::fullhandle(parenthandle, x)).collect(),
+                    self.sorted,
+                    self.store,
+                ))
+            }
+            other => other, //keep as-is
+        };
+    }
+
+    /// Consumes the iterator and returns the underlying handles up to a certain limit
+    /// If the underlying representation is borrowed, below the limit, and there are no further filters, then this is optimised to come at no cost (O(1)).
+    pub fn into_handles_limit(self, limit: usize) -> Handles<'store, T> {
+        if self.filters.is_empty() {
+            match self.source {
+                ResultItemIterSource::None => return Handles::new_empty(self.store),
+                ResultItemIterSource::HandlesArray(handles) => {
+                    if handles.len() <= limit {
+                        return handles;
+                    }
+                }
+                ResultItemIterSource::HandlesIter(inneriter) => {
+                    return Handles::new(inneriter.take(limit).collect(), self.sorted, self.store)
+                }
+                ResultItemIterSource::HandlesDoubleEndedIter(inneriter) => {
+                    return Handles::new(inneriter.take(limit).collect(), self.sorted, self.store)
+                }
+                ResultItemIterSource::PassIter(inneriter) => {
+                    return Handles::new(
+                        inneriter.take(limit).map(|x| x.fullhandle()).collect(),
+                        self.sorted,
+                        self.store,
+                    )
+                }
+                ResultItemIterSource::TargetIter(parenthandle, inneriter) => {
+                    return Handles::new(
+                        inneriter
+                            .take(limit)
+                            .map(|x| T::fullhandle(parenthandle, x))
+                            .collect(),
+                        self.sorted,
+                        self.store,
+                    )
+                }
+            }
+        }
+        Handles::new(
+            Cow::Owned(self.take(limit).map(|x| x.fullhandle()).collect()),
+            self.sorted,
+            self.store,
+        )
+    }
+}
+
+impl<'store, T> TestableIterator for ResultItemIter<'store, T>
+where
+    T: Storable + 'store,
+    ResultItemIter<'store, T>: ResultItemIterator<'store, T>,
+    ResultItem<'store, T>: FullHandle<T>,
+    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
+{
+}
+
+impl<'store, T> IntoIterator for Handles<'store, T>
+where
+    T: Storable + 'store,
+    ResultItemIter<'store, T>: ResultItemIterator<'store, T>,
+    ResultItem<'store, T>: FullHandle<T>,
+    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
+{
+    type Item = ResultItem<'store, T>;
+    type IntoIter = ResultItemIter<'store, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.into()
+    }
 }
 
 impl<'store, T: Storable> From<Handles<'store, T>> for ResultItemIter<'store, T> {
@@ -590,4 +766,44 @@ impl<'store, T: Storable> From<Handles<'store, T>> for ResultItemIter<'store, T>
     }
 }
 
-impl<'store, T: Storable> From<Vec<T::FullHandleType>> for ResultItemIter<'store, T> {}
+impl<'store, T: Storable> From<ResultItemIter<'store, T>> for Handles<'store, T>
+where
+    ResultItem<'store, T>: FullHandle<T>,
+    ResultItemIter<'store, T>: ResultItemIterator<'store, T>,
+    ResultItem<'store, T>: FullHandle<T>,
+    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
+{
+    fn from(iter: ResultItemIter<'store, T>) -> Self {
+        if iter.filters.is_empty() {
+            match iter.source {
+                ResultItemIterSource::None => return Handles::new_empty(iter.store),
+                ResultItemIterSource::HandlesArray(handles) => return handles,
+                ResultItemIterSource::HandlesIter(inneriter) => {
+                    return Handles::new(inneriter.collect(), iter.sorted, iter.store)
+                }
+                ResultItemIterSource::HandlesDoubleEndedIter(inneriter) => {
+                    return Handles::new(inneriter.collect(), iter.sorted, iter.store)
+                }
+                ResultItemIterSource::PassIter(inneriter) => {
+                    return Handles::new(
+                        inneriter.map(|x| x.fullhandle()).collect(),
+                        iter.sorted,
+                        iter.store,
+                    )
+                }
+                ResultItemIterSource::TargetIter(parenthandle, inneriter) => {
+                    return Handles::new(
+                        inneriter.map(|x| T::fullhandle(parenthandle, x)).collect(),
+                        iter.sorted,
+                        iter.store,
+                    )
+                }
+            }
+        }
+        Handles::new(
+            Cow::Owned(iter.map(|x| x.fullhandle()).collect()),
+            iter.sorted,
+            iter.store,
+        )
+    }
+}

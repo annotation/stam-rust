@@ -100,6 +100,7 @@ impl TypeInfo for AnnotationData {
 #[sealed]
 impl Storable for AnnotationData {
     type HandleType = AnnotationDataHandle;
+    type StoreHandleType = AnnotationDataSetHandle;
     type FullHandleType = (AnnotationDataSetHandle, AnnotationDataHandle);
     type StoreType = AnnotationDataSet;
 
@@ -122,6 +123,13 @@ impl Storable for AnnotationData {
 
     fn carries_id() -> bool {
         true
+    }
+
+    fn fullhandle(
+        storehandle: Self::StoreHandleType,
+        handle: Self::HandleType,
+    ) -> Self::FullHandleType {
+        (storehandle, handle)
     }
 }
 

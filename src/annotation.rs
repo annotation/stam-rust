@@ -134,6 +134,7 @@ impl TypeInfo for Annotation {
 #[sealed]
 impl Storable for Annotation {
     type HandleType = AnnotationHandle;
+    type StoreHandleType = ();
     type FullHandleType = Self::HandleType;
     type StoreType = AnnotationStore;
 
@@ -153,6 +154,13 @@ impl Storable for Annotation {
     fn with_id(mut self, id: impl Into<String>) -> Self {
         self.id = Some(id.into());
         self
+    }
+
+    fn fullhandle(
+        parenthandle: Self::StoreHandleType,
+        handle: Self::HandleType,
+    ) -> Self::FullHandleType {
+        handle
     }
 }
 
@@ -602,7 +610,7 @@ impl SelfSelector for Annotation {
     }
 }
 
-/// Iterator over the targets (T) for an annotation. This builds upon [`SelectorIter`] and returns handles.
+/// Iterator over the targets (T) for an annotation. This builds upon [`SelectorIter`] and returns atomic handles.
 pub struct TargetIter<'a, T>
 where
     T: Storable,

@@ -128,6 +128,7 @@ impl TypeInfo for DataKey {
 #[sealed]
 impl Storable for DataKey {
     type HandleType = DataKeyHandle;
+    type StoreHandleType = AnnotationDataSetHandle;
     type FullHandleType = (AnnotationDataSetHandle, DataKeyHandle);
     type StoreType = AnnotationDataSet;
 
@@ -149,6 +150,13 @@ impl Storable for DataKey {
 
     fn carries_id() -> bool {
         true
+    }
+
+    fn fullhandle(
+        storehandle: Self::StoreHandleType,
+        handle: Self::HandleType,
+    ) -> Self::FullHandleType {
+        (storehandle, handle)
     }
 }
 

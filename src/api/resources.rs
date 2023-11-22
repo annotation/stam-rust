@@ -28,6 +28,12 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fmt::Debug;
 
+impl<'store> FullHandle<TextResource> for ResultItem<'store, TextResource> {
+    fn fullhandle(&self) -> <TextResource as Storable>::FullHandleType {
+        self.handle()
+    }
+}
+
 /// This is the implementation of the high-level API for [`TextResource`].
 impl<'store> ResultItem<'store, TextResource> {
     /// Returns an iterator over all annotations about this resource as a whole, i.e. Annotations with a ResourceSelector.
@@ -440,24 +446,4 @@ impl<'store> Iterator for ResourcesIter<'store> {
 /// Holds a collection of resources.
 /// This structure is produced by calling [`ResourcesIter::to_collection()`].
 /// Use [`Resources::iter()`] to iterate over the collection.
-pub type Resources<'store> = Collection<'store, TextResource>;
-
-impl<'store> IntoIterator for Collection<'store, TextResource> {
-    type Item = ResultItem<'store, TextResource>;
-    type IntoIter = ResourcesIter<'store>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let sorted = self.sorted;
-        let store = self.store;
-        Self::IntoIter::new(IntersectionIter::new(self.take(), sorted), store)
-    }
-}
-
-impl<'store> Collection<'store, TextResource> {
-    pub fn iter(&self) -> ResourcesIter<'store> {
-        ResourcesIter::new(
-            IntersectionIter::new(self.array.clone(), self.sorted),
-            self.store,
-        )
-    }
-}
+pub type Resources<'store> = Handles<'store, TextResource>;

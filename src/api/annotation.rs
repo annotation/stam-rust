@@ -34,6 +34,12 @@ use crate::textselection::{
 use crate::*;
 use crate::{Filter, FilterMode, IntersectionIter, TextMode};
 
+impl<'store> FullHandle<Annotation> for ResultItem<'store, Annotation> {
+    fn fullhandle(&self) -> <Annotation as Storable>::FullHandleType {
+        self.handle()
+    }
+}
+
 /// This is the implementation of the high-level API for [`Annotation`].
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
@@ -114,23 +120,25 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
         let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
-        ResultItemIter::from_targetiter(iter, sorted)
+        ResultItemIter::from_targetiter(iter, sorted, ())
     }
 
-    /// Iterates over all the annotations that reference this annotation, if any
+    /// Returns an iterator over all annotations that reference this annotation, if any
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     ///
-    /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.textual_order()`
+    /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.iter().textual_order()`
     pub fn annotations(&self) -> AnnotationsIter<'store> {
         self.annotations_handles().into()
     }
-
-    /// Low-level method
-    pub fn annotations_handles(&self) -> Handles<'store, Annotation> {
+    /// Returns a borrowed collection of all the annotations that reference this annotation, if any
+    /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
+    ///
+    /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.iter().textual_order()`
+    pub fn annotations_handles(&self) -> Annotations<'store> {
         if let Some(annotations) = self.store().annotations_by_annotation(self.handle()) {
             Handles::new(Cow::Borrowed(&annotations), true, self.store())
         } else {
-            Handles::new_empty()
+            Handles::new_empty(self.store())
         }
     }
 
@@ -231,17 +239,6 @@ impl<'store> ResultItem<'store, Annotation> {
 /// Use [`Annotations::iter()`] to iterate over the collection.
 pub type Annotations<'store> = Handles<'store, Annotation>;
 
-impl<'store> IntoIterator for Handles<'store, Annotation> {
-    type Item = ResultItem<'store, Annotation>;
-    type IntoIter = AnnotationsIter<'store>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let sorted = self.sorted;
-        let store = self.store;
-        AnnotationsIter::new(IntersectionIter::new(self.take(), sorted), store)
-    }
-}
-
 pub type AnnotationsIter<'store> = ResultItemIter<'store, Annotation>;
 
 impl<'store> AnnotationsIter<'store> {
@@ -268,7 +265,7 @@ impl<'store> AnnotationsIter<'store> {
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        ResultItemIterator::from_vec(annotations, true, store)
+        ResultItemIter::from_vec(annotations, true, store)
     }
 
     /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
@@ -276,7 +273,7 @@ impl<'store> AnnotationsIter<'store> {
     /// Unlike [`Self::annotations_in_targets()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn annotations_in_targets_unchecked(self, recursive: bool) -> AnnotationsIter<'store> {
         let store = self.store;
-        ResultItemIterator::from_iterator(
+        ResultItemIter::from_iterator(
             Box::new(
                 self.map(move |annotation| annotation.annotations_in_targets(recursive))
                     .flatten(),
@@ -296,14 +293,14 @@ impl<'store> AnnotationsIter<'store> {
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        ResultItemIterator::from_vec(annotations, true, store)
+        ResultItemIter::from_vec(annotations, true, store)
     }
 
     /// Iterates over all the annotations that reference any annotations in this iterator (i.e. via a [`Selector::AnnotationSelector`])
     /// Unlike [`Self::annotations()`], this does no sorting or deduplication whatsoever and the returned iterator is lazy (which makes it more performant).
     pub fn annotations_unchecked(self) -> AnnotationsIter<'store> {
         let store = self.store;
-        ResultItemIterator::from_iterator(
+        ResultItemIter::from_iterator(
             Box::new(self.map(|annotation| annotation.annotations()).flatten()),
             false,
             store,
@@ -516,54 +513,34 @@ impl<'store> AnnotationsIter<'store> {
     /// This method can be called multiple times
     ///
     /// You can cast any existing iterator that produces `ResultItem<Annotation>` to an [`AnnotationsIter`] using [`AnnotationsIter::from_iter()`]
-    pub fn filter_annotations(mut self, annotations: AnnotationsIter<'store>) -> Self {
-        if self.iter.is_some() {
-            if annotations.iter.is_some() {
-                self.iter = Some(self.iter.unwrap().intersection(annotations.iter.unwrap()));
-            } else {
-                //invalidate the iterator, there will be no results
-                self.abort();
-            }
-        }
-        self
+    ///
+    /// Note: this filter is evaluated immediately prior to any other filters you add!
+    pub fn filter_annotations(mut self, annotations: &Annotations<'store>) -> Self {
+        self.intersection(annotations)
     }
 
     /// Constrain this iterator to only a single annotation
     /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
     pub fn filter_annotation(self, annotation: &ResultItem<Annotation>) -> Self {
-        if self.iter.is_some() {
-            self.filter_handle(annotation.handle())
-        } else {
-            self
-        }
+        self.filter_handle(annotation.handle())
     }
 
     /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self::filter_annotation()`] instead.
     /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
     pub fn filter_handle(mut self, handle: AnnotationHandle) -> Self {
-        if self.iter.is_some() {
-            self.iter = Some(self.iter.unwrap().with_singleton(handle));
-        }
+        self.filters.push(Filter::Annotation(handle));
         self
     }
 
     /// Constrain this iterator to only return annotations that reference a particular resource
     pub fn filter_resource(self, resource: &ResultItem<TextResource>) -> Self {
-        if self.iter.is_some() {
-            self.filter_resource_handle(resource.handle())
-        } else {
-            self
-        }
+        self.filter_resource_handle(resource.handle())
     }
 
     /// Constrain this iterator to only return annotations that reference a particular resource
     pub fn filter_resource_handle(mut self, handle: TextResourceHandle) -> Self {
-        if self.iter.is_some() {
-            self.filters.push(Filter::TextResource(handle));
-            self
-        } else {
-            self
-        }
+        self.filters.push(Filter::TextResource(handle));
+        self
     }
 
     /// Find all text selections that are related to any text selections of annotations in this iterator, the operator
@@ -627,13 +604,13 @@ impl<'store> AnnotationsIter<'store> {
     /// Constrain the iterator to only return annotations that reference the specified text selection
     /// This is a just shortcut method for `.filter_annotations( textselection.annotations(..) )`
     pub fn filter_textselection(self, textselection: &ResultTextSelection<'store>) -> Self {
-        self.filter_annotations(textselection.annotations())
+        self.filter_annotations(&textselection.annotations().into())
     }
 
     /// Constrain the iterator to only return annotations that reference any of the specified text selections
     /// This is a just shortcut method for `.filter_annotations( textselections.annotations(..) )`
     pub fn filter_textselections(self, textselections: TextSelectionsIter<'store>) -> Self {
-        self.filter_annotations(textselections.annotations())
+        self.filter_annotations(&textselections.annotations().into())
     }
 
     /// Returns annotations along with an iterator to go over related text (the operator determines the type of the relation).
@@ -686,101 +663,6 @@ impl<'store> AnnotationsIter<'store> {
             .flatten()
             .collect();
         ResourcesIter::new(IntersectionIter::new_with_set(collection), store)
-    }
-
-    /// Produces the union between two annotation iterators
-    /// Any filters on either iterator remain valid!
-    pub fn union(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
-        if self.iter.is_some() && other.iter.is_some() {
-            self.filters.extend(other.filters.into_iter());
-            self.iter = Some(self.iter.unwrap().union(other.iter.unwrap()));
-        } else if self.iter.is_none() {
-            return other;
-        }
-        self
-    }
-
-    /// Produces the intersection between two annotation iterators
-    /// Any filters on either iterator remain valid!
-    pub fn intersection(mut self, other: AnnotationsIter<'store>) -> AnnotationsIter<'store> {
-        if self.iter.is_some() && other.iter.is_some() {
-            self.filters.extend(other.filters.into_iter());
-            self.iter = Some(self.iter.unwrap().intersection(other.iter.unwrap()));
-        } else if self.iter.is_none() {
-            return other;
-        }
-        self
-    }
-
-    /// Does this iterator return items in sorted order?
-    pub fn returns_sorted(&self) -> bool {
-        if let Some(iter) = self.iter.as_ref() {
-            iter.returns_sorted()
-        } else {
-            true //empty iterators can be considered sorted
-        }
-    }
-
-    /// Constrain this iterator by a vector of handles (intersection).
-    /// You can use [`Self::to_collection()`] on an AnnotationsIter and then later reload it with this method.
-    pub fn filter_from(self, annotations: &Annotations<'store>) -> Self {
-        self.filter_annotations(annotations.iter())
-    }
-
-    /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
-    /// This consumes the iterator.
-    /// Note: This is different than running `collect()`, which produces high-level objects.
-    pub fn to_collection(self) -> Annotations<'store> {
-        let store = self.store;
-        let sorted = self.returns_sorted();
-        Annotations {
-            array: self.map(|x| x.handle()).collect(),
-            store,
-            sorted,
-        }
-    }
-
-    /// Exports the iterator to a low-level vector that can be reused at will by invoking `.iter()`.
-    /// This consumes the iterator but takes only the first n elements up to the specified limit.
-    pub fn to_collection_limit(self, limit: usize) -> Annotations<'store> {
-        let store = self.store;
-        let sorted = self.returns_sorted();
-        Annotations {
-            array: self.take(limit).map(|x| x.handle()).collect(),
-            store,
-            sorted,
-        }
-    }
-}
-
-impl<'store> AbortableIterator for AnnotationsIter<'store> {
-    fn abort(&mut self) {
-        self.iter.as_mut().map(|iter| iter.abort = true);
-    }
-}
-impl<'store> TestableIterator for AnnotationsIter<'store> {}
-
-impl<'store> Iterator for AnnotationsIter<'store> {
-    type Item = ResultItem<'store, Annotation>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(iter) = self.iter.as_mut() {
-                if let Some(item) = iter.next() {
-                    if let Some(annotation) = self.store.annotation(item) {
-                        if !self.test_filters(&annotation) {
-                            continue;
-                        }
-                        return Some(annotation);
-                    }
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-        None
     }
 }
 
@@ -843,12 +725,15 @@ impl<'store> ResultItemIterator<'store, Annotation> for ResultItemIter<'store, A
     /// See if the filters match for the annotation
     /// This does not include any filters directly on annotations, as those are handled already by the underlying IntersectionsIter
     fn test_filters(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
-        if self.filters.is_empty() {
-            return true;
-        }
         let mut datafilter: Option<DataIter> = None;
         for filter in self.filters.iter() {
             match filter {
+                Filter::Annotations(_) => {} //already handled in apply_filters()
+                Filter::Annotation(handle) => {
+                    if annotation.handle() != *handle {
+                        return false;
+                    }
+                }
                 Filter::AnnotationData(set, data) => {
                     if datafilter.is_none() {
                         datafilter = Some(annotation.data());

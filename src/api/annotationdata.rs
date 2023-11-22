@@ -29,6 +29,12 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 
+impl<'store> FullHandle<AnnotationData> for ResultItem<'store, AnnotationData> {
+    fn fullhandle(&self) -> <AnnotationData as Storable>::FullHandleType {
+        (self.set().handle(), self.handle())
+    }
+}
+
 /// This is the implementation of the high-level API for [`AnnotationData`].
 impl<'store> ResultItem<'store, AnnotationData> {
     /// Return a reference to the dataset that holds this data
@@ -122,27 +128,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 }
 
-pub type Data<'store> = Collection<'store, AnnotationData>;
-
-impl<'store> IntoIterator for Collection<'store, AnnotationData> {
-    type Item = ResultItem<'store, AnnotationData>;
-    type IntoIter = DataIter<'store>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let sorted = self.sorted;
-        let store = self.store;
-        Self::IntoIter::new(IntersectionIter::new(self.take(), sorted), store)
-    }
-}
-
-impl<'store> Collection<'store, AnnotationData> {
-    pub fn iter(&self) -> DataIter<'store> {
-        DataIter::new(
-            IntersectionIter::new(self.array.clone(), self.sorted),
-            self.store,
-        )
-    }
-}
+pub type Data<'store> = Handles<'store, AnnotationData>;
 
 /// `DataIter` iterates over annotation data, it returns [`ResultItem<AnnotationData>`] instances.
 /// The iterator offers a various high-level API methods that operate on a collection of annotation data, and

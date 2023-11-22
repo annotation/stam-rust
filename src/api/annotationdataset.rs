@@ -21,6 +21,12 @@ use crate::{store::*, IntersectionIter};
 
 use std::borrow::Cow;
 
+impl<'store> FullHandle<AnnotationDataSet> for ResultItem<'store, AnnotationDataSet> {
+    fn fullhandle(&self) -> <AnnotationDataSet as Storable>::FullHandleType {
+        self.handle()
+    }
+}
+
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set.
     pub fn data(&self) -> DataIter<'store> {
