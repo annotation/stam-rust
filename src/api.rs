@@ -656,7 +656,7 @@ where
     }
 
     /// Consumes any underlying iterators into a buffer
-    pub(crate) fn buffer(&mut self) {
+    pub fn buffer(&mut self) -> &mut Self {
         self.source = match self.source {
             ResultItemIterSource::HandlesIter(inneriter) => ResultItemIterSource::HandlesArray(
                 Handles::new(inneriter.collect(), self.sorted, self.store),
@@ -684,6 +684,17 @@ where
             }
             other => other, //keep as-is
         };
+        self
+    }
+
+    /// Returns the length of the iterator if it is already known, None otherwise
+    /// Tip: use [`Self.buffer().len().unwrap()`] if you need to ensure the length is always known (consumes any underlying iterators).
+    pub fn len(self) -> Option<usize> {
+        if let ResultItemIterSource::HandlesArray(handles) = self.source {
+            Some(handles.len())
+        } else {
+            None
+        }
     }
 
     /// Consumes the iterator and returns the underlying handles up to a certain limit

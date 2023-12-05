@@ -384,7 +384,7 @@ impl<'store> AnnotationsIter<'store> {
     /// If you want to check whether multiple data are ALL found in a single annotation, then use [`Self::filter_data_multi()`].
     ///
     /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
-    /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(data.annotations())`.
+    /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(&data.annotations().into())`.
     pub fn filter_data(mut self, data: Data<'store>) -> Self {
         self.filters.push(Filter::Data(data, FilterMode::Any));
         self
@@ -396,7 +396,7 @@ impl<'store> AnnotationsIter<'store> {
     /// If you want to check whether multiple data are ALL found in a single annotation, then use [`Self::filter_data_byref_multi()`].
     ///
     /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
-    /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(data.annotations())`.
+    /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(&data.annotations().into())`.
     pub fn filter_data_byref(mut self, data: &'store Data<'store>) -> Self {
         self.filters
             .push(Filter::BorrowedData(data, FilterMode::Any));
@@ -713,10 +713,6 @@ impl<'store> Iterator for AnnotationsWithDataIter<'store> {
     }
 }
 
-pub trait AnnotationsIterator {}
-
-impl<'store> ResultItemIter<'store, Annotation> {}
-
 impl<'store> ResultItemIterator<'store, Annotation> for ResultItemIter<'store, Annotation> {
     fn get_item(&self, handle: AnnotationHandle) -> Option<ResultItem<'store, Annotation>> {
         self.store.annotation(handle)
@@ -741,23 +737,15 @@ impl<'store> ResultItemIterator<'store, Annotation> for ResultItemIter<'store, A
                     datafilter = datafilter.map(|dataiter| dataiter.filter_handle(*set, *data));
                 }
                 Filter::Data(data, FilterMode::Any) => {
-                    if datafilter.is_none() {
-                        datafilter = Some(annotation.data());
-                    }
-                    datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
-                }
-                Filter::BorrowedData(data, FilterMode::Any) => {
-                    if datafilter.is_none() {
-                        datafilter = Some(annotation.data());
-                    }
-                    datafilter = datafilter.map(|dataiter| dataiter.filter_data(data.iter()));
+                    datafilter = datafilter.filter_data(data); //this has immediate effect
                 }
                 Filter::Data(data, FilterMode::All) => {
                     if datafilter.is_none() {
                         datafilter = Some(annotation.data());
                     }
                     let expected_count = data.len();
-                    if datafilter.unwrap().filter_data(data.iter()).count() != expected_count {
+                    datafilter = datafilter.filter_data(data); //this has immediate effect
+                    if datafilter.len() != Some(expected_count) {
                         return false;
                     }
                     datafilter = None;
@@ -833,7 +821,7 @@ impl<'store> ResultItemIterator<'store, Annotation> for ResultItemIter<'store, A
                         }
                     }
                 }
-                _ => unimplemented!("Filter {:?} not implemented for AnnotatationsIter", filter),
+                _ => unimplemented!("Filter {:?} not implemented for AnnotationsIter", filter),
             }
         }
         if let Some(datafilter) = datafilter {
