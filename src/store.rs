@@ -668,6 +668,7 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
     }
 
     /// Returns true if the store has the item
+    #[inline]
     fn has(&self, item: impl Request<T>) -> bool {
         if let Some(handle) = item.to_handle(self) {
             self.store().get(handle.as_usize()).is_some()
@@ -681,12 +682,14 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
     /// ## Safety
     /// Calling this method with an out-of-bounds index is [undefined behavior](https://doc.rust-lang.org/reference/behavior-considered-undefined.html)  │       
     /// even if the resulting reference is not used.                                                                                                     │       
+    #[inline]
     unsafe fn get_unchecked(&self, handle: T::HandleType) -> Option<&T> {
         self.store().get_unchecked(handle.as_usize()).as_ref()
     }
 
     /// Get a reference to an item from the store
     /// This is a low-level API method, you usually want to use dedicated high-level methods like [`AnnotationStore::annotation()`](crate::AnnotationStore::annotation()) instead.
+    #[inline]
     fn get(&self, item: impl Request<T>) -> Result<&T, StamError> {
         if let Some(handle) = item.to_handle(self) {
             if let Some(Some(item)) = self.store().get(handle.as_usize()) {
@@ -758,6 +761,7 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
 
     /// Iterate over all items in the store
     /// This is a low-level API method, use dedicated high-level iterators like `annotations()`, `resources()` instead.  
+    #[inline]
     fn iter(&self) -> StoreIter<T>
     where
         T: Storable<StoreType = Self>,
@@ -1115,11 +1119,13 @@ where
     }
 
     /// Returns the contained reference with the original lifetime
+    #[inline]
     pub fn as_ref(&self) -> &'store T {
         self.item
     }
 
     /// Get the handle (internal identifier) for the contained item
+    #[inline]
     pub fn handle(&self) -> T::HandleType {
         self.item
             .handle()
@@ -1127,6 +1133,7 @@ where
     }
 
     /// Get the public identifier for the contained item
+    #[inline]
     pub fn id(&self) -> Option<&'store str> {
         self.item.id()
     }
