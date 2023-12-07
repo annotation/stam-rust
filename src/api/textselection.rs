@@ -62,18 +62,18 @@ impl<'store> ResultItem<'store, TextSelection> {
     }
 
     /// Iterates over all annotations that reference this TextSelection
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
+    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         if let Some(annotations) = self
             .rootstore()
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
         {
-            AnnotationsIter::new(
-                IntersectionIter::new(Cow::Borrowed(annotations), true),
-                self.rootstore(),
+            MaybeIter::new(
+                FromHandles::new(annotations.iter().copied(), self.rootstore()),
+                true,
             )
         } else {
             //dummy iterator that yields nothing
-            AnnotationsIter::new_empty(self.rootstore())
+            MaybeIter::new_empty()
         }
     }
 
@@ -94,7 +94,10 @@ impl<'store> ResultItem<'store, TextSelection> {
     /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultTextSelection`]).
     /// If you are interested in the annotations associated with the found text selections, append `annotations()`.
-    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
+    pub fn related_text(
+        &self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let tset: TextSelectionSet = self.clone().into();
         self.resource().related_text(operator, tset)
     }
@@ -235,10 +238,10 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Iterates over all annotations that are referenced by this TextSelection, if any.
     /// For unbound selections, this returns an empty iterator by definition.
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
+    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         match self {
             Self::Bound(item) => item.annotations(),
-            Self::Unbound(..) => AnnotationsIter::new_empty(self.rootstore()),
+            Self::Unbound(..) => MaybeIter::new_empty(),
         }
     }
 
@@ -254,7 +257,10 @@ impl<'store> ResultTextSelection<'store> {
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
     /// are in a specific relation with the current one. Returns an iterator over the [`TextSelection`] instances.
     /// If you are interested in the annotations associated with the found text selections, then append `.annotations()`.
-    pub fn related_text(&self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
+    pub fn related_text(
+        &self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let mut tset: TextSelectionSet =
             TextSelectionSet::new(self.store().handle().expect("resource must have handle"));
         tset.add(match self {
@@ -280,14 +286,21 @@ impl<'store> ResultTextSelectionSet<'store> {
     /// are in a specific relation with the current text selection set. Returns an iterator over the [`TextSelection`] instances.
     /// (as [`ResultItem<TextSelection>`]).
     /// If you are interested in the annotations associated with the found text selections, then use [`Self::find_annotations()`] instead.
-    pub fn related_text(self, operator: TextSelectionOperator) -> TextSelectionsIter<'store> {
-        let resource = self.resource();
-        let store = self.rootstore();
-        TextSelectionsIter::new_with_findtextiterator(
+    pub fn related_text(
+        self,
+        operator: TextSelectionOperator,
+    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
+        let resource = self.resource().as_ref();
+        let rootstore = self.rootstore();
+        ResultTextSelections::new(
             resource
-                .as_ref()
-                .textselections_by_operator(operator, self.tset),
-            store,
+                .textselections_by_operator(operator, self.tset)
+                .filter_map(|handle| {
+                    resource
+                        .get(handle)
+                        .ok()
+                        .map(|x| x.as_resultitem(resource, rootstore))
+                }),
         )
     }
 }
@@ -429,6 +442,7 @@ where
     }
 }
 
+/*
 /// Source for TextSelectionsIter
 pub(crate) enum TextSelectionsSource<'store> {
     HighVec(Vec<ResultTextSelection<'store>>),
@@ -1167,6 +1181,7 @@ impl<'store> TextSelectionsIter<'store> {
 }
 
 impl TestableIterator for TextSelectionsIter<'_> {}
+*/
 
 #[sealed]
 impl TypeInfo for Option<ResultTextSelection<'_>> {
@@ -1221,4 +1236,33 @@ where
             .next_back()
             .map(|textselection| ResultTextSelection::Bound(textselection))
     }
+}
+
+pub trait TextSelectionIterator<'store>: Iterator<Item = ResultTextSelection<'store>>
+where
+    Self: Sized,
+{
+    /// Iterates over all the annotations for all text selections in this iterator.
+    /// The iterator will be consumed and an extra buffer is allocated.
+    /// Annotations will be returned sorted chronologically and returned without duplicates
+    ///
+    /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|ts| ts.annotations()).flatten()` instead
+    fn annotations(
+        self,
+    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+        let mut annotations: Vec<_> = self
+            .map(|resource| resource.annotations())
+            .flatten()
+            .collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        MaybeIter::new_sorted(annotations.into_iter())
+    }
+}
+
+impl<'store, I> TextSelectionIterator<'store> for I
+where
+    I: Iterator<Item = ResultTextSelection<'store>>,
+{
+    //blanket implementation
 }

@@ -45,7 +45,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns no duplicates even if a resource is referenced multiple times.
     /// If you want to distinguish between resources references as metadata and on text, use [`Self::resources_as_metadata()`] or [`Self::resources_on_text()` ] instead.
-    pub fn resources(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    pub fn resources(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let selector = self.as_ref().target();
         let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
         //                                                                               ^--- recurse, targetiter prevents duplicates
@@ -55,7 +55,9 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::ResourceSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_as_metadata(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    pub fn resources_as_metadata(
+        &self,
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let collection: BTreeSet<TextResourceHandle> = self
             .as_ref()
             .target()
@@ -74,7 +76,9 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::TextSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_on_text(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    pub fn resources_on_text(
+        &self,
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let collection: BTreeSet<TextResourceHandle> = self
             .as_ref()
             .target()
@@ -92,7 +96,9 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references via a [`Selector::DataSetSelector`].
     /// This returns no duplicates even if a dataset is referenced multiple times.
-    pub fn datasets(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store {
+    pub fn datasets(
+        &self,
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store> {
         let selector = self.as_ref().target();
         let iter: TargetIter<AnnotationDataSet> =
             TargetIter::new(selector.iter(self.store(), false));
@@ -106,7 +112,7 @@ impl<'store> ResultItem<'store, Annotation> {
     pub fn annotations_in_targets(
         &self,
         recursive: bool,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let selector = self.as_ref().target();
         let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
         let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
@@ -117,7 +123,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     ///
     /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.iter().textual_order()`
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         if let Some(annotations) = self.store().annotations_by_annotation(self.handle()) {
             MaybeIter::new_sorted(FromHandles::new(annotations.iter().copied(), self.store()))
         } else {
@@ -139,14 +145,14 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
     /// They are returned in textual order, except in case a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
-    pub fn textselections(&self) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+    pub fn textselections(&self) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let textselections = self
             .store()
             .textselections_by_selector(self.as_ref().target());
-        MaybeIter::new_unsorted(
+        ResultTextSelections::new(MaybeIter::new_unsorted(
             //textual order is not chronological order
             FromHandles::new(textselections.into_iter(), self.store()),
-        )
+        ))
     }
 
     /// Iterates over all text slices this annotation refers to
@@ -808,6 +814,14 @@ where
             .flatten()
             .collect();
         MaybeIter::new_sorted(collection.into_iter())
+    }
+
+    /// Maps annotations to textselections, consuming the iterator. Results will be returned in textual order.
+    fn textselections(self) -> <Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter {
+        self.map(|annotation| annotation.textselections())
+            .flatten()
+            .textual_order()
+            .into_iter()
     }
 
     /// Constrain this iterator to only a single annotation

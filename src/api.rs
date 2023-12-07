@@ -420,7 +420,7 @@ where
 /// An iterator that may be sorted or not and knows a-priori whether it is or not.
 pub trait MaybeSortedIterator: Iterator {
     /// Does this iterator return items in sorted order?
-    fn returns_sorted(&self);
+    fn returns_sorted(&self) -> bool;
 }
 
 /// An iterator that may be sorted or not and knows whether it is or not, it may also be a completely empty iterator.
@@ -433,7 +433,7 @@ where
 }
 
 impl<I: Iterator> MaybeSortedIterator for MaybeIter<I> {
-    fn returns_sorted(&self) {
+    fn returns_sorted(&self) -> bool {
         self.sorted
     }
 }
@@ -445,18 +445,24 @@ impl<I: Iterator> MaybeIter<I> {
             sorted,
         }
     }
+
+    /// This does no sorting, it just tells that the iterator passed is sorted
     pub(crate) fn new_sorted(inner: I) -> Self {
         Self {
             inner: Some(inner),
             sorted: true,
         }
     }
+
+    /// This tells that the iterator passed is not sorted
     pub(crate) fn new_unsorted(inner: I) -> Self {
         Self {
             inner: Some(inner),
             sorted: false,
         }
     }
+
+    /// Creates a dummy iterator
     pub(crate) fn new_empty() -> Self {
         Self {
             inner: None,
