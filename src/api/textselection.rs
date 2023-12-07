@@ -411,6 +411,24 @@ where
     }
 }
 
+impl<'store, I> FullHandleToResultItem<'store, TextSelection>
+    for HandlesToItemsIter<'store, TextSelection, I>
+where
+    I: Iterator<Item = (TextResourceHandle, TextSelectionHandle)>,
+{
+    fn get_item(
+        &self,
+        handle: (TextResourceHandle, TextSelectionHandle),
+    ) -> Option<ResultItem<'store, TextSelection>> {
+        if let Some(resource) = self.store.resource(handle.0) {
+            let ts: &TextSelection = resource.as_ref().get(handle.1).unwrap();
+            Some(ts.as_resultitem(resource.as_ref(), self.store))
+        } else {
+            None
+        }
+    }
+}
+
 /// Source for TextSelectionsIter
 pub(crate) enum TextSelectionsSource<'store> {
     HighVec(Vec<ResultTextSelection<'store>>),

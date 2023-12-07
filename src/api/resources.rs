@@ -469,3 +469,13 @@ impl<'store> Iterator for ResourcesIter<'store> {
 /// This structure is produced by calling [`ResourcesIter::to_collection()`].
 /// Use [`Resources::iter()`] to iterate over the collection.
 pub type Resources<'store> = Handles<'store, TextResource>;
+
+impl<'store, I> FullHandleToResultItem<'store, TextResource>
+    for HandlesToItemsIter<'store, TextResource, I>
+where
+    I: Iterator<Item = TextResourceHandle>,
+{
+    fn get_item(&self, handle: TextResourceHandle) -> Option<ResultItem<'store, TextResource>> {
+        self.store.resource(handle)
+    }
+}

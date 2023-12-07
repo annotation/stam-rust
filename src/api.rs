@@ -47,6 +47,7 @@ use crate::types::*;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 /// Holds a collection of items. The collection may be either
 /// owned or borrowed from the store (usually from a reverse index).
@@ -328,18 +329,32 @@ where
 /// Iterater that turns iterators over full handles into [`ResultItem<T>`], holds a reference to the [`AnnotationStore`]
 pub struct HandlesToItemsIter<'store, T, I>
 where
-    T: Storable,
-    I: Iterator<Item = T::FullHandleType> + 'store,
-    Self: FullHandleToResultItem<'store, T>,
+    T: Storable + 'store,
+    I: Iterator<Item = T::FullHandleType>,
 {
     inner: I,
     store: &'store AnnotationStore,
+    _marker: PhantomData<T>, //zero-size, only needed to bind generic T
+}
+
+impl<'store, T, I> HandlesToItemsIter<'store, T, I>
+where
+    T: Storable + 'store,
+    I: Iterator<Item = T::FullHandleType>,
+{
+    pub(crate) fn new(inner: I, store: &'store AnnotationStore) -> Self {
+        Self {
+            inner,
+            store,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<'store, T, I> Iterator for HandlesToItemsIter<'store, T, I>
 where
-    T: Storable,
-    I: Iterator<Item = T::FullHandleType> + 'store,
+    T: Storable + 'store,
+    I: Iterator<Item = T::FullHandleType>,
     Self: FullHandleToResultItem<'store, T>,
 {
     type Item = ResultItem<'store, T>;

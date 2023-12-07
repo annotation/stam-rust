@@ -154,3 +154,16 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         Some(self.handle()) == other.to_handle(self.store())
     }
 }
+
+impl<'store, I> FullHandleToResultItem<'store, AnnotationDataSet>
+    for HandlesToItemsIter<'store, AnnotationDataSet, I>
+where
+    I: Iterator<Item = AnnotationDataSetHandle>,
+{
+    fn get_item(
+        &self,
+        handle: AnnotationDataSetHandle,
+    ) -> Option<ResultItem<'store, AnnotationDataSet>> {
+        self.store.dataset(handle)
+    }
+}

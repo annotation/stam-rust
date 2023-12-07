@@ -49,10 +49,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
         //                                                                               ^--- recurse, targetiter prevents duplicates
-        MaybeIter::new_sorted(HandlesToItemsIter {
-            inner: iter,
-            store: self.store(),
-        })
+        MaybeIter::new_sorted(HandlesToItemsIter::new(iter, self.store()))
     }
 
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
@@ -71,10 +68,10 @@ impl<'store> ResultItem<'store, Annotation> {
                 }
             })
             .collect();
-        MaybeIter::new_sorted(HandlesToItemsIter {
-            inner: collection.into_iter(),
-            store: self.store(),
-        })
+        MaybeIter::new_sorted(HandlesToItemsIter::new(
+            collection.into_iter(),
+            self.store(),
+        ))
     }
 
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
@@ -123,13 +120,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
         let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
-        MaybeIter::new(
-            HandlesToItemsIter {
-                inner: iter,
-                store: self.store(),
-            },
-            sorted,
-        )
+        MaybeIter::new(HandlesToItemsIter::new(iter, self.store()), sorted)
     }
 
     /// Returns an iterator over all annotations that reference this annotation, if any
@@ -137,10 +128,10 @@ impl<'store> ResultItem<'store, Annotation> {
     ///
     /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.iter().textual_order()`
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
-        MaybeIter::new_sorted(HandlesToItemsIter {
-            inner: self.annotation_handles().into_iter(),
-            store: self.store(),
-        })
+        MaybeIter::new_sorted(HandlesToItemsIter::new(
+            self.annotations_handles().into_iter(),
+            self.store(),
+        ))
     }
 
     /// Returns a borrowed collection of all the annotations that reference this annotation, if any
@@ -163,10 +154,7 @@ impl<'store> ResultItem<'store, Annotation> {
             .textselections_by_selector(self.as_ref().target());
         MaybeIter::new_unsorted(
             //textual order is not chronological order
-            HandlesToItemsIter {
-                inner: textselections,
-                store: self.store(),
-            },
+            HandlesToItemsIter::new(textselections.into_iter(), self.store()),
         )
     }
 
