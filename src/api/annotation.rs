@@ -234,7 +234,7 @@ impl<'store> ResultItem<'store, Annotation> {
     pub fn related_text(
         &self,
         operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
         let tset: TextSelectionSet = self.textselections().collect();
         tset.as_resultset(self.store()).related_text(operator)

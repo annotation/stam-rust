@@ -1258,6 +1258,36 @@ where
         annotations.dedup();
         MaybeIter::new_sorted(annotations.into_iter())
     }
+
+    /// Iterates over all text slices in this iterator
+    fn text(self) -> TextIter<'store, Self> {
+        TextIter { inner: self }
+    }
+
+    /// Returns all underlying text concatenated into a single String
+    fn text_join(self, delimiter: &str) -> String {
+        let mut s = String::new();
+        for textselection in self {
+            let text = textselection.text();
+            if !s.is_empty() {
+                s += delimiter;
+            }
+            s += text;
+        }
+        s
+    }
+
+    /// If this collection refers to a single simple text slice,
+    /// this returns it. If it contains no text or multiple text references, it returns None.
+    fn text_simple(self) -> Option<&'store str> {
+        let mut iter = self.text();
+        let text = iter.next();
+        if let None = iter.next() {
+            return text;
+        } else {
+            None
+        }
+    }
 }
 
 impl<'store, I> TextSelectionIterator<'store> for I
@@ -1265,4 +1295,22 @@ where
     I: Iterator<Item = ResultTextSelection<'store>>,
 {
     //blanket implementation
+}
+
+struct TextIter<'store, I>
+where
+    I: Iterator<Item = ResultTextSelection<'store>>,
+{
+    inner: I,
+}
+
+impl<'store, I> Iterator for TextIter<'store, I>
+where
+    I: Iterator<Item = ResultTextSelection<'store>>,
+{
+    type Item = &'store str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|ts| ts.text())
+    }
 }
