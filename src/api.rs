@@ -363,6 +363,8 @@ where
     Self: FullHandleToResultItem<'store, T>,
 {
     type Item = ResultItem<'store, T>;
+
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(full_handle) = self.inner.next() {
