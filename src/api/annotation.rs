@@ -90,10 +90,10 @@ impl<'store> ResultItem<'store, Annotation> {
                 }
             })
             .collect();
-        MaybeIter::new_sorted(HandlesToItemsIter {
-            inner: collection.into_iter(),
-            store: self.store(),
-        })
+        MaybeIter::new_sorted(HandlesToItemsIter::new(
+            collection.into_iter(),
+            self.store(),
+        ))
     }
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references via a [`Selector::DataSetSelector`].
@@ -102,11 +102,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<AnnotationDataSet> =
             TargetIter::new(selector.iter(self.store(), false));
-        let store = self.store();
-        MaybeIter::new_sorted(HandlesToItemsIter {
-            inner: iter,
-            store: self.store(),
-        })
+        MaybeIter::new_sorted(HandlesToItemsIter::new(iter, self.store()))
     }
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector`])
@@ -128,10 +124,14 @@ impl<'store> ResultItem<'store, Annotation> {
     ///
     /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.iter().textual_order()`
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
-        MaybeIter::new_sorted(HandlesToItemsIter::new(
-            self.annotations_handles().into_iter(),
-            self.store(),
-        ))
+        if let Some(annotations) = self.store().annotations_by_annotation(self.handle()) {
+            MaybeIter::new_sorted(HandlesToItemsIter::new(
+                annotations.iter().copied(),
+                self.store(),
+            ))
+        } else {
+            MaybeIter::new_empty()
+        }
     }
 
     /// Returns a borrowed collection of all the annotations that reference this annotation, if any
@@ -201,10 +201,10 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Get an iterator over all data ([`AnnotationData`]) for this annotation.
     pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> {
-        MaybeIter::new_unsorted(HandlesToItemsIter {
-            inner: self.as_ref().raw_data().iter(),
-            store: self.store(),
-        })
+        MaybeIter::new_unsorted(HandlesToItemsIter::new(
+            self.as_ref().raw_data().iter().copied(),
+            self.store(),
+        ))
     }
 
     /// Find data ([`AnnotationData`]) amongst the data for this annotation. Returns an iterator over the data.
@@ -753,10 +753,7 @@ where
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter {
-            inner: annotations.into_iter(),
-            sorted: true,
-        }
+        MaybeIter::new_sorted(annotations.into_iter())
     }
 
     /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
@@ -766,17 +763,13 @@ where
         self,
         recursive: bool,
     ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
-        let store = self.store;
         let mut annotations: Vec<_> = self
             .map(|annotation| annotation.annotations_in_targets(recursive))
             .flatten()
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter {
-            inner: annotations.into_iter(),
-            sorted: true,
-        }
+        MaybeIter::new_sorted(annotations.into_iter())
     }
 
     /// Maps annotations to data, consuming the iterator. Returns a new iterator over the AnnotationData in
@@ -789,25 +782,18 @@ where
         let mut data: Vec<_> = self.map(|annotation| annotation.data()).flatten().collect();
         data.sort_unstable();
         data.dedup();
-        MaybeIter {
-            inner: data.into_iter(),
-            sorted: true,
-        }
+        MaybeIter::new_sorted(data.into_iter())
     }
 
     /// Maps annotations to resources, consuming the iterator. Will return in chronological order without duplicates.
     fn resources(
         self,
     ) -> MaybeIter<<BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter> {
-        let store = self.store;
         let collection: BTreeSet<_> = self
             .map(|annotation| annotation.resources())
             .flatten()
             .collect();
-        MaybeIter {
-            inner: collection.into_iter(),
-            sorted: true,
-        }
+        MaybeIter::new_sorted(collection.into_iter())
     }
 
     /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a ResourceSelector (i.e. annotations as metadata)
@@ -815,15 +801,11 @@ where
     fn resources_as_metadata(
         self,
     ) -> MaybeIter<<BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter> {
-        let store = self.store;
         let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources_as_metadata().map(|x| x.handle()))
+            .map(|annotation| annotation.resources_as_metadata())
             .flatten()
             .collect();
-        MaybeIter {
-            inner: collection.into_iter(),
-            sorted: true,
-        }
+        MaybeIter::new_sorted(collection.into_iter())
     }
 
     /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a TextSelector (i.e. annotations on the text)
@@ -831,15 +813,11 @@ where
     fn resources_on_text(
         self,
     ) -> MaybeIter<<BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter> {
-        let store = self.store;
         let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources_on_text().map(|x| x.handle()))
+            .map(|annotation| annotation.resources_on_text())
             .flatten()
             .collect();
-        MaybeIter {
-            inner: collection.into_iter(),
-            sorted: true,
-        }
+        MaybeIter::new_sorted(collection.into_iter())
     }
 
     /// Constrain this iterator to only a single annotation
@@ -891,7 +869,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationData(data.handle()),
+            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
         }
     }
 
@@ -912,7 +890,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataKeyAndOperator(key.set().handle(), key.handle()),
+            filter: Filter::DataKey(key.set().handle(), key.handle()),
         }
     }
 }
@@ -941,10 +919,10 @@ where
         loop {
             if let Some(annotation) = self.inner.next() {
                 if self.test_filter(&annotation) {
-                    Some(annotation)
+                    return Some(annotation);
                 }
             } else {
-                None
+                return None;
             }
         }
     }

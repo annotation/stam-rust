@@ -40,10 +40,10 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Such annotations can be considered metadata.
     pub fn annotations_as_metadata(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         if let Some(annotations) = self.store().annotations_by_resource_metadata(self.handle()) {
-            MaybeIter::new_sorted(HandlesToItemsIter {
-                inner: annotations.iter(),
-                store: self.store(),
-            })
+            MaybeIter::new_sorted(HandlesToItemsIter::new(
+                annotations.iter().copied(),
+                self.store(),
+            ))
         } else {
             MaybeIter::new_empty()
         }
@@ -55,10 +55,7 @@ impl<'store> ResultItem<'store, TextResource> {
             let mut data: Vec<_> = iter.collect();
             data.sort_unstable();
             data.dedup();
-            MaybeIter::new_sorted(HandlesToItemsIter {
-                inner: data.into_iter(),
-                store: self.store(),
-            })
+            MaybeIter::new_sorted(HandlesToItemsIter::new(data.into_iter(), self.store()))
         } else {
             MaybeIter::new_empty()
         }
@@ -73,24 +70,17 @@ impl<'store> ResultItem<'store, TextResource> {
             .annotations_by_resource_metadata(self.handle())
             .into_iter()
             .flatten()
+            .copied()
             .collect();
-        if self
-            .store()
-            .textrelationmap
-            .data
-            .contains(self.handle().as_usize())
-        //extra low-level check to avoid sorting if not needed
-        {
-            data.extend(
-                self.store()
-                    .annotations_by_resource(self.handle())
-                    .into_iter()
-                    .flatten(),
-            );
-            data.sort_unstable();
-            data.dedup();
-        }
-        MaybeIter::new_sorted(data.into_iter())
+        data.extend(
+            self.store()
+                .annotations_by_resource(self.handle())
+                .into_iter()
+                .flatten(),
+        );
+        data.sort_unstable();
+        data.dedup();
+        MaybeIter::new_sorted(HandlesToItemsIter::new(data.into_iter(), self.store()))
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -148,6 +138,7 @@ impl<'store> ResultItem<'store, TextResource> {
     }
 }
 
+/*
 /// The ResourcesIter iterates over text resources, it returns [`ResultItem<Annotation>`] instances.
 /// The iterator offers a various high-level API methods that operate on a collection of annotations, and
 /// allow to further filter or map annotations.
@@ -464,6 +455,7 @@ impl<'store> Iterator for ResourcesIter<'store> {
         None
     }
 }
+*/
 
 /// Holds a collection of resources.
 /// This structure is produced by calling [`ResourcesIter::to_collection()`].
@@ -478,4 +470,33 @@ where
     fn get_item(&self, handle: TextResourceHandle) -> Option<ResultItem<'store, TextResource>> {
         self.store.resource(handle)
     }
+}
+
+pub trait ResourcesIterator<'store>: Iterator<Item = ResultItem<'store, TextResource>>
+where
+    Self: Sized,
+{
+    /// Iterates over all the annotations for all resources in this iterator.
+    /// The iterator will be consumed and an extra buffer is allocated.
+    /// Annotations will be returned sorted chronologically and returned without duplicates
+    ///
+    /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
+    fn annotations(
+        self,
+    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+        let mut annotations: Vec<_> = self
+            .map(|resource| resource.annotations())
+            .flatten()
+            .collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        MaybeIter::new_sorted(annotations.into_iter())
+    }
+}
+
+impl<'store, I> ResourcesIterator<'store> for I
+where
+    I: Iterator<Item = ResultItem<'store, TextResource>>,
+{
+    //blanket implementation
 }

@@ -65,10 +65,10 @@ impl<'store> ResultItem<'store, AnnotationData> {
             .rootstore()
             .annotations_by_data_indexlookup(set_handle, self.handle())
         {
-            MaybeIter::new_sorted(HandlesToItemsIter {
-                inner: annotations.iter(),
-                store: self.rootstore(),
-            })
+            MaybeIter::new_sorted(HandlesToItemsIter::new(
+                annotations.iter().copied(),
+                self.rootstore(),
+            ))
         } else {
             MaybeIter::new_empty()
         }
@@ -102,7 +102,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
         self.annotations()
             .map(|annotation| annotation.resources())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
             .into_iter()
     }
 
@@ -113,7 +113,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
         self.annotations()
             .map(|annotation| annotation.resources_as_metadata())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
             .into_iter()
     }
 
@@ -124,7 +124,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
         self.annotations()
             .map(|annotation| annotation.resources_on_text())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
             .into_iter()
     }
 
@@ -135,7 +135,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
         self.annotations()
             .map(|annotation| annotation.datasets())
             .flatten()
-            .collect()
+            .collect::<BTreeSet<_>>()
             .into_iter()
     }
 }
@@ -397,25 +397,10 @@ where
     fn annotations(
         self,
     ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
-        let mut annotations: Vec<_> = self
-            .filter_map(|data| {
-                if let Some(annotations) = data
-                    .rootstore()
-                    .annotations_by_data_indexlookup(data.set().handle(), data.handle())
-                {
-                    Some(annotations.iter().copied())
-                } else {
-                    None
-                }
-            })
-            .flatten()
-            .collect();
+        let mut annotations: Vec<_> = self.map(|data| data.annotations()).flatten().collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter {
-            inner: annotations.into_iter(),
-            sorted: true,
-        }
+        MaybeIter::new_sorted(annotations.into_iter())
     }
 
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredData<'store, Self> {

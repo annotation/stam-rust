@@ -47,10 +47,7 @@ impl<'store> ResultItem<'store, DataKey> {
             let iter = vec
                 .iter()
                 .map(|datahandle| (store.handle().unwrap(), *datahandle));
-            MaybeIter::new_sorted(HandlesToItemsIter {
-                inner: iter,
-                store: self.store(),
-            })
+            MaybeIter::new_sorted(HandlesToItemsIter::new(iter, self.rootstore()))
         } else {
             MaybeIter::new_empty()
         }
@@ -61,10 +58,10 @@ impl<'store> ResultItem<'store, DataKey> {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();
         let annotations: Vec<_> = annotationstore.annotations_by_key(set_handle, self.handle()); //MAYBE TODO: extra reverse index so we can borrow directly?
-        MaybeIter::new_sorted(HandlesToItemsIter {
-            inner: annotations.into_iter(),
-            store: self.rootstore(),
-        })
+        MaybeIter::new_sorted(HandlesToItemsIter::new(
+            annotations.into_iter(),
+            self.rootstore(),
+        ))
     }
 
     /// Returns the number of annotations that make use of this key.
