@@ -412,7 +412,7 @@ where
 }
 
 impl<'store, I> FullHandleToResultItem<'store, TextSelection>
-    for HandlesToItemsIter<'store, TextSelection, I>
+    for FromHandles<'store, TextSelection, I>
 where
     I: Iterator<Item = (TextResourceHandle, TextSelectionHandle)>,
 {

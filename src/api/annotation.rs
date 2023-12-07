@@ -49,7 +49,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
         //                                                                               ^--- recurse, targetiter prevents duplicates
-        MaybeIter::new_sorted(HandlesToItemsIter::new(iter, self.store()))
+        MaybeIter::new_sorted(FromHandles::new(iter, self.store()))
     }
 
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
@@ -68,10 +68,7 @@ impl<'store> ResultItem<'store, Annotation> {
                 }
             })
             .collect();
-        MaybeIter::new_sorted(HandlesToItemsIter::new(
-            collection.into_iter(),
-            self.store(),
-        ))
+        MaybeIter::new_sorted(FromHandles::new(collection.into_iter(), self.store()))
     }
 
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
@@ -90,10 +87,7 @@ impl<'store> ResultItem<'store, Annotation> {
                 }
             })
             .collect();
-        MaybeIter::new_sorted(HandlesToItemsIter::new(
-            collection.into_iter(),
-            self.store(),
-        ))
+        MaybeIter::new_sorted(FromHandles::new(collection.into_iter(), self.store()))
     }
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references via a [`Selector::DataSetSelector`].
@@ -102,7 +96,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<AnnotationDataSet> =
             TargetIter::new(selector.iter(self.store(), false));
-        MaybeIter::new_sorted(HandlesToItemsIter::new(iter, self.store()))
+        MaybeIter::new_sorted(FromHandles::new(iter, self.store()))
     }
 
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector`])
@@ -116,7 +110,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let selector = self.as_ref().target();
         let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
         let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
-        MaybeIter::new(HandlesToItemsIter::new(iter, self.store()), sorted)
+        MaybeIter::new(FromHandles::new(iter, self.store()), sorted)
     }
 
     /// Returns an iterator over all annotations that reference this annotation, if any
@@ -125,10 +119,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.iter().textual_order()`
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         if let Some(annotations) = self.store().annotations_by_annotation(self.handle()) {
-            MaybeIter::new_sorted(HandlesToItemsIter::new(
-                annotations.iter().copied(),
-                self.store(),
-            ))
+            MaybeIter::new_sorted(FromHandles::new(annotations.iter().copied(), self.store()))
         } else {
             MaybeIter::new_empty()
         }
@@ -154,7 +145,7 @@ impl<'store> ResultItem<'store, Annotation> {
             .textselections_by_selector(self.as_ref().target());
         MaybeIter::new_unsorted(
             //textual order is not chronological order
-            HandlesToItemsIter::new(textselections.into_iter(), self.store()),
+            FromHandles::new(textselections.into_iter(), self.store()),
         )
     }
 
@@ -201,7 +192,7 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Get an iterator over all data ([`AnnotationData`]) for this annotation.
     pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> {
-        MaybeIter::new_unsorted(HandlesToItemsIter::new(
+        MaybeIter::new_unsorted(FromHandles::new(
             self.as_ref().raw_data().iter().copied(),
             self.store(),
         ))
@@ -249,8 +240,7 @@ impl<'store> ResultItem<'store, Annotation> {
 /// Use [`Annotations::iter()`] to iterate over the collection.
 pub type Annotations<'store> = Handles<'store, Annotation>;
 
-impl<'store, I> FullHandleToResultItem<'store, Annotation>
-    for HandlesToItemsIter<'store, Annotation, I>
+impl<'store, I> FullHandleToResultItem<'store, Annotation> for FromHandles<'store, Annotation, I>
 where
     I: Iterator<Item = AnnotationHandle>,
 {
@@ -937,10 +927,10 @@ where
             Filter::Annotation(handle) => annotation.handle() == *handle,
             Filter::Annotations(handles) => handles.contains(&annotation.fullhandle()),
             Filter::Data(data, FilterMode::Any) => {
-                annotation.data().filter_data(data).next().is_some()
+                annotation.data().filter_data(data.clone()).next().is_some()
             }
             Filter::Data(data, FilterMode::All) => {
-                annotation.data().filter_data(data).count() >= data.len()
+                annotation.data().filter_data(data.clone()).count() >= data.len()
             }
             Filter::DataKey(set, key) => annotation
                 .data()

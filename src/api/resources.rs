@@ -40,10 +40,7 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Such annotations can be considered metadata.
     pub fn annotations_as_metadata(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         if let Some(annotations) = self.store().annotations_by_resource_metadata(self.handle()) {
-            MaybeIter::new_sorted(HandlesToItemsIter::new(
-                annotations.iter().copied(),
-                self.store(),
-            ))
+            MaybeIter::new_sorted(FromHandles::new(annotations.iter().copied(), self.store()))
         } else {
             MaybeIter::new_empty()
         }
@@ -55,7 +52,7 @@ impl<'store> ResultItem<'store, TextResource> {
             let mut data: Vec<_> = iter.collect();
             data.sort_unstable();
             data.dedup();
-            MaybeIter::new_sorted(HandlesToItemsIter::new(data.into_iter(), self.store()))
+            MaybeIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
         } else {
             MaybeIter::new_empty()
         }
@@ -80,7 +77,7 @@ impl<'store> ResultItem<'store, TextResource> {
         );
         data.sort_unstable();
         data.dedup();
-        MaybeIter::new_sorted(HandlesToItemsIter::new(data.into_iter(), self.store()))
+        MaybeIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -463,7 +460,7 @@ impl<'store> Iterator for ResourcesIter<'store> {
 pub type Resources<'store> = Handles<'store, TextResource>;
 
 impl<'store, I> FullHandleToResultItem<'store, TextResource>
-    for HandlesToItemsIter<'store, TextResource, I>
+    for FromHandles<'store, TextResource, I>
 where
     I: Iterator<Item = TextResourceHandle>,
 {

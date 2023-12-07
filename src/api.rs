@@ -188,8 +188,13 @@ where
     }
 
     /// Returns an iterator over the low-level handles in this collection
-    pub fn iter<'a>(&'a self) -> HandlesIter<'a, T> {
+    pub fn iter(&self) -> HandlesIter<'store, T> {
         self.array.iter().copied()
+    }
+
+    /// Returns an iterator over the high-level items in this collection
+    pub fn items(&self) -> FromHandles<'store, T, HandlesIter<'store, T>> {
+        FromHandles::new(self.iter(), self.store())
     }
 
     /// Computes the union between two collections, retains order and ensures there are no duplicates
@@ -327,7 +332,7 @@ where
 }
 
 /// Iterater that turns iterators over full handles into [`ResultItem<T>`], holds a reference to the [`AnnotationStore`]
-pub struct HandlesToItemsIter<'store, T, I>
+pub struct FromHandles<'store, T, I>
 where
     T: Storable + 'store,
     I: Iterator<Item = T::FullHandleType>,
@@ -337,7 +342,7 @@ where
     _marker: PhantomData<T>, //zero-size, only needed to bind generic T
 }
 
-impl<'store, T, I> HandlesToItemsIter<'store, T, I>
+impl<'store, T, I> FromHandles<'store, T, I>
 where
     T: Storable + 'store,
     I: Iterator<Item = T::FullHandleType>,
@@ -351,7 +356,7 @@ where
     }
 }
 
-impl<'store, T, I> Iterator for HandlesToItemsIter<'store, T, I>
+impl<'store, T, I> Iterator for FromHandles<'store, T, I>
 where
     T: Storable + 'store,
     I: Iterator<Item = T::FullHandleType>,
@@ -371,6 +376,24 @@ where
                 return None;
             }
         }
+    }
+}
+
+pub trait ToHandles<'store, T>
+where
+    T: Storable,
+{
+    fn to_handles(&mut self, store: &'store AnnotationStore) -> Handles<'store, T>;
+}
+
+impl<'store, T, I> ToHandles<'store, T> for I
+where
+    T: Storable + 'store,
+    I: Iterator<Item = ResultItem<'store, T>>,
+    ResultItem<'store, T>: FullHandle<T>,
+{
+    fn to_handles(&mut self, store: &'store AnnotationStore) -> Handles<'store, T> {
+        Handles::from_iter(self.map(|item| item.fullhandle()), store)
     }
 }
 

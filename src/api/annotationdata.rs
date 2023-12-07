@@ -65,7 +65,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
             .rootstore()
             .annotations_by_data_indexlookup(set_handle, self.handle())
         {
-            MaybeIter::new_sorted(HandlesToItemsIter::new(
+            MaybeIter::new_sorted(FromHandles::new(
                 annotations.iter().copied(),
                 self.rootstore(),
             ))
@@ -339,7 +339,7 @@ impl<'store> DataIter<'store> {
 */
 
 impl<'store, I> FullHandleToResultItem<'store, AnnotationData>
-    for HandlesToItemsIter<'store, AnnotationData, I>
+    for FromHandles<'store, AnnotationData, I>
 where
     I: Iterator<Item = (AnnotationDataSetHandle, AnnotationDataHandle)>,
 {

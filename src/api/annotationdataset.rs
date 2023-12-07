@@ -66,7 +66,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
         let store = self.store();
         if let Some(annotations) = self.store().annotations_by_dataset_metadata(self.handle()) {
-            MaybeIter::new_sorted(HandlesToItemsIter::new(annotations.iter().copied(), store))
+            MaybeIter::new_sorted(FromHandles::new(annotations.iter().copied(), store))
         } else {
             MaybeIter::new_empty()
         }
@@ -157,7 +157,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
 }
 
 impl<'store, I> FullHandleToResultItem<'store, AnnotationDataSet>
-    for HandlesToItemsIter<'store, AnnotationDataSet, I>
+    for FromHandles<'store, AnnotationDataSet, I>
 where
     I: Iterator<Item = AnnotationDataSetHandle>,
 {

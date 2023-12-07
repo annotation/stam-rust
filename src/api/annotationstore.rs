@@ -58,17 +58,10 @@ impl AnnotationStore {
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<TextResource>`]),
     /// which exposes the high-level API.
-    pub fn resources<'a>(&'a self) -> ResourcesIter<'a> {
-        ResourcesIter::new(
-            IntersectionIter::new_with_iterator(
-                Box::new(
-                    self.iter().map(|res: &'a TextResource| {
-                        res.handle().expect("resource must have handle")
-                    }),
-                ),
-                true,
-            ),
-            self,
+    pub fn resources<'a>(&'a self) -> impl Iterator<Item = ResultItem<TextResource>> {
+        MaybeIter::new_sorted(
+            self.iter()
+                .map(|item: &TextResource| item.as_resultitem(self, self)),
         )
     }
 
