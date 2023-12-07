@@ -623,12 +623,12 @@ impl AnnotationDataSet {
         self.insert_data(dataitem.id, dataitem.key, dataitem.value, safety)
     }
 
-    ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references as [`ResultItem<AnnotationData>`].
+    ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references to [`AnnotationData`].
     pub fn data(&self) -> StoreIter<AnnotationData> {
         <Self as StoreFor<AnnotationData>>::iter(self)
     }
 
-    /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references as [`ResultItem<DataKey>`]
+    /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references to [`DataKey`]
     pub fn keys(&self) -> StoreIter<DataKey> {
         <Self as StoreFor<DataKey>>::iter(self)
     }

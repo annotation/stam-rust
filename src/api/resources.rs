@@ -38,37 +38,59 @@ impl<'store> FullHandle<TextResource> for ResultItem<'store, TextResource> {
 impl<'store> ResultItem<'store, TextResource> {
     /// Returns an iterator over all annotations about this resource as a whole, i.e. Annotations with a ResourceSelector.
     /// Such annotations can be considered metadata.
-    pub fn annotations_as_metadata(&self) -> AnnotationsIter<'store> {
-        let store = self.store();
-        if let Some(annotations) = store.annotations_by_resource_metadata(self.handle()) {
-            AnnotationsIter::new(
-                IntersectionIter::new(Cow::Borrowed(annotations), true),
-                self.store(),
-            )
+    pub fn annotations_as_metadata(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        if let Some(annotations) = self.store().annotations_by_resource_metadata(self.handle()) {
+            MaybeIter::new_sorted(HandlesToItemsIter {
+                inner: annotations.iter(),
+                store: self.store(),
+            })
         } else {
-            AnnotationsIter::new_empty(self.store())
+            MaybeIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations about any text in this resource i.e. Annotations with a TextSelector.
-    pub fn annotations_on_text(&self) -> AnnotationsIter<'store> {
-        let store = self.store();
-        if let Some(iter) = store.annotations_by_resource(self.handle()) {
+    pub fn annotations_on_text(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        if let Some(iter) = self.store().annotations_by_resource(self.handle()) {
             let mut data: Vec<_> = iter.collect();
             data.sort_unstable();
             data.dedup();
-            AnnotationsIter::new(IntersectionIter::new(Cow::Owned(data), true), self.store())
+            MaybeIter::new_sorted(HandlesToItemsIter {
+                inner: data.into_iter(),
+                store: self.store(),
+            })
         } else {
-            AnnotationsIter::new_empty(self.store())
+            MaybeIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations that reference this resource, both annotations that can be considered metadata as well
     /// annotations that reference a portion of the text.
     /// Use `annotations_as_metadata()` or `annotations_on_text()` instead if you want to differentiate the two.
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
-        self.annotations_as_metadata()
-            .union(self.annotations_on_text())
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        let mut data: Vec<_> = self
+            .store()
+            .annotations_by_resource_metadata(self.handle())
+            .into_iter()
+            .flatten()
+            .collect();
+        if self
+            .store()
+            .textrelationmap
+            .data
+            .contains(self.handle().as_usize())
+        //extra low-level check to avoid sorting if not needed
+        {
+            data.extend(
+                self.store()
+                    .annotations_by_resource(self.handle())
+                    .into_iter()
+                    .flatten(),
+            );
+            data.sort_unstable();
+            data.dedup();
+        }
+        MaybeIter::new_sorted(data.into_iter())
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).

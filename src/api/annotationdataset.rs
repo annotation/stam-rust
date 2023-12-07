@@ -13,13 +13,10 @@
 
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
-use crate::api::annotation::AnnotationsIter;
-use crate::api::annotationdata::DataIter;
+use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::{store::*, IntersectionIter};
-
-use std::borrow::Cow;
+use crate::store::*;
 
 impl<'store> FullHandle<AnnotationDataSet> for ResultItem<'store, AnnotationDataSet> {
     fn fullhandle(&self) -> <AnnotationDataSet as Storable>::FullHandleType {
@@ -29,20 +26,15 @@ impl<'store> FullHandle<AnnotationDataSet> for ResultItem<'store, AnnotationData
 
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set.
-    pub fn data(&self) -> DataIter<'store> {
+    pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> {
         let set_handle = self.handle();
-        let iter = self
-            .as_ref()
+        self.as_ref()
             .data()
-            .map(move |data| (set_handle, data.handle().expect("data must have handle")));
-        DataIter::new(
-            IntersectionIter::new_with_iterator(Box::new(iter), true),
-            self.rootstore(),
-        )
+            .map(|data| data.as_resultitem(self.as_ref(), self.rootstore()))
     }
 
     /// Returns an iterator over all keys in this set
-    pub fn keys(&self) -> impl Iterator<Item = ResultItem<DataKey>> {
+    pub fn keys(&self) -> impl Iterator<Item = ResultItem<'store, DataKey>> {
         self.as_ref()
             .keys()
             .map(|item| item.as_resultitem(self.as_ref(), self.rootstore()))
@@ -68,15 +60,14 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     }
 
     /// Returns an iterator over annotations that directly point at the dataset, i.e. are metadata for it (via a DataSetSelector).
-    pub fn annotations(&self) -> AnnotationsIter<'store> {
-        let store = self.store();
-        if let Some(annotations) = store.annotations_by_dataset_metadata(self.handle()) {
-            AnnotationsIter::new(
-                IntersectionIter::new(Cow::Borrowed(annotations), true),
-                self.store(),
-            )
+    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+        if let Some(annotations) = self.store().annotations_by_dataset_metadata(self.handle()) {
+            MaybeIter::new_sorted(HandlesToItemsIter {
+                inner: annotations.iter(),
+                store: self.store(),
+            })
         } else {
-            AnnotationsIter::new_empty(self.store())
+            MaybeIter::new_empty()
         }
     }
 
@@ -124,28 +115,28 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         &self,
         key: impl Request<DataKey>,
         value: DataOperator<'q>,
-    ) -> DataIter<'store>
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>
     where
         'q: 'store,
     {
         if !key.any() {
             if let Some(key) = self.key(key) {
                 if let DataOperator::Any = value {
-                    return key.data();
+                    return Box::new(key.data());
                 } else {
-                    return key.data().filter_value(value);
+                    return Box::new(key.data().filter_value(value));
                 }
             } else {
                 //requested key doesn't exist, bail out early, we won't find anything at all
-                return DataIter::new_empty(self.rootstore());
+                return Box::new(MaybeIter::new_empty());
             }
         };
 
         //any key
         if let DataOperator::Any = value {
-            self.data()
+            Box::new(self.data())
         } else {
-            self.data().filter_value(value)
+            Box::new(self.data().filter_value(value))
         }
     }
 

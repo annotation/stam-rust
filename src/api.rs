@@ -317,6 +317,48 @@ where
     }
 }
 
+/// This internal trait is implemented for various forms of [`HandlesToItemIter<'store,T>`]
+pub(crate) trait FullHandleToResultItem<'store, T>
+where
+    T: Storable,
+{
+    fn get_item(&self, handle: T::FullHandleType) -> Option<ResultItem<'store, T>>;
+}
+
+/// Iterater that turns iterators over full handles into [`ResultItem<T>`], holds a reference to the [`AnnotationStore`]
+pub struct HandlesToItemsIter<'store, T, I>
+where
+    T: Storable,
+    I: Iterator<Item = T::FullHandleType> + 'store,
+    Self: FullHandleToResultItem<'store, T>,
+{
+    inner: I,
+    store: &'store AnnotationStore,
+}
+
+impl<'store, T, I> Iterator for HandlesToItemsIter<'store, T, I>
+where
+    T: Storable,
+    I: Iterator<Item = T::FullHandleType> + 'store,
+    Self: FullHandleToResultItem<'store, T>,
+{
+    type Item = ResultItem<'store, T>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(full_handle) = self.inner.next() {
+                let item = self.get_item(full_handle);
+                if item.is_none() {
+                    continue; //invalid handles are ignored
+                } else {
+                    return item;
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
 pub trait TestableIterator: Iterator
 where
     Self: Sized,
@@ -333,6 +375,66 @@ where
 {
     /// Set the iterator to abort, no further results will be returned
     fn abort(&mut self);
+}
+
+/// An iterator that may be sorted or not and knows a-priori whether it is or not.
+pub trait MaybeSortedIterator: Iterator {
+    /// Does this iterator return items in sorted order?
+    fn returns_sorted(&self);
+}
+
+/// An iterator that may be sorted or not and knows whether it is or not, it may also be a completely empty iterator.
+pub struct MaybeIter<I>
+where
+    I: Iterator,
+{
+    inner: Option<I>,
+    sorted: bool,
+}
+
+impl<I: Iterator> MaybeSortedIterator for MaybeIter<I> {
+    fn returns_sorted(&self) {
+        self.sorted
+    }
+}
+
+impl<I: Iterator> MaybeIter<I> {
+    pub(crate) fn new(inner: I, sorted: bool) -> Self {
+        Self {
+            inner: Some(inner),
+            sorted,
+        }
+    }
+    pub(crate) fn new_sorted(inner: I) -> Self {
+        Self {
+            inner: Some(inner),
+            sorted: true,
+        }
+    }
+    pub(crate) fn new_unsorted(inner: I) -> Self {
+        Self {
+            inner: Some(inner),
+            sorted: false,
+        }
+    }
+    pub(crate) fn new_empty() -> Self {
+        Self {
+            inner: None,
+            sorted: true,
+        }
+    }
+}
+impl<I: Iterator> Iterator for MaybeIter<I> {
+    type Item = I::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(inner) = self.inner.as_mut() {
+            inner.next()
+        } else {
+            None
+        }
+    }
 }
 
 // Auxiliary data structures the API relies on internally:
@@ -356,6 +458,7 @@ pub(crate) enum Filter<'a> {
     AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
     AnnotationDataSet(AnnotationDataSetHandle),
     DataKey(AnnotationDataSetHandle, DataKeyHandle),
+    DataKeyAndOperator(AnnotationDataSetHandle, DataKeyHandle, DataOperator<'a>),
     Annotation(AnnotationHandle),
     TextResource(TextResourceHandle),
     DataOperator(DataOperator<'a>),
@@ -370,6 +473,7 @@ pub(crate) enum Filter<'a> {
     BorrowedText(&'a str, TextMode, &'a str), //the last string represents the delimiter for joining text
 }
 
+/*
 pub(crate) enum ResultItemIterSource<'store, T>
 where
     T: Storable,
@@ -385,46 +489,13 @@ where
     /// A high-level (dynamic) iterator
     PassIter(Box<dyn Iterator<Item = ResultItem<'store, T>> + 'store>),
 }
+*/
 
-/// Iterator over the items that can be turned into ResultItem
-pub struct ResultItemIter<'store, T>
+/*
+impl<'store, T> Iterator for ResultItemIter<'store, T, I>
 where
-    T: Storable,
-{
-    source: ResultItemIterSource<'store, T>,
-    store: &'store AnnotationStore,
-    sorted: bool,
-    cursor: Option<usize>,
-    filters: SmallVec<[Filter<'store>; 1]>,
-}
-
-impl<'store, T> Debug for ResultItemIter<'store, T>
-where
-    T: Storable,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = format!("ResultItemIter<{}>", T::typeinfo());
-        f.debug_struct(s.as_str())
-            .field("sorted", &self.sorted)
-            .finish()
-    }
-}
-
-/// This internal trait is implemented for various forms of [`ResultItemIter<'store,T>`]
-pub(crate) trait ResultItemIterator<'store, T>
-where
-    T: Storable,
-{
-    fn get_item(&self, handle: T::FullHandleType) -> Option<ResultItem<'store, T>>;
-
-    /// Test other filters
-    fn test_filters(&self, item: &ResultItem<'store, T>) -> bool;
-}
-
-impl<'store, T> Iterator for ResultItemIter<'store, T>
-where
+    I: Iterator<Item = ResultItem<'store, T>>,
     T: Storable + 'store,
-    Self: ResultItemIterator<'store, T>,
     ResultItem<'store, T>: FullHandle<T>,
     TargetIter<'store, T>: Iterator<Item = T::HandleType>,
 {
@@ -481,7 +552,7 @@ where
 impl<'store, T> DoubleEndedIterator for ResultItemIter<'store, T>
 where
     T: Storable + 'store,
-    Self: ResultItemIterator<'store, T>,
+    Self: FullHandleToResultItem<'store, T>,
     ResultItem<'store, T>: FullHandle<T>,
     TargetIter<'store, T>: Iterator<Item = T::HandleType>,
 {
@@ -546,7 +617,7 @@ where
 impl<'store, T> ResultItemIter<'store, T>
 where
     T: Storable,
-    Self: ResultItemIterator<'store, T>,
+    Self: FullHandleToResultItem<'store, T>,
     ResultItem<'store, T>: FullHandle<T>,
     TargetIter<'store, T>: Iterator<Item = T::HandleType>,
 {
@@ -740,47 +811,13 @@ where
         )
     }
 }
+*/
 
-impl<'store, T> TestableIterator for ResultItemIter<'store, T>
-where
-    T: Storable + 'store,
-    ResultItemIter<'store, T>: ResultItemIterator<'store, T>,
-    ResultItem<'store, T>: FullHandle<T>,
-    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
-{
-}
-
-impl<'store, T> IntoIterator for Handles<'store, T>
-where
-    T: Storable + 'store,
-    ResultItemIter<'store, T>: ResultItemIterator<'store, T>,
-    ResultItem<'store, T>: FullHandle<T>,
-    TargetIter<'store, T>: Iterator<Item = T::HandleType>,
-{
-    type Item = ResultItem<'store, T>;
-    type IntoIter = ResultItemIter<'store, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.into()
-    }
-}
-
-impl<'store, T: Storable> From<Handles<'store, T>> for ResultItemIter<'store, T> {
-    fn from(value: Handles<'store, T>) -> Self {
-        Self {
-            store: value.store(),
-            sorted: value.returns_sorted(),
-            source: ResultItemIterSource::HandlesArray(value),
-            cursor: None,
-            filters: SmallVec::new(),
-        }
-    }
-}
-
+/*
 impl<'store, T: Storable> From<ResultItemIter<'store, T>> for Handles<'store, T>
 where
     ResultItem<'store, T>: FullHandle<T>,
-    ResultItemIter<'store, T>: ResultItemIterator<'store, T>,
+    ResultItemIter<'store, T>: FullHandleToResultItem<'store, T>,
     ResultItem<'store, T>: FullHandle<T>,
     TargetIter<'store, T>: Iterator<Item = T::HandleType>,
 {
@@ -818,3 +855,4 @@ where
         )
     }
 }
+*/
