@@ -204,6 +204,7 @@ impl<'store> ResultItem<'store, Annotation> {
         ))
     }
 
+    /*
     /// Find data ([`AnnotationData`]) amongst the data for this annotation. Returns an iterator over the data.
     /// If you have a particular annotation data instance and want to test if the annotation uses it, then use [`Self::has_data()`] instead.
     pub fn find_data<'a>(
@@ -217,6 +218,7 @@ impl<'store> ResultItem<'store, Annotation> {
     {
         self.data().find_data(set, key, value)
     }
+    */
 
     /// Tests if the annotation has certain data, returns a boolean.
     /// This will be a bit quicker than using `.data().filter_annotationdata()`.
@@ -781,6 +783,23 @@ where
         MaybeIter::new_sorted(data.into_iter())
     }
 
+    /*
+    /// Find data for the annotations in this iterator. Returns an iterator over the data (losing the information about annotations).
+    /// If you want specifically know what annotation has what data, use [`Self::iter_with_data()`] instead.
+    /// If you want to constrain annotations by a data search, use [`Self::filter_find_data()`] instead.
+    fn find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: DataOperator<'a>,
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>
+    where
+        'a: 'store,
+    {
+        self.data().find_data(set, key, value)
+    }
+    */
+
     /// Maps annotations to resources, consuming the iterator. Will return in chronological order without duplicates.
     fn resources(
         self,
@@ -837,7 +856,10 @@ where
     }
 
     /// Constrain this iterator to filter on one of the mentioned annotations
-    fn filter_annotations(self, annotations: Annotations) -> FilteredAnnotations<'store, Self> {
+    fn filter_annotations(
+        self,
+        annotations: Annotations<'store>,
+    ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::Annotations(annotations),
@@ -853,14 +875,14 @@ where
         }
     }
 
-    fn filter_data(mut self, data: Data) -> FilteredAnnotations<'store, Self> {
+    fn filter_data(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::Data(data, FilterMode::Any),
         }
     }
 
-    fn filter_data_all(mut self, data: Data) -> FilteredAnnotations<'store, Self> {
+    fn filter_data_all(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::Data(data, FilterMode::All),
@@ -895,6 +917,13 @@ where
         FilteredAnnotations {
             inner: self,
             filter: Filter::DataKey(key.set().handle(), key.handle()),
+        }
+    }
+
+    fn filter_value(mut self, value: DataOperator<'store>) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::DataOperator(value),
         }
     }
 }
@@ -948,12 +977,17 @@ where
             }
             Filter::DataKey(set, key) => annotation
                 .data()
-                .filter_key_handle(set, key)
+                .filter_key_handle(*set, *key)
                 .next()
                 .is_some(),
             Filter::DataKeyAndOperator(set, key, value) => annotation
                 .data()
-                .filter_key_handle_value(set, key, value)
+                .filter_key_handle_value(*set, *key, value.clone())
+                .next()
+                .is_some(),
+            Filter::DataOperator(value) => annotation
+                .data()
+                .filter_value(value.clone())
                 .next()
                 .is_some(),
             _ => unimplemented!(

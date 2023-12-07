@@ -116,7 +116,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
         &self,
         key: impl Request<DataKey>,
         value: DataOperator<'q>,
-    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
     where
         'q: 'store,
     {
@@ -129,7 +129,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
                 }
             } else {
                 //requested key doesn't exist, bail out early, we won't find anything at all
-                return Box::new(MaybeIter::new_empty());
+                return Box::new(std::iter::empty());
             }
         };
 

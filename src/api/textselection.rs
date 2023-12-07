@@ -1297,7 +1297,7 @@ where
     //blanket implementation
 }
 
-struct TextIter<'store, I>
+pub struct TextIter<'store, I>
 where
     I: Iterator<Item = ResultTextSelection<'store>>,
 {

@@ -16,7 +16,7 @@ mod annotationdata;
 mod annotationdataset;
 mod annotationstore;
 mod datakey;
-mod query;
+//mod query; //TODO: re-enable!
 mod resources;
 mod text;
 mod textselection;
@@ -26,7 +26,7 @@ pub use annotationdata::*;
 pub use annotationdataset::*;
 pub use annotationstore::*;
 pub use datakey::*;
-pub use query::*;
+//pub use query::*; //TODO: re-enable!
 pub use resources::*;
 pub use text::*;
 pub use textselection::*;
@@ -188,12 +188,15 @@ where
     }
 
     /// Returns an iterator over the low-level handles in this collection
-    pub fn iter(&self) -> HandlesIter<'store, T> {
+    pub fn iter<'a>(&'a self) -> HandlesIter<'a, T> {
         self.array.iter().copied()
     }
 
     /// Returns an iterator over the high-level items in this collection
-    pub fn items(&self) -> FromHandles<'store, T, HandlesIter<'store, T>> {
+    pub fn items<'a>(&'a self) -> FromHandles<'store, T, HandlesIter<'store, T>>
+    where
+        'a: 'store,
+    {
         FromHandles::new(self.iter(), self.store())
     }
 
