@@ -1179,3 +1179,46 @@ impl TypeInfo for Option<ResultTextSelection<'_>> {
 /// This structure is produced by calling [`ResourcesIter::to_collection()`].
 /// Use [`Resources::iter()`] to iterate over the collection.
 pub type TextSelections<'store> = Handles<'store, TextSelection>;
+
+/// Iterator that turns iterators over [`ResultItem<TextSelection>`] into [`ResultTextSelection`].
+pub struct ResultTextSelections<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, TextSelection>>,
+{
+    inner: I,
+}
+
+impl<'store, I> ResultTextSelections<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, TextSelection>>,
+{
+    pub fn new(inner: I) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'store, I> Iterator for ResultTextSelections<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, TextSelection>>,
+{
+    type Item = ResultTextSelection<'store>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner
+            .next()
+            .map(|textselection| ResultTextSelection::Bound(textselection))
+    }
+}
+
+impl<'store, I> DoubleEndedIterator for ResultTextSelections<'store, I>
+where
+    I: DoubleEndedIterator<Item = ResultItem<'store, TextSelection>>,
+{
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner
+            .next_back()
+            .map(|textselection| ResultTextSelection::Bound(textselection))
+    }
+}
