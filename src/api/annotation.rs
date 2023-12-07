@@ -45,7 +45,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns no duplicates even if a resource is referenced multiple times.
     /// If you want to distinguish between resources references as metadata and on text, use [`Self::resources_as_metadata()`] or [`Self::resources_on_text()` ] instead.
-    pub fn resources(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    pub fn resources(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let selector = self.as_ref().target();
         let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
         //                                                                               ^--- recurse, targetiter prevents duplicates
@@ -55,7 +55,9 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::ResourceSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_as_metadata(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    pub fn resources_as_metadata(
+        &self,
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let collection: BTreeSet<TextResourceHandle> = self
             .as_ref()
             .target()
@@ -74,7 +76,9 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::TextSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_on_text(&self) -> impl Iterator<Item = ResultItem<'store, TextResource>> {
+    pub fn resources_on_text(
+        &self,
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let collection: BTreeSet<TextResourceHandle> = self
             .as_ref()
             .target()
@@ -92,7 +96,9 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Returns an iterator over the datasets that this annotation (by its target selector) references via a [`Selector::DataSetSelector`].
     /// This returns no duplicates even if a dataset is referenced multiple times.
-    pub fn datasets(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store {
+    pub fn datasets(
+        &self,
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store> {
         let selector = self.as_ref().target();
         let iter: TargetIter<AnnotationDataSet> =
             TargetIter::new(selector.iter(self.store(), false));
@@ -106,7 +112,7 @@ impl<'store> ResultItem<'store, Annotation> {
     pub fn annotations_in_targets(
         &self,
         recursive: bool,
-    ) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let selector = self.as_ref().target();
         let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
         let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
@@ -117,7 +123,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// If you want to find the annotations this annotation targets, then use [`Self::annotations_in_targets()`] instead.
     ///
     /// Results will be in chronological order and without duplicates, if you want results in textual order, add `.iter().textual_order()`
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         if let Some(annotations) = self.store().annotations_by_annotation(self.handle()) {
             MaybeIter::new_sorted(FromHandles::new(annotations.iter().copied(), self.store()))
         } else {
@@ -139,14 +145,14 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Iterate over all text selections this annotation references (i.e. via [`Selector::TextSelector`])
     /// They are returned in textual order, except in case a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
-    pub fn textselections(&self) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+    pub fn textselections(&self) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let textselections = self
             .store()
             .textselections_by_selector(self.as_ref().target());
-        MaybeIter::new_unsorted(
+        ResultTextSelections::new(MaybeIter::new_unsorted(
             //textual order is not chronological order
             FromHandles::new(textselections.into_iter(), self.store()),
-        )
+        ))
     }
 
     /// Iterates over all text slices this annotation refers to
@@ -198,6 +204,7 @@ impl<'store> ResultItem<'store, Annotation> {
         ))
     }
 
+    /*
     /// Find data ([`AnnotationData`]) amongst the data for this annotation. Returns an iterator over the data.
     /// If you have a particular annotation data instance and want to test if the annotation uses it, then use [`Self::has_data()`] instead.
     pub fn find_data<'a>(
@@ -211,6 +218,7 @@ impl<'store> ResultItem<'store, Annotation> {
     {
         self.data().find_data(set, key, value)
     }
+    */
 
     /// Tests if the annotation has certain data, returns a boolean.
     /// This will be a bit quicker than using `.data().filter_annotationdata()`.
@@ -228,7 +236,7 @@ impl<'store> ResultItem<'store, Annotation> {
     pub fn related_text(
         &self,
         operator: TextSelectionOperator,
-    ) -> impl Iterator<Item = ResultItem<'store, TextSelection>> {
+    ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
         let tset: TextSelectionSet = self.textselections().collect();
         tset.as_resultset(self.store()).related_text(operator)
@@ -775,6 +783,23 @@ where
         MaybeIter::new_sorted(data.into_iter())
     }
 
+    /*
+    /// Find data for the annotations in this iterator. Returns an iterator over the data (losing the information about annotations).
+    /// If you want specifically know what annotation has what data, use [`Self::iter_with_data()`] instead.
+    /// If you want to constrain annotations by a data search, use [`Self::filter_find_data()`] instead.
+    fn find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: DataOperator<'a>,
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>
+    where
+        'a: 'store,
+    {
+        self.data().find_data(set, key, value)
+    }
+    */
+
     /// Maps annotations to resources, consuming the iterator. Will return in chronological order without duplicates.
     fn resources(
         self,
@@ -810,6 +835,14 @@ where
         MaybeIter::new_sorted(collection.into_iter())
     }
 
+    /// Maps annotations to textselections, consuming the iterator. Results will be returned in textual order.
+    fn textselections(self) -> <Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter {
+        self.map(|annotation| annotation.textselections())
+            .flatten()
+            .textual_order()
+            .into_iter()
+    }
+
     /// Constrain this iterator to only a single annotation
     /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
     fn filter_annotation(
@@ -823,7 +856,10 @@ where
     }
 
     /// Constrain this iterator to filter on one of the mentioned annotations
-    fn filter_annotations(self, annotations: Annotations) -> FilteredAnnotations<'store, Self> {
+    fn filter_annotations(
+        self,
+        annotations: Annotations<'store>,
+    ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::Annotations(annotations),
@@ -839,14 +875,14 @@ where
         }
     }
 
-    fn filter_data(mut self, data: Data) -> FilteredAnnotations<'store, Self> {
+    fn filter_data(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::Data(data, FilterMode::Any),
         }
     }
 
-    fn filter_data_all(mut self, data: Data) -> FilteredAnnotations<'store, Self> {
+    fn filter_data_all(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::Data(data, FilterMode::All),
@@ -881,6 +917,13 @@ where
         FilteredAnnotations {
             inner: self,
             filter: Filter::DataKey(key.set().handle(), key.handle()),
+        }
+    }
+
+    fn filter_value(mut self, value: DataOperator<'store>) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::DataOperator(value),
         }
     }
 }
@@ -934,12 +977,17 @@ where
             }
             Filter::DataKey(set, key) => annotation
                 .data()
-                .filter_key_handle(set, key)
+                .filter_key_handle(*set, *key)
                 .next()
                 .is_some(),
             Filter::DataKeyAndOperator(set, key, value) => annotation
                 .data()
-                .filter_key_handle_value(set, key, value)
+                .filter_key_handle_value(*set, *key, value.clone())
+                .next()
+                .is_some(),
+            Filter::DataOperator(value) => annotation
+                .data()
+                .filter_value(value.clone())
                 .next()
                 .is_some(),
             _ => unimplemented!(

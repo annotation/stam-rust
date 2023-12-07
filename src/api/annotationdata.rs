@@ -59,7 +59,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
     /// The iterator returns the annotations as [`ResultItem<Annotation>`].
     /// Especially useful in combination with a call to  [`ResultItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let set_handle = self.store().handle().expect("set must have handle");
         if let Some(annotations) = self
             .rootstore()
@@ -421,6 +421,20 @@ where
         }
     }
 
+    fn filter_set(self, set: &ResultItem<'store, AnnotationDataSet>) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set.handle()),
+        }
+    }
+
+    fn filter_set_handle(self, set: AnnotationDataSetHandle) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set),
+        }
+    }
+
     fn filter_key_handle_value(
         self,
         set: AnnotationDataSetHandle,
@@ -440,7 +454,7 @@ where
         }
     }
 
-    fn filter_data(mut self, data: Data) -> FilteredData<'store, Self> {
+    fn filter_data(self, data: Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
             filter: Filter::Data(data, FilterMode::Any),
@@ -467,6 +481,38 @@ where
             filter: Filter::AnnotationData(set, data),
         }
     }
+
+    /*
+    /// Find and filter data. Returns an iterator over the data.
+    /// See [`AnnotationStore::find_data()`] for further documentation.
+    fn find_data<'a>(
+        self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        value: DataOperator<'a>,
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>
+    where
+        'a: 'store,
+    {
+        let store = self.store();
+        match store.find_data_request_resolver(set, key) {
+            Some((Some(set_handle), Some(key_handle))) => {
+                Box::new(self.filter_key_handle_value(set_handle, key_handle, value))
+            }
+            Some((Some(set_handle), None)) => {
+                Box::new(self.filter_set_handle(set_handle).filter_value(value))
+            }
+            Some((None, None)) => Box::new(self.filter_value(value)),
+            Some((None, Some(_))) => {
+                eprintln!(
+                    "STAM warning: find_data() can not be used without a set if you specify a key!"
+                );
+                Box::new(std::iter::empty())
+            }
+            None => Box::new(std::iter::empty()),
+        }
+    }
+    */
 
     /*
     fn apply_filters<F: FromIterator<Filter<'store>>>(
@@ -507,15 +553,15 @@ impl<'store, I> Iterator for FilteredData<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, AnnotationData>>,
 {
-    type Item = ResultItem<'store, Annotation>;
+    type Item = ResultItem<'store, AnnotationData>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(item) = self.inner.next() {
                 if self.test_filter(&item) {
-                    Some(item)
+                    return Some(item);
                 }
             } else {
-                None
+                return None;
             }
         }
     }
@@ -528,16 +574,17 @@ where
     fn test_filter(&self, data: &ResultItem<'store, AnnotationData>) -> bool {
         match &self.filter {
             Filter::AnnotationData(set_handle, data_handle) => {
-                data.handle() == data_handle && data.set().handle() == set_handle
+                data.handle() == *data_handle && data.set().handle() == *set_handle
             }
-            Filter::Data(data, _) => data.contains(data.fullhandle()).next().is_some(),
+            Filter::Data(v, _) => v.contains(&data.fullhandle()),
+            Filter::AnnotationDataSet(set_handle) => data.set().handle() == *set_handle,
             Filter::DataKey(set_handle, key_handle) => {
-                data.key().handle() == key_handle && data.set().handle() == set_handle
+                data.key().handle() == *key_handle && data.set().handle() == *set_handle
             }
             Filter::DataOperator(operator) => data.test(false, &operator),
             Filter::DataKeyAndOperator(set_handle, key_handle, operator) => {
-                data.key().handle() == key_handle
-                    && data.set().handle() == set_handle
+                data.key().handle() == *key_handle
+                    && data.set().handle() == *set_handle
                     && data.test(false, &operator)
             }
             _ => unimplemented!("Filter {:?} not implemented for FilteredData", self.filter),

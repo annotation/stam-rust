@@ -16,7 +16,7 @@ mod annotationdata;
 mod annotationdataset;
 mod annotationstore;
 mod datakey;
-mod query;
+//mod query; //TODO: re-enable!
 mod resources;
 mod text;
 mod textselection;
@@ -26,7 +26,7 @@ pub use annotationdata::*;
 pub use annotationdataset::*;
 pub use annotationstore::*;
 pub use datakey::*;
-pub use query::*;
+//pub use query::*; //TODO: re-enable!
 pub use resources::*;
 pub use text::*;
 pub use textselection::*;
@@ -188,12 +188,15 @@ where
     }
 
     /// Returns an iterator over the low-level handles in this collection
-    pub fn iter(&self) -> HandlesIter<'store, T> {
+    pub fn iter<'a>(&'a self) -> HandlesIter<'a, T> {
         self.array.iter().copied()
     }
 
     /// Returns an iterator over the high-level items in this collection
-    pub fn items(&self) -> FromHandles<'store, T, HandlesIter<'store, T>> {
+    pub fn items<'a>(&'a self) -> FromHandles<'store, T, HandlesIter<'store, T>>
+    where
+        'a: 'store,
+    {
         FromHandles::new(self.iter(), self.store())
     }
 
@@ -420,7 +423,7 @@ where
 /// An iterator that may be sorted or not and knows a-priori whether it is or not.
 pub trait MaybeSortedIterator: Iterator {
     /// Does this iterator return items in sorted order?
-    fn returns_sorted(&self);
+    fn returns_sorted(&self) -> bool;
 }
 
 /// An iterator that may be sorted or not and knows whether it is or not, it may also be a completely empty iterator.
@@ -433,7 +436,7 @@ where
 }
 
 impl<I: Iterator> MaybeSortedIterator for MaybeIter<I> {
-    fn returns_sorted(&self) {
+    fn returns_sorted(&self) -> bool {
         self.sorted
     }
 }
@@ -445,18 +448,24 @@ impl<I: Iterator> MaybeIter<I> {
             sorted,
         }
     }
+
+    /// This does no sorting, it just tells that the iterator passed is sorted
     pub(crate) fn new_sorted(inner: I) -> Self {
         Self {
             inner: Some(inner),
             sorted: true,
         }
     }
+
+    /// This tells that the iterator passed is not sorted
     pub(crate) fn new_unsorted(inner: I) -> Self {
         Self {
             inner: Some(inner),
             sorted: false,
         }
     }
+
+    /// Creates a dummy iterator
     pub(crate) fn new_empty() -> Self {
         Self {
             inner: None,

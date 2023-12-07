@@ -172,7 +172,7 @@ impl AnnotationStore {
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
         value: DataOperator<'q>,
-    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
     where
         'q: 'store,
     {
@@ -181,7 +181,7 @@ impl AnnotationStore {
                 //delegate to the dataset
                 return dataset.find_data(key, value);
             } else {
-                return Box::new(MaybeIter::new_empty());
+                return Box::new(std::iter::empty());
             }
         }
 
@@ -189,7 +189,7 @@ impl AnnotationStore {
         if let Some((_, key_handle)) = self.find_data_request_resolver(set, key) {
             //iterate over all datasets
             let rootstore = self;
-            let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> = Box::new(
+            let iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> = Box::new(
                 self.datasets()
                     .map(move |dataset| {
                         dataset.as_ref().data().filter_map(move |annotationdata| {
@@ -205,10 +205,10 @@ impl AnnotationStore {
             if let DataOperator::Any = value {
                 iter
             } else {
-                std::mem::replace(&mut iter, iter.filter_value(value))
+                Box::new(iter.filter_value(value))
             }
         } else {
-            Box::new(MaybeIter::new_empty());
+            Box::new(std::iter::empty())
         }
     }
 
@@ -216,7 +216,7 @@ impl AnnotationStore {
     /// If possible, use a more constrained method (on [`AnnotationDataSet`] or a [`DataKey`]), it will have better performance.
     pub fn data<'store>(
         &'store self,
-    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> {
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store> {
         self.find_data(false, false, DataOperator::Any)
     }
 

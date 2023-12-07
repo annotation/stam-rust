@@ -3,7 +3,7 @@
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::{AnnotationsIter, DataIter, ResourcesIter, TextSelectionsIter};
+use crate::api::*;
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
 use crate::textselection::TextSelectionOperator;
