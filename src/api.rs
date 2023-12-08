@@ -94,6 +94,8 @@ where
 
     /// Low-level method to instantiate annotations from an existing vector of handles (either owned or borrowed from the store).
     /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
+    ///
+    /// The safe option is to convert from an iterator of [`ResultItem<T>`] to [`Handles<T>`], then use [`ToHandles::to_handles()`] on that
     pub fn new(
         array: Cow<'store, [T::FullHandleType]>,
         sorted: bool,
@@ -106,6 +108,7 @@ where
         }
     }
 
+    /// Returns a new empty handles collection
     pub fn new_empty(store: &'store AnnotationStore) -> Self {
         Self {
             array: Cow::Owned(Vec::new()),
@@ -116,6 +119,8 @@ where
 
     /// Create a new handles collection from an iterator handles
     /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
+    ///
+    /// If you want to convert from an iterator of [`ResultItem<T>`] to [`Handles<T>`], then use [`ToHandles::to_handles()`] on that
     pub fn from_iter(
         iter: impl Iterator<Item = T::FullHandleType>,
         store: &'store AnnotationStore,
@@ -131,35 +136,6 @@ where
             }
             v.push(item);
             prev = Some(item);
-        }
-        Self {
-            array: Cow::Owned(v),
-            sorted,
-            store,
-        }
-    }
-
-    /// Create a new handles collection from an iterator of [`ResultItem<T>`]
-    pub fn from_items(
-        iter: impl Iterator<Item = ResultItem<'store, T>>,
-        store: &'store AnnotationStore,
-    ) -> Self
-    where
-        T: 'store,
-        ResultItem<'store, T>: FullHandle<T>,
-    {
-        let mut sorted = true;
-        let mut v = Vec::new();
-        let mut prev: Option<T::FullHandleType> = None;
-        for item in iter {
-            let handle = item.fullhandle();
-            if let Some(p) = prev {
-                if p > handle {
-                    sorted = false;
-                }
-            }
-            v.push(handle);
-            prev = Some(handle);
         }
         Self {
             array: Cow::Owned(v),
@@ -416,6 +392,7 @@ pub trait ToHandles<'store, T>
 where
     T: Storable,
 {
+    /// Convert an iterator over [`ResultItem<T>`] to [`Handles<T>`].
     fn to_handles(&mut self, store: &'store AnnotationStore) -> Handles<'store, T>;
 }
 
