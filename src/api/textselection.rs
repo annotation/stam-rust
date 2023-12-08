@@ -1259,6 +1259,21 @@ where
         MaybeIter::new_sorted(annotations.into_iter())
     }
 
+    /// Find all text selections that are related to any text selections in this iterator, the operator
+    /// determines the type of the relation.
+    fn related_text(
+        self,
+        operator: TextSelectionOperator,
+    ) -> <Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter {
+        let mut textselections: Vec<ResultTextSelection<'store>> = Vec::new();
+        for textselection in self {
+            textselections.extend(textselection.related_text(operator))
+        }
+        textselections.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        textselections.dedup();
+        textselections.into_iter()
+    }
+
     /// Iterates over all text slices in this iterator
     fn text(self) -> TextIter<'store, Self> {
         TextIter { inner: self }
