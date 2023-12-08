@@ -1428,10 +1428,11 @@ fn related_text_with_data() -> Result<(), StamError> {
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
+    let key_type = store.key("myset", "type").or_fail()?;
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::embeds())
         .annotations()
-        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word"))
         .text()
         .collect();
     /*
@@ -1459,10 +1460,11 @@ fn related_text_with_data_2() -> Result<(), StamError> {
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
+    let key_type = store.key("myset", "type").or_fail()?;
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
-        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word"))
         .text()
         .collect();
     /*
@@ -1491,10 +1493,11 @@ fn related_text_with_data_3() -> Result<(), StamError> {
 
     let store = setup_example_6b()?; //<--- used different example! rest of code is the same
     let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
+    let key_type = store.key("myset", "type").or_fail()?;
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
-        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word"))
         .text()
         .collect();
     assert_eq!(
@@ -1510,10 +1513,11 @@ fn related_text_with_data_4() -> Result<(), StamError> {
 
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
     let phrase = store.annotation("Phrase3").or_fail()?; // "dignity and rights"
+    let key_type = store.key("myset", "type").or_fail()?;
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
-        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word"))
         .text()
         .collect();
     assert_eq!(
@@ -1554,11 +1558,12 @@ fn related_text_with_data_5() -> Result<(), StamError> {
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let sentence = store.annotation("Sentence1").or_fail()?;
+    let key_type = store.key("myset", "type").or_fail()?;
 
     let words: Vec<_> = sentence
         .related_text(TextSelectionOperator::embeds())
         .annotations()
-        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word"))
         .textual_order(); //we could omit this if we were sure word annotations were added in sequence
 
     let secondword = words.iter().nth(1).unwrap();
@@ -1580,11 +1585,11 @@ fn find_data_about() -> Result<(), StamError> {
     );
 
     //now find the phrase this word belongs to:
+    let key_type = store.key("myset", "type").or_fail()?;
     let mut count = 0;
-    for phrase in
-        secondword
-            .annotations()
-            .filter_find_data("myset", "type", DataOperator::Equals("phrase"))
+    for phrase in secondword
+        .annotations()
+        .filter_key_value(&key_type, DataOperator::Equals("phrase"))
     {
         count += 1;
         //we can test in body because we only have one:
@@ -1605,11 +1610,12 @@ fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
     annotate_phrases_for_example_6(&mut store)?;
     annotate_words(&mut store, "humanrights")?; //simple tokeniser in tests/common
     let sentence = store.annotation("Sentence1").or_fail()?;
+    let key_type = store.key("myset", "type").or_fail()?;
 
     let words: Vec<_> = sentence
         .related_text(TextSelectionOperator::embeds())
         .annotations()
-        .filter_find_data("myset", "type", DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word"))
         .textual_order(); //we could omit this if we were sure word annotations were added in sequence
 
     let secondword = words.iter().nth(1).unwrap();
@@ -1621,7 +1627,7 @@ fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
     for phrase in secondword
         .related_text(TextSelectionOperator::embedded())
         .annotations()
-        .filter_find_data("myset", "type", DataOperator::Equals("phrase"))
+        .filter_key_value(&key_type, DataOperator::Equals("phrase"))
     {
         count += 1;
         //we can test in body because we only have one:
@@ -1816,7 +1822,7 @@ fn query_parse() -> Result<(), StamError> {
     let mut count = 0;
     for constraint in query.iter() {
         count += 1;
-        if let Constraint::FindData { set, key, operator } = constraint {
+        if let Constraint::KeyValue { set, key, operator } = constraint {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
             assert_eq!(*operator, DataOperator::Equals("value"));
@@ -1838,7 +1844,7 @@ fn query_parse_quoted() -> Result<(), StamError> {
     let mut count = 0;
     for constraint in query.iter() {
         count += 1;
-        if let Constraint::FindData { set, key, operator } = constraint {
+        if let Constraint::KeyValue { set, key, operator } = constraint {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
             assert_eq!(*operator, DataOperator::Equals("value"));
@@ -1860,7 +1866,7 @@ fn query_parse_numeric() -> Result<(), StamError> {
     let mut count = 0;
     for constraint in query.iter() {
         count += 1;
-        if let Constraint::FindData { set, key, operator } = constraint {
+        if let Constraint::KeyValue { set, key, operator } = constraint {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
             assert_eq!(*operator, DataOperator::EqualsInt(5));
