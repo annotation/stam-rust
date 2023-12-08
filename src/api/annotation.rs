@@ -1136,6 +1136,11 @@ where
             Filter::AnnotationDataSet(set) => {
                 annotation.data().filter_set_handle(*set).next().is_some()
             }
+            Filter::AnnotationData(set, data) => annotation
+                .data()
+                .filter_handle(*set, *data)
+                .next()
+                .is_some(),
             Filter::TextResource(res_handle) => annotation
                 .resources()
                 .any(|res| res.handle() == *res_handle),
