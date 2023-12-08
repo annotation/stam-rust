@@ -45,6 +45,32 @@ impl AnnotationStore {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
+    /// Requests a specific [`DataKey`] (pertaining to an [`AnnotationDataSet`]) to be returned by reference.
+    pub fn key(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+    ) -> Option<ResultItem<DataKey>> {
+        if let Some(dataset) = self.dataset(set) {
+            dataset.key(key)
+        } else {
+            None
+        }
+    }
+
+    /// Requests a specific [`AnnotationData`] (pertaining to an [`AnnotationDataSet`]) to be returned by reference.
+    pub fn annotationdata(
+        &self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+    ) -> Option<ResultItem<DataKey>> {
+        if let Some(dataset) = self.dataset(set) {
+            dataset.key(key)
+        } else {
+            None
+        }
+    }
+
     /// Requests a specific [`Annotation`] from the store to be returned by reference.
     /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`,[`String`] or [`AnnotationHandle`](crate::AnnotationHandle).
     ///
