@@ -16,7 +16,7 @@ mod annotationdata;
 mod annotationdataset;
 mod annotationstore;
 mod datakey;
-//mod query; //TODO: re-enable!
+mod query;
 mod resources;
 mod text;
 mod textselection;
@@ -26,7 +26,7 @@ pub use annotationdata::*;
 pub use annotationdataset::*;
 pub use annotationstore::*;
 pub use datakey::*;
-//pub use query::*; //TODO: re-enable!
+pub use query::*;
 pub use resources::*;
 pub use text::*;
 pub use textselection::*;
@@ -39,10 +39,10 @@ use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKeyHandle;
 use crate::datavalue::DataOperator;
 use crate::resources::{TextResource, TextResourceHandle};
-use crate::textselection::TextSelectionOperator;
+use crate::textselection::{TextSelection, TextSelectionOperator};
 
-use crate::store::*;
 use crate::types::*;
+use crate::{store::*, TextSelectionHandle};
 
 use smallvec::SmallVec;
 use std::borrow::Cow;
@@ -515,6 +515,8 @@ pub(crate) enum Filter<'a> {
     Annotations(Handles<'a, Annotation>),
     Resources(Handles<'a, TextResource>),
     Data(Handles<'a, AnnotationData>, FilterMode),
+    TextSelection(TextResourceHandle, TextSelectionHandle),
+    TextSelections(Handles<'a, TextSelection>),
     MetaData(Handles<'a, AnnotationData>, FilterMode),
     DataOnText(Handles<'a, AnnotationData>, FilterMode),
     AnnotationsAsMetadata(Handles<'a, Annotation>),
