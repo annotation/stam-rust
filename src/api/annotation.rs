@@ -191,7 +191,7 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Get an iterator over all data ([`AnnotationData`]) for this annotation.
-    pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> {
+    pub fn data(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, AnnotationData>>> {
         ResultIter::new_unsorted(FromHandles::new(
             self.as_ref().raw_data().iter().copied(),
             self.store(),

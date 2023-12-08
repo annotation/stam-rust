@@ -83,7 +83,7 @@ impl AnnotationStore {
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<TextResource>`]),
     /// which exposes the high-level API.
-    pub fn resources<'a>(&'a self) -> impl Iterator<Item = ResultItem<TextResource>> {
+    pub fn resources<'a>(&'a self) -> ResultIter<impl Iterator<Item = ResultItem<TextResource>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &TextResource| item.as_resultitem(self, self)),
@@ -93,7 +93,9 @@ impl AnnotationStore {
     /// Returns an iterator over all [`AnnotationDataSet`] instances in the store.
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]),
     /// which exposes the high-level API.
-    pub fn datasets<'a>(&'a self) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
+    pub fn datasets<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<AnnotationDataSet>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &AnnotationDataSet| item.as_resultitem(self, self)),
@@ -103,7 +105,9 @@ impl AnnotationStore {
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
     /// The resulting iterator yields items as a fat pointer [`ResultItem<Annotation>`]),
     /// which exposes the high-level API.
-    pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<'a, Annotation>> {
+    pub fn annotations<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, Annotation>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|a: &'a Annotation| a.as_resultitem(self, self)),

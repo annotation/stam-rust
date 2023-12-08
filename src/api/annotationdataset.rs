@@ -26,21 +26,25 @@ impl<'store> FullHandle<AnnotationDataSet> for ResultItem<'store, AnnotationData
 
 impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// Returns an iterator over all data in this set.
-    pub fn data(&self) -> impl Iterator<Item = ResultItem<'store, AnnotationData>> {
+    pub fn data(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, AnnotationData>>> {
         let store = self.as_ref();
         let rootstore = self.rootstore();
-        self.as_ref()
-            .data()
-            .map(|data| data.as_resultitem(store, rootstore))
+        ResultIter::new_sorted(
+            self.as_ref()
+                .data()
+                .map(|data| data.as_resultitem(store, rootstore)),
+        )
     }
 
     /// Returns an iterator over all keys in this set
-    pub fn keys(&self) -> impl Iterator<Item = ResultItem<'store, DataKey>> {
+    pub fn keys(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, DataKey>>> {
         let store = self.as_ref();
         let rootstore = self.rootstore();
-        self.as_ref()
-            .keys()
-            .map(|item| item.as_resultitem(store, rootstore))
+        ResultIter::new_sorted(
+            self.as_ref()
+                .keys()
+                .map(|item| item.as_resultitem(store, rootstore)),
+        )
     }
 
     /// Retrieve a [`DataKey`] in this set
@@ -63,7 +67,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     }
 
     /// Returns an iterator over annotations that directly point at the dataset, i.e. are metadata for it (via a DataSetSelector).
-    pub fn annotations(&self) -> impl Iterator<Item = ResultItem<'store, Annotation>> {
+    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let store = self.store();
         if let Some(annotations) = self.store().annotations_by_dataset_metadata(self.handle()) {
             ResultIter::new_sorted(FromHandles::new(annotations.iter().copied(), store))
