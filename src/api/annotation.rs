@@ -737,6 +737,11 @@ pub trait AnnotationIterator<'store>: Iterator<Item = ResultItem<'store, Annotat
 where
     Self: Sized,
 {
+    fn parallel(self) -> rayon::vec::IntoIter<ResultItem<'store, Annotation>> {
+        let annotations: Vec<_> = self.collect();
+        annotations.into_par_iter()
+    }
+
     /// Iterates over all the annotations that reference any annotations (i.e. via a [`Selector::AnnotationSelector`]) in this iterator.
     /// The iterator will be consumed and an extra buffer is allocated.
     /// Annotations will be returned sorted chronologically and returned without duplicates
