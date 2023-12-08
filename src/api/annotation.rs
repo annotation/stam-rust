@@ -261,6 +261,20 @@ where
         ResultIter::new_sorted(annotations.into_iter())
     }
 
+    /// Iterates over all the annotations that reference any annotations (i.e. via a [`Selector::AnnotationSelector`]) in this iterator.
+    /// The iterator will be consumed and an extra buffer is allocated.
+    /// Annotations will be returned unsorted and returned with possible duplicates
+    fn annotations_unchecked(
+        self,
+    ) -> Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>
+    where
+        Self: 'store,
+    {
+        Box::new(ResultIter::new_unsorted(
+            self.map(|annotation| annotation.annotations()).flatten(),
+        ))
+    }
+
     /// Iterates over all the annotations targeted by the annotation in this iterator (i.e. via a [`Selector::AnnotationSelector`])
     /// Use [`Self::annotations()`] if you want to find the annotations that reference these ones (the reverse).
     /// Annotations will be returned sorted chronologically, without duplicates
@@ -279,8 +293,7 @@ where
 
     /// Maps annotations to data, consuming the iterator. Returns a new iterator over the AnnotationData in
     /// all the annotations. This returns data sorted chronologically and
-    /// without duplicates. It does not include the annotations, use [`Self::iter_with_data()`] instead if you want to know which annotations
-    /// have which data.
+    /// without duplicates. It does not include the annotations.
     fn data(
         self,
     ) -> ResultIter<<Vec<ResultItem<'store, AnnotationData>> as IntoIterator>::IntoIter> {
@@ -288,6 +301,18 @@ where
         data.sort_unstable();
         data.dedup();
         ResultIter::new_sorted(data.into_iter())
+    }
+
+    /// Maps annotations to data, consuming the iterator. Returns a new iterator over the AnnotationData in
+    /// all the annotations. This returns data unsorted and
+    /// with possible duplicates.
+    fn data_unchecked(self) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>
+    where
+        Self: 'store,
+    {
+        Box::new(ResultIter::new_unsorted(
+            self.map(|annotation| annotation.data()).flatten(),
+        ))
     }
 
     /// Shortcut for `.textselections().text()`

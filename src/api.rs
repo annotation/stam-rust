@@ -347,7 +347,7 @@ where
     T: Storable + 'store,
     I: Iterator<Item = T::FullHandleType>,
 {
-    pub(crate) fn new(inner: I, store: &'store AnnotationStore) -> Self {
+    pub fn new(inner: I, store: &'store AnnotationStore) -> Self {
         Self {
             inner,
             store,
