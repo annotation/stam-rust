@@ -114,6 +114,8 @@ where
         }
     }
 
+    /// Create a new handles collection from an iterator handles
+    /// Warning: Use of this function is dangerous and discouraged in most cases as there is no validity check on the handles you pass!
     pub fn from_iter(
         iter: impl Iterator<Item = T::FullHandleType>,
         store: &'store AnnotationStore,
@@ -129,6 +131,35 @@ where
             }
             v.push(item);
             prev = Some(item);
+        }
+        Self {
+            array: Cow::Owned(v),
+            sorted,
+            store,
+        }
+    }
+
+    /// Create a new handles collection from an iterator of [`ResultItem<T>`]
+    pub fn from_items(
+        iter: impl Iterator<Item = ResultItem<'store, T>>,
+        store: &'store AnnotationStore,
+    ) -> Self
+    where
+        T: 'store,
+        ResultItem<'store, T>: FullHandle<T>,
+    {
+        let mut sorted = true;
+        let mut v = Vec::new();
+        let mut prev: Option<T::FullHandleType> = None;
+        for item in iter {
+            let handle = item.fullhandle();
+            if let Some(p) = prev {
+                if p > handle {
+                    sorted = false;
+                }
+            }
+            v.push(handle);
+            prev = Some(handle);
         }
         Self {
             array: Cow::Owned(v),
