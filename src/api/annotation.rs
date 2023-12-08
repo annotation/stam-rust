@@ -783,6 +783,13 @@ where
         MaybeIter::new_sorted(data.into_iter())
     }
 
+    /// Shortcut for `.textselections().text()`
+    fn text(
+        self,
+    ) -> TextIter<'store, <Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter> {
+        self.textselections().text()
+    }
+
     /*
     /// Find data for the annotations in this iterator. Returns an iterator over the data (losing the information about annotations).
     /// If you want specifically know what annotation has what data, use [`Self::iter_with_data()`] instead.
@@ -875,6 +882,14 @@ where
         }
     }
 
+    /// Constrain the iterator to only return annotations that have data that corresponds with any of the items in the passed data.
+    ///
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    // /// If you have a borrowed reference, use [`Self::filter_data_byref()`] instead.
+    /// If you want to check whether multiple data are ALL found in a single annotation, then use [`Self::filter_data_all()`].
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
+    // /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(&data.annotations().into())`.
     fn filter_data(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
@@ -882,6 +897,14 @@ where
         }
     }
 
+    /// Constrain the iterator to only return annotations that, in a single annotation, has data that corresponds with *ALL* of the items in the passed data.
+    /// All items have to be found or none will be returned.
+    ///
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    // /// If you have a borrowed reference, use [`Self::filter_data_byref_multi()`] instead.
+    /// If you want to check for *ANY* match rather than requiring multiple matches in a single annotation, then use [`Self::filter_data()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     fn filter_data_all(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
@@ -889,8 +912,22 @@ where
         }
     }
 
+    fn filter_resource(
+        self,
+        resource: &ResultItem<'store, TextResource>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::TextResource(resource.handle()),
+        }
+    }
+
+    /// Constrain the iterator to return only the annotations that have this exact data item
+    /// To filter by multiple data instances (union/disjunction), use [`Self::filter_data()`] or (intersection/conjunction) [`Self::filter_data_all()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     fn filter_annotationdata(
-        mut self,
+        self,
         data: &ResultItem<'store, AnnotationData>,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
@@ -900,7 +937,7 @@ where
     }
 
     fn filter_key_value(
-        mut self,
+        self,
         key: &ResultItem<'store, DataKey>,
         value: DataOperator<'store>,
     ) -> FilteredAnnotations<'store, Self> {
@@ -910,20 +947,121 @@ where
         }
     }
 
-    fn filter_key(
-        mut self,
-        key: &ResultItem<'store, DataKey>,
-    ) -> FilteredAnnotations<'store, Self> {
+    fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::DataKey(key.set().handle(), key.handle()),
         }
     }
 
-    fn filter_value(mut self, value: DataOperator<'store>) -> FilteredAnnotations<'store, Self> {
+    fn filter_key_handle(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::DataKey(set, key),
+        }
+    }
+
+    fn filter_value(self, value: DataOperator<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
             filter: Filter::DataOperator(value),
+        }
+    }
+
+    fn filter_key_handle_value(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+        value: DataOperator<'store>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(set, key, value),
+        }
+    }
+
+    fn filter_set(
+        self,
+        set: &ResultItem<'store, AnnotationDataSet>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set.handle()),
+        }
+    }
+
+    fn filter_set_handle(self, set: AnnotationDataSetHandle) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set),
+        }
+    }
+
+    /// Constrain the iterator to only return annotations that have text matching the specified text
+    ///
+    /// If you have a borrowed reference, use [`Self::filter_text_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    ///
+    /// The `delimiter` parameter determines how multiple possible non-contiguous text selections are joined prior to comparison, you most likely want to set it to either a space or an empty string.
+    fn filter_text(
+        self,
+        text: String,
+        case_sensitive: bool,
+        delimiter: &'store str,
+    ) -> FilteredAnnotations<'store, Self> {
+        if case_sensitive {
+            FilteredAnnotations {
+                inner: self,
+                filter: Filter::Text(text, TextMode::Exact, delimiter),
+            }
+        } else {
+            FilteredAnnotations {
+                inner: self,
+                filter: Filter::Text(text.to_lowercase(), TextMode::Lowercase, delimiter),
+            }
+        }
+    }
+
+    /// Constrain the iterator to only return annotations that have text matching the specified text
+    ///
+    /// If you set `case_sensitive` to `false`, then `text` *MUST* be a lower-cased &str!
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    ///
+    /// The `delimiter` parameter determines how multiple possible non-contiguous text selections are joined prior to comparison, you most likely want to set it to either a space or an empty string.
+    fn filter_text_byref(
+        self,
+        text: &'store str,
+        case_sensitive: bool,
+        delimiter: &'store str,
+    ) -> FilteredAnnotations<'store, Self> {
+        if case_sensitive {
+            FilteredAnnotations {
+                inner: self,
+                filter: Filter::BorrowedText(text, TextMode::Exact, delimiter),
+            }
+        } else {
+            FilteredAnnotations {
+                inner: self,
+                filter: Filter::BorrowedText(text, TextMode::Lowercase, delimiter),
+            }
+        }
+    }
+
+    /// Find only annotations whose text selections are related to any text selections of annotations in this iterator, the operator
+    /// determines the type of the relation.
+    fn filter_related_text(
+        self,
+        operator: TextSelectionOperator,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::TextSelectionOperator(operator),
         }
     }
 }
@@ -990,7 +1128,44 @@ where
                 .filter_value(value.clone())
                 .next()
                 .is_some(),
-            _ => unimplemented!(
+            Filter::AnnotationDataSet(set) => {
+                annotation.data().filter_set_handle(*set).next().is_some()
+            }
+            Filter::TextResource(res_handle) => annotation
+                .resources()
+                .any(|res| res.handle() == *res_handle),
+            Filter::Text(reftext, textmode, delimiter) => {
+                if let Some(text) = annotation.text_simple() {
+                    match textmode {
+                        TextMode::Exact => text == reftext.as_str(),
+                        TextMode::Lowercase => text.to_lowercase() == reftext.as_str(),
+                    }
+                } else {
+                    let mut text = annotation.text_join(delimiter);
+                    if *textmode == TextMode::Lowercase {
+                        text = text.to_lowercase();
+                    }
+                    text == reftext.as_str()
+                }
+            }
+            Filter::BorrowedText(reftext, textmode, delimiter) => {
+                if let Some(text) = annotation.text_simple() {
+                    match textmode {
+                        TextMode::Exact => text == *reftext,
+                        TextMode::Lowercase => text.to_lowercase() == *reftext,
+                    }
+                } else {
+                    let mut text = annotation.text_join(delimiter);
+                    if *textmode == TextMode::Lowercase {
+                        text = text.to_lowercase();
+                    }
+                    text == *reftext
+                }
+            }
+            Filter::TextSelectionOperator(operator) => {
+                annotation.related_text(*operator).next().is_some()
+            }
+            _ => unreachable!(
                 "Filter {:?} not implemented for FilteredAnnotations",
                 self.filter
             ),
