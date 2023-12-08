@@ -41,24 +41,24 @@ impl<'store> ResultItem<'store, DataKey> {
 
     /// Returns an iterator over all data ([`crate::AnnotationData`]) that makes use of this key.
     /// Use methods on this iterator like [`DataIter.filter_value()`] to further constrain the results.
-    pub fn data(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, AnnotationData>>> {
+    pub fn data(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, AnnotationData>>> {
         let store = self.store();
         if let Some(vec) = store.data_by_key(self.handle()) {
             let iter = vec
                 .iter()
                 .map(|datahandle| (store.handle().unwrap(), *datahandle));
-            MaybeIter::new_sorted(FromHandles::new(iter, self.rootstore()))
+            ResultIter::new_sorted(FromHandles::new(iter, self.rootstore()))
         } else {
-            MaybeIter::new_empty()
+            ResultIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations ([`crate::Annotation`]) that make use of this key.
-    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();
         let annotations: Vec<_> = annotationstore.annotations_by_key(set_handle, self.handle()); //MAYBE TODO: extra reverse index so we can borrow directly?
-        MaybeIter::new_sorted(FromHandles::new(annotations.into_iter(), self.rootstore()))
+        ResultIter::new_sorted(FromHandles::new(annotations.into_iter(), self.rootstore()))
     }
 
     /// Returns the number of annotations that make use of this key.

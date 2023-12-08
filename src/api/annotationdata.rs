@@ -55,18 +55,18 @@ impl<'store> ResultItem<'store, AnnotationData> {
     /// Returns an iterator over all annotations ([`Annotation`]) that makes use of this data.
     /// The iterator returns the annotations as [`ResultItem<Annotation>`].
     /// Especially useful in combination with a call to  [`ResultItem<AnnotationDataSet>.find_data()`] or [`AnnotationDataSet.annotationdata()`] first.
-    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let set_handle = self.store().handle().expect("set must have handle");
         if let Some(annotations) = self
             .rootstore()
             .annotations_by_data_indexlookup(set_handle, self.handle())
         {
-            MaybeIter::new_sorted(FromHandles::new(
+            ResultIter::new_sorted(FromHandles::new(
                 annotations.iter().copied(),
                 self.rootstore(),
             ))
         } else {
-            MaybeIter::new_empty()
+            ResultIter::new_empty()
         }
     }
 
@@ -168,11 +168,11 @@ where
     /// Annotations will be returned chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
     fn annotations(
         self,
-    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self.map(|data| data.annotations()).flatten().collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter::new_sorted(annotations.into_iter())
+        ResultIter::new_sorted(annotations.into_iter())
     }
 
     fn filter_handle(

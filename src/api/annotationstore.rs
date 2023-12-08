@@ -84,7 +84,7 @@ impl AnnotationStore {
     /// Items are returned as a fat pointer [`ResultItem<TextResource>`]),
     /// which exposes the high-level API.
     pub fn resources<'a>(&'a self) -> impl Iterator<Item = ResultItem<TextResource>> {
-        MaybeIter::new_sorted(
+        ResultIter::new_sorted(
             self.iter()
                 .map(|item: &TextResource| item.as_resultitem(self, self)),
         )
@@ -94,7 +94,7 @@ impl AnnotationStore {
     /// Items are returned as a fat pointer [`ResultItem<AnnotationDataSet>`]),
     /// which exposes the high-level API.
     pub fn datasets<'a>(&'a self) -> impl Iterator<Item = ResultItem<AnnotationDataSet>> {
-        MaybeIter::new_sorted(
+        ResultIter::new_sorted(
             self.iter()
                 .map(|item: &AnnotationDataSet| item.as_resultitem(self, self)),
         )
@@ -104,7 +104,7 @@ impl AnnotationStore {
     /// The resulting iterator yields items as a fat pointer [`ResultItem<Annotation>`]),
     /// which exposes the high-level API.
     pub fn annotations<'a>(&'a self) -> impl Iterator<Item = ResultItem<'a, Annotation>> {
-        MaybeIter::new_sorted(
+        ResultIter::new_sorted(
             self.iter()
                 .map(|a: &'a Annotation| a.as_resultitem(self, self)),
         )

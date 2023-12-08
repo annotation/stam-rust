@@ -36,32 +36,32 @@ impl<'store> ResultItem<'store, TextResource> {
     /// Such annotations can be considered metadata.
     pub fn annotations_as_metadata(
         &self,
-    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         if let Some(annotations) = self.store().annotations_by_resource_metadata(self.handle()) {
-            MaybeIter::new_sorted(FromHandles::new(annotations.iter().copied(), self.store()))
+            ResultIter::new_sorted(FromHandles::new(annotations.iter().copied(), self.store()))
         } else {
-            MaybeIter::new_empty()
+            ResultIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations about any text in this resource i.e. Annotations with a TextSelector.
     pub fn annotations_on_text(
         &self,
-    ) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         if let Some(iter) = self.store().annotations_by_resource(self.handle()) {
             let mut data: Vec<_> = iter.collect();
             data.sort_unstable();
             data.dedup();
-            MaybeIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
+            ResultIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
         } else {
-            MaybeIter::new_empty()
+            ResultIter::new_empty()
         }
     }
 
     /// Returns an iterator over all annotations that reference this resource, both annotations that can be considered metadata as well
     /// annotations that reference a portion of the text.
     /// Use `annotations_as_metadata()` or `annotations_on_text()` instead if you want to differentiate the two.
-    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let mut data: Vec<_> = self
             .store()
             .annotations_by_resource_metadata(self.handle())
@@ -77,7 +77,7 @@ impl<'store> ResultItem<'store, TextResource> {
         );
         data.sort_unstable();
         data.dedup();
-        MaybeIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
+        ResultIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -189,14 +189,14 @@ where
     /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
     fn annotations(
         self,
-    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self
             .map(|resource| resource.annotations())
             .flatten()
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter::new_sorted(annotations.into_iter())
+        ResultIter::new_sorted(annotations.into_iter())
     }
 
     /// Iterates over all the annotations for all resources in this iterator.
@@ -208,14 +208,14 @@ where
     /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
     fn annotations_as_metadata(
         self,
-    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self
             .map(|resource| resource.annotations_as_metadata())
             .flatten()
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter::new_sorted(annotations.into_iter())
+        ResultIter::new_sorted(annotations.into_iter())
     }
 
     /// Iterates over all the annotations for all resources in this iterator.
@@ -227,25 +227,25 @@ where
     /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
     fn annotations_on_text(
         self,
-    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self
             .map(|resource| resource.annotations_on_text())
             .flatten()
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter::new_sorted(annotations.into_iter())
+        ResultIter::new_sorted(annotations.into_iter())
     }
 
     /// Iterates over all textselections for all resources in this iterator, in resource order and textual order.
     fn textselections(
         self,
-    ) -> MaybeIter<<Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter> {
+    ) -> ResultIter<<Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter> {
         let textselections: Vec<_> = self
             .map(|resource| resource.textselections())
             .flatten()
             .collect();
-        MaybeIter::new_unsorted(textselections.into_iter()) //not chronologically sorted
+        ResultIter::new_unsorted(textselections.into_iter()) //not chronologically sorted
     }
 
     /// Constrain this iterator to filter only a single resource (by handle). This is a lower-level method, use [`Self::filter_resource()`] instead.

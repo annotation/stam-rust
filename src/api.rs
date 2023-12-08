@@ -409,22 +409,14 @@ where
     }
 }
 
-pub trait AbortableIterator: Iterator
-where
-    Self: Sized,
-{
-    /// Set the iterator to abort, no further results will be returned
-    fn abort(&mut self);
-}
-
 /// An iterator that may be sorted or not and knows a-priori whether it is or not.
 pub trait MaybeSortedIterator: Iterator {
     /// Does this iterator return items in sorted order?
     fn returns_sorted(&self) -> bool;
 }
 
-/// An iterator that may be sorted or not and knows whether it is or not, it may also be a completely empty iterator.
-pub struct MaybeIter<I>
+/// An iterator that may be sorted or not and knows a-priori whether it is or not, it may also be a completely empty iterator.
+pub struct ResultIter<I>
 where
     I: Iterator,
 {
@@ -432,13 +424,13 @@ where
     sorted: bool,
 }
 
-impl<I: Iterator> MaybeSortedIterator for MaybeIter<I> {
+impl<I: Iterator> MaybeSortedIterator for ResultIter<I> {
     fn returns_sorted(&self) -> bool {
         self.sorted
     }
 }
 
-impl<I: Iterator> MaybeIter<I> {
+impl<I: Iterator> ResultIter<I> {
     pub(crate) fn new(inner: I, sorted: bool) -> Self {
         Self {
             inner: Some(inner),
@@ -470,7 +462,7 @@ impl<I: Iterator> MaybeIter<I> {
         }
     }
 }
-impl<I: Iterator> Iterator for MaybeIter<I> {
+impl<I: Iterator> Iterator for ResultIter<I> {
     type Item = I::Item;
 
     #[inline]

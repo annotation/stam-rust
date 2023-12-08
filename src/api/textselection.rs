@@ -59,18 +59,18 @@ impl<'store> ResultItem<'store, TextSelection> {
     }
 
     /// Iterates over all annotations that reference this TextSelection
-    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         if let Some(annotations) = self
             .rootstore()
             .annotations_by_textselection(self.store().handle().unwrap(), self.as_ref())
         {
-            MaybeIter::new(
+            ResultIter::new(
                 FromHandles::new(annotations.iter().copied(), self.rootstore()),
                 true,
             )
         } else {
             //dummy iterator that yields nothing
-            MaybeIter::new_empty()
+            ResultIter::new_empty()
         }
     }
 
@@ -235,10 +235,10 @@ impl<'store> ResultTextSelection<'store> {
 
     /// Iterates over all annotations that are referenced by this TextSelection, if any.
     /// For unbound selections, this returns an empty iterator by definition.
-    pub fn annotations(&self) -> MaybeIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         match self {
             Self::Bound(item) => item.annotations(),
-            Self::Unbound(..) => MaybeIter::new_empty(),
+            Self::Unbound(..) => ResultIter::new_empty(),
         }
     }
 
@@ -510,14 +510,14 @@ where
     /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|ts| ts.annotations()).flatten()` instead
     fn annotations(
         self,
-    ) -> MaybeIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self
             .map(|resource| resource.annotations())
             .flatten()
             .collect();
         annotations.sort_unstable();
         annotations.dedup();
-        MaybeIter::new_sorted(annotations.into_iter())
+        ResultIter::new_sorted(annotations.into_iter())
     }
 
     /// Find all text selections that are related to any text selections in this iterator, the operator

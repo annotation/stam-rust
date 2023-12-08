@@ -387,7 +387,7 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
 
 /// This type abstracts over all the main iterators
 /// This abstraction uses dynamic dispatch so comes with a small performance cost
-pub enum ResultIter<'store> {
+pub enum QueryResultIter<'store> {
     Annotations(Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>),
     Data(Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>),
     TextSelections(Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>),
@@ -405,7 +405,7 @@ pub enum QueryResultItem<'store> {
 
 pub struct QueryState<'store> {
     /// The iterator for the current query
-    iterator: ResultIter<'store>,
+    iterator: QueryResultIter<'store>,
 
     // note: this captures the result of the current state, in order to make it available for subsequent deeper iterators
     result: QueryResultItem<'store>,
@@ -547,7 +547,7 @@ impl<'store> QueryIter<'store> {
                         }
                     }
                 }
-                Ok(ResultIter::Resources(iter))
+                Ok(QueryResultIter::Resources(iter))
             }
             Some(Type::Annotation) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, Annotation>>> =
@@ -695,7 +695,7 @@ impl<'store> QueryIter<'store> {
                         }
                     }
                 }
-                Ok(ResultIter::Annotations(iter))
+                Ok(QueryResultIter::Annotations(iter))
             }
             /////////////////////////////////////////////////////////////////////////
             Some(Type::TextSelection) => {
@@ -799,7 +799,7 @@ impl<'store> QueryIter<'store> {
                         )),
                     }
                 }
-                Ok(ResultIter::TextSelections(iter))
+                Ok(QueryResultIter::TextSelections(iter))
             }
             /////////////////////////////////////////////////////////////////////////
             Some(Type::AnnotationData) => {
@@ -847,7 +847,7 @@ impl<'store> QueryIter<'store> {
                         }
                     }
                 }
-                Ok(ResultIter::Data(iter))
+                Ok(QueryResultIter::Data(iter))
             }
             None => unreachable!("Query must have a result type"),
             _ => unimplemented!("Query result type not implemented"),
@@ -872,7 +872,7 @@ impl<'store> QueryIter<'store> {
                 //which would get in the way as we also need to inspect prior results from the stack (immutably)
                 loop {
                     match &mut state.iterator {
-                        ResultIter::TextSelections(iter) => {
+                        QueryResultIter::TextSelections(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::TextSelection(result);
                                 self.statestack.push(state);
@@ -881,7 +881,7 @@ impl<'store> QueryIter<'store> {
                                 break; //iterator depleted
                             }
                         }
-                        ResultIter::Annotations(iter) => {
+                        QueryResultIter::Annotations(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::Annotation(result);
                                 self.statestack.push(state);
@@ -890,7 +890,7 @@ impl<'store> QueryIter<'store> {
                                 break; //iterator depleted
                             }
                         }
-                        ResultIter::Data(iter) => {
+                        QueryResultIter::Data(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::AnnotationData(result);
                                 self.statestack.push(state);
