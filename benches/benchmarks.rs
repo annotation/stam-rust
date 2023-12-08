@@ -1,10 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use stam::{
-    Annotation, AnnotationBuilder, AnnotationDataSet, AnnotationHandle, AnnotationStore, BuildItem,
-    Config, DataOperator, FindText, Handle, Offset, Regex, SelectorBuilder, StoreFor, TextResource,
-    TextSelectionOperator,
-};
+use stam::*;
 use std::time::SystemTime;
 
 mod common;
@@ -237,11 +233,12 @@ pub fn bench_scale(c: &mut Criterion) {
 
     c.bench_function("scale_find_data_about", |b| {
         let annotation = store.annotation("A50000").unwrap();
+        let key_type = store.key("testdataset", "type").unwrap();
         b.iter(|| {
             black_box(
                 annotation
                     .annotations()
-                    .find_data("testdataset", "type", DataOperator::Equals("bigram"))
+                    .filter_key_value(&key_type, DataOperator::Equals("bigram"))
                     .count(),
             );
         })
@@ -255,11 +252,7 @@ pub fn bench_scale(c: &mut Criterion) {
             black_box(
                 annotation
                     .annotations()
-                    .find_data(
-                        dataset.handle(),
-                        key_type.handle(),
-                        DataOperator::Equals("bigram"),
-                    )
+                    .filter_key_value(&key_type, DataOperator::Equals("bigram"))
                     .count(),
             );
         })
