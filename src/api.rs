@@ -33,12 +33,12 @@ pub use textselection::*;
 
 use crate::annotation::TargetIter;
 use crate::annotation::{Annotation, AnnotationHandle};
-use crate::annotationdata::AnnotationDataHandle;
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::AnnotationDataSetHandle;
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKeyHandle;
 use crate::datavalue::DataOperator;
-use crate::resources::TextResourceHandle;
+use crate::resources::{TextResource, TextResourceHandle};
 use crate::textselection::TextSelectionOperator;
 
 use crate::store::*;
@@ -512,8 +512,15 @@ pub(crate) enum Filter<'a> {
     TextResource(TextResourceHandle),
     DataOperator(DataOperator<'a>),
     TextSelectionOperator(TextSelectionOperator),
-    Annotations(Handles<'a, Annotation>), //box needed because ResultItemIter again has Filters
-    Data(Data<'a>, FilterMode),
+    Annotations(Handles<'a, Annotation>),
+    Resources(Handles<'a, TextResource>),
+    Data(Handles<'a, AnnotationData>, FilterMode),
+    MetaData(Handles<'a, AnnotationData>, FilterMode),
+    DataOnText(Handles<'a, AnnotationData>, FilterMode),
+    AnnotationsAsMetadata(Handles<'a, Annotation>),
+    AnnotationsOnText(Handles<'a, Annotation>),
+    AnnotationAsMetadata(AnnotationHandle),
+    AnnotationOnText(AnnotationHandle),
     Text(String, TextMode, &'a str), //the last string represents the delimiter for joining text
 
     //these have the advantage the collections are external references
