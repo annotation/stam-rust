@@ -1303,6 +1303,170 @@ where
             None
         }
     }
+
+    /// Constrain the iterator to only return text selections with annotations that match the ones passed
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection
+    fn filter_annotations(
+        self,
+        annotations: Annotations<'store>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::Annotations(annotations),
+        }
+    }
+
+    /// Constrain this iterator to text selections with this specific annotation
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection.
+    fn filter_annotation(
+        self,
+        annotation: &ResultItem<Annotation>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::Annotation(annotation.handle()),
+        }
+    }
+
+    /// Constrain the iterator to only return text selections that have text matching the specified text
+    ///
+    /// If you have a borrowed reference, use [`Self::filter_text_byref()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    fn filter_text(
+        self,
+        text: String,
+        case_sensitive: bool,
+    ) -> FilteredTextSelections<'store, Self> {
+        if case_sensitive {
+            FilteredTextSelections {
+                inner: self,
+                filter: Filter::Text(text, TextMode::Exact, ""), //delimiter is irrelevant in this context
+            }
+        } else {
+            FilteredTextSelections {
+                inner: self,
+                filter: Filter::Text(text.to_lowercase(), TextMode::Lowercase, ""),
+            }
+        }
+    }
+
+    /// Constrain the iterator to only return text selections that have text matching the specified text
+    ///
+    /// If you set `case_sensitive` to `false`, then `text` *MUST* be a lower-cased &str!
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    fn filter_text_byref(
+        self,
+        text: &'store str,
+        case_sensitive: bool,
+    ) -> FilteredTextSelections<'store, Self> {
+        if case_sensitive {
+            FilteredTextSelections {
+                inner: self,
+                filter: Filter::BorrowedText(text, TextMode::Exact, ""), //delimiter is irrelevant in this context
+            }
+        } else {
+            FilteredTextSelections {
+                inner: self,
+                filter: Filter::BorrowedText(text, TextMode::Lowercase, ""),
+            }
+        }
+    }
+
+    /// Constrain the iterator to only return text selections with annotations that have data that corresponds with any of the items in the passed data.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
+    fn filter_data(self, data: Data<'store>) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::Data(data, FilterMode::Any),
+        }
+    }
+
+    /// Constrain the iterator to return only the text selections that have this exact data item
+    /// To filter by multiple data instances (union/disjunction), use [`Self::filter_data()`] or (intersection/conjunction) [`Self::filter_data_all()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
+    fn filter_annotationdata(
+        self,
+        data: &ResultItem<'store, AnnotationData>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
+        }
+    }
+
+    fn filter_key_value(
+        self,
+        key: &ResultItem<'store, DataKey>,
+        value: DataOperator<'store>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(key.set().handle(), key.handle(), value),
+        }
+    }
+
+    fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::DataKey(key.set().handle(), key.handle()),
+        }
+    }
+
+    fn filter_key_handle(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::DataKey(set, key),
+        }
+    }
+
+    fn filter_value(self, value: DataOperator<'store>) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::DataOperator(value),
+        }
+    }
+
+    fn filter_key_handle_value(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+        value: DataOperator<'store>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(set, key, value),
+        }
+    }
+
+    fn filter_set(
+        self,
+        set: &ResultItem<'store, AnnotationDataSet>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set.handle()),
+        }
+    }
+
+    fn filter_set_handle(
+        self,
+        set: AnnotationDataSetHandle,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set),
+        }
+    }
 }
 
 impl<'store, I> TextSelectionIterator<'store> for I
@@ -1310,6 +1474,112 @@ where
     I: Iterator<Item = ResultTextSelection<'store>>,
 {
     //blanket implementation
+}
+
+pub struct FilteredTextSelections<'store, I>
+where
+    I: Iterator<Item = ResultTextSelection<'store>>,
+{
+    inner: I,
+    filter: Filter<'store>,
+}
+
+impl<'store, I> Iterator for FilteredTextSelections<'store, I>
+where
+    I: Iterator<Item = ResultTextSelection<'store>>,
+{
+    type Item = ResultTextSelection<'store>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(textselection) = self.inner.next() {
+                if self.test_filter(&textselection) {
+                    return Some(textselection);
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl<'store, I> FilteredTextSelections<'store, I>
+where
+    I: Iterator<Item = ResultTextSelection<'store>>,
+{
+    fn test_filter(&self, textselection: &ResultTextSelection<'store>) -> bool {
+        match &self.filter {
+            Filter::Resources(handles) => handles.contains(&textselection.resource().handle()),
+            Filter::Annotations(annotations) => textselection
+                .annotations()
+                .filter_annotations(annotations.clone())
+                .next()
+                .is_some(),
+            Filter::Annotation(annotation) => textselection
+                .annotations()
+                .filter_handle(*annotation)
+                .next()
+                .is_some(),
+            Filter::TextResource(res_handle) => textselection.resource().handle() == *res_handle,
+            Filter::Text(reftext, textmode, _) => {
+                let text = textselection.text();
+                if *textmode == TextMode::Lowercase {
+                    text.to_lowercase().as_str() == reftext
+                } else {
+                    text == reftext.as_str()
+                }
+            }
+            Filter::BorrowedText(reftext, textmode, _) => {
+                let text = textselection.text();
+                if *textmode == TextMode::Lowercase {
+                    text.to_lowercase().as_str() == *reftext
+                } else {
+                    text == *reftext
+                }
+            }
+            Filter::TextSelectionOperator(operator) => {
+                textselection.related_text(*operator).next().is_some()
+            }
+            Filter::Data(data, FilterMode::Any) => textselection
+                .annotations()
+                .filter_data(data.clone())
+                .next()
+                .is_some(),
+            Filter::DataKey(set, key) => textselection
+                .annotations()
+                .data()
+                .filter_key_handle(*set, *key)
+                .next()
+                .is_some(),
+            Filter::DataKeyAndOperator(set, key, value) => textselection
+                .annotations()
+                .data()
+                .filter_key_handle_value(*set, *key, value.clone())
+                .next()
+                .is_some(),
+            Filter::DataOperator(value) => textselection
+                .annotations()
+                .data()
+                .filter_value(value.clone())
+                .next()
+                .is_some(),
+            Filter::AnnotationDataSet(set) => textselection
+                .annotations()
+                .data()
+                .filter_set_handle(*set)
+                .next()
+                .is_some(),
+            Filter::AnnotationData(set, data) => textselection
+                .annotations()
+                .data()
+                .filter_handle(*set, *data)
+                .next()
+                .is_some(),
+            _ => unreachable!(
+                "Filter {:?} not implemented for FilteredTextSelections",
+                self.filter
+            ),
+        }
+    }
 }
 
 pub struct TextIter<'store, I>

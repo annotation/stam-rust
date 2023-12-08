@@ -408,6 +408,17 @@ where
         MaybeIter::new_sorted(annotations.into_iter())
     }
 
+    fn filter_handle(
+        self,
+        set: AnnotationDataSetHandle,
+        data: AnnotationDataHandle,
+    ) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::AnnotationData(set, data),
+        }
+    }
+
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
