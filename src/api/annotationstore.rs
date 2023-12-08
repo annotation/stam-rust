@@ -13,7 +13,7 @@
 //! object-specific API methods are implemented.
 
 use crate::annotation::Annotation;
-use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
+use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::*;
@@ -21,7 +21,6 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
-use crate::IntersectionIter;
 
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.

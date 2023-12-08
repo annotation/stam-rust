@@ -157,7 +157,7 @@ impl Storable for Annotation {
     }
 
     fn fullhandle(
-        parenthandle: Self::StoreHandleType,
+        _parenthandle: Self::StoreHandleType,
         handle: Self::HandleType,
     ) -> Self::FullHandleType {
         handle

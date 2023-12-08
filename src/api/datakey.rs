@@ -14,9 +14,9 @@
 use std::collections::BTreeSet;
 
 use crate::annotationdata::AnnotationData;
-use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
+use crate::annotationdataset::AnnotationDataSet;
 use crate::api::*;
-use crate::datakey::{DataKey, DataKeyHandle};
+use crate::datakey::DataKey;
 use crate::resources::TextResource;
 use crate::store::*;
 
