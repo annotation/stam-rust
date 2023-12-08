@@ -707,6 +707,90 @@ where
             filter: Filter::AnnotationOnText(annotation.handle()),
         }
     }
+
+    /// Constrain the iterator to return only the resources that have this exact data item.
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_annotationdata(
+        self,
+        data: &ResultItem<'store, AnnotationData>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_key_value(
+        self,
+        key: &ResultItem<'store, DataKey>,
+        value: DataOperator<'store>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(key.set().handle(), key.handle(), value),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataKey(key.set().handle(), key.handle()),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_key_handle(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataKey(set, key),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_value(self, value: DataOperator<'store>) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataOperator(value),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_key_handle_value(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+        value: DataOperator<'store>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(set, key, value),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_set(
+        self,
+        set: &ResultItem<'store, AnnotationDataSet>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set.handle()),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_set_handle(self, set: AnnotationDataSetHandle) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set),
+        }
+    }
 }
 
 impl<'store, I> ResourcesIterator<'store> for I
@@ -793,6 +877,38 @@ where
             Filter::AnnotationOnText(annotation) => resource
                 .annotations_on_text()
                 .filter_handle(*annotation)
+                .next()
+                .is_some(),
+
+            // these data filters act on ANNOTATIONS AS METADATA only:
+            Filter::DataKey(set, key) => resource
+                .annotations_as_metadata()
+                .data()
+                .filter_key_handle(*set, *key)
+                .next()
+                .is_some(),
+            Filter::DataKeyAndOperator(set, key, value) => resource
+                .annotations_as_metadata()
+                .data()
+                .filter_key_handle_value(*set, *key, value.clone())
+                .next()
+                .is_some(),
+            Filter::DataOperator(value) => resource
+                .annotations_as_metadata()
+                .data()
+                .filter_value(value.clone())
+                .next()
+                .is_some(),
+            Filter::AnnotationDataSet(set) => resource
+                .annotations_as_metadata()
+                .data()
+                .filter_set_handle(*set)
+                .next()
+                .is_some(),
+            Filter::AnnotationData(set, data) => resource
+                .annotations_as_metadata()
+                .data()
+                .filter_handle(*set, *data)
                 .next()
                 .is_some(),
             _ => unreachable!(

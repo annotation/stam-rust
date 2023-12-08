@@ -1467,6 +1467,50 @@ where
             filter: Filter::AnnotationDataSet(set),
         }
     }
+
+    fn filter_resource(
+        self,
+        resource: &ResultItem<'store, TextResource>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::TextResource(resource.handle()),
+        }
+    }
+
+    fn filter_textselection(
+        self,
+        textselection: &ResultItem<'store, TextSelection>, //no ResultTextSelection because we can only work with bound items anyway
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::TextSelection(
+                textselection.resource().handle(),
+                textselection.handle(),
+            ),
+        }
+    }
+
+    fn filter_textselections(
+        self,
+        textselections: Handles<'store, TextSelection>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::TextSelections(textselections),
+        }
+    }
+
+    fn filter_handle(
+        self,
+        resource: TextResourceHandle,
+        textselection: TextSelectionHandle,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::TextSelection(resource, textselection),
+        }
+    }
 }
 
 impl<'store, I> TextSelectionIterator<'store> for I
@@ -1508,6 +1552,17 @@ where
 {
     fn test_filter(&self, textselection: &ResultTextSelection<'store>) -> bool {
         match &self.filter {
+            Filter::TextSelection(res_handle, ts_handle) => {
+                textselection.resource().handle() == *res_handle
+                    && textselection.handle() == Some(*ts_handle)
+            }
+            Filter::TextSelections(handles) => {
+                if let Some(textselection) = textselection.as_resultitem() {
+                    handles.contains(&textselection.fullhandle())
+                } else {
+                    false
+                }
+            }
             Filter::Resources(handles) => handles.contains(&textselection.resource().handle()),
             Filter::Annotations(annotations) => textselection
                 .annotations()
