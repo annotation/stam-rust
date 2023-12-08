@@ -409,6 +409,8 @@ where
     }
 }
 
+impl<I> TestableIterator for I where I: Iterator {} //blanket implementation
+
 /// An iterator that may be sorted or not and knows a-priori whether it is or not.
 pub trait MaybeSortedIterator: Iterator {
     /// Does this iterator return items in sorted order?
