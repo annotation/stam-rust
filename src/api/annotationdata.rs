@@ -392,6 +392,11 @@ pub trait DataIterator<'store>: Iterator<Item = ResultItem<'store, AnnotationDat
 where
     Self: Sized,
 {
+    fn parallel(self) -> rayon::vec::IntoIter<ResultItem<'store, AnnotationData>> {
+        let annotations: Vec<_> = self.collect();
+        annotations.into_par_iter()
+    }
+
     /// Iterate over the annotations that make use of data in this iterator.
     /// Annotations will be returned chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
     fn annotations(
@@ -587,7 +592,7 @@ where
                     && data.set().handle() == *set_handle
                     && data.test(false, &operator)
             }
-            _ => unimplemented!("Filter {:?} not implemented for FilteredData", self.filter),
+            _ => unreachable!("Filter {:?} not implemented for FilteredData", self.filter),
         }
     }
 }

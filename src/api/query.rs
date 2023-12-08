@@ -386,11 +386,12 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
 }
 
 /// This type abstracts over all the main iterators
-pub enum ResultIter<'a> {
-    Annotations(AnnotationsIter<'a>),
-    Data(DataIter<'a>),
-    TextSelections(TextSelectionsIter<'a>),
-    Resources(ResourcesIter<'a>),
+/// This abstract uses dynamic dispatch so comes with a small performance cost
+pub enum ResultIter<'store> {
+    Annotations(Box<dyn Iterator<Item = ResultItem<'store, Annotation>>>),
+    Data(Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>>),
+    TextSelections(Box<dyn Iterator<Item = ResultTextSelection<'store>>>),
+    Resources(Box<dyn Iterator<Item = ResultItem<'store, TextResource>>>),
 }
 
 #[derive(Clone, Debug)]
@@ -488,45 +489,51 @@ impl<'store> QueryIter<'store> {
         let iter = match query.resulttype {
             /////////////////////////////////////////////////////////////////////////
             Some(Type::TextResource) => {
-                let mut iter = match constraintsiter.next() {
-                    Some(&Constraint::DataKey { set, key }) => store
-                        .find_data(set, key, DataOperator::Any)
-                        .annotations()
-                        .resources(),
-                    Some(&Constraint::DataVariable(var)) => {
-                        let data = self.resolve_datavar(var)?;
-                        data.annotations().resources()
-                    }
-                    Some(&Constraint::FindData {
-                        set,
-                        key,
-                        ref operator,
-                    }) => store
-                        .find_data(set, key, operator.clone())
-                        .annotations()
-                        .resources(),
-                    Some(c) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Constraint {} is not implemented for queries over resources",
-                                c.keyword()
-                            ),
-                            "",
-                        ))
-                    }
-                    None => store.resources(),
-                };
+                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, TextResource>>> =
+                    match constraintsiter.next() {
+                        Some(&Constraint::DataKey { set, key }) => Box::new(
+                            store
+                                .find_data(set, key, DataOperator::Any)
+                                .annotations()
+                                .resources(),
+                        ),
+                        Some(&Constraint::DataVariable(var)) => {
+                            let data = self.resolve_datavar(var)?;
+                            Box::new(data.annotations().resources())
+                        }
+                        Some(&Constraint::FindData {
+                            set,
+                            key,
+                            ref operator,
+                        }) => Box::new(
+                            store
+                                .find_data(set, key, operator.clone())
+                                .annotations()
+                                .resources(),
+                        ),
+                        Some(c) => {
+                            return Err(StamError::QuerySyntaxError(
+                                format!(
+                                    "Constraint {} is not implemented for queries over resources",
+                                    c.keyword()
+                                ),
+                                "",
+                            ))
+                        }
+                        None => Box::new(store.resources()),
+                    };
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         &Constraint::DataKey { set, key } => {
-                            iter = iter.filter_find_data(set, key, DataOperator::Any)
+                            iter = Box::new(iter.filter_key_handle(set, key))
                         }
                         &Constraint::FindData {
                             set,
                             key,
                             ref operator,
                         } => {
-                            iter = iter.filter_find_data(set, key, operator.clone());
+                            iter =
+                                Box::new(iter.filter_key_handle_value(set, key, operator.clone()));
                         }
                         c => {
                             return Err(StamError::QuerySyntaxError(
@@ -542,61 +549,68 @@ impl<'store> QueryIter<'store> {
                 Ok(ResultIter::Resources(iter))
             }
             Some(Type::Annotation) => {
-                let mut iter = match constraintsiter.next() {
-                    Some(&Constraint::TextResource(res)) => {
-                        store.resource(res).or_fail()?.annotations()
-                    }
-                    Some(&Constraint::ResourceVariable(var)) => {
-                        let resource = self.resolve_resourcevar(var)?;
-                        resource.annotations()
-                    }
-                    Some(&Constraint::DataKey { set, key }) => {
-                        store.find_data(set, key, DataOperator::Any).annotations()
-                    }
-                    Some(&Constraint::DataVariable(var)) => {
-                        let data = self.resolve_datavar(var)?;
-                        data.annotations()
-                    }
-                    Some(&Constraint::FindData {
-                        set,
-                        key,
-                        ref operator,
-                    }) => store.find_data(set, key, operator.clone()).annotations(),
-                    Some(&Constraint::Text(text)) => TextSelectionsIter::new_with_iterator(
-                        Box::new(store.find_text(text)),
-                        store,
-                    )
-                    .annotations(),
-                    Some(&Constraint::TextVariable(var)) => {
-                        if let Ok(tsel) = self.resolve_textvar(var) {
-                            tsel.annotations()
-                        } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                            annotation.textselections().annotations()
-                        } else {
-                            return Err(StamError::QuerySyntaxError(
-                                format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
-                                "",
-                            ));
+                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, Annotation>>> =
+                    match constraintsiter.next() {
+                        Some(&Constraint::TextResource(res)) => {
+                            Box::new(store.resource(res).or_fail()?.annotations())
                         }
-                    }
-                    Some(&Constraint::TextRelation { var, operator }) => {
-                        if let Ok(tsel) = self.resolve_textvar(var) {
-                            tsel.related_text(operator).annotations()
-                        } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                            annotation
-                                .textselections()
-                                .related_text(operator)
-                                .annotations()
-                        } else {
-                            return Err(StamError::QuerySyntaxError(
-                                format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
-                                "",
-                            ));
+                        Some(&Constraint::ResourceVariable(var)) => {
+                            let resource = self.resolve_resourcevar(var)?;
+                            Box::new(resource.annotations())
                         }
-                    }
-                    Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
-                    None => store.annotations(),
-                };
+                        Some(&Constraint::DataKey { set, key }) => {
+                            Box::new(store.find_data(set, key, DataOperator::Any).annotations())
+                        }
+                        Some(&Constraint::DataVariable(var)) => {
+                            let data = self.resolve_datavar(var)?;
+                            Box::new(data.annotations())
+                        }
+                        Some(&Constraint::FindData {
+                            set,
+                            key,
+                            ref operator,
+                        }) => Box::new(store.find_data(set, key, operator.clone()).annotations()),
+                        Some(&Constraint::Text(text)) => {
+                            Box::new(store.find_text(text).annotations())
+                        }
+                        Some(&Constraint::TextVariable(var)) => {
+                            if let Ok(tsel) = self.resolve_textvar(var) {
+                                Box::new(tsel.annotations())
+                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                                Box::new(annotation.textselections().annotations())
+                            } else {
+                                return Err(StamError::QuerySyntaxError(
+                                    format!(
+                                        "Variable ?{} of type TEXT or ANNOTATION not found",
+                                        var
+                                    ),
+                                    "",
+                                ));
+                            }
+                        }
+                        Some(&Constraint::TextRelation { var, operator }) => {
+                            if let Ok(tsel) = self.resolve_textvar(var) {
+                                Box::new(tsel.related_text(operator).annotations())
+                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                                Box::new(
+                                    annotation
+                                        .textselections()
+                                        .related_text(operator)
+                                        .annotations(),
+                                )
+                            } else {
+                                return Err(StamError::QuerySyntaxError(
+                                    format!(
+                                        "Variable ?{} of type TEXT or ANNOTATION not found",
+                                        var
+                                    ),
+                                    "",
+                                ));
+                            }
+                        }
+                        Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
+                        None => Box::new(store.annotations()),
+                    };
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         &Constraint::TextResource(res) => {
