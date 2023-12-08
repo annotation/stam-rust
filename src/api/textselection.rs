@@ -828,13 +828,11 @@ where
             Filter::Annotations(annotations) => textselection
                 .annotations()
                 .filter_annotations(annotations.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::Annotation(annotation) => textselection
                 .annotations()
                 .filter_handle(*annotation)
-                .next()
-                .is_some(),
+                .test(),
             Filter::TextResource(res_handle) => textselection.resource().handle() == *res_handle,
             Filter::Text(reftext, textmode, _) => {
                 let text = textselection.text();
@@ -852,44 +850,35 @@ where
                     text == *reftext
                 }
             }
-            Filter::TextSelectionOperator(operator) => {
-                textselection.related_text(*operator).next().is_some()
+            Filter::TextSelectionOperator(operator) => textselection.related_text(*operator).test(),
+            Filter::Data(data, FilterMode::Any) => {
+                textselection.annotations().filter_data(data.clone()).test()
             }
-            Filter::Data(data, FilterMode::Any) => textselection
-                .annotations()
-                .filter_data(data.clone())
-                .next()
-                .is_some(),
             Filter::DataKey(set, key) => textselection
                 .annotations()
                 .data()
                 .filter_key_handle(*set, *key)
-                .next()
-                .is_some(),
+                .test(),
             Filter::DataKeyAndOperator(set, key, value) => textselection
                 .annotations()
                 .data()
                 .filter_key_handle_value(*set, *key, value.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::DataOperator(value) => textselection
                 .annotations()
                 .data()
                 .filter_value(value.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::AnnotationDataSet(set) => textselection
                 .annotations()
                 .data()
                 .filter_set_handle(*set)
-                .next()
-                .is_some(),
+                .test(),
             Filter::AnnotationData(set, data) => textselection
                 .annotations()
                 .data()
                 .filter_handle(*set, *data)
-                .next()
-                .is_some(),
+                .test(),
             _ => unreachable!(
                 "Filter {:?} not implemented for FilteredTextSelections",
                 self.filter

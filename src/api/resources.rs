@@ -152,7 +152,7 @@ impl<'store> ResultItem<'store, TextResource> {
     /// If you don't have a data instance yet, use `test_data_about()` instead.
     /// This method is much more efficient than `test_data_about()`.
     pub fn has_metadata_about(&self, data: ResultItem<'store, AnnotationData>) -> bool {
-        self.annotations_by_metadata_about(data).next().is_some()
+        self.annotations_by_metadata_about(data).test()
     }
 }
 
@@ -514,80 +514,64 @@ where
             Filter::MetaData(data, FilterMode::Any) => resource
                 .annotations_as_metadata()
                 .filter_data(data.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::DataOnText(data, FilterMode::Any) => resource
                 .annotations_as_metadata()
                 .filter_data(data.clone())
-                .next()
-                .is_some(),
-            Filter::Data(data, FilterMode::Any) => resource
-                .annotations()
-                .filter_data(data.clone())
-                .next()
-                .is_some(),
+                .test(),
+            Filter::Data(data, FilterMode::Any) => {
+                resource.annotations().filter_data(data.clone()).test()
+            }
             Filter::Annotations(annotations) => resource
                 .annotations()
                 .filter_annotations(annotations.clone())
-                .next()
-                .is_some(),
-            Filter::Annotation(annotation) => resource
-                .annotations()
-                .filter_handle(*annotation)
-                .next()
-                .is_some(),
+                .test(),
+            Filter::Annotation(annotation) => {
+                resource.annotations().filter_handle(*annotation).test()
+            }
             Filter::AnnotationsAsMetadata(annotations) => resource
                 .annotations_as_metadata()
                 .filter_annotations(annotations.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::AnnotationAsMetadata(annotation) => resource
                 .annotations_as_metadata()
                 .filter_handle(*annotation)
-                .next()
-                .is_some(),
+                .test(),
             Filter::AnnotationsOnText(annotations) => resource
                 .annotations_on_text()
                 .filter_annotations(annotations.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::AnnotationOnText(annotation) => resource
                 .annotations_on_text()
                 .filter_handle(*annotation)
-                .next()
-                .is_some(),
+                .test(),
 
             // these data filters act on ANNOTATIONS AS METADATA only:
             Filter::DataKey(set, key) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_key_handle(*set, *key)
-                .next()
-                .is_some(),
+                .test(),
             Filter::DataKeyAndOperator(set, key, value) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_key_handle_value(*set, *key, value.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::DataOperator(value) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_value(value.clone())
-                .next()
-                .is_some(),
+                .test(),
             Filter::AnnotationDataSet(set) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_set_handle(*set)
-                .next()
-                .is_some(),
+                .test(),
             Filter::AnnotationData(set, data) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_handle(*set, *data)
-                .next()
-                .is_some(),
+                .test(),
             _ => unreachable!(
                 "Filter {:?} not implemented for FilteredResources",
                 self.filter

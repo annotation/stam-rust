@@ -623,34 +623,21 @@ where
             Filter::Annotation(handle) => annotation.handle() == *handle,
             Filter::Annotations(handles) => handles.contains(&annotation.fullhandle()),
             Filter::Data(data, FilterMode::Any) => {
-                annotation.data().filter_data(data.clone()).next().is_some()
+                annotation.data().filter_data(data.clone()).test()
             }
             Filter::Data(data, FilterMode::All) => {
                 annotation.data().filter_data(data.clone()).count() >= data.len()
             }
-            Filter::DataKey(set, key) => annotation
-                .data()
-                .filter_key_handle(*set, *key)
-                .next()
-                .is_some(),
+            Filter::DataKey(set, key) => annotation.data().filter_key_handle(*set, *key).test(),
             Filter::DataKeyAndOperator(set, key, value) => annotation
                 .data()
                 .filter_key_handle_value(*set, *key, value.clone())
-                .next()
-                .is_some(),
-            Filter::DataOperator(value) => annotation
-                .data()
-                .filter_value(value.clone())
-                .next()
-                .is_some(),
-            Filter::AnnotationDataSet(set) => {
-                annotation.data().filter_set_handle(*set).next().is_some()
+                .test(),
+            Filter::DataOperator(value) => annotation.data().filter_value(value.clone()).test(),
+            Filter::AnnotationDataSet(set) => annotation.data().filter_set_handle(*set).test(),
+            Filter::AnnotationData(set, data) => {
+                annotation.data().filter_handle(*set, *data).test()
             }
-            Filter::AnnotationData(set, data) => annotation
-                .data()
-                .filter_handle(*set, *data)
-                .next()
-                .is_some(),
             Filter::TextResource(res_handle) => annotation
                 .resources()
                 .any(|res| res.handle() == *res_handle),
@@ -682,9 +669,7 @@ where
                     text == *reftext
                 }
             }
-            Filter::TextSelectionOperator(operator) => {
-                annotation.related_text(*operator).next().is_some()
-            }
+            Filter::TextSelectionOperator(operator) => annotation.related_text(*operator).test(),
             _ => unreachable!(
                 "Filter {:?} not implemented for FilteredAnnotations",
                 self.filter

@@ -265,7 +265,7 @@ impl AnnotationStore {
     where
         'a: 'store,
     {
-        self.find_data(set, key, value).next().is_some()
+        self.find_data(set, key, value).test()
     }
 
     /// Searches for resources by metadata.
