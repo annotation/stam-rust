@@ -21,6 +21,7 @@ use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
+use crate::ResultTextSelection;
 
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.
@@ -65,6 +66,19 @@ impl AnnotationStore {
     ) -> Option<ResultItem<AnnotationData>> {
         if let Some(dataset) = self.dataset(set) {
             dataset.annotationdata(data)
+        } else {
+            None
+        }
+    }
+
+    /// Requests a specific [`TextSelection`] by handle (pertaining to an [`AnnotationDataSet`]) to be returned by reference.
+    pub fn textselection(
+        &self,
+        resource: impl Request<TextResource>,
+        handle: TextSelectionHandle,
+    ) -> Option<ResultTextSelection> {
+        if let Some(resource) = self.resource(resource) {
+            resource.textselection_by_handle(handle).ok()
         } else {
             None
         }

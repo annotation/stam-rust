@@ -17,6 +17,7 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
+use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::store::*;
 use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
@@ -91,6 +92,16 @@ impl<'store> ResultItem<'store, TextResource> {
                 .iter()
                 .map(|x| x.as_resultitem(resource, rootstore)),
         )
+    }
+
+    pub fn textselection_by_handle(
+        &self,
+        handle: TextSelectionHandle,
+    ) -> Result<ResultTextSelection<'store>, StamError> {
+        let textselection: &TextSelection = self.as_ref().get(handle)?;
+        Ok(ResultTextSelection::Bound(
+            textselection.as_resultitem(self.as_ref(), self.store()),
+        ))
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
