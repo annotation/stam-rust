@@ -527,4 +527,5 @@ pub(crate) enum Filter<'a> {
     BorrowedAnnotations(&'a Annotations<'a>),
     BorrowedData(&'a Data<'a>, FilterMode),
     BorrowedText(&'a str, TextMode, &'a str), //the last string represents the delimiter for joining text
+    BorrowedResources(&'a Handles<'a, TextResource>),
 }

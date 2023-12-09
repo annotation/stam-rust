@@ -578,6 +578,19 @@ where
         }
     }
 
+    /// Constrain the iterator to only return text selections with annotations that match the ones passed
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection
+    fn filter_annotations_byref(
+        self,
+        annotations: &'store Annotations<'store>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::BorrowedAnnotations(annotations),
+        }
+    }
+
     /// Constrain this iterator to text selections with this specific annotation
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations for each text selection.
@@ -644,6 +657,33 @@ where
         FilteredTextSelections {
             inner: self,
             filter: Filter::Data(data, FilterMode::Any),
+        }
+    }
+
+    /// Constrain the iterator to only return text selections with annotations that have data that corresponds with any of the items in the passed data.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
+    fn filter_data_byref(self, data: &'store Data<'store>) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::BorrowedData(data, FilterMode::Any),
+        }
+    }
+
+    fn filter_data_all(self, data: Data<'store>) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::Data(data, FilterMode::All),
+        }
+    }
+
+    fn filter_data_all_byref(
+        self,
+        data: &'store Data<'store>,
+    ) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::BorrowedData(data, FilterMode::All),
         }
     }
 
@@ -827,7 +867,11 @@ where
             Filter::Resources(handles) => handles.contains(&textselection.resource().handle()),
             Filter::Annotations(annotations) => textselection
                 .annotations()
-                .filter_annotations(annotations.clone())
+                .filter_annotations_byref(annotations)
+                .test(),
+            Filter::BorrowedAnnotations(annotations) => textselection
+                .annotations()
+                .filter_annotations_byref(annotations)
                 .test(),
             Filter::Annotation(annotation) => textselection
                 .annotations()
@@ -852,8 +896,19 @@ where
             }
             Filter::TextSelectionOperator(operator) => textselection.related_text(*operator).test(),
             Filter::Data(data, FilterMode::Any) => {
-                textselection.annotations().filter_data(data.clone()).test()
+                textselection.annotations().filter_data_byref(data).test()
             }
+            Filter::BorrowedData(data, FilterMode::Any) => {
+                textselection.annotations().filter_data_byref(data).test()
+            }
+            Filter::Data(data, FilterMode::All) => textselection
+                .annotations()
+                .filter_data_all_byref(data)
+                .test(),
+            Filter::BorrowedData(data, FilterMode::All) => textselection
+                .annotations()
+                .filter_data_all_byref(data)
+                .test(),
             Filter::DataKey(set, key) => textselection
                 .annotations()
                 .data()

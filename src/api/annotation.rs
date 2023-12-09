@@ -388,6 +388,17 @@ where
         }
     }
 
+    /// Constrain this iterator to filter on one of the mentioned annotations
+    fn filter_annotations_byref(
+        self,
+        annotations: &'store Annotations<'store>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::BorrowedAnnotations(annotations),
+        }
+    }
+
     /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self::filter_annotation()`] instead.
     /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
     fn filter_handle(self, handle: AnnotationHandle) -> FilteredAnnotations<'store, Self> {
@@ -412,6 +423,13 @@ where
         }
     }
 
+    fn filter_data_byref(self, data: &'store Data<'store>) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::BorrowedData(data, FilterMode::Any),
+        }
+    }
+
     /// Constrain the iterator to only return annotations that, in a single annotation, has data that corresponds with *ALL* of the items in the passed data.
     /// All items have to be found or none will be returned.
     ///
@@ -424,6 +442,16 @@ where
         FilteredAnnotations {
             inner: self,
             filter: Filter::Data(data, FilterMode::All),
+        }
+    }
+
+    fn filter_data_all_byref(
+        self,
+        data: &'store Data<'store>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::BorrowedData(data, FilterMode::All),
         }
     }
 
@@ -622,11 +650,18 @@ where
         match &self.filter {
             Filter::Annotation(handle) => annotation.handle() == *handle,
             Filter::Annotations(handles) => handles.contains(&annotation.fullhandle()),
+            Filter::BorrowedAnnotations(handles) => handles.contains(&annotation.fullhandle()),
             Filter::Data(data, FilterMode::Any) => {
-                annotation.data().filter_data(data.clone()).test()
+                annotation.data().filter_data_byref(&data).test()
             }
             Filter::Data(data, FilterMode::All) => {
-                annotation.data().filter_data(data.clone()).count() >= data.len()
+                annotation.data().filter_data_byref(&data).count() >= data.len()
+            }
+            Filter::BorrowedData(data, FilterMode::Any) => {
+                annotation.data().filter_data_byref(data).test()
+            }
+            Filter::BorrowedData(data, FilterMode::All) => {
+                annotation.data().filter_data_byref(data).count() >= data.len()
             }
             Filter::DataKey(set, key) => annotation.data().filter_key_handle(*set, *key).test(),
             Filter::DataKeyAndOperator(set, key, value) => annotation

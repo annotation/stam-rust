@@ -244,6 +244,13 @@ where
         }
     }
 
+    fn filter_data_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::BorrowedData(data, FilterMode::Any),
+        }
+    }
+
     fn filter_annotationdata(
         self,
         data: &ResultItem<'store, AnnotationData>,
@@ -309,6 +316,7 @@ where
                 data.handle() == *data_handle && data.set().handle() == *set_handle
             }
             Filter::Data(v, _) => v.contains(&data.fullhandle()),
+            Filter::BorrowedData(v, _) => v.contains(&data.fullhandle()),
             Filter::AnnotationDataSet(set_handle) => data.set().handle() == *set_handle,
             Filter::DataKey(set_handle, key_handle) => {
                 data.key().handle() == *key_handle && data.set().handle() == *set_handle

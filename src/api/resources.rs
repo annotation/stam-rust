@@ -269,11 +269,22 @@ where
         }
     }
 
-    /// Constrain this iterator to filter on one of the mentioned annotations
+    /// Constrain this iterator to filter on one of the mentioned resources
     fn filter_resources(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
             filter: Filter::Resources(resources),
+        }
+    }
+
+    /// Constrain this iterator to filter on one of the mentioned resources
+    fn filter_resources_byref(
+        self,
+        resources: &'store Resources<'store>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::BorrowedResources(resources),
         }
     }
 
@@ -317,6 +328,19 @@ where
         FilteredResources {
             inner: self,
             filter: Filter::Annotations(annotations),
+        }
+    }
+
+    /// Constrain the iterator to only return resources with annotations that match the ones passed
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the annotations for each resource
+    fn filter_annotations_byref(
+        self,
+        annotations: &'store Annotations<'store>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::BorrowedAnnotations(annotations),
         }
     }
 
@@ -511,27 +535,35 @@ where
         match &self.filter {
             Filter::TextResource(handle) => resource.handle() == *handle,
             Filter::Resources(handles) => handles.contains(&resource.fullhandle()),
+            Filter::BorrowedResources(handles) => handles.contains(&resource.fullhandle()),
             Filter::MetaData(data, FilterMode::Any) => resource
                 .annotations_as_metadata()
-                .filter_data(data.clone())
+                .filter_data_byref(data)
                 .test(),
             Filter::DataOnText(data, FilterMode::Any) => resource
                 .annotations_as_metadata()
-                .filter_data(data.clone())
+                .filter_data_byref(data)
                 .test(),
             Filter::Data(data, FilterMode::Any) => {
-                resource.annotations().filter_data(data.clone()).test()
+                resource.annotations().filter_data_byref(data).test()
+            }
+            Filter::BorrowedData(data, FilterMode::Any) => {
+                resource.annotations().filter_data_byref(data).test()
             }
             Filter::Annotations(annotations) => resource
                 .annotations()
-                .filter_annotations(annotations.clone())
+                .filter_annotations_byref(annotations)
+                .test(),
+            Filter::BorrowedAnnotations(annotations) => resource
+                .annotations()
+                .filter_annotations_byref(annotations)
                 .test(),
             Filter::Annotation(annotation) => {
                 resource.annotations().filter_handle(*annotation).test()
             }
             Filter::AnnotationsAsMetadata(annotations) => resource
                 .annotations_as_metadata()
-                .filter_annotations(annotations.clone())
+                .filter_annotations_byref(annotations)
                 .test(),
             Filter::AnnotationAsMetadata(annotation) => resource
                 .annotations_as_metadata()
@@ -539,7 +571,7 @@ where
                 .test(),
             Filter::AnnotationsOnText(annotations) => resource
                 .annotations_on_text()
-                .filter_annotations(annotations.clone())
+                .filter_annotations_byref(annotations)
                 .test(),
             Filter::AnnotationOnText(annotation) => resource
                 .annotations_on_text()
