@@ -61,10 +61,10 @@ impl AnnotationStore {
     pub fn annotationdata(
         &self,
         set: impl Request<AnnotationDataSet>,
-        key: impl Request<DataKey>,
-    ) -> Option<ResultItem<DataKey>> {
+        data: impl Request<AnnotationData>,
+    ) -> Option<ResultItem<AnnotationData>> {
         if let Some(dataset) = self.dataset(set) {
-            dataset.key(key)
+            dataset.annotationdata(data)
         } else {
             None
         }
