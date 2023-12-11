@@ -208,7 +208,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// are in a specific relation with the text selected by this annotation. Returns an iterator over the [`crate::TextSelection`] instances, in textual order.
     /// (as [`ResultTextSelection`]).
     ///
-    /// This method is slight different from `.textselections().related_text()`. This method
+    /// This method is slightly different from `.textselections().related_text()`. This method
     /// will consider multiple textselections pertaining to this annotation as a single set, the
     /// other method treats each textselection separately.
     pub fn related_text(
@@ -360,6 +360,21 @@ where
     /// Maps annotations to textselections, consuming the iterator. Results will be returned in textual order.
     fn textselections(self) -> <Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter {
         self.map(|annotation| annotation.textselections())
+            .flatten()
+            .textual_order()
+            .into_iter()
+    }
+
+    /// Maps annotations to related text selections, as specified by the operator. The iterator will be consumed. Results will be returned in textual order.
+    ///
+    /// This method is slightly different from `.textselections().related_text()`. This method
+    /// will consider multiple textselections pertaining to an annotation as a single set, the
+    /// other method treats each textselection separately.
+    fn related_text(
+        self,
+        operator: TextSelectionOperator,
+    ) -> <Vec<ResultTextSelection<'store>> as IntoIterator>::IntoIter {
+        self.map(|annotation| annotation.related_text(operator))
             .flatten()
             .textual_order()
             .into_iter()
