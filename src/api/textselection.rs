@@ -42,6 +42,11 @@ impl<'store> FullHandle<TextSelection> for ResultItem<'store, TextSelection> {
 
 /// This is the implementation of the high-level API for [`TextSelection`], though most of it is more commonly used via [`ResultTextSelection`].
 impl<'store> ResultItem<'store, TextSelection> {
+    /// Returns the higher level structure
+    pub fn as_resulttextselection(self) -> ResultTextSelection<'store> {
+        ResultTextSelection::Bound(self)
+    }
+
     /// Return the begin position (unicode points)
     pub fn begin(&self) -> usize {
         self.as_ref().begin()
