@@ -629,7 +629,7 @@ impl<'store> QueryIter<'store> {
         let mut constraintsiter = query.constraints.iter();
 
         let iter = match query.resulttype {
-            /////////////////////////////////////////////////////////////////////////
+            ///////////////////////////// target= RESOURCE ////////////////////////////////////////////
             Some(Type::TextResource) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, TextResource>>> =
                     match constraintsiter.next() {
@@ -681,6 +681,7 @@ impl<'store> QueryIter<'store> {
                         }
                         None => Box::new(store.resources()),
                     };
+                //secondary contraints for target RESOURCE
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         &Constraint::DataKey { set, key } => {
@@ -716,6 +717,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Ok(QueryResultIter::Resources(iter))
             }
+            ///////////////////////////// target= ANNOTATION ////////////////////////////////////////////
             Some(Type::Annotation) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, Annotation>>> =
                     match constraintsiter.next() {
@@ -758,7 +760,7 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Filter(Filter::Annotation(annotation))) => {
                             Box::new(store.annotation(annotation).or_fail()?.annotations_in_targets(false))
                         }
-                        Some(&Constraint::Filter(Filter::AnnotationTargetsFor(annotation, recursive))) => { //TODO: recursive variant?
+                        Some(&Constraint::Filter(Filter::AnnotationTarget(annotation, recursive))) => { //TODO: recursive variant?
                             Box::new(store.annotation(annotation).or_fail()?.annotations())
                         }
                         Some(&Constraint::AnnotationVariable(var, AnnotationQualifier::None)) => {
@@ -845,6 +847,7 @@ impl<'store> QueryIter<'store> {
                         }
                         None => Box::new(store.annotations()),
                     };
+                //secondary contraints for target ANNOTATION
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         &Constraint::TextResource(res, ResourceQualifier::Any) => {
@@ -894,10 +897,10 @@ impl<'store> QueryIter<'store> {
                         &Constraint::TextVariable(var) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
                                 iter = Box::new(
-                                    iter.filter_annotations(tsel.annotations().to_handles(store)),
+                                    iter.filter_multiple(tsel.annotations().to_handles(store)),
                                 )
                             } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                iter = Box::new(iter.filter_annotations(
+                                iter = Box::new(iter.filter_multiple(
                                     annotation.textselections().annotations().to_handles(store),
                                 ))
                             } else {
@@ -912,12 +915,12 @@ impl<'store> QueryIter<'store> {
                         }
                         &Constraint::TextRelation { var, operator } => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter = Box::new(iter.filter_annotations(
+                                iter = Box::new(iter.filter_multiple(
                                     tsel.related_text(operator).annotations().to_handles(store),
                                 ))
                             } else if let Ok(annotation) = self.resolve_annotationvar(var) {
                                 iter = Box::new(
-                                    iter.filter_annotations(
+                                    iter.filter_multiple(
                                         annotation
                                             .textselections()
                                             .related_text(operator)
@@ -936,14 +939,12 @@ impl<'store> QueryIter<'store> {
                             }
                         }
                         &Constraint::Annotation(annotation, AnnotationQualifier::None) => {
-                            iter = Box::new(
-                                iter.filter_annotation(&store.annotation(annotation).or_fail()?),
-                            );
+                            iter =
+                                Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?));
                         }
                         &Constraint::Filter(Filter::Annotation(annotation)) => {
-                            iter = Box::new(
-                                iter.filter_annotation(&store.annotation(annotation).or_fail()?),
-                            );
+                            iter =
+                                Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?));
                         }
                         c => {
                             return Err(StamError::QuerySyntaxError(
@@ -958,7 +959,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Ok(QueryResultIter::Annotations(iter))
             }
-            /////////////////////////////////////////////////////////////////////////
+            /////////////////////////////////// target=TEXT //////////////////////////////////////
             Some(Type::TextSelection) => {
                 let mut iter: Box<dyn Iterator<Item = ResultTextSelection<'store>>> =
                     match constraintsiter.next() {
@@ -1025,7 +1026,7 @@ impl<'store> QueryIter<'store> {
                         Some(c) => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
-                                    "Constraint {} (primary) is not implemented for queries over text selections",
+                                    "Constraint {} (primary) is not implemented for queries over TEXT selections",
                                     c.keyword()
                                 ),
                                 "",
@@ -1033,8 +1034,12 @@ impl<'store> QueryIter<'store> {
                         }
                         None => Box::new(store.annotations().textselections()),
                     };
+                //secondary contraints for target TEXT
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
+                        &Constraint::Handle(Filter::TextResource(res)) => {
+                            iter = Box::new(iter.filter_resource(&store.resource(res).or_fail()?));
+                        }
                         &Constraint::TextResource(res,_) => {
                             iter = Box::new(iter.filter_resource(&store.resource(res).or_fail()?));
                         }
@@ -1059,9 +1064,9 @@ impl<'store> QueryIter<'store> {
                         }
                         &Constraint::TextRelation { var, operator } => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter = Box::new(iter.filter_textselections(tsel.related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)))
+                                iter = Box::new(iter.filter_multiple(tsel.related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)))
                             } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                iter = Box::new(iter.filter_textselections(
+                                iter = Box::new(iter.filter_multiple(
                                     annotation.textselections().related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)
                                 ))
                             } else {
@@ -1076,7 +1081,7 @@ impl<'store> QueryIter<'store> {
                         }
                         c => return Err(StamError::QuerySyntaxError(
                             format!(
-                                "Constraint {} (secondary) is not implemented for queries over text selections",
+                                "Constraint {} (secondary) is not implemented for queries over TEXT selections",
                                 c.keyword()
                             ),
                             "",
@@ -1085,10 +1090,13 @@ impl<'store> QueryIter<'store> {
                 }
                 Ok(QueryResultIter::TextSelections(iter))
             }
-            /////////////////////////////////////////////////////////////////////////
+            ///////////////////////////////// target= DATA ////////////////////////////////////////
             Some(Type::AnnotationData) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> =
                     match constraintsiter.next() {
+                        Some(&Constraint::Handle(Filter::AnnotationData(set, handle))) => {
+                            Box::new(store.annotationdata(set, handle).into_iter())
+                        }
                         Some(&Constraint::Annotation(id, _)) => {
                             Box::new(store.annotation(id).or_fail()?.data())
                         }
@@ -1105,7 +1113,7 @@ impl<'store> QueryIter<'store> {
                         Some(c) => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
-                                    "Constraint {} is not valid for DATA return type",
+                                    "Constraint {} (primary) is not valid for DATA return type",
                                     c.keyword()
                                 ),
                                 "",
@@ -1113,6 +1121,7 @@ impl<'store> QueryIter<'store> {
                         }
                         None => Box::new(store.data()),
                     };
+                //secondary contraints for target DATA
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         &Constraint::KeyValue {
@@ -1121,7 +1130,7 @@ impl<'store> QueryIter<'store> {
                             ref operator,
                         } => {
                             iter = Box::new(
-                                iter.filter_data(
+                                iter.filter_multiple(
                                     store
                                         .find_data(set, key, operator.clone())
                                         .to_handles(store),
@@ -1131,7 +1140,7 @@ impl<'store> QueryIter<'store> {
                         c => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
-                                    "Constraint {} is not implemented for queries over data",
+                                    "Constraint {} (secondary) is not implemented for queries over DATA",
                                     c.keyword()
                                 ),
                                 "",

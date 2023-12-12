@@ -784,7 +784,7 @@ where
         }
     }
 
-    fn filter_textselection(
+    fn filter_one(
         self,
         textselection: &ResultItem<'store, TextSelection>, //no ResultTextSelection because we can only work with bound items anyway
     ) -> FilteredTextSelections<'store, Self> {
@@ -797,7 +797,7 @@ where
         }
     }
 
-    fn filter_textselections(
+    fn filter_multiple(
         self,
         textselections: Handles<'store, TextSelection>,
     ) -> FilteredTextSelections<'store, Self> {

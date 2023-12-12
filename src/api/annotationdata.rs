@@ -237,24 +237,21 @@ where
         }
     }
 
-    fn filter_data(self, data: Data<'store>) -> FilteredData<'store, Self> {
+    fn filter_multiple(self, data: Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
             filter: Filter::Data(data, FilterMode::Any),
         }
     }
 
-    fn filter_data_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
+    fn filter_multiple_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
             filter: Filter::BorrowedData(data, FilterMode::Any),
         }
     }
 
-    fn filter_annotationdata(
-        self,
-        data: &ResultItem<'store, AnnotationData>,
-    ) -> FilteredData<'store, Self> {
+    fn filter_one(self, data: &ResultItem<'store, AnnotationData>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
             filter: Filter::AnnotationData(data.set().handle(), data.handle()),

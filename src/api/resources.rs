@@ -270,10 +270,7 @@ where
 
     /// Constrain this iterator to only a single resource
     /// This method can only be used once! Use [`Self::filter_resources()`] to filter on multiple annotations (disjunction).
-    fn filter_resource(
-        self,
-        resource: &ResultItem<TextResource>,
-    ) -> FilteredResources<'store, Self> {
+    fn filter_one(self, resource: &ResultItem<TextResource>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
             filter: Filter::TextResource(resource.handle()),
@@ -281,7 +278,7 @@ where
     }
 
     /// Constrain this iterator to filter on one of the mentioned resources
-    fn filter_resources(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
+    fn filter_multiple(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
             filter: Filter::Resources(resources),
@@ -289,7 +286,7 @@ where
     }
 
     /// Constrain this iterator to filter on one of the mentioned resources
-    fn filter_resources_byref(
+    fn filter_multiple_byref(
         self,
         resources: &'store Resources<'store>,
     ) -> FilteredResources<'store, Self> {

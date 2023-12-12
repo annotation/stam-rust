@@ -382,6 +382,47 @@ where
 
     /// Constrain this iterator to only a single annotation
     /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
+    fn filter_one(self, annotation: &ResultItem<Annotation>) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::AnnotationIntersection(annotation.handle()),
+        }
+    }
+
+    /// Constrain this iterator to filter on one of the mentioned annotations
+    fn filter_multiple(
+        self,
+        annotations: Annotations<'store>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::AnnotationsIntersection(annotations),
+        }
+    }
+
+    /// Constrain this iterator to filter on one of the mentioned annotations
+    fn filter_multiple_byref(
+        self,
+        annotations: &'store Annotations<'store>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::BorrowedAnnotationsIntersection(annotations),
+        }
+    }
+
+    /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self::filter_annotation()`] instead.
+    /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
+    fn filter_handle(self, handle: AnnotationHandle) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::Annotation(handle),
+        }
+    }
+
+    /// Constrain this iserator to filter on annotations that are targeted by this annotation
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_one()`] instead.
     fn filter_annotation(
         self,
         annotation: &ResultItem<Annotation>,
@@ -392,7 +433,9 @@ where
         }
     }
 
-    /// Constrain this iterator to filter on one of the mentioned annotations
+    /// Constrain this iterator to filter on annotations that are annotated by by *one of* the mentioned annotations
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple()`] instead.
     fn filter_annotations(
         self,
         annotations: Annotations<'store>,
@@ -403,7 +446,9 @@ where
         }
     }
 
-    /// Constrain this iterator to filter on one of the mentioned annotations
+    /// Constrain this iterator to filter on annotations that are annotated by *one of* the mentioned annotations
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple_byref()`] instead.
     fn filter_annotations_byref(
         self,
         annotations: &'store Annotations<'store>,
@@ -414,12 +459,45 @@ where
         }
     }
 
-    /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self::filter_annotation()`] instead.
-    /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
-    fn filter_handle(self, handle: AnnotationHandle) -> FilteredAnnotations<'store, Self> {
+    /// Constrain this iterator to filter on annotations that annotate the annotation in the parameter.
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_one()`] instead.
+    fn filter_annotation_in_targets(
+        self,
+        annotation: &ResultItem<Annotation>,
+        recursive: bool,
+    ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotation(handle),
+            filter: Filter::AnnotationTarget(annotation.handle(), recursive),
+        }
+    }
+
+    /// Constrain this iterator to filter on annotations that annotate *any one of* the annotations in the parameter.
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple()`] instead.
+    fn filter_annotations_in_targets(
+        self,
+        annotations: Annotations<'store>,
+        recursive: bool,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::AnnotationTargets(annotations, recursive),
+        }
+    }
+
+    /// Constrain this iterator to filter on annotations that annotate *any one of* the annotations in the parameter.
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple_byref()`] instead.
+    fn filter_annotations_in_targets_byref(
+        self,
+        annotations: &'store Annotations<'store>,
+        recursive: bool,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::BorrowedAnnotationTargets(annotations, recursive),
         }
     }
 
@@ -683,20 +761,35 @@ where
 {
     fn test_filter(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
         match &self.filter {
-            Filter::Annotation(handle) => annotation.handle() == *handle,
-            Filter::Annotations(handles) => handles.contains(&annotation.fullhandle()),
-            Filter::BorrowedAnnotations(handles) => handles.contains(&annotation.fullhandle()),
+            Filter::AnnotationIntersection(handle) => annotation.handle() == *handle,
+            Filter::AnnotationsIntersection(handles) => handles.contains(&annotation.fullhandle()),
+            Filter::BorrowedAnnotationsIntersection(handles) => {
+                handles.contains(&annotation.fullhandle())
+            }
+            Filter::Annotation(handle) => annotation.annotations().filter_handle(*handle).test(),
+            Filter::Annotations(handles) => annotation
+                .annotations()
+                .filter_multiple_byref(handles)
+                .test(),
+            Filter::BorrowedAnnotations(handles) => annotation
+                .annotations()
+                .filter_multiple_byref(handles)
+                .test(),
+            Filter::AnnotationTarget(handle, recursive) => annotation
+                .annotations_in_targets(*recursive)
+                .filter_handle(*handle)
+                .test(),
             Filter::Data(data, FilterMode::Any) => {
-                annotation.data().filter_data_byref(&data).test()
+                annotation.data().filter_multiple_byref(&data).test()
             }
             Filter::Data(data, FilterMode::All) => {
-                annotation.data().filter_data_byref(&data).count() >= data.len()
+                annotation.data().filter_multiple_byref(&data).count() >= data.len()
             }
             Filter::BorrowedData(data, FilterMode::Any) => {
-                annotation.data().filter_data_byref(data).test()
+                annotation.data().filter_multiple_byref(data).test()
             }
             Filter::BorrowedData(data, FilterMode::All) => {
-                annotation.data().filter_data_byref(data).count() >= data.len()
+                annotation.data().filter_multiple_byref(data).count() >= data.len()
             }
             Filter::DataKey(set, key) => annotation.data().filter_key_handle(*set, *key).test(),
             Filter::DataKeyAndOperator(set, key, value) => annotation

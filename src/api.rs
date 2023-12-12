@@ -521,8 +521,14 @@ pub enum Filter<'store> {
     TextSelection(TextResourceHandle, TextSelectionHandle),
     TextSelections(Handles<'store, TextSelection>),
 
-    /// The boolean indicates to apply recursion or not
-    AnnotationTargetsFor(AnnotationHandle, bool),
+    /// The annotation in the parameter is an annotation target. The boolean indicates to apply recursion or not
+    AnnotationTarget(AnnotationHandle, bool),
+
+    /// One of the annotations in the parameter are an annotation target. The boolean indicates to apply recursion or not
+    AnnotationTargets(Handles<'store, Annotation>, bool),
+
+    AnnotationIntersection(AnnotationHandle),
+    AnnotationsIntersection(Handles<'store, Annotation>),
 
     MetaData(Handles<'store, AnnotationData>, FilterMode),
     DataOnText(Handles<'store, AnnotationData>, FilterMode),
@@ -536,4 +542,6 @@ pub enum Filter<'store> {
     BorrowedData(&'store Handles<'store, AnnotationData>, FilterMode),
     BorrowedText(&'store str, TextMode, &'store str), //the last string represents the delimiter for joining text
     BorrowedResources(&'store Handles<'store, TextResource>),
+    BorrowedAnnotationsIntersection(&'store Handles<'store, Annotation>),
+    BorrowedAnnotationTargets(&'store Handles<'store, Annotation>, bool),
 }
