@@ -101,7 +101,7 @@ impl<'store> ResultItem<'store, DataKey> {
     /// Returns a set of all text resources ([`crate::TextResource`]) that make use of this key via annotations via a ResourceSelector (i.e. as metadata)
     pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
-            .map(|annotation| annotation.resources_on_text())
+            .map(|annotation| annotation.resources_as_text())
             .flatten()
             .collect()
     }

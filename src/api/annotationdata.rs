@@ -118,7 +118,7 @@ impl<'store> ResultItem<'store, AnnotationData> {
         &self,
     ) -> <BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter {
         self.annotations()
-            .map(|annotation| annotation.resources_on_text())
+            .map(|annotation| annotation.resources_as_text())
             .flatten()
             .collect::<BTreeSet<_>>()
             .into_iter()

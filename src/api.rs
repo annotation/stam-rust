@@ -488,44 +488,52 @@ impl<I: Iterator> Iterator for ResultIter<I> {
 // Auxiliary data structures the API relies on internally:
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
-pub(crate) enum FilterMode {
+pub enum FilterMode {
     Any,
     All,
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
-pub(crate) enum TextMode {
+pub enum TextMode {
     Exact,
     Lowercase,
 }
 
 #[derive(Debug)]
-/// A filter that is evaluated lazily, applied on [`AnnotationsIter`], [`DataIter`],[`TextSelectionsIter`]
-pub(crate) enum Filter<'a> {
+/// This is a low-level data structure that holds filter states for the iterators [`FilteredAnnotations`], [`FilteredData`], [`FilteredResources`],[`FilteredTextSelections`].
+/// You likely do not need this and should use the appropriate `filter_*` methods on the iterators instead.
+/// The only possible use from outside is in programmatically setting direct query constraints via [`Constraint::Filter`].
+pub enum Filter<'store> {
     AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
     AnnotationDataSet(AnnotationDataSetHandle),
     DataKey(AnnotationDataSetHandle, DataKeyHandle),
-    DataKeyAndOperator(AnnotationDataSetHandle, DataKeyHandle, DataOperator<'a>),
+    DataKeyAndOperator(AnnotationDataSetHandle, DataKeyHandle, DataOperator<'store>),
     Annotation(AnnotationHandle),
     TextResource(TextResourceHandle),
-    DataOperator(DataOperator<'a>),
+    TextResourceAsMetadata(TextResourceHandle),
+    TextResourceAsText(TextResourceHandle),
+    DataOperator(DataOperator<'store>),
     TextSelectionOperator(TextSelectionOperator),
-    Annotations(Handles<'a, Annotation>),
-    Resources(Handles<'a, TextResource>),
-    Data(Handles<'a, AnnotationData>, FilterMode),
+    Annotations(Handles<'store, Annotation>),
+    Resources(Handles<'store, TextResource>),
+    Data(Handles<'store, AnnotationData>, FilterMode),
+    Text(String, TextMode, &'store str), //the last string represents the delimiter for joining text
     TextSelection(TextResourceHandle, TextSelectionHandle),
-    TextSelections(Handles<'a, TextSelection>),
-    MetaData(Handles<'a, AnnotationData>, FilterMode),
-    DataOnText(Handles<'a, AnnotationData>, FilterMode),
-    AnnotationsAsMetadata(Handles<'a, Annotation>),
-    AnnotationsOnText(Handles<'a, Annotation>),
+    TextSelections(Handles<'store, TextSelection>),
+
+    /// The boolean indicates to apply recursion or not
+    AnnotationTargetsFor(AnnotationHandle, bool),
+
+    MetaData(Handles<'store, AnnotationData>, FilterMode),
+    DataOnText(Handles<'store, AnnotationData>, FilterMode),
+    AnnotationsAsMetadata(Handles<'store, Annotation>),
+    AnnotationsOnText(Handles<'store, Annotation>),
     AnnotationAsMetadata(AnnotationHandle),
     AnnotationOnText(AnnotationHandle),
-    Text(String, TextMode, &'a str), //the last string represents the delimiter for joining text
 
     //these have the advantage the collections are external references
-    BorrowedAnnotations(&'a Annotations<'a>),
-    BorrowedData(&'a Data<'a>, FilterMode),
-    BorrowedText(&'a str, TextMode, &'a str), //the last string represents the delimiter for joining text
-    BorrowedResources(&'a Handles<'a, TextResource>),
+    BorrowedAnnotations(&'store Annotations<'store>),
+    BorrowedData(&'store Handles<'store, AnnotationData>, FilterMode),
+    BorrowedText(&'store str, TextMode, &'store str), //the last string represents the delimiter for joining text
+    BorrowedResources(&'store Handles<'store, TextResource>),
 }

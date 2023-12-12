@@ -70,7 +70,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::TextSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_on_text(
+    pub fn resources_as_text(
         &self,
     ) -> ResultIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let collection: BTreeSet<TextResourceHandle> = self
@@ -351,7 +351,7 @@ where
         self,
     ) -> ResultIter<<BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter> {
         let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources_on_text())
+            .map(|annotation| annotation.resources_as_text())
             .flatten()
             .collect();
         ResultIter::new_sorted(collection.into_iter())
@@ -477,6 +477,26 @@ where
         FilteredAnnotations {
             inner: self,
             filter: Filter::TextResource(resource.handle()),
+        }
+    }
+
+    fn filter_resource_as_metadata(
+        self,
+        resource: &ResultItem<'store, TextResource>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::TextResourceAsMetadata(resource.handle()),
+        }
+    }
+
+    fn filter_resource_as_text(
+        self,
+        resource: &ResultItem<'store, TextResource>,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::TextResourceAsText(resource.handle()),
         }
     }
 
@@ -690,6 +710,12 @@ where
             }
             Filter::TextResource(res_handle) => annotation
                 .resources()
+                .any(|res| res.handle() == *res_handle),
+            Filter::TextResourceAsMetadata(res_handle) => annotation
+                .resources_as_metadata()
+                .any(|res| res.handle() == *res_handle),
+            Filter::TextResourceAsText(res_handle) => annotation
+                .resources_as_text()
                 .any(|res| res.handle() == *res_handle),
             Filter::Text(reftext, textmode, delimiter) => {
                 if let Some(text) = annotation.text_simple() {
