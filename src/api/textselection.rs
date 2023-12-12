@@ -44,7 +44,7 @@ impl<'store> FullHandle<TextSelection> for ResultItem<'store, TextSelection> {
 impl<'store> ResultItem<'store, TextSelection> {
     /// Returns the higher level structure
     pub fn as_resulttextselection(self) -> ResultTextSelection<'store> {
-        ResultTextSelection::Bound(self)
+        self.into()
     }
 
     /// Return the begin position (unicode points)
