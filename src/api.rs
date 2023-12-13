@@ -472,6 +472,7 @@ impl<I: Iterator> ResultIter<I> {
         }
     }
 }
+
 impl<I: Iterator> Iterator for ResultIter<I> {
     type Item = I::Item;
 
@@ -482,6 +483,58 @@ impl<I: Iterator> Iterator for ResultIter<I> {
         } else {
             None
         }
+    }
+}
+
+struct FilterAllIter<'store, T, I>
+where
+    T: Storable + 'store,
+    I: Iterator<Item = ResultItem<'store, T>>,
+{
+    inner: I,
+    filter: Handles<'store, T>,
+    store: &'store AnnotationStore,
+    buffer: Option<FromHandles<'store, T, HandlesIter<'store, T>>>,
+}
+
+impl<'store, T, I> FilterAllIter<'store, T, I>
+where
+    T: Storable + 'store,
+    I: Iterator<Item = ResultItem<'store, T>>,
+{
+    pub fn new(inner: I, filter: Handles<'store, T>, store: &'store AnnotationStore) -> Self {
+        Self {
+            inner,
+            filter,
+            store,
+            buffer: None,
+        }
+    }
+}
+
+impl<'store, T, I> Iterator for FilterAllIter<'store, T, I>
+where
+    T: Storable + 'store,
+    I: Iterator<Item = ResultItem<'store, T>>,
+    I: ToHandles<'store, T>,
+{
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buffer.is_none() {
+            let buffer = self.inner.to_handles(self.store);
+            if !self.filter.iter().all(|h| buffer.contains(&h)) {
+                //constraint not satisfied, iterator yields nothing:
+                //all filter items must be in the buffer
+                return None;
+            }
+            self.buffer = Some(buffer.items());
+        }
+        //drain the buffer
+        let buffer = self
+            .buffer
+            .as_mut()
+            .expect("buffer must exist at this point");
+        buffer.next()
     }
 }
 
@@ -514,34 +567,34 @@ pub enum Filter<'store> {
     TextResourceAsText(TextResourceHandle),
     DataOperator(DataOperator<'store>),
     TextSelectionOperator(TextSelectionOperator),
-    Annotations(Handles<'store, Annotation>),
-    Resources(Handles<'store, TextResource>),
+    Annotations(Handles<'store, Annotation>, FilterMode),
+    Resources(Handles<'store, TextResource>, FilterMode),
     Data(Handles<'store, AnnotationData>, FilterMode),
     Text(String, TextMode, &'store str), //the last string represents the delimiter for joining text
     TextSelection(TextResourceHandle, TextSelectionHandle),
-    TextSelections(Handles<'store, TextSelection>),
+    TextSelections(Handles<'store, TextSelection>, FilterMode),
 
     /// The annotation in the parameter is an annotation target. The boolean indicates to apply recursion or not
     AnnotationTarget(AnnotationHandle, bool),
 
     /// One of the annotations in the parameter are an annotation target. The boolean indicates to apply recursion or not
-    AnnotationTargets(Handles<'store, Annotation>, bool),
+    AnnotationTargets(Handles<'store, Annotation>, bool, FilterMode),
 
     AnnotationIntersection(AnnotationHandle),
-    AnnotationsIntersection(Handles<'store, Annotation>),
+    AnnotationsIntersection(Handles<'store, Annotation>, FilterMode),
 
     MetaData(Handles<'store, AnnotationData>, FilterMode),
     DataOnText(Handles<'store, AnnotationData>, FilterMode),
-    AnnotationsAsMetadata(Handles<'store, Annotation>),
-    AnnotationsOnText(Handles<'store, Annotation>),
+    AnnotationsAsMetadata(Handles<'store, Annotation>, FilterMode),
+    AnnotationsOnText(Handles<'store, Annotation>, FilterMode),
     AnnotationAsMetadata(AnnotationHandle),
     AnnotationOnText(AnnotationHandle),
 
     //these have the advantage the collections are external references
-    BorrowedAnnotations(&'store Annotations<'store>),
+    BorrowedAnnotations(&'store Annotations<'store>, FilterMode),
     BorrowedData(&'store Handles<'store, AnnotationData>, FilterMode),
     BorrowedText(&'store str, TextMode, &'store str), //the last string represents the delimiter for joining text
-    BorrowedResources(&'store Handles<'store, TextResource>),
-    BorrowedAnnotationsIntersection(&'store Handles<'store, Annotation>),
-    BorrowedAnnotationTargets(&'store Handles<'store, Annotation>, bool),
+    BorrowedResources(&'store Handles<'store, TextResource>, FilterMode),
+    BorrowedAnnotationsIntersection(&'store Handles<'store, Annotation>, FilterMode),
+    BorrowedAnnotationTargets(&'store Handles<'store, Annotation>, bool, FilterMode),
 }
