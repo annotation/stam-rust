@@ -16,6 +16,7 @@
 use rayon::prelude::*;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::ops::Deref;
 
 use crate::annotation::{Annotation, AnnotationHandle, TargetIter};
 use crate::annotationdata::AnnotationData;
@@ -235,6 +236,15 @@ where
     }
 }
 
+impl<'store, I> FullHandleToResultItem<'store, Annotation> for FilterAllIter<'store, Annotation, I>
+where
+    I: Iterator<Item = ResultItem<'store, Annotation>>,
+{
+    fn get_item(&self, handle: AnnotationHandle) -> Option<ResultItem<'store, Annotation>> {
+        self.store.annotation(handle)
+    }
+}
+
 pub trait AnnotationIterator<'store>: Iterator<Item = ResultItem<'store, Annotation>>
 where
     Self: Sized,
@@ -381,7 +391,7 @@ where
     }
 
     /// Constrain this iterator to only a single annotation
-    /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
+    /// This method can only be used once! Use [`Self::filter_any()`] to filter on multiple annotations (disjunction).
     fn filter_one(self, annotation: &ResultItem<Annotation>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
@@ -389,25 +399,32 @@ where
         }
     }
 
-    /// Constrain this iterator to filter on one of the mentioned annotations
-    fn filter_multiple(
-        self,
-        annotations: Annotations<'store>,
-    ) -> FilteredAnnotations<'store, Self> {
+    /// Constrain this iterator to filter on *any one* of the mentioned annotations
+    fn filter_any(self, annotations: Annotations<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationsIntersection(annotations),
+            filter: Filter::AnnotationsIntersection(annotations, FilterMode::Any),
         }
     }
 
-    /// Constrain this iterator to filter on one of the mentioned annotations
-    fn filter_multiple_byref(
+    /// Constrain this iterator to filter on *all* of the mentioned annotations, that is.
+    /// If not all of the items in the parameter exist in the iterator, the iterator returns nothing.
+    fn filter_all(
+        self,
+        annotations: Annotations<'store>,
+        store: &'store AnnotationStore,
+    ) -> FilterAllIter<'store, Annotation, Self> {
+        FilterAllIter::new(self, annotations, store)
+    }
+
+    /// Constrain this iterator to filter on *any one* of the mentioned annotations
+    fn filter_any_byref(
         self,
         annotations: &'store Annotations<'store>,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedAnnotationsIntersection(annotations),
+            filter: Filter::BorrowedAnnotationsIntersection(annotations, FilterMode::Any),
         }
     }
 
@@ -420,7 +437,7 @@ where
         }
     }
 
-    /// Constrain this iserator to filter on annotations that are targeted by this annotation
+    /// Constrain this iterator to filter on annotations that are annotated by this annotation
     ///
     /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_one()`] instead.
     fn filter_annotation(
@@ -435,27 +452,33 @@ where
 
     /// Constrain this iterator to filter on annotations that are annotated by by *one of* the mentioned annotations
     ///
-    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple()`] instead.
+    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_any()`] instead.
     fn filter_annotations(
         self,
         annotations: Annotations<'store>,
+        mode: FilterMode,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotations(annotations),
+            filter: Filter::Annotations(annotations, mode),
         }
     }
 
     /// Constrain this iterator to filter on annotations that are annotated by *one of* the mentioned annotations
     ///
-    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple_byref()`] instead.
+    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_any_byref()`] instead.
     fn filter_annotations_byref(
         self,
         annotations: &'store Annotations<'store>,
+        mode: FilterMode,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedAnnotations(annotations),
+            filter: Filter::BorrowedAnnotations(annotations, mode),
         }
     }
 
@@ -475,33 +498,41 @@ where
 
     /// Constrain this iterator to filter on annotations that annotate *any one of* the annotations in the parameter.
     ///
-    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple()`] instead.
+    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    ///
+    /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_any()`] instead.
     fn filter_annotations_in_targets(
         self,
         annotations: Annotations<'store>,
         recursive: bool,
+        mode: FilterMode,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationTargets(annotations, recursive),
+            filter: Filter::AnnotationTargets(annotations, recursive, mode),
         }
     }
 
     /// Constrain this iterator to filter on annotations that annotate *any one of* the annotations in the parameter.
+    ///
+    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
     ///
     /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple_byref()`] instead.
     fn filter_annotations_in_targets_byref(
         self,
         annotations: &'store Annotations<'store>,
         recursive: bool,
+        mode: FilterMode,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedAnnotationTargets(annotations, recursive),
+            filter: Filter::BorrowedAnnotationTargets(annotations, recursive, mode),
         }
     }
 
-    /// Constrain the iterator to only return annotations that have data that corresponds with any of the items in the passed data.
+    /// Constrain the iterator to only return annotations that have data that corresponds with the items in the passed data.
+    ///
+    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
     ///
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
     // /// If you have a borrowed reference, use [`Self::filter_data_byref()`] instead.
@@ -509,42 +540,25 @@ where
     ///
     /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     // /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(&data.annotations().into())`.
-    fn filter_data(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
-        FilteredAnnotations {
-            inner: self,
-            filter: Filter::Data(data, FilterMode::Any),
-        }
-    }
-
-    fn filter_data_byref(self, data: &'store Data<'store>) -> FilteredAnnotations<'store, Self> {
-        FilteredAnnotations {
-            inner: self,
-            filter: Filter::BorrowedData(data, FilterMode::Any),
-        }
-    }
-
-    /// Constrain the iterator to only return annotations that, in a single annotation, has data that corresponds with *ALL* of the items in the passed data.
-    /// All items have to be found or none will be returned.
-    ///
-    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
-    // /// If you have a borrowed reference, use [`Self::filter_data_byref_multi()`] instead.
-    /// If you want to check for *ANY* match rather than requiring multiple matches in a single annotation, then use [`Self::filter_data()`] instead.
-    ///
-    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
-    fn filter_data_all(self, data: Data<'store>) -> FilteredAnnotations<'store, Self> {
-        FilteredAnnotations {
-            inner: self,
-            filter: Filter::Data(data, FilterMode::All),
-        }
-    }
-
-    fn filter_data_all_byref(
+    fn filter_data(
         self,
-        data: &'store Data<'store>,
+        data: Data<'store>,
+        mode: FilterMode,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedData(data, FilterMode::All),
+            filter: Filter::Data(data, mode),
+        }
+    }
+
+    fn filter_data_byref(
+        self,
+        data: &'store Data<'store>,
+        mode: FilterMode,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::BorrowedData(data, mode),
         }
     }
 
@@ -762,35 +776,43 @@ where
     fn test_filter(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
         match &self.filter {
             Filter::AnnotationIntersection(handle) => annotation.handle() == *handle,
-            Filter::AnnotationsIntersection(handles) => handles.contains(&annotation.fullhandle()),
-            Filter::BorrowedAnnotationsIntersection(handles) => {
+            Filter::AnnotationsIntersection(handles, FilterMode::Any) => {
+                handles.contains(&annotation.fullhandle())
+            }
+            Filter::BorrowedAnnotationsIntersection(handles, FilterMode::Any) => {
                 handles.contains(&annotation.fullhandle())
             }
             Filter::Annotation(handle) => annotation.annotations().filter_handle(*handle).test(),
-            Filter::Annotations(handles) => annotation
+            Filter::Annotations(handles, FilterMode::Any) => {
+                annotation.annotations().filter_any_byref(handles).test()
+            }
+            Filter::Annotations(handles, FilterMode::All) => annotation
                 .annotations()
-                .filter_multiple_byref(handles)
+                .filter_all(handles.clone(), annotation.store())
                 .test(),
-            Filter::BorrowedAnnotations(handles) => annotation
+            Filter::BorrowedAnnotations(handles, FilterMode::Any) => {
+                annotation.annotations().filter_any_byref(handles).test()
+            }
+            Filter::BorrowedAnnotations(handles, FilterMode::All) => annotation
                 .annotations()
-                .filter_multiple_byref(handles)
+                .filter_all(handles.deref().clone(), annotation.store())
                 .test(),
             Filter::AnnotationTarget(handle, recursive) => annotation
                 .annotations_in_targets(*recursive)
                 .filter_handle(*handle)
                 .test(),
-            Filter::Data(data, FilterMode::Any) => {
-                annotation.data().filter_multiple_byref(&data).test()
-            }
-            Filter::Data(data, FilterMode::All) => {
-                annotation.data().filter_multiple_byref(&data).count() >= data.len()
-            }
+            Filter::Data(data, FilterMode::Any) => annotation.data().filter_any_byref(&data).test(),
+            Filter::Data(data, FilterMode::All) => annotation
+                .data()
+                .filter_all(data.clone(), annotation.store())
+                .test(),
             Filter::BorrowedData(data, FilterMode::Any) => {
-                annotation.data().filter_multiple_byref(data).test()
+                annotation.data().filter_any_byref(data).test()
             }
-            Filter::BorrowedData(data, FilterMode::All) => {
-                annotation.data().filter_multiple_byref(data).count() >= data.len()
-            }
+            Filter::BorrowedData(data, FilterMode::All) => annotation
+                .data()
+                .filter_all(data.deref().clone(), annotation.store())
+                .test(),
             Filter::DataKey(set, key) => annotation.data().filter_key_handle(*set, *key).test(),
             Filter::DataKeyAndOperator(set, key, value) => annotation
                 .data()
@@ -839,6 +861,12 @@ where
                 }
             }
             Filter::TextSelectionOperator(operator) => annotation.related_text(*operator).test(),
+            Filter::AnnotationsIntersection(handles, FilterMode::All) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
+            }
+            Filter::BorrowedAnnotationsIntersection(handles, FilterMode::All) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
+            }
             _ => unreachable!(
                 "Filter {:?} not implemented for FilteredAnnotations",
                 self.filter

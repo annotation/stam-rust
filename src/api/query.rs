@@ -33,10 +33,9 @@ pub struct Query<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ResourceQualifier {
-    Any,
-    AsMetadata,
-    AsText,
+pub enum SelectionQualifier {
+    Normal,
+    Metadata,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -59,14 +58,14 @@ pub enum Constraint<'a> {
     Annotation(&'a str, AnnotationQualifier),
 
     /// ID of a TextResource
-    TextResource(&'a str, ResourceQualifier),
+    TextResource(&'a str, SelectionQualifier),
     DataKey {
         set: &'a str,
         key: &'a str,
     },
     DataKeyVariable(&'a str),
     DataVariable(&'a str),
-    ResourceVariable(&'a str, ResourceQualifier),
+    ResourceVariable(&'a str, SelectionQualifier),
     TextVariable(&'a str),
     TextRelation {
         var: &'a str,
@@ -183,16 +182,15 @@ impl<'a> Constraint<'a> {
                 querystring = querystring["RESOURCE".len()..].trim_start();
                 let (mut arg, remainder, _) = get_arg(querystring)?;
                 querystring = remainder;
-                let mut resourcequalifier = ResourceQualifier::Any;
+                let mut resourcequalifier = SelectionQualifier::Normal;
                 if arg == "AS" {
                     let (as_arg, remainder, _) = get_arg(querystring)?;
                     resourcequalifier = match as_arg {
-                        "METADATA" => ResourceQualifier::AsMetadata,
-                        "TEXT" => ResourceQualifier::AsText,
+                        "TARGET" => SelectionQualifier::Metadata,
                         _ => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
-                                    "Expected keyword METADATA or TEXT after RESOURCE AS, got '{}'",
+                                    "Expected keyword TARGET after RESOURCE AS, got '{}'",
                                     remainder.split(" ").next().unwrap_or("(empty string)")
                                 ),
                                 "",
@@ -727,29 +725,22 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Handle(Filter::Annotation(handle))) => {
                             Box::new(Some(store.annotation(handle).or_fail()?).into_iter())
                         }
-                        Some(&Constraint::TextResource(res, ResourceQualifier::Any)) => {
+                        Some(&Constraint::TextResource(res, SelectionQualifier::Normal)) => {
                             Box::new(store.resource(res).or_fail()?.annotations())
                         }
-                        Some(&Constraint::TextResource(res, ResourceQualifier::AsMetadata)) => {
+                        Some(&Constraint::TextResource(res, SelectionQualifier::Metadata)) => {
                             Box::new(store.resource(res).or_fail()?.annotations_as_metadata())
-                        }
-                        Some(&Constraint::TextResource(res, ResourceQualifier::AsText)) => {
-                            Box::new(store.resource(res).or_fail()?.annotations_on_text())
                         }
                         Some(&Constraint::Filter(Filter::TextResource(res))) => {
                             Box::new(store.resource(res).or_fail()?.annotations())
                         }
-                        Some(&Constraint::ResourceVariable(var, ResourceQualifier::Any)) => {
+                        Some(&Constraint::ResourceVariable(var, SelectionQualifier::Normal)) => {
                             let resource = self.resolve_resourcevar(var)?;
                             Box::new(resource.annotations())
                         }
-                        Some(&Constraint::ResourceVariable(var, ResourceQualifier::AsMetadata)) => {
+                        Some(&Constraint::ResourceVariable(var, SelectionQualifier::Metadata)) => {
                             let resource = self.resolve_resourcevar(var)?;
                             Box::new(resource.annotations_as_metadata())
-                        }
-                        Some(&Constraint::ResourceVariable(var, ResourceQualifier::AsText)) => {
-                            let resource = self.resolve_resourcevar(var)?;
-                            Box::new(resource.annotations_on_text())
                         }
                         Some(&Constraint::Annotation(annotation, AnnotationQualifier::None)) => {
                             Box::new(store.annotation(annotation).or_fail()?.annotations_in_targets(false))
@@ -850,30 +841,21 @@ impl<'store> QueryIter<'store> {
                 //secondary contraints for target ANNOTATION
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
-                        &Constraint::TextResource(res, ResourceQualifier::Any) => {
+                        &Constraint::TextResource(res, SelectionQualifier::Normal) => {
                             iter = Box::new(iter.filter_resource(&store.resource(res).or_fail()?));
                         }
-                        &Constraint::TextResource(res, ResourceQualifier::AsMetadata) => {
+                        &Constraint::TextResource(res, SelectionQualifier::Metadata) => {
                             iter = Box::new(
                                 iter.filter_resource_as_metadata(&store.resource(res).or_fail()?),
                             );
                         }
-                        &Constraint::TextResource(res, ResourceQualifier::AsText) => {
-                            iter = Box::new(
-                                iter.filter_resource_as_text(&store.resource(res).or_fail()?),
-                            );
-                        }
-                        &Constraint::ResourceVariable(varname, ResourceQualifier::Any) => {
+                        &Constraint::ResourceVariable(varname, SelectionQualifier::Normal) => {
                             let resource = self.resolve_resourcevar(varname)?;
                             iter = Box::new(iter.filter_resource(resource));
                         }
-                        &Constraint::ResourceVariable(varname, ResourceQualifier::AsMetadata) => {
+                        &Constraint::ResourceVariable(varname, SelectionQualifier::Metadata) => {
                             let resource = self.resolve_resourcevar(varname)?;
                             iter = Box::new(iter.filter_resource_as_metadata(resource));
-                        }
-                        &Constraint::ResourceVariable(varname, ResourceQualifier::AsText) => {
-                            let resource = self.resolve_resourcevar(varname)?;
-                            iter = Box::new(iter.filter_resource_as_text(resource));
                         }
                         &Constraint::DataKey { set, key } => {
                             let key = store.key(set, key).or_fail()?;
@@ -896,11 +878,10 @@ impl<'store> QueryIter<'store> {
                         }
                         &Constraint::TextVariable(var) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter = Box::new(
-                                    iter.filter_multiple(tsel.annotations().to_handles(store)),
-                                )
+                                iter =
+                                    Box::new(iter.filter_any(tsel.annotations().to_handles(store)))
                             } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                iter = Box::new(iter.filter_multiple(
+                                iter = Box::new(iter.filter_any(
                                     annotation.textselections().annotations().to_handles(store),
                                 ))
                             } else {
@@ -915,12 +896,12 @@ impl<'store> QueryIter<'store> {
                         }
                         &Constraint::TextRelation { var, operator } => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter = Box::new(iter.filter_multiple(
+                                iter = Box::new(iter.filter_any(
                                     tsel.related_text(operator).annotations().to_handles(store),
                                 ))
                             } else if let Ok(annotation) = self.resolve_annotationvar(var) {
                                 iter = Box::new(
-                                    iter.filter_multiple(
+                                    iter.filter_any(
                                         annotation
                                             .textselections()
                                             .related_text(operator)
@@ -1064,9 +1045,9 @@ impl<'store> QueryIter<'store> {
                         }
                         &Constraint::TextRelation { var, operator } => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter = Box::new(iter.filter_multiple(tsel.related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)))
+                                iter = Box::new(iter.filter_any(tsel.related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)))
                             } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                iter = Box::new(iter.filter_multiple(
+                                iter = Box::new(iter.filter_any(
                                     annotation.textselections().related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)
                                 ))
                             } else {
@@ -1130,7 +1111,7 @@ impl<'store> QueryIter<'store> {
                             ref operator,
                         } => {
                             iter = Box::new(
-                                iter.filter_multiple(
+                                iter.filter_any(
                                     store
                                         .find_data(set, key, operator.clone())
                                         .to_handles(store),

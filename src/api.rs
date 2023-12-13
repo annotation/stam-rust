@@ -330,7 +330,7 @@ where
     }
 }
 
-/// This internal trait is implemented for various forms of [`HandlesToItemIter<'store,T>`]
+/// This internal trait is implemented for various forms of [`FromHandles<'store,T>`]
 pub(crate) trait FullHandleToResultItem<'store, T>
 where
     T: Storable,
@@ -486,7 +486,7 @@ impl<I: Iterator> Iterator for ResultIter<I> {
     }
 }
 
-struct FilterAllIter<'store, T, I>
+pub struct FilterAllIter<'store, T, I>
 where
     T: Storable + 'store,
     I: Iterator<Item = ResultItem<'store, T>>,
@@ -494,13 +494,15 @@ where
     inner: I,
     filter: Handles<'store, T>,
     store: &'store AnnotationStore,
-    buffer: Option<FromHandles<'store, T, HandlesIter<'store, T>>>,
+    buffer: Option<Handles<'store, T>>,
+    cursor: usize,
 }
 
 impl<'store, T, I> FilterAllIter<'store, T, I>
 where
     T: Storable + 'store,
     I: Iterator<Item = ResultItem<'store, T>>,
+    I: ToHandles<'store, T>,
 {
     pub fn new(inner: I, filter: Handles<'store, T>, store: &'store AnnotationStore) -> Self {
         Self {
@@ -508,6 +510,7 @@ where
             filter,
             store,
             buffer: None,
+            cursor: 0,
         }
     }
 }
@@ -516,6 +519,7 @@ impl<'store, T, I> Iterator for FilterAllIter<'store, T, I>
 where
     T: Storable + 'store,
     I: Iterator<Item = ResultItem<'store, T>>,
+    Self: FullHandleToResultItem<'store, T>,
     I: ToHandles<'store, T>,
 {
     type Item = I::Item;
@@ -527,14 +531,20 @@ where
                 //all filter items must be in the buffer
                 return None;
             }
-            self.buffer = Some(buffer.items());
+            self.buffer = Some(buffer);
         }
         //drain the buffer
         let buffer = self
             .buffer
             .as_mut()
             .expect("buffer must exist at this point");
-        buffer.next()
+
+        if let Some(handle) = buffer.get(self.cursor) {
+            self.cursor += 1;
+            self.get_item(handle)
+        } else {
+            None
+        }
     }
 }
 
@@ -580,13 +590,14 @@ pub enum Filter<'store> {
     /// One of the annotations in the parameter are an annotation target. The boolean indicates to apply recursion or not
     AnnotationTargets(Handles<'store, Annotation>, bool, FilterMode),
 
+    /// Used only on annotations for filter_one()
     AnnotationIntersection(AnnotationHandle),
+
+    /// Used only on annotations for filter_all(), filter_any()
     AnnotationsIntersection(Handles<'store, Annotation>, FilterMode),
 
     MetaData(Handles<'store, AnnotationData>, FilterMode),
-    DataOnText(Handles<'store, AnnotationData>, FilterMode),
     AnnotationsAsMetadata(Handles<'store, Annotation>, FilterMode),
-    AnnotationsOnText(Handles<'store, Annotation>, FilterMode),
     AnnotationAsMetadata(AnnotationHandle),
     AnnotationOnText(AnnotationHandle),
 
@@ -595,6 +606,7 @@ pub enum Filter<'store> {
     BorrowedData(&'store Handles<'store, AnnotationData>, FilterMode),
     BorrowedText(&'store str, TextMode, &'store str), //the last string represents the delimiter for joining text
     BorrowedResources(&'store Handles<'store, TextResource>, FilterMode),
+    /// Used only on annotations for filter_all(), filter_any()
     BorrowedAnnotationsIntersection(&'store Handles<'store, Annotation>, FilterMode),
     BorrowedAnnotationTargets(&'store Handles<'store, Annotation>, bool, FilterMode),
 }

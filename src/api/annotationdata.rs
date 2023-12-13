@@ -24,6 +24,7 @@ use crate::store::*;
 use crate::Filter;
 use rayon::prelude::*;
 use std::collections::BTreeSet;
+use std::ops::Deref;
 
 impl<'store> FullHandle<AnnotationData> for ResultItem<'store, AnnotationData> {
     fn fullhandle(&self) -> <AnnotationData as Storable>::FullHandleType {
@@ -155,6 +156,23 @@ where
     }
 }
 
+impl<'store, I> FullHandleToResultItem<'store, AnnotationData>
+    for FilterAllIter<'store, AnnotationData, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationData>>,
+{
+    fn get_item(
+        &self,
+        handle: (AnnotationDataSetHandle, AnnotationDataHandle),
+    ) -> Option<ResultItem<'store, AnnotationData>> {
+        if let Some(dataset) = self.store.dataset(handle.0) {
+            dataset.annotationdata(handle.1)
+        } else {
+            None
+        }
+    }
+}
+
 pub trait DataIterator<'store>: Iterator<Item = ResultItem<'store, AnnotationData>>
 where
     Self: Sized,
@@ -237,18 +255,28 @@ where
         }
     }
 
-    fn filter_multiple(self, data: Data<'store>) -> FilteredData<'store, Self> {
+    fn filter_any(self, data: Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
             filter: Filter::Data(data, FilterMode::Any),
         }
     }
 
-    fn filter_multiple_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
+    fn filter_any_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
             filter: Filter::BorrowedData(data, FilterMode::Any),
         }
+    }
+
+    /// Constrain this iterator to filter on *all* of the mentioned data, that is.
+    /// If not all of the items in the parameter exist in the iterator, the iterator returns nothing.
+    fn filter_all(
+        self,
+        data: Data<'store>,
+        store: &'store AnnotationStore,
+    ) -> FilterAllIter<'store, AnnotationData, Self> {
+        FilterAllIter::new(self, data, store)
     }
 
     fn filter_one(self, data: &ResultItem<'store, AnnotationData>) -> FilteredData<'store, Self> {
@@ -312,8 +340,8 @@ where
             Filter::AnnotationData(set_handle, data_handle) => {
                 data.handle() == *data_handle && data.set().handle() == *set_handle
             }
-            Filter::Data(v, _) => v.contains(&data.fullhandle()),
-            Filter::BorrowedData(v, _) => v.contains(&data.fullhandle()),
+            Filter::Data(v, FilterMode::Any) => v.contains(&data.fullhandle()),
+            Filter::BorrowedData(v, FilterMode::Any) => v.contains(&data.fullhandle()),
             Filter::AnnotationDataSet(set_handle) => data.set().handle() == *set_handle,
             Filter::DataKey(set_handle, key_handle) => {
                 data.key().handle() == *key_handle && data.set().handle() == *set_handle
@@ -323,6 +351,26 @@ where
                 data.key().handle() == *key_handle
                     && data.set().handle() == *set_handle
                     && data.test(false, &operator)
+            }
+            Filter::Annotations(annotations, FilterMode::Any) => {
+                data.annotations().filter_any_byref(annotations).test()
+            }
+            Filter::Annotations(annotations, FilterMode::All) => data
+                .annotations()
+                .filter_all(annotations.clone(), data.rootstore())
+                .test(),
+            Filter::BorrowedAnnotations(annotations, FilterMode::Any) => {
+                data.annotations().filter_any_byref(annotations).test()
+            }
+            Filter::BorrowedAnnotations(annotations, FilterMode::All) => data
+                .annotations()
+                .filter_all(annotations.deref().clone(), data.rootstore())
+                .test(),
+            Filter::Data(_, FilterMode::All) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
+            }
+            Filter::BorrowedData(_, FilterMode::All) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
             }
             _ => unreachable!("Filter {:?} not implemented for FilteredData", self.filter),
         }

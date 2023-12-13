@@ -46,9 +46,7 @@ impl<'store> ResultItem<'store, TextResource> {
     }
 
     /// Returns an iterator over all annotations about any text in this resource i.e. Annotations with a TextSelector.
-    pub fn annotations_on_text(
-        &self,
-    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         if let Some(iter) = self.store().annotations_by_resource(self.handle()) {
             let mut data: Vec<_> = iter.collect();
             data.sort_unstable();
@@ -57,28 +55,6 @@ impl<'store> ResultItem<'store, TextResource> {
         } else {
             ResultIter::new_empty()
         }
-    }
-
-    /// Returns an iterator over all annotations that reference this resource, both annotations that can be considered metadata as well
-    /// annotations that reference a portion of the text.
-    /// Use `annotations_as_metadata()` or `annotations_on_text()` instead if you want to differentiate the two.
-    pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
-        let mut data: Vec<_> = self
-            .store()
-            .annotations_by_resource_metadata(self.handle())
-            .into_iter()
-            .flatten()
-            .copied()
-            .collect();
-        data.extend(
-            self.store()
-                .annotations_by_resource(self.handle())
-                .into_iter()
-                .flatten(),
-        );
-        data.sort_unstable();
-        data.dedup();
-        ResultIter::new_sorted(FromHandles::new(data.into_iter(), self.store()))
     }
 
     /// Returns an iterator over all text selections that are marked in this resource (i.e. there are one or more annotations on it).
@@ -182,6 +158,16 @@ where
     }
 }
 
+impl<'store, I> FullHandleToResultItem<'store, TextResource>
+    for FilterAllIter<'store, TextResource, I>
+where
+    I: Iterator<Item = ResultItem<'store, TextResource>>,
+{
+    fn get_item(&self, handle: TextResourceHandle) -> Option<ResultItem<'store, TextResource>> {
+        self.store.resource(handle)
+    }
+}
+
 pub trait ResourcesIterator<'store>: Iterator<Item = ResultItem<'store, TextResource>>
 where
     Self: Sized,
@@ -189,25 +175,6 @@ where
     fn parallel(self) -> rayon::vec::IntoIter<ResultItem<'store, TextResource>> {
         let annotations: Vec<_> = self.collect();
         annotations.into_par_iter()
-    }
-
-    /// Iterates over all the annotations for all resources in this iterator.
-    /// This returns both annotations that target the resource via a ResourceSelector or via a TextSelector.
-    ///
-    /// The iterator will be consumed and an extra buffer is allocated.
-    /// Annotations will be returned sorted chronologically and returned without duplicates
-    ///
-    /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
-    fn annotations(
-        self,
-    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
-        let mut annotations: Vec<_> = self
-            .map(|resource| resource.annotations())
-            .flatten()
-            .collect();
-        annotations.sort_unstable();
-        annotations.dedup();
-        ResultIter::new_sorted(annotations.into_iter())
     }
 
     /// Iterates over all the annotations for all resources in this iterator.
@@ -236,11 +203,11 @@ where
     /// Annotations will be returned sorted chronologically and returned without duplicates
     ///
     /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
-    fn annotations_on_text(
+    fn annotations(
         self,
     ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self
-            .map(|resource| resource.annotations_on_text())
+            .map(|resource| resource.annotations())
             .flatten()
             .collect();
         annotations.sort_unstable();
@@ -278,51 +245,55 @@ where
     }
 
     /// Constrain this iterator to filter on one of the mentioned resources
-    fn filter_multiple(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
+    fn filter_any(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Resources(resources),
+            filter: Filter::Resources(resources, FilterMode::Any),
         }
     }
 
     /// Constrain this iterator to filter on one of the mentioned resources
-    fn filter_multiple_byref(
+    fn filter_any_byref(
         self,
         resources: &'store Resources<'store>,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::BorrowedResources(resources),
+            filter: Filter::BorrowedResources(resources, FilterMode::Any),
         }
+    }
+
+    /// Constrain this iterator to filter on *all* of the mentioned resources.
+    /// If not all of the items in the parameter exist in the iterator, the iterator returns nothing.
+    fn filter_all(
+        self,
+        resources: Resources<'store>,
+        store: &'store AnnotationStore,
+    ) -> FilterAllIter<'store, TextResource, Self> {
+        FilterAllIter::new(self, resources, store)
     }
 
     /// Constrain the iterator to only return resources with metadata annotations (i.e. via a ResourceSelector) that have data that corresponds with any of the items in the passed data.
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations and data for each resource.
-    fn filter_metadata(self, data: Data<'store>) -> FilteredResources<'store, Self> {
+    fn filter_metadata(
+        self,
+        data: Data<'store>,
+        mode: FilterMode,
+    ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::MetaData(data, FilterMode::Any),
-        }
-    }
-
-    /// Constrain the iterator to only return resources with annotations on its text (i.e. via a TextSelector) that have data that corresponds with any of the items in the passed data.
-    ///
-    /// This filter is evaluated lazily, it will obtain and check the annotations and data for each resource.
-    fn filter_data_on_text(self, data: Data<'store>) -> FilteredResources<'store, Self> {
-        FilteredResources {
-            inner: self,
-            filter: Filter::DataOnText(data, FilterMode::Any),
+            filter: Filter::MetaData(data, mode),
         }
     }
 
     /// Constrain the iterator to only return resources with annotations that have data that corresponds with any of the items in the passed data.
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations and data for each resource.
-    fn filter_data(self, data: Data<'store>) -> FilteredResources<'store, Self> {
+    fn filter_data(self, data: Data<'store>, mode: FilterMode) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Data(data, FilterMode::Any),
+            filter: Filter::Data(data, mode),
         }
     }
 
@@ -332,10 +303,11 @@ where
     fn filter_annotations(
         self,
         annotations: Annotations<'store>,
+        mode: FilterMode,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Annotations(annotations),
+            filter: Filter::Annotations(annotations, mode),
         }
     }
 
@@ -345,10 +317,11 @@ where
     fn filter_annotations_byref(
         self,
         annotations: &'store Annotations<'store>,
+        mode: FilterMode,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::BorrowedAnnotations(annotations),
+            filter: Filter::BorrowedAnnotations(annotations, mode),
         }
     }
 
@@ -371,10 +344,11 @@ where
     fn filter_annotations_as_metadata(
         self,
         annotations: Annotations<'store>,
+        mode: FilterMode,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::AnnotationsAsMetadata(annotations),
+            filter: Filter::AnnotationsAsMetadata(annotations, mode),
         }
     }
 
@@ -388,32 +362,6 @@ where
         FilteredResources {
             inner: self,
             filter: Filter::AnnotationAsMetadata(annotation.handle()),
-        }
-    }
-
-    /// Constrain the iterator to only return resources with annotations (on text, i.e. via a TextSelector) that match the ones passed
-    ///
-    /// This filter is evaluated lazily, it will obtain and check the annotations for each resource
-    fn filter_annotations_on_text(
-        self,
-        annotations: Annotations<'store>,
-    ) -> FilteredResources<'store, Self> {
-        FilteredResources {
-            inner: self,
-            filter: Filter::AnnotationsOnText(annotations),
-        }
-    }
-
-    /// Constrain this iterator to resources with this specific annotation (on text, i.e. via a TextSelector)
-    ///
-    /// This filter is evaluated lazily, it will obtain and check the annotations for each resource.
-    fn filter_annotation_on_text(
-        self,
-        annotation: &ResultItem<Annotation>,
-    ) -> FilteredResources<'store, Self> {
-        FilteredResources {
-            inner: self,
-            filter: Filter::AnnotationOnText(annotation.handle()),
         }
     }
 
@@ -542,50 +490,39 @@ where
     fn test_filter(&self, resource: &ResultItem<'store, TextResource>) -> bool {
         match &self.filter {
             Filter::TextResource(handle) => resource.handle() == *handle,
-            Filter::Resources(handles) => handles.contains(&resource.fullhandle()),
-            Filter::BorrowedResources(handles) => handles.contains(&resource.fullhandle()),
-            Filter::MetaData(data, FilterMode::Any) => resource
-                .annotations_as_metadata()
-                .filter_data_byref(data)
-                .test(),
-            Filter::DataOnText(data, FilterMode::Any) => resource
-                .annotations_as_metadata()
-                .filter_data_byref(data)
-                .test(),
-            Filter::Data(data, FilterMode::Any) => {
-                resource.annotations().filter_data_byref(data).test()
+            Filter::Resources(handles, FilterMode::Any) => handles.contains(&resource.fullhandle()),
+            Filter::BorrowedResources(handles, FilterMode::Any) => {
+                handles.contains(&resource.fullhandle())
             }
-            Filter::BorrowedData(data, FilterMode::Any) => {
-                resource.annotations().filter_data_byref(data).test()
-            }
-            Filter::Annotations(annotations) => resource
-                .annotations()
-                .filter_annotations_byref(annotations)
+            Filter::MetaData(data, mode) => resource
+                .annotations_as_metadata()
+                .filter_data_byref(data, *mode)
                 .test(),
-            Filter::BorrowedAnnotations(annotations) => resource
+            Filter::Data(data, mode) => {
+                resource.annotations().filter_data_byref(data, *mode).test()
+            }
+            Filter::BorrowedData(data, mode) => {
+                resource.annotations().filter_data_byref(data, *mode).test()
+            }
+            Filter::Annotations(annotations, mode) => resource
                 .annotations()
-                .filter_annotations_byref(annotations)
+                .filter_annotations_byref(annotations, *mode)
+                .test(),
+            Filter::BorrowedAnnotations(annotations, mode) => resource
+                .annotations()
+                .filter_annotations_byref(annotations, *mode)
                 .test(),
             Filter::Annotation(annotation) => {
                 resource.annotations().filter_handle(*annotation).test()
             }
-            Filter::AnnotationsAsMetadata(annotations) => resource
+            Filter::AnnotationsAsMetadata(annotations, mode) => resource
                 .annotations_as_metadata()
-                .filter_annotations_byref(annotations)
+                .filter_annotations_byref(annotations, *mode)
                 .test(),
             Filter::AnnotationAsMetadata(annotation) => resource
                 .annotations_as_metadata()
                 .filter_handle(*annotation)
                 .test(),
-            Filter::AnnotationsOnText(annotations) => resource
-                .annotations_on_text()
-                .filter_annotations_byref(annotations)
-                .test(),
-            Filter::AnnotationOnText(annotation) => resource
-                .annotations_on_text()
-                .filter_handle(*annotation)
-                .test(),
-
             // these data filters act on ANNOTATIONS AS METADATA only:
             Filter::DataKey(set, key) => resource
                 .annotations_as_metadata()
