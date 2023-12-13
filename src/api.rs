@@ -330,6 +330,43 @@ where
     }
 }
 
+pub struct OwnedHandlesIter<'store, T>
+where
+    T: Storable,
+{
+    handles: Handles<'store, T>,
+    cursor: usize,
+}
+
+impl<'store, T> Iterator for OwnedHandlesIter<'store, T>
+where
+    T: Storable,
+{
+    type Item = T::FullHandleType;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(handle) = self.handles.get(self.cursor) {
+            self.cursor += 1;
+            Some(handle)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'store, T> IntoIterator for Handles<'store, T>
+where
+    T: Storable,
+{
+    type Item = T::FullHandleType;
+    type IntoIter = OwnedHandlesIter<'store, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        OwnedHandlesIter {
+            handles: self,
+            cursor: 0,
+        }
+    }
+}
+
 /// This internal trait is implemented for various forms of [`FromHandles<'store,T>`]
 pub(crate) trait FullHandleToResultItem<'store, T>
 where
@@ -338,7 +375,7 @@ where
     fn get_item(&self, handle: T::FullHandleType) -> Option<ResultItem<'store, T>>;
 }
 
-/// Iterater that turns iterators over full handles into [`ResultItem<T>`], holds a reference to the [`AnnotationStore`]
+/// Iterator that turns iterators over full handles into [`ResultItem<T>`], holds a reference to the [`AnnotationStore`]
 pub struct FromHandles<'store, T, I>
 where
     T: Storable + 'store,

@@ -637,6 +637,9 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Handle(Filter::TextResource(handle))) | Some(&Constraint::Filter(Filter::TextResource(handle)))=> {
                             Box::new(Some(store.resource(handle).or_fail()?).into_iter())
                         }
+                        Some(&Constraint::Handle(Filter::Resources(ref handles,_))) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
+                        }
                         Some(&Constraint::DataKey { set, key }) => Box::new(
                             store
                                 .key(set, key).or_fail()?
@@ -724,6 +727,9 @@ impl<'store> QueryIter<'store> {
                         }
                         Some(&Constraint::Handle(Filter::Annotation(handle))) => {
                             Box::new(Some(store.annotation(handle).or_fail()?).into_iter())
+                        }
+                        Some(&Constraint::Handle(Filter::Annotations(ref handles,_))) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
                         }
                         Some(&Constraint::TextResource(res, SelectionQualifier::Normal)) => {
                             Box::new(store.resource(res).or_fail()?.annotations())
@@ -947,6 +953,9 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Handle(Filter::TextSelection(resource, handle))) => {
                             Box::new(store.textselection(resource,handle).into_iter())
                         }
+                        Some(&Constraint::Handle(Filter::TextSelections(ref handles,_))) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).map(|x| x.as_resulttextselection()))
+                        }
                         Some(&Constraint::TextResource(res,_)) => {
                             Box::new(store.resource(res).or_fail()?.textselections())
                         }
@@ -1077,6 +1086,9 @@ impl<'store> QueryIter<'store> {
                     match constraintsiter.next() {
                         Some(&Constraint::Handle(Filter::AnnotationData(set, handle))) => {
                             Box::new(store.annotationdata(set, handle).into_iter())
+                        }
+                        Some(&Constraint::Handle(Filter::Data(ref handles, _))) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
                         }
                         Some(&Constraint::Annotation(id, _)) => {
                             Box::new(store.annotation(id).or_fail()?.data())
