@@ -92,17 +92,6 @@ impl<'store> ResultItem<'store, AnnotationData> {
         }
     }
 
-    /// Returns an iterator over all text resources that make use of this data via annotations (either as metadata or on text)
-    pub fn resources(
-        &self,
-    ) -> <BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter {
-        self.annotations()
-            .map(|annotation| annotation.resources())
-            .flatten()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-    }
-
     /// Returns an set of all text resources that make use of this data via annotations via a ResourceSelector (i.e. as metadata)
     pub fn resources_as_metadata(
         &self,
@@ -115,11 +104,11 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 
     /// Returns an iterator over all text resources that make use of this data via annotations via a TextSelector (i.e. on text)
-    pub fn resources_on_text(
+    pub fn resources(
         &self,
     ) -> <BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter {
         self.annotations()
-            .map(|annotation| annotation.resources_as_text())
+            .map(|annotation| annotation.resources())
             .flatten()
             .collect::<BTreeSet<_>>()
             .into_iter()
@@ -200,14 +189,14 @@ where
     ) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::AnnotationData(set, data),
+            filter: Filter::AnnotationData(set, data, SelectionQualifier::Normal),
         }
     }
 
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle()),
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -218,21 +207,21 @@ where
     ) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataKey(set, key),
+            filter: Filter::DataKey(set, key, SelectionQualifier::Normal),
         }
     }
 
     fn filter_set(self, set: &ResultItem<'store, AnnotationDataSet>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::AnnotationDataSet(set.handle()),
+            filter: Filter::AnnotationDataSet(set.handle(), SelectionQualifier::Normal),
         }
     }
 
     fn filter_set_handle(self, set: AnnotationDataSetHandle) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::AnnotationDataSet(set),
+            filter: Filter::AnnotationDataSet(set, SelectionQualifier::Normal),
         }
     }
 
@@ -244,28 +233,28 @@ where
     ) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
         }
     }
 
     fn filter_value(self, operator: DataOperator<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataOperator(operator),
+            filter: Filter::DataOperator(operator, SelectionQualifier::Normal),
         }
     }
 
     fn filter_any(self, data: Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::Data(data, FilterMode::Any),
+            filter: Filter::Data(data, FilterMode::Any, SelectionQualifier::Normal),
         }
     }
 
     fn filter_any_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::BorrowedData(data, FilterMode::Any),
+            filter: Filter::BorrowedData(data, FilterMode::Any, SelectionQualifier::Normal),
         }
     }
 
@@ -282,7 +271,11 @@ where
     fn filter_one(self, data: &ResultItem<'store, AnnotationData>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
+            filter: Filter::AnnotationData(
+                data.set().handle(),
+                data.handle(),
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -293,7 +286,25 @@ where
     ) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::AnnotationData(set, data),
+            filter: Filter::AnnotationData(set, data, SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_annotation(
+        self,
+        annotation: &ResultItem<'store, Annotation>,
+    ) -> FilteredData<'store, Self> {
+        self.filter_annotation_handle(annotation.handle())
+    }
+
+    fn filter_annotation_handle(self, annotation: AnnotationHandle) -> FilteredData<'store, Self> {
+        FilteredData {
+            inner: self,
+            filter: Filter::Annotation(
+                annotation,
+                SelectionQualifier::Normal,
+                AnnotationDepth::default(),
+            ),
         }
     }
 }
@@ -337,39 +348,48 @@ where
 {
     fn test_filter(&self, data: &ResultItem<'store, AnnotationData>) -> bool {
         match &self.filter {
-            Filter::AnnotationData(set_handle, data_handle) => {
+            Filter::AnnotationData(set_handle, data_handle, _) => {
                 data.handle() == *data_handle && data.set().handle() == *set_handle
             }
-            Filter::Data(v, FilterMode::Any) => v.contains(&data.fullhandle()),
-            Filter::BorrowedData(v, FilterMode::Any) => v.contains(&data.fullhandle()),
-            Filter::AnnotationDataSet(set_handle) => data.set().handle() == *set_handle,
-            Filter::DataKey(set_handle, key_handle) => {
+            Filter::Data(v, FilterMode::Any, _) => v.contains(&data.fullhandle()),
+            Filter::BorrowedData(v, FilterMode::Any, _) => v.contains(&data.fullhandle()),
+            Filter::AnnotationDataSet(set_handle, _) => data.set().handle() == *set_handle,
+            Filter::DataKey(set_handle, key_handle, _) => {
                 data.key().handle() == *key_handle && data.set().handle() == *set_handle
             }
-            Filter::DataOperator(operator) => data.test(false, &operator),
-            Filter::DataKeyAndOperator(set_handle, key_handle, operator) => {
+            Filter::DataOperator(operator, _) => data.test(false, &operator),
+            Filter::DataKeyAndOperator(set_handle, key_handle, operator, _) => {
                 data.key().handle() == *key_handle
                     && data.set().handle() == *set_handle
                     && data.test(false, &operator)
             }
-            Filter::Annotations(annotations, FilterMode::Any) => {
+            Filter::Annotations(annotations, FilterMode::Any, SelectionQualifier::Normal, _) => {
                 data.annotations().filter_any_byref(annotations).test()
             }
-            Filter::Annotations(annotations, FilterMode::All) => data
-                .annotations()
-                .filter_all(annotations.clone(), data.rootstore())
-                .test(),
-            Filter::BorrowedAnnotations(annotations, FilterMode::Any) => {
-                data.annotations().filter_any_byref(annotations).test()
+            Filter::Annotations(annotations, FilterMode::All, SelectionQualifier::Normal, _) => {
+                data.annotations()
+                    .filter_all(annotations.clone(), data.rootstore())
+                    .test()
             }
-            Filter::BorrowedAnnotations(annotations, FilterMode::All) => data
+            Filter::BorrowedAnnotations(
+                annotations,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                _,
+            ) => data.annotations().filter_any_byref(annotations).test(),
+            Filter::BorrowedAnnotations(
+                annotations,
+                FilterMode::All,
+                SelectionQualifier::Normal,
+                _,
+            ) => data
                 .annotations()
                 .filter_all(annotations.deref().clone(), data.rootstore())
                 .test(),
-            Filter::Data(_, FilterMode::All) => {
+            Filter::Data(_, FilterMode::All, _) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
             }
-            Filter::BorrowedData(_, FilterMode::All) => {
+            Filter::BorrowedData(_, FilterMode::All, _) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
             }
             _ => unreachable!("Filter {:?} not implemented for FilteredData", self.filter),

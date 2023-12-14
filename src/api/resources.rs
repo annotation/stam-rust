@@ -231,7 +231,7 @@ where
     fn filter_handle(self, handle: TextResourceHandle) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::TextResource(handle),
+            filter: Filter::TextResource(handle, SelectionQualifier::Normal),
         }
     }
 
@@ -240,7 +240,7 @@ where
     fn filter_one(self, resource: &ResultItem<TextResource>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::TextResource(resource.handle()),
+            filter: Filter::TextResource(resource.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -248,7 +248,7 @@ where
     fn filter_any(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Resources(resources, FilterMode::Any),
+            filter: Filter::Resources(resources, FilterMode::Any, SelectionQualifier::Normal),
         }
     }
 
@@ -259,7 +259,11 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::BorrowedResources(resources, FilterMode::Any),
+            filter: Filter::BorrowedResources(
+                resources,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -283,31 +287,40 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::MetaData(data, mode),
+            filter: Filter::Data(data, mode, SelectionQualifier::Metadata),
         }
     }
 
-    /// Constrain the iterator to only return resources with annotations that have data that corresponds with any of the items in the passed data.
+    /// Constrain the iterator to only return resources with annotations via a TextSelector that have data that corresponds with any of the items in the passed data.
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations and data for each resource.
-    fn filter_data(self, data: Data<'store>, mode: FilterMode) -> FilteredResources<'store, Self> {
+    fn filter_data_on_text(
+        self,
+        data: Data<'store>,
+        mode: FilterMode,
+    ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Data(data, mode),
+            filter: Filter::Data(data, mode, SelectionQualifier::Normal),
         }
     }
 
     /// Constrain the iterator to only return resources with annotations that match the ones passed
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations for each resource
-    fn filter_annotations(
+    fn filter_annotations_on_text(
         self,
         annotations: Annotations<'store>,
         mode: FilterMode,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Annotations(annotations, mode),
+            filter: Filter::Annotations(
+                annotations,
+                mode,
+                SelectionQualifier::Normal,
+                AnnotationDepth::default(),
+            ),
         }
     }
 
@@ -321,20 +334,29 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::BorrowedAnnotations(annotations, mode),
+            filter: Filter::BorrowedAnnotations(
+                annotations,
+                mode,
+                SelectionQualifier::Normal,
+                AnnotationDepth::default(),
+            ),
         }
     }
 
     /// Constrain this iterator to resources with this specific annotation
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations for each resource.
-    fn filter_annotation(
+    fn filter_annotation_on_text(
         self,
         annotation: &ResultItem<Annotation>,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Annotation(annotation.handle()),
+            filter: Filter::Annotation(
+                annotation.handle(),
+                SelectionQualifier::Normal,
+                AnnotationDepth::default(),
+            ),
         }
     }
 
@@ -348,7 +370,12 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::AnnotationsAsMetadata(annotations, mode),
+            filter: Filter::Annotations(
+                annotations,
+                mode,
+                SelectionQualifier::Metadata,
+                AnnotationDepth::default(),
+            ),
         }
     }
 
@@ -361,64 +388,132 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::AnnotationAsMetadata(annotation.handle()),
+            filter: Filter::Annotation(
+                annotation.handle(),
+                SelectionQualifier::Metadata,
+                AnnotationDepth::default(),
+            ),
         }
     }
 
-    /// Constrain the iterator to return only the resources that have this exact data item.
-    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
-    fn filter_annotationdata(
+    fn filter_annotationdata_on_text(
         self,
         data: &ResultItem<'store, AnnotationData>,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
+            filter: Filter::AnnotationData(
+                data.set().handle(),
+                data.handle(),
+                SelectionQualifier::Normal,
+            ),
+        }
+    }
+
+    /// Constrain the iterator to return only the resources that have this exact data item.
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_annotationdata_in_metadata(
+        self,
+        data: &ResultItem<'store, AnnotationData>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::AnnotationData(
+                data.set().handle(),
+                data.handle(),
+                SelectionQualifier::Metadata,
+            ),
         }
     }
 
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
-    fn filter_key_value(
+    fn filter_key_value_in_metadata(
         self,
         key: &ResultItem<'store, DataKey>,
         value: DataOperator<'store>,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKeyAndOperator(key.set().handle(), key.handle(), value),
+            filter: Filter::DataKeyAndOperator(
+                key.set().handle(),
+                key.handle(),
+                value,
+                SelectionQualifier::Metadata,
+            ),
         }
     }
 
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
-    fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredResources<'store, Self> {
+    fn filter_key_on_text(
+        self,
+        key: &ResultItem<'store, DataKey>,
+    ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle()),
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
         }
     }
 
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
-    fn filter_key_handle(
+    fn filter_key_in_metadata(
+        self,
+        key: &ResultItem<'store, DataKey>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataKey(
+                key.set().handle(),
+                key.handle(),
+                SelectionQualifier::Metadata,
+            ),
+        }
+    }
+
+    /// This filter considers only annotations on the text (i.e. via a TextSelector)
+    fn filter_key_handle_on_text(
         self,
         set: AnnotationDataSetHandle,
         key: DataKeyHandle,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKey(set, key),
+            filter: Filter::DataKey(set, key, SelectionQualifier::Normal),
         }
     }
 
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
-    fn filter_value(self, value: DataOperator<'store>) -> FilteredResources<'store, Self> {
+    fn filter_key_handle_in_metadata(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+    ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataOperator(value),
+            filter: Filter::DataKey(set, key, SelectionQualifier::Metadata),
+        }
+    }
+
+    /// This filter considers only annotations on the text (i.e. via a TextSelector)
+    fn filter_value_on_text(self, value: DataOperator<'store>) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataOperator(value, SelectionQualifier::Normal),
         }
     }
 
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
-    fn filter_key_handle_value(
+    fn filter_value_in_metadata(
+        self,
+        value: DataOperator<'store>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataOperator(value, SelectionQualifier::Metadata),
+        }
+    }
+
+    /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_key_handle_value_in_metadata(
         self,
         set: AnnotationDataSetHandle,
         key: DataKeyHandle,
@@ -426,29 +521,80 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata),
+        }
+    }
+
+    /// This filter considers only annotations on the text (i.e. via a TextSelector)
+    fn filter_key_handle_value_on_text(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+        value: DataOperator<'store>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
         }
     }
 
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
-    fn filter_set(
+    fn filter_set_in_metadata(
         self,
         set: &ResultItem<'store, AnnotationDataSet>,
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::AnnotationDataSet(set.handle()),
+            filter: Filter::AnnotationDataSet(set.handle(), SelectionQualifier::Metadata),
+        }
+    }
+
+    /// This filter considers only annotations on the text (i.e. via a TextSelector)
+    fn filter_set_on_text(
+        self,
+        set: &ResultItem<'store, AnnotationDataSet>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set.handle(), SelectionQualifier::Normal),
         }
     }
 
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
+    fn filter_set_handle_in_metadata(
+        self,
+        set: AnnotationDataSetHandle,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set, SelectionQualifier::Metadata),
+        }
+    }
+
+    /// This filter considers only annotations on the text (i.e. via a TextSelector)
     fn filter_set_handle(self, set: AnnotationDataSetHandle) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::AnnotationDataSet(set),
+            filter: Filter::AnnotationDataSet(set, SelectionQualifier::Normal),
         }
     }
 }
+
+/*
+//not needed yet
+pub(crate) trait ResourcesPrivIterator<'store>:
+    Iterator<Item = ResultItem<'store, TextResource>>
+where
+    Self: Sized,
+{
+    fn filter_custom(self, filter: Filter) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter,
+        }
+    }
+}
+*/
 
 impl<'store, I> ResourcesIterator<'store> for I
 where
@@ -489,62 +635,91 @@ where
 {
     fn test_filter(&self, resource: &ResultItem<'store, TextResource>) -> bool {
         match &self.filter {
-            Filter::TextResource(handle) => resource.handle() == *handle,
-            Filter::Resources(handles, FilterMode::Any) => handles.contains(&resource.fullhandle()),
-            Filter::BorrowedResources(handles, FilterMode::Any) => {
+            Filter::TextResource(handle, _) => resource.handle() == *handle,
+            Filter::Resources(handles, FilterMode::Any, _) => {
                 handles.contains(&resource.fullhandle())
             }
-            Filter::MetaData(data, mode) => resource
+            Filter::BorrowedResources(handles, FilterMode::Any, _) => {
+                handles.contains(&resource.fullhandle())
+            }
+            Filter::Data(data, mode, SelectionQualifier::Metadata) => resource
                 .annotations_as_metadata()
                 .filter_data_byref(data, *mode)
                 .test(),
-            Filter::Data(data, mode) => {
+            Filter::Data(data, mode, SelectionQualifier::Normal) => {
                 resource.annotations().filter_data_byref(data, *mode).test()
             }
-            Filter::BorrowedData(data, mode) => {
+            Filter::BorrowedData(data, mode, SelectionQualifier::Normal) => {
                 resource.annotations().filter_data_byref(data, *mode).test()
             }
-            Filter::Annotations(annotations, mode) => resource
+            Filter::BorrowedData(data, mode, SelectionQualifier::Metadata) => {
+                resource.annotations().filter_data_byref(data, *mode).test()
+            }
+            Filter::Annotations(annotations, mode, SelectionQualifier::Normal, _) => resource
                 .annotations()
                 .filter_annotations_byref(annotations, *mode)
                 .test(),
-            Filter::BorrowedAnnotations(annotations, mode) => resource
-                .annotations()
-                .filter_annotations_byref(annotations, *mode)
-                .test(),
-            Filter::Annotation(annotation) => {
-                resource.annotations().filter_handle(*annotation).test()
-            }
-            Filter::AnnotationsAsMetadata(annotations, mode) => resource
+            Filter::Annotations(annotations, mode, SelectionQualifier::Metadata, _) => resource
                 .annotations_as_metadata()
                 .filter_annotations_byref(annotations, *mode)
                 .test(),
-            Filter::AnnotationAsMetadata(annotation) => resource
+            Filter::BorrowedAnnotations(annotations, mode, SelectionQualifier::Normal, _) => {
+                resource
+                    .annotations()
+                    .filter_annotations_byref(annotations, *mode)
+                    .test()
+            }
+            Filter::Annotation(annotation, SelectionQualifier::Normal, _) => {
+                resource.annotations().filter_handle(*annotation).test()
+            }
+            Filter::Annotation(annotation, SelectionQualifier::Metadata, _) => resource
                 .annotations_as_metadata()
                 .filter_handle(*annotation)
                 .test(),
-            // these data filters act on ANNOTATIONS AS METADATA only:
-            Filter::DataKey(set, key) => resource
+            Filter::DataKey(set, key, SelectionQualifier::Normal) => resource
+                .annotations()
+                .data()
+                .filter_key_handle(*set, *key)
+                .test(),
+            Filter::DataKey(set, key, SelectionQualifier::Metadata) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_key_handle(*set, *key)
                 .test(),
-            Filter::DataKeyAndOperator(set, key, value) => resource
+            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal) => resource
+                .annotations()
+                .data()
+                .filter_key_handle_value(*set, *key, value.clone())
+                .test(),
+            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_key_handle_value(*set, *key, value.clone())
                 .test(),
-            Filter::DataOperator(value) => resource
+            Filter::DataOperator(value, SelectionQualifier::Normal) => resource
+                .annotations()
+                .data()
+                .filter_value(value.clone())
+                .test(),
+            Filter::DataOperator(value, SelectionQualifier::Metadata) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_value(value.clone())
                 .test(),
-            Filter::AnnotationDataSet(set) => resource
+            Filter::AnnotationDataSet(set, SelectionQualifier::Normal) => {
+                resource.annotations().data().filter_set_handle(*set).test()
+            }
+            Filter::AnnotationDataSet(set, SelectionQualifier::Metadata) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_set_handle(*set)
                 .test(),
-            Filter::AnnotationData(set, data) => resource
+            Filter::AnnotationData(set, data, SelectionQualifier::Normal) => resource
+                .annotations()
+                .data()
+                .filter_handle(*set, *data)
+                .test(),
+            Filter::AnnotationData(set, data, SelectionQualifier::Metadata) => resource
                 .annotations_as_metadata()
                 .data()
                 .filter_handle(*set, *data)

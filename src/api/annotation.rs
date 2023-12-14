@@ -38,16 +38,6 @@ impl<'store> FullHandle<Annotation> for ResultItem<'store, Annotation> {
 /// This is the implementation of the high-level API for [`Annotation`].
 impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
-    /// This returns no duplicates even if a resource is referenced multiple times.
-    /// If you want to distinguish between resources references as metadata and on text, use [`Self::resources_as_metadata()`] or [`Self::resources_on_text()` ] instead.
-    pub fn resources(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
-        let selector = self.as_ref().target();
-        let iter: TargetIter<TextResource> = TargetIter::new(selector.iter(self.store(), true));
-        //                                                                               ^--- recurse, targetiter prevents duplicates
-        ResultIter::new_sorted(FromHandles::new(iter, self.store()))
-    }
-
-    /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::ResourceSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
     pub fn resources_as_metadata(
@@ -71,9 +61,7 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Returns an iterator over the resources that this annotation (by its target selector) references.
     /// This returns only resources that are targeted via a [`Selector::TextSelector`] and
     /// returns no duplicates even if a resource is referenced multiple times.
-    pub fn resources_as_text(
-        &self,
-    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
+    pub fn resources(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, TextResource>>> {
         let collection: BTreeSet<TextResourceHandle> = self
             .as_ref()
             .target()
@@ -103,14 +91,16 @@ impl<'store> ResultItem<'store, Annotation> {
     /// Iterates over all the annotations this annotation targets (i.e. via a [`Selector::AnnotationSelector`])
     /// Use [`Self::annotations()`] if you want to find the annotations that reference this one (the reverse operation).
     ///
-    /// Results will be in textual order unless `recursive` is set or a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
+    /// Results will be in textual order unless `depth` is set to [`AnnotationDepth::Max`] or a [`Selector::DirectionalSelector`] is involved, then they are in the exact order as they were selected.
     pub fn annotations_in_targets(
         &self,
-        recursive: bool,
+        depth: AnnotationDepth,
     ) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let selector = self.as_ref().target();
-        let iter: TargetIter<Annotation> = TargetIter::new(selector.iter(self.store(), recursive));
-        let sorted = !recursive && selector.kind() != SelectorKind::DirectionalSelector;
+        let iter: TargetIter<Annotation> =
+            TargetIter::new(selector.iter(self.store(), depth == AnnotationDepth::Max));
+        let sorted =
+            depth == AnnotationDepth::One && selector.kind() != SelectorKind::DirectionalSelector;
         ResultIter::new(FromHandles::new(iter, self.store()), sorted)
     }
 
@@ -290,10 +280,10 @@ where
     /// Annotations will be returned sorted chronologically, without duplicates
     fn annotations_in_targets(
         self,
-        recursive: bool,
+        depth: AnnotationDepth,
     ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self
-            .map(|annotation| annotation.annotations_in_targets(recursive))
+            .map(|annotation| annotation.annotations_in_targets(depth))
             .flatten()
             .collect();
         annotations.sort_unstable();
@@ -332,17 +322,6 @@ where
         self.textselections().text()
     }
 
-    /// Maps annotations to resources, consuming the iterator. Will return in chronological order without duplicates.
-    fn resources(
-        self,
-    ) -> ResultIter<<BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter> {
-        let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources())
-            .flatten()
-            .collect();
-        ResultIter::new_sorted(collection.into_iter())
-    }
-
     /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a ResourceSelector (i.e. annotations as metadata)
     /// Will return in chronological order without duplicates.
     fn resources_as_metadata(
@@ -357,11 +336,11 @@ where
 
     /// Maps annotations to resources, consuming the iterator. This only covers resources targeted via a TextSelector (i.e. annotations on the text)
     /// Will return in chronological order without duplicates.
-    fn resources_on_text(
+    fn resources(
         self,
     ) -> ResultIter<<BTreeSet<ResultItem<'store, TextResource>> as IntoIterator>::IntoIter> {
         let collection: BTreeSet<_> = self
-            .map(|annotation| annotation.resources_as_text())
+            .map(|annotation| annotation.resources())
             .flatten()
             .collect();
         ResultIter::new_sorted(collection.into_iter())
@@ -395,7 +374,11 @@ where
     fn filter_one(self, annotation: &ResultItem<Annotation>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationIntersection(annotation.handle()),
+            filter: Filter::Annotation(
+                annotation.handle(),
+                SelectionQualifier::Normal,
+                AnnotationDepth::Zero,
+            ),
         }
     }
 
@@ -403,7 +386,12 @@ where
     fn filter_any(self, annotations: Annotations<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationsIntersection(annotations, FilterMode::Any),
+            filter: Filter::Annotations(
+                annotations,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                AnnotationDepth::Zero,
+            ),
         }
     }
 
@@ -424,16 +412,21 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedAnnotationsIntersection(annotations, FilterMode::Any),
+            filter: Filter::BorrowedAnnotations(
+                annotations,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                AnnotationDepth::Zero,
+            ),
         }
     }
 
-    /// Constrain this iterator to filter only a single annotation (by handle). This is a lower-level method, use [`Self::filter_annotation()`] instead.
+    /// Constrain this iterator to filter only a single annotation (by handle) amongst its own results. This is a lower-level method, use [`Self::filter_annotation()`] instead.
     /// This method can only be used once! Use [`Self::filter_annotations()`] to filter on multiple annotations (disjunction).
     fn filter_handle(self, handle: AnnotationHandle) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotation(handle),
+            filter: Filter::Annotation(handle, SelectionQualifier::Normal, AnnotationDepth::Zero),
         }
     }
 
@@ -446,7 +439,11 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotation(annotation.handle()),
+            filter: Filter::Annotation(
+                annotation.handle(),
+                SelectionQualifier::Normal,
+                AnnotationDepth::One, //MAYBE TODO: expose this as a parameter
+            ),
         }
     }
 
@@ -462,7 +459,12 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotations(annotations, mode),
+            filter: Filter::Annotations(
+                annotations,
+                mode,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ),
         }
     }
 
@@ -478,7 +480,12 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedAnnotations(annotations, mode),
+            filter: Filter::BorrowedAnnotations(
+                annotations,
+                mode,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ),
         }
     }
 
@@ -488,11 +495,11 @@ where
     fn filter_annotation_in_targets(
         self,
         annotation: &ResultItem<Annotation>,
-        recursive: bool,
+        depth: AnnotationDepth,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationTarget(annotation.handle(), recursive),
+            filter: Filter::Annotation(annotation.handle(), SelectionQualifier::Metadata, depth),
         }
     }
 
@@ -504,12 +511,12 @@ where
     fn filter_annotations_in_targets(
         self,
         annotations: Annotations<'store>,
-        recursive: bool,
+        depth: AnnotationDepth,
         mode: FilterMode,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationTargets(annotations, recursive, mode),
+            filter: Filter::Annotations(annotations, mode, SelectionQualifier::Metadata, depth),
         }
     }
 
@@ -521,12 +528,17 @@ where
     fn filter_annotations_in_targets_byref(
         self,
         annotations: &'store Annotations<'store>,
-        recursive: bool,
+        depth: AnnotationDepth,
         mode: FilterMode,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedAnnotationTargets(annotations, recursive, mode),
+            filter: Filter::BorrowedAnnotations(
+                annotations,
+                mode,
+                SelectionQualifier::Metadata,
+                depth,
+            ),
         }
     }
 
@@ -547,7 +559,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Data(data, mode),
+            filter: Filter::Data(data, mode, SelectionQualifier::Normal),
         }
     }
 
@@ -558,37 +570,29 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::BorrowedData(data, mode),
+            filter: Filter::BorrowedData(data, mode, SelectionQualifier::Normal),
         }
     }
 
+    /// Filter annotations that target text in the specified resource (i.e. via a TextSelector)
     fn filter_resource(
         self,
         resource: &ResultItem<'store, TextResource>,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::TextResource(resource.handle()),
+            filter: Filter::TextResource(resource.handle(), SelectionQualifier::Normal),
         }
     }
 
+    /// Filter annotations that target the specified resource as whole as metadata (i.e. via a ResourceSelector)
     fn filter_resource_as_metadata(
         self,
         resource: &ResultItem<'store, TextResource>,
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::TextResourceAsMetadata(resource.handle()),
-        }
-    }
-
-    fn filter_resource_as_text(
-        self,
-        resource: &ResultItem<'store, TextResource>,
-    ) -> FilteredAnnotations<'store, Self> {
-        FilteredAnnotations {
-            inner: self,
-            filter: Filter::TextResourceAsText(resource.handle()),
+            filter: Filter::TextResource(resource.handle(), SelectionQualifier::Metadata),
         }
     }
 
@@ -602,7 +606,11 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
+            filter: Filter::AnnotationData(
+                data.set().handle(),
+                data.handle(),
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -613,14 +621,19 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataKeyAndOperator(key.set().handle(), key.handle(), value),
+            filter: Filter::DataKeyAndOperator(
+                key.set().handle(),
+                key.handle(),
+                value,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle()),
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -631,14 +644,14 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataKey(set, key),
+            filter: Filter::DataKey(set, key, SelectionQualifier::Normal),
         }
     }
 
     fn filter_value(self, value: DataOperator<'store>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataOperator(value),
+            filter: Filter::DataOperator(value, SelectionQualifier::Normal),
         }
     }
 
@@ -650,7 +663,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
         }
     }
 
@@ -660,14 +673,14 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationDataSet(set.handle()),
+            filter: Filter::AnnotationDataSet(set.handle(), SelectionQualifier::Normal),
         }
     }
 
     fn filter_set_handle(self, set: AnnotationDataSetHandle) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::AnnotationDataSet(set),
+            filter: Filter::AnnotationDataSet(set, SelectionQualifier::Normal),
         }
     }
 
@@ -731,7 +744,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::TextSelectionOperator(operator),
+            filter: Filter::TextSelectionOperator(operator, SelectionQualifier::Normal),
         }
     }
 }
@@ -775,62 +788,87 @@ where
 {
     fn test_filter(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
         match &self.filter {
-            Filter::AnnotationIntersection(handle) => annotation.handle() == *handle,
-            Filter::AnnotationsIntersection(handles, FilterMode::Any) => {
-                handles.contains(&annotation.fullhandle())
+            Filter::Annotation(handle, SelectionQualifier::Normal, AnnotationDepth::Zero) => {
+                annotation.handle() == *handle
             }
-            Filter::BorrowedAnnotationsIntersection(handles, FilterMode::Any) => {
-                handles.contains(&annotation.fullhandle())
+            Filter::Annotations(
+                handles,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                AnnotationDepth::Zero,
+            ) => handles.contains(&annotation.fullhandle()),
+            Filter::BorrowedAnnotations(
+                handles,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                AnnotationDepth::Zero,
+            ) => handles.contains(&annotation.fullhandle()),
+            Filter::Annotation(handle, SelectionQualifier::Normal, AnnotationDepth::One) => {
+                annotation.annotations().filter_handle(*handle).test()
             }
-            Filter::Annotation(handle) => annotation.annotations().filter_handle(*handle).test(),
-            Filter::Annotations(handles, FilterMode::Any) => {
-                annotation.annotations().filter_any_byref(handles).test()
-            }
-            Filter::Annotations(handles, FilterMode::All) => annotation
+            Filter::Annotations(
+                handles,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ) => annotation.annotations().filter_any_byref(handles).test(),
+            Filter::Annotations(
+                handles,
+                FilterMode::All,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ) => annotation
                 .annotations()
                 .filter_all(handles.clone(), annotation.store())
                 .test(),
-            Filter::BorrowedAnnotations(handles, FilterMode::Any) => {
-                annotation.annotations().filter_any_byref(handles).test()
-            }
-            Filter::BorrowedAnnotations(handles, FilterMode::All) => annotation
+            Filter::BorrowedAnnotations(
+                handles,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ) => annotation.annotations().filter_any_byref(handles).test(),
+            Filter::BorrowedAnnotations(
+                handles,
+                FilterMode::All,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ) => annotation
                 .annotations()
                 .filter_all(handles.deref().clone(), annotation.store())
                 .test(),
-            Filter::AnnotationTarget(handle, recursive) => annotation
-                .annotations_in_targets(*recursive)
+            Filter::Annotation(handle, SelectionQualifier::Metadata, depth) => annotation
+                .annotations_in_targets(*depth)
                 .filter_handle(*handle)
                 .test(),
-            Filter::Data(data, FilterMode::Any) => annotation.data().filter_any_byref(&data).test(),
-            Filter::Data(data, FilterMode::All) => annotation
+            Filter::Data(data, FilterMode::Any, _) => {
+                annotation.data().filter_any_byref(&data).test()
+            }
+            Filter::Data(data, FilterMode::All, _) => annotation
                 .data()
                 .filter_all(data.clone(), annotation.store())
                 .test(),
-            Filter::BorrowedData(data, FilterMode::Any) => {
+            Filter::BorrowedData(data, FilterMode::Any, _) => {
                 annotation.data().filter_any_byref(data).test()
             }
-            Filter::BorrowedData(data, FilterMode::All) => annotation
+            Filter::BorrowedData(data, FilterMode::All, _) => annotation
                 .data()
                 .filter_all(data.deref().clone(), annotation.store())
                 .test(),
-            Filter::DataKey(set, key) => annotation.data().filter_key_handle(*set, *key).test(),
-            Filter::DataKeyAndOperator(set, key, value) => annotation
+            Filter::DataKey(set, key, _) => annotation.data().filter_key_handle(*set, *key).test(),
+            Filter::DataKeyAndOperator(set, key, value, _) => annotation
                 .data()
                 .filter_key_handle_value(*set, *key, value.clone())
                 .test(),
-            Filter::DataOperator(value) => annotation.data().filter_value(value.clone()).test(),
-            Filter::AnnotationDataSet(set) => annotation.data().filter_set_handle(*set).test(),
-            Filter::AnnotationData(set, data) => {
+            Filter::DataOperator(value, _) => annotation.data().filter_value(value.clone()).test(),
+            Filter::AnnotationDataSet(set, _) => annotation.data().filter_set_handle(*set).test(),
+            Filter::AnnotationData(set, data, _) => {
                 annotation.data().filter_handle(*set, *data).test()
             }
-            Filter::TextResource(res_handle) => annotation
+            Filter::TextResource(res_handle, SelectionQualifier::Normal) => annotation
                 .resources()
                 .any(|res| res.handle() == *res_handle),
-            Filter::TextResourceAsMetadata(res_handle) => annotation
+            Filter::TextResource(res_handle, SelectionQualifier::Metadata) => annotation
                 .resources_as_metadata()
-                .any(|res| res.handle() == *res_handle),
-            Filter::TextResourceAsText(res_handle) => annotation
-                .resources_as_text()
                 .any(|res| res.handle() == *res_handle),
             Filter::Text(reftext, textmode, delimiter) => {
                 if let Some(text) = annotation.text_simple() {
@@ -860,11 +898,11 @@ where
                     text == *reftext
                 }
             }
-            Filter::TextSelectionOperator(operator) => annotation.related_text(*operator).test(),
-            Filter::AnnotationsIntersection(handles, FilterMode::All) => {
+            Filter::TextSelectionOperator(operator, _) => annotation.related_text(*operator).test(),
+            Filter::Annotations(handles, FilterMode::All, _, AnnotationDepth::Zero) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
             }
-            Filter::BorrowedAnnotationsIntersection(handles, FilterMode::All) => {
+            Filter::BorrowedAnnotations(handles, FilterMode::All, _, AnnotationDepth::Zero) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
             }
             _ => unreachable!(

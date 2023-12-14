@@ -603,47 +603,64 @@ pub enum TextMode {
 /// This is a low-level data structure that holds filter states for the iterators [`FilteredAnnotations`], [`FilteredData`], [`FilteredResources`],[`FilteredTextSelections`].
 /// You likely do not need this and should use the appropriate `filter_*` methods on the iterators instead.
 /// The only possible use from outside is in programmatically setting direct query constraints via [`Constraint::Filter`].
-pub enum Filter<'store> {
-    AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
-    AnnotationDataSet(AnnotationDataSetHandle),
-    DataKey(AnnotationDataSetHandle, DataKeyHandle),
-    DataKeyAndOperator(AnnotationDataSetHandle, DataKeyHandle, DataOperator<'store>),
-    Annotation(AnnotationHandle),
-    TextResource(TextResourceHandle),
-    TextResourceAsMetadata(TextResourceHandle),
-    TextResourceAsText(TextResourceHandle),
-    DataOperator(DataOperator<'store>),
-    TextSelectionOperator(TextSelectionOperator),
-    Annotations(Handles<'store, Annotation>, FilterMode),
-    Resources(Handles<'store, TextResource>, FilterMode),
-    Data(Handles<'store, AnnotationData>, FilterMode),
+pub(crate) enum Filter<'store> {
+    AnnotationData(
+        AnnotationDataSetHandle,
+        AnnotationDataHandle,
+        SelectionQualifier,
+    ),
+    AnnotationDataSet(AnnotationDataSetHandle, SelectionQualifier),
+    DataKey(AnnotationDataSetHandle, DataKeyHandle, SelectionQualifier),
+    DataKeyAndOperator(
+        AnnotationDataSetHandle,
+        DataKeyHandle,
+        DataOperator<'store>,
+        SelectionQualifier,
+    ),
+
+    Annotation(AnnotationHandle, SelectionQualifier, AnnotationDepth),
+
+    TextResource(TextResourceHandle, SelectionQualifier),
+
+    DataOperator(DataOperator<'store>, SelectionQualifier),
+    TextSelectionOperator(TextSelectionOperator, SelectionQualifier),
+
+    Annotations(
+        Handles<'store, Annotation>,
+        FilterMode,
+        SelectionQualifier,
+        AnnotationDepth,
+    ),
+    Resources(
+        Handles<'store, TextResource>,
+        FilterMode,
+        SelectionQualifier,
+    ),
+    Data(
+        Handles<'store, AnnotationData>,
+        FilterMode,
+        SelectionQualifier,
+    ),
     Text(String, TextMode, &'store str), //the last string represents the delimiter for joining text
     TextSelection(TextResourceHandle, TextSelectionHandle),
     TextSelections(Handles<'store, TextSelection>, FilterMode),
 
-    /// The annotation in the parameter is an annotation target. The boolean indicates to apply recursion or not
-    AnnotationTarget(AnnotationHandle, bool),
-
-    /// One of the annotations in the parameter are an annotation target. The boolean indicates to apply recursion or not
-    AnnotationTargets(Handles<'store, Annotation>, bool, FilterMode),
-
-    /// Used only on annotations for filter_one()
-    AnnotationIntersection(AnnotationHandle),
-
-    /// Used only on annotations for filter_all(), filter_any()
-    AnnotationsIntersection(Handles<'store, Annotation>, FilterMode),
-
-    MetaData(Handles<'store, AnnotationData>, FilterMode),
-    AnnotationsAsMetadata(Handles<'store, Annotation>, FilterMode),
-    AnnotationAsMetadata(AnnotationHandle),
-    AnnotationOnText(AnnotationHandle),
-
     //these have the advantage the collections are external references
-    BorrowedAnnotations(&'store Annotations<'store>, FilterMode),
-    BorrowedData(&'store Handles<'store, AnnotationData>, FilterMode),
+    BorrowedAnnotations(
+        &'store Annotations<'store>,
+        FilterMode,
+        SelectionQualifier,
+        AnnotationDepth,
+    ),
+    BorrowedData(
+        &'store Handles<'store, AnnotationData>,
+        FilterMode,
+        SelectionQualifier,
+    ),
     BorrowedText(&'store str, TextMode, &'store str), //the last string represents the delimiter for joining text
-    BorrowedResources(&'store Handles<'store, TextResource>, FilterMode),
-    /// Used only on annotations for filter_all(), filter_any()
-    BorrowedAnnotationsIntersection(&'store Handles<'store, Annotation>, FilterMode),
-    BorrowedAnnotationTargets(&'store Handles<'store, Annotation>, bool, FilterMode),
+    BorrowedResources(
+        &'store Handles<'store, TextResource>,
+        FilterMode,
+        SelectionQualifier,
+    ),
 }

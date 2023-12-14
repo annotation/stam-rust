@@ -82,14 +82,6 @@ impl<'store> ResultItem<'store, DataKey> {
         }
     }
 
-    /// Returns an set of all text resources ([`crate::TextResource`]) that make use of this key via annotations (either as metadata or on text)
-    pub fn resources(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
-        self.annotations()
-            .map(|annotation| annotation.resources().map(|resource| resource.clone()))
-            .flatten()
-            .collect()
-    }
-
     /// Returns a set of all text resources ([`crate::TextResource`]) that make use of this key as metadata (via annotations with a ResourceSelector)
     pub fn resources_as_metadata(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
@@ -99,9 +91,9 @@ impl<'store> ResultItem<'store, DataKey> {
     }
 
     /// Returns a set of all text resources ([`crate::TextResource`]) that make use of this key via annotations via a ResourceSelector (i.e. as metadata)
-    pub fn resources_on_text(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
+    pub fn resources(&self) -> BTreeSet<ResultItem<'store, TextResource>> {
         self.annotations()
-            .map(|annotation| annotation.resources_as_text())
+            .map(|annotation| annotation.resources())
             .flatten()
             .collect()
     }

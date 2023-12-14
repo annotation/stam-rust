@@ -580,7 +580,12 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::Annotations(annotations, mode),
+            filter: Filter::Annotations(
+                annotations,
+                mode,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ),
         }
     }
 
@@ -594,7 +599,12 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::BorrowedAnnotations(annotations, mode),
+            filter: Filter::BorrowedAnnotations(
+                annotations,
+                mode,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ),
         }
     }
 
@@ -607,7 +617,11 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::Annotation(annotation.handle()),
+            filter: Filter::Annotation(
+                annotation.handle(),
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ),
         }
     }
 
@@ -667,7 +681,7 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::Data(data, mode),
+            filter: Filter::Data(data, mode, SelectionQualifier::Normal),
         }
     }
 
@@ -681,7 +695,7 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::BorrowedData(data, mode),
+            filter: Filter::BorrowedData(data, mode, SelectionQualifier::Normal),
         }
     }
 
@@ -692,7 +706,7 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::BorrowedData(data, mode),
+            filter: Filter::BorrowedData(data, mode, SelectionQualifier::Normal),
         }
     }
 
@@ -706,7 +720,11 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::AnnotationData(data.set().handle(), data.handle()),
+            filter: Filter::AnnotationData(
+                data.set().handle(),
+                data.handle(),
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -717,14 +735,19 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::DataKeyAndOperator(key.set().handle(), key.handle(), value),
+            filter: Filter::DataKeyAndOperator(
+                key.set().handle(),
+                key.handle(),
+                value,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle()),
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -735,14 +758,14 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::DataKey(set, key),
+            filter: Filter::DataKey(set, key, SelectionQualifier::Normal),
         }
     }
 
     fn filter_value(self, value: DataOperator<'store>) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::DataOperator(value),
+            filter: Filter::DataOperator(value, SelectionQualifier::Normal),
         }
     }
 
@@ -754,7 +777,7 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
         }
     }
 
@@ -764,7 +787,7 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::AnnotationDataSet(set.handle()),
+            filter: Filter::AnnotationDataSet(set.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -774,7 +797,7 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::AnnotationDataSet(set),
+            filter: Filter::AnnotationDataSet(set, SelectionQualifier::Normal),
         }
     }
 
@@ -784,7 +807,7 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::TextResource(resource.handle()),
+            filter: Filter::TextResource(resource.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -820,6 +843,19 @@ where
             inner: self,
             filter: Filter::TextSelection(resource, textselection),
         }
+    }
+
+    fn to_handles(&mut self, store: &'store AnnotationStore) -> Handles<'store, TextSelection> {
+        Handles::from_iter(
+            self.filter_map(|item| {
+                if let Some(handle) = item.handle() {
+                    Some((item.resource().handle(), handle))
+                } else {
+                    None
+                }
+            }),
+            store,
+        )
     }
 }
 
@@ -877,22 +913,26 @@ where
                 //TODO: implement (not here but in dedicated copy of FilterAllIter)
                 unreachable!("not implemented here")
             }
-            Filter::Resources(handles, FilterMode::Any) => {
+            Filter::Resources(handles, FilterMode::Any, _) => {
                 handles.contains(&textselection.resource().handle())
             }
-            Filter::Annotations(annotations, mode) => textselection
+            Filter::Annotations(annotations, mode, _, AnnotationDepth::One) => textselection
                 .annotations()
                 .filter_annotations_byref(annotations, *mode)
                 .test(),
-            Filter::BorrowedAnnotations(annotations, mode) => textselection
-                .annotations()
-                .filter_annotations_byref(annotations, *mode)
-                .test(),
-            Filter::Annotation(annotation) => textselection
-                .annotations()
-                .filter_handle(*annotation)
-                .test(),
-            Filter::TextResource(res_handle) => textselection.resource().handle() == *res_handle,
+            Filter::BorrowedAnnotations(annotations, mode, _, AnnotationDepth::One) => {
+                textselection
+                    .annotations()
+                    .filter_annotations_byref(annotations, *mode)
+                    .test()
+            }
+            Filter::Annotation(annotation, SelectionQualifier::Normal, AnnotationDepth::One) => {
+                textselection
+                    .annotations()
+                    .filter_handle(*annotation)
+                    .test()
+            }
+            Filter::TextResource(res_handle, _) => textselection.resource().handle() == *res_handle,
             Filter::Text(reftext, textmode, _) => {
                 let text = textselection.text();
                 if *textmode == TextMode::Lowercase {
@@ -909,36 +949,38 @@ where
                     text == *reftext
                 }
             }
-            Filter::TextSelectionOperator(operator) => textselection.related_text(*operator).test(),
-            Filter::Data(data, mode) => textselection
+            Filter::TextSelectionOperator(operator, _) => {
+                textselection.related_text(*operator).test()
+            }
+            Filter::Data(data, mode, _) => textselection
                 .annotations()
                 .filter_data_byref(data, *mode)
                 .test(),
-            Filter::BorrowedData(data, mode) => textselection
+            Filter::BorrowedData(data, mode, _) => textselection
                 .annotations()
                 .filter_data_byref(data, *mode)
                 .test(),
-            Filter::DataKey(set, key) => textselection
+            Filter::DataKey(set, key, _) => textselection
                 .annotations()
                 .data()
                 .filter_key_handle(*set, *key)
                 .test(),
-            Filter::DataKeyAndOperator(set, key, value) => textselection
+            Filter::DataKeyAndOperator(set, key, value, _) => textselection
                 .annotations()
                 .data()
                 .filter_key_handle_value(*set, *key, value.clone())
                 .test(),
-            Filter::DataOperator(value) => textselection
+            Filter::DataOperator(value, _) => textselection
                 .annotations()
                 .data()
                 .filter_value(value.clone())
                 .test(),
-            Filter::AnnotationDataSet(set) => textselection
+            Filter::AnnotationDataSet(set, _) => textselection
                 .annotations()
                 .data()
                 .filter_set_handle(*set)
                 .test(),
-            Filter::AnnotationData(set, data) => textselection
+            Filter::AnnotationData(set, data, _) => textselection
                 .annotations()
                 .data()
                 .filter_handle(*set, *data)

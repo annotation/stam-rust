@@ -4,6 +4,7 @@ use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::*;
+use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
 use crate::textselection::TextSelectionOperator;
@@ -30,24 +31,45 @@ pub struct Query<'a> {
     resulttype: Option<Type>,
     constraints: Vec<Constraint<'a>>,
     subquery: Option<Box<Query<'a>>>,
+
+    /// Context variables (external), if there are subqueries, they do NOT hold contextvars, only the root query does
+    /// This allows binding variables programmatically, using the bind_*var() methods
+    contextvars: HashMap<String, QueryResultItem<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// This is determines whether a query [`Constraint`] is applied normally or with a particular altered meaning.
 pub enum SelectionQualifier {
+    /// Normal behaviour, no changes.
     Normal,
+
+    /// This corresponds to the TARGET keyword in STAMQL. It indicates that the item in the constrain is an explicit annotation TARGET. It causes the logic flow to go over methods like annotations_as_metadata() instead of annotations()
     Metadata,
 }
 
+impl Default for SelectionQualifier {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-/// This qualifier is used for annotation constraints ([`Constraint::Annotation`] and
-/// [`Constraint::AnnotationVariable`]) on other annotations. It determines whether to look 'up' or
-/// 'down' in the annotation hierarchy tree formed by the AnnotationSelector.
-/// When the constraint is applied to other items than annotations, the qualifier has no impact.
-pub enum AnnotationQualifier {
-    None,
-    Recursive,
-    Target,
-    RecursiveTarget,
+/// This determines how far to look up or down in an annotation hierarchy tree formed by AnnotationSelectors.
+pub enum AnnotationDepth {
+    /// Apply only on the same level
+    Zero,
+
+    /// Minimal depth corresponds to a different of exactly one layer in the annotation hierarchy formed by AnnotationSelector (above or below) the current one.
+    One,
+
+    /// Maximal depth implies deep recursion accross all layers in an annotation hierarchy formed by AnnotationSelector
+    Max,
+}
+
+impl Default for AnnotationDepth {
+    fn default() -> Self {
+        Self::One
+    }
 }
 
 #[derive(Debug)]
@@ -55,16 +77,18 @@ pub enum Constraint<'a> {
     Id(&'a str),
 
     /// ID of the annotation
-    Annotation(&'a str, AnnotationQualifier),
+    Annotation(&'a str, SelectionQualifier, AnnotationDepth),
 
     /// ID of a TextResource
     TextResource(&'a str, SelectionQualifier),
     DataKey {
         set: &'a str,
         key: &'a str,
+        qualifier: SelectionQualifier,
     },
-    DataKeyVariable(&'a str),
-    DataVariable(&'a str),
+    KeyVariable(&'a str, SelectionQualifier),
+    DataVariable(&'a str, SelectionQualifier),
+
     ResourceVariable(&'a str, SelectionQualifier),
     TextVariable(&'a str),
     TextRelation {
@@ -75,12 +99,19 @@ pub enum Constraint<'a> {
         set: &'a str,
         key: &'a str,
         operator: DataOperator<'a>,
+        qualifier: SelectionQualifier,
     },
     Text(&'a str),
     /// Disjunction
     Union(Vec<Constraint<'a>>),
-    AnnotationVariable(&'a str, AnnotationQualifier),
+    AnnotationVariable(&'a str, SelectionQualifier, AnnotationDepth),
 
+    Annotations(Handles<'a, Annotation>, SelectionQualifier, AnnotationDepth),
+    Data(Handles<'a, AnnotationData>, SelectionQualifier),
+    Keys(Handles<'a, DataKey>, SelectionQualifier),
+    Resources(Handles<'a, TextResource>, SelectionQualifier),
+    TextSelections(Handles<'a, TextSelection>, SelectionQualifier),
+    /*
     /// Use a direct Filter as constraint.
     /// This is useful when constructing queryies
     /// programmatically, bypassing the query parser.
@@ -91,6 +122,7 @@ pub enum Constraint<'a> {
     /// programmatically, bypassing the query parser.
     /// Filters in this role are used analogous to the ID Constraint.
     Handle(Filter<'a>),
+    */
 }
 
 impl<'a> Constraint<'a> {
@@ -100,11 +132,18 @@ impl<'a> Constraint<'a> {
             Self::TextResource { .. } | Self::ResourceVariable(..) => "RESOURCE",
             Self::TextRelation { .. } => "RELATION",
             Self::KeyValue { .. } | Self::DataKey { .. } | Self::DataVariable(..) => "DATA",
-            Self::DataKeyVariable(..) => "KEY",
+            Self::KeyVariable(..) => "KEY",
             Self::Text { .. } | Self::TextVariable(..) => "TEXT",
             Self::AnnotationVariable(..) | Self::Annotation(..) => "ANNOTATION",
             Self::Union { .. } => "UNION",
 
+            //not real keywords that can be parsed, only for debug printing purposes:
+            Self::Annotations(..) => "ANNOTATIONS",
+            Self::Data(..) => "DATA",
+            Self::Resources(..) => "RESOURCES",
+            Self::TextSelections(..) => "TEXTSELECTIONS",
+            Self::Keys(..) => "KEYS",
+            /*
             //not real keywords that can be parsed, only for debug printing purposes:
             Self::Handle(..) => "HANDLE",
             Self::Filter(Filter::TextResource(..))
@@ -126,6 +165,7 @@ impl<'a> Constraint<'a> {
             | Self::Filter(Filter::BorrowedAnnotations(..)) => "FILTER(ANNOTATION)",
             Self::Filter(Filter::AnnotationDataSet(..)) => "FILTER(DATASET)",
             Self::Filter(_) => "FILTER(UNKNOWN)",
+            */
         }
     }
 
@@ -150,61 +190,23 @@ impl<'a> Constraint<'a> {
             Some("ANNOTATION") => {
                 querystring = querystring["ANNOTATION".len()..].trim_start();
                 let (mut arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, qualifier, depth) = parse_qualifiers(arg, remainder)?;
                 querystring = remainder;
-                let mut annotationqualifier = AnnotationQualifier::None;
-                if arg == "AS" {
-                    let (as_arg, remainder, _) = get_arg(querystring)?;
-                    annotationqualifier = match as_arg {
-                        "TARGET" => AnnotationQualifier::Target,
-                        "RECURSIVE" => AnnotationQualifier::Recursive,
-                        "RECURSIVETARGET" => AnnotationQualifier::RecursiveTarget,
-                        _ => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Expected keyword TARGET, RECURSIVE or RECURSIVETARGET after ANNOTATION AS, got '{}'",
-                                    remainder.split(" ").next().unwrap_or("(empty string)")
-                                ),
-                                "",
-                            ))
-                        }
-                    };
-                    let (newarg, remainder, _) = get_arg(querystring)?;
-                    arg = newarg;
-                    querystring = remainder;
-                }
                 if arg.starts_with("?") && arg.len() > 1 {
-                    Self::AnnotationVariable(&arg[1..], annotationqualifier)
+                    Self::AnnotationVariable(&arg[1..], qualifier, depth)
                 } else {
-                    Self::Annotation(arg, annotationqualifier)
+                    Self::Annotation(arg, qualifier, depth)
                 }
             }
             Some("RESOURCE") => {
                 querystring = querystring["RESOURCE".len()..].trim_start();
                 let (mut arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
                 querystring = remainder;
-                let mut resourcequalifier = SelectionQualifier::Normal;
-                if arg == "AS" {
-                    let (as_arg, remainder, _) = get_arg(querystring)?;
-                    resourcequalifier = match as_arg {
-                        "TARGET" => SelectionQualifier::Metadata,
-                        _ => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Expected keyword TARGET after RESOURCE AS, got '{}'",
-                                    remainder.split(" ").next().unwrap_or("(empty string)")
-                                ),
-                                "",
-                            ))
-                        }
-                    };
-                    let (newarg, remainder, _) = get_arg(querystring)?;
-                    arg = newarg;
-                    querystring = remainder;
-                }
                 if arg.starts_with("?") && arg.len() > 1 {
-                    Self::ResourceVariable(&arg[1..], resourcequalifier)
+                    Self::ResourceVariable(&arg[1..], qualifier)
                 } else {
-                    Self::TextResource(arg, resourcequalifier)
+                    Self::TextResource(arg, qualifier)
                 }
             }
             Some("RELATION") => {
@@ -250,16 +252,21 @@ impl<'a> Constraint<'a> {
             }
             Some("DATA") => {
                 querystring = querystring["DATA".len()..].trim_start();
-                if querystring.starts_with("?") {
-                    let (var, remainder, _) = get_arg(querystring)?;
-                    querystring = remainder;
-                    Self::DataVariable(&var[1..])
+                let (mut arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
+                querystring = remainder;
+                if arg.starts_with("?") {
+                    Self::DataVariable(&arg[1..], qualifier)
                 } else {
-                    let (set, remainder, _) = get_arg(querystring)?;
+                    let set = arg;
                     let (key, remainder, _) = get_arg(remainder)?;
                     querystring = remainder;
                     if querystring.is_empty() {
-                        Self::DataKey { set, key }
+                        Self::DataKey {
+                            set,
+                            key,
+                            qualifier,
+                        }
                     } else {
                         let (opstr, remainder, _) = get_arg(querystring)?;
                         let (value, remainder, valuetype) = get_arg(remainder)?;
@@ -316,21 +323,31 @@ impl<'a> Constraint<'a> {
                             }
                             _ => return Err(StamError::QuerySyntaxError(format!("Invalid combination of operator and value: '{}' and '{}', type {:?}", opstr,value,valuetype), ""))
                         };
-                        Self::KeyValue { set, key, operator }
+                        Self::KeyValue {
+                            set,
+                            key,
+                            operator,
+                            qualifier,
+                        }
                     }
                 }
             }
             Some("KEY") => {
                 querystring = querystring["KEY".len()..].trim_start();
                 let (arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
                 if arg.starts_with("?") && arg.len() > 1 {
                     querystring = remainder;
-                    Self::DataKeyVariable(&arg[1..])
+                    Self::KeyVariable(&arg[1..], qualifier)
                 } else {
                     let (set, remainder, _) = get_arg(querystring)?;
                     let (key, remainder, _) = get_arg(remainder)?;
                     querystring = remainder;
-                    Self::DataKey { set, key }
+                    Self::DataKey {
+                        set,
+                        key,
+                        qualifier,
+                    }
                 }
             }
             Some(x) => {
@@ -358,6 +375,7 @@ impl<'a> Query<'a> {
             resulttype,
             constraints: Vec::new(),
             subquery: None,
+            contextvars: HashMap::new(),
         }
     }
 
@@ -505,9 +523,82 @@ impl<'a> Query<'a> {
                 resulttype,
                 constraints,
                 subquery,
+                contextvars: HashMap::new(),
             },
             querystring,
         ))
+    }
+
+    pub fn with_annotationvar(
+        mut self,
+        name: impl Into<String>,
+        annotation: ResultItem<'a, Annotation>,
+    ) -> Self {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::Annotation(annotation));
+        self
+    }
+
+    pub fn bind_annotationvar(
+        &mut self,
+        name: impl Into<String>,
+        annotation: ResultItem<'a, Annotation>,
+    ) {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::Annotation(annotation));
+    }
+
+    pub fn with_datavar(
+        mut self,
+        name: impl Into<String>,
+        data: ResultItem<'a, AnnotationData>,
+    ) -> Self {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::AnnotationData(data));
+        self
+    }
+
+    pub fn bind_datavar(&mut self, name: impl Into<String>, data: ResultItem<'a, AnnotationData>) {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::AnnotationData(data));
+    }
+
+    pub fn with_textvar(
+        mut self,
+        name: impl Into<String>,
+        textselection: ResultTextSelection<'a>,
+    ) -> Self {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::TextSelection(textselection));
+        self
+    }
+
+    pub fn bind_textvar(
+        &mut self,
+        name: impl Into<String>,
+        textselection: ResultTextSelection<'a>,
+    ) {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::TextSelection(textselection));
+    }
+
+    pub fn with_resourcevar(
+        mut self,
+        name: impl Into<String>,
+        resource: ResultItem<'a, TextResource>,
+    ) -> Self {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::TextResource(resource));
+        self
+    }
+
+    pub fn bind_resourcevar(
+        &mut self,
+        name: impl Into<String>,
+        resource: ResultItem<'a, TextResource>,
+    ) {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::TextResource(resource));
     }
 }
 
@@ -530,6 +621,7 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
 pub enum QueryResultIter<'store> {
     Annotations(Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>),
     Data(Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>),
+    Keys(Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>),
     TextSelections(Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>),
     Resources(Box<dyn Iterator<Item = ResultItem<'store, TextResource>> + 'store>),
 }
@@ -540,6 +632,7 @@ pub enum QueryResultItem<'store> {
     TextSelection(ResultTextSelection<'store>),
     Annotation(ResultItem<'store, Annotation>),
     TextResource(ResultItem<'store, TextResource>),
+    DataKey(ResultItem<'store, DataKey>),
     AnnotationData(ResultItem<'store, AnnotationData>),
 }
 
@@ -634,43 +727,53 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Id(id)) | Some(&Constraint::TextResource(id,_)) => {
                             Box::new(Some(store.resource(id).or_fail()?).into_iter())
                         }
-                        Some(&Constraint::Handle(Filter::TextResource(handle))) | Some(&Constraint::Filter(Filter::TextResource(handle)))=> {
-                            Box::new(Some(store.resource(handle).or_fail()?).into_iter())
-                        }
-                        Some(&Constraint::Handle(Filter::Resources(ref handles,_))) => {
+                        Some(&Constraint::Resources(ref handles,_)) => {
                             Box::new(FromHandles::new(handles.clone().into_iter(), store))
                         }
-                        Some(&Constraint::DataKey { set, key }) => Box::new(
+                        Some(&Constraint::DataKey { set, key, qualifier: SelectionQualifier::Normal }) => Box::new(
                             store
                                 .key(set, key).or_fail()?
                                 .annotations()
                                 .resources(),
                         ),
-                        Some(&Constraint::Filter(Filter::DataKey(set, key))) => {
-                            Box::new(store.key(set, key).or_fail()?.annotations().resources())
-                        }
-                        Some(&Constraint::DataVariable(var)) => {
+                        //KEY AS METADATA
+                        Some(&Constraint::DataKey { set, key, qualifier: SelectionQualifier::Metadata }) => Box::new(
+                            store
+                                .key(set, key).or_fail()?
+                                .annotations()
+                                .resources_as_metadata(),
+                        ),
+                        Some(&Constraint::DataVariable(var, SelectionQualifier::Normal)) => {
                             let data = self.resolve_datavar(var)?;
                             Box::new(data.annotations().resources())
+                        }
+                        //DATA AS METADATA
+                        Some(&Constraint::DataVariable(var, SelectionQualifier::Metadata)) => {
+                            let data = self.resolve_datavar(var)?;
+                            Box::new(data.annotations().resources_as_metadata())
                         }
                         Some(&Constraint::KeyValue {
                             set,
                             key,
                             ref operator,
+                            qualifier: SelectionQualifier::Normal,
                         }) => Box::new(
                             store
                                 .find_data(set, key, operator.clone())
                                 .annotations()
                                 .resources(),
                         ),
-                        Some(&Constraint::Filter(Filter::DataKeyAndOperator(set, key, ref operator))) => {
-                            Box::new(
+                        Some(&Constraint::KeyValue {
+                            set,
+                            key,
+                            ref operator,
+                            qualifier: SelectionQualifier::Metadata,
+                        }) => Box::new(
                             store
                                 .find_data(set, key, operator.clone())
                                 .annotations()
-                                .resources(),
-                            )
-                        }
+                                .resources_as_metadata(),
+                        ),
                         Some(c) => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -685,26 +788,39 @@ impl<'store> QueryIter<'store> {
                 //secondary contraints for target RESOURCE
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
-                        &Constraint::DataKey { set, key } => {
+                        &Constraint::DataKey { set, key, qualifier: SelectionQualifier::Metadata } => {
                             let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key(&key));
+                            iter = Box::new(iter.filter_key_in_metadata(&key));
                         }
-                        &Constraint::Filter(Filter::DataKey(set, key)) => {
+                        &Constraint::DataKey { set, key, qualifier: SelectionQualifier::Normal } => {
                             let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key(&key));
+                            iter = Box::new(iter.filter_key_on_text(&key));
+                        }
+                        &Constraint::KeyVariable(var, SelectionQualifier::Metadata) => {
+                            let key = self.resolve_keyvar(var)?;
+                            iter = Box::new(iter.filter_key_in_metadata(&key));
+                        }
+                        &Constraint::KeyVariable(var, SelectionQualifier::Normal) => {
+                            let key = self.resolve_keyvar(var)?;
+                            iter = Box::new(iter.filter_key_on_text(&key));
+                        }
+                        &Constraint::DataVariable(var, SelectionQualifier::Metadata) => {
+                            let data = self.resolve_datavar(var)?;
+                            iter = Box::new(iter.filter_annotationdata_in_metadata(&data));
+                        }
+                        &Constraint::DataVariable(var, SelectionQualifier::Normal) => {
+                            let data = self.resolve_datavar(var)?;
+                            iter = Box::new(iter.filter_annotationdata_on_text(&data));
                         }
                         &Constraint::KeyValue {
                             set,
                             key,
                             ref operator,
+                            qualifier: SelectionQualifier::Metadata,
                         } => {
                             let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key_value(&key, operator.clone()));
+                            iter = Box::new(iter.filter_key_value_in_metadata(&key, operator.clone()));
                         }
-                        &Constraint::Filter(Filter::DataKeyAndOperator(set, key, ref operator)) => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key_value(&key, operator.clone()));
-                        },
                         c => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -725,20 +841,19 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Id(id)) => {
                             Box::new(Some(store.annotation(id).or_fail()?).into_iter())
                         }
-                        Some(&Constraint::Handle(Filter::Annotation(handle))) => {
-                            Box::new(Some(store.annotation(handle).or_fail()?).into_iter())
+                        Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Normal, depth)) => {
+                            let annotation = self.resolve_annotationvar(var)?;
+                            Box::new(annotation.annotations_in_targets(depth))
                         }
-                        Some(&Constraint::Handle(Filter::Annotations(ref handles,_))) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
+                        Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Metadata, AnnotationDepth::One)) => { //TODO: handle Recursive variant?
+                            let annotation = self.resolve_annotationvar(var)?;
+                            Box::new(annotation.annotations())
                         }
                         Some(&Constraint::TextResource(res, SelectionQualifier::Normal)) => {
                             Box::new(store.resource(res).or_fail()?.annotations())
                         }
                         Some(&Constraint::TextResource(res, SelectionQualifier::Metadata)) => {
                             Box::new(store.resource(res).or_fail()?.annotations_as_metadata())
-                        }
-                        Some(&Constraint::Filter(Filter::TextResource(res))) => {
-                            Box::new(store.resource(res).or_fail()?.annotations())
                         }
                         Some(&Constraint::ResourceVariable(var, SelectionQualifier::Normal)) => {
                             let resource = self.resolve_resourcevar(var)?;
@@ -748,40 +863,16 @@ impl<'store> QueryIter<'store> {
                             let resource = self.resolve_resourcevar(var)?;
                             Box::new(resource.annotations_as_metadata())
                         }
-                        Some(&Constraint::Annotation(annotation, AnnotationQualifier::None)) => {
-                            Box::new(store.annotation(annotation).or_fail()?.annotations_in_targets(false))
+                        Some(&Constraint::Annotation(annotation, SelectionQualifier::Normal, depth)) => {
+                            Box::new(store.annotation(annotation).or_fail()?.annotations_in_targets(depth))
                         }
-                        Some(&Constraint::Annotation(annotation, AnnotationQualifier::Recursive)) => {
-                            Box::new(store.annotation(annotation).or_fail()?.annotations_in_targets(true))
-                        }
-                        Some(&Constraint::Filter(Filter::Annotation(annotation))) => {
-                            Box::new(store.annotation(annotation).or_fail()?.annotations_in_targets(false))
-                        }
-                        Some(&Constraint::Filter(Filter::AnnotationTarget(annotation, recursive))) => { //TODO: recursive variant?
+                        Some(&Constraint::Annotation(annotation, SelectionQualifier::Metadata, AnnotationDepth::One)) => {
                             Box::new(store.annotation(annotation).or_fail()?.annotations())
                         }
-                        Some(&Constraint::AnnotationVariable(var, AnnotationQualifier::None)) => {
-                            let annotation = self.resolve_annotationvar(var)?;
-                            Box::new(annotation.annotations_in_targets(false))
-                        }
-                        Some(&Constraint::AnnotationVariable(var, AnnotationQualifier::Recursive)) => {
-                            let annotation = self.resolve_annotationvar(var)?;
-                            Box::new(annotation.annotations_in_targets(true))
-                        }
-                        Some(&Constraint::AnnotationVariable(var, AnnotationQualifier::Target)) => { //TODO: Recursive variant?
-                            let annotation = self.resolve_annotationvar(var)?;
-                            Box::new(annotation.annotations())
-                        }
-                        Some(&Constraint::DataKey { set, key }) => {
+                        Some(&Constraint::DataKey { set, key, qualifier: SelectionQualifier::Normal }) => {
                             Box::new(store.key(set, key).or_fail()?.annotations())
                         }
-                        Some(&Constraint::Filter(Filter::DataKey(set, key))) => {
-                            Box::new(store.key(set, key).or_fail()?.annotations())
-                        }
-                        Some(&Constraint::Filter(Filter::AnnotationData(set, key))) => {
-                            Box::new(store.annotationdata(set, key).or_fail()?.annotations())
-                        }
-                        Some(&Constraint::DataVariable(var)) => {
+                        Some(&Constraint::DataVariable(var, SelectionQualifier::Normal)) => {
                             let data = self.resolve_datavar(var)?;
                             Box::new(data.annotations())
                         }
@@ -789,12 +880,9 @@ impl<'store> QueryIter<'store> {
                             set,
                             key,
                             ref operator,
+                            qualifier: _,
                         }) => Box::new(store.find_data(set, key, operator.clone()).annotations()),
-                        Some(&Constraint::Filter(Filter::DataKeyAndOperator(set, key, ref operator))) => {
-                            Box::new(store.find_data(set, key, operator.clone()).annotations())
-                        }
-                        Some(&Constraint::Text(text))
-                        | Some(&Constraint::Filter(Filter::BorrowedText(text, ..))) => {
+                        Some(&Constraint::Text(text)) => {
                             Box::new(store.find_text(text).annotations())
                         }
                         Some(&Constraint::TextVariable(var)) => {
@@ -863,18 +951,43 @@ impl<'store> QueryIter<'store> {
                             let resource = self.resolve_resourcevar(varname)?;
                             iter = Box::new(iter.filter_resource_as_metadata(resource));
                         }
-                        &Constraint::DataKey { set, key } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key(&key));
+                        &Constraint::AnnotationVariable(
+                            var,
+                            SelectionQualifier::Normal,
+                            AnnotationDepth::One,
+                        ) => {
+                            let annotation = self.resolve_annotationvar(var)?;
+                            iter = Box::new(iter.filter_annotation(annotation));
                         }
-                        &Constraint::DataVariable(varname) => {
+                        &Constraint::AnnotationVariable(var, _, AnnotationDepth::Zero) => {
+                            let annotation = self.resolve_annotationvar(var)?;
+                            iter = Box::new(iter.filter_one(annotation));
+                        }
+                        &Constraint::AnnotationVariable(
+                            var,
+                            SelectionQualifier::Metadata,
+                            depth,
+                        ) => {
+                            let annotation = self.resolve_annotationvar(var)?;
+                            iter = Box::new(iter.filter_annotation_in_targets(annotation, depth));
+                        }
+                        &Constraint::DataVariable(varname, SelectionQualifier::Normal) => {
                             let data = self.resolve_datavar(varname)?;
                             iter = Box::new(iter.filter_annotationdata(data));
+                        }
+                        &Constraint::DataKey {
+                            set,
+                            key,
+                            qualifier: SelectionQualifier::Normal,
+                        } => {
+                            let key = store.key(set, key).or_fail()?;
+                            iter = Box::new(iter.filter_key(&key));
                         }
                         &Constraint::KeyValue {
                             set,
                             key,
                             ref operator,
+                            qualifier: SelectionQualifier::Normal,
                         } => {
                             let key = store.key(set, key).or_fail()?;
                             iter = Box::new(iter.filter_key_value(&key, operator.clone()));
@@ -925,13 +1038,28 @@ impl<'store> QueryIter<'store> {
                                 ));
                             }
                         }
-                        &Constraint::Annotation(annotation, AnnotationQualifier::None) => {
+                        &Constraint::Annotation(
+                            annotation,
+                            SelectionQualifier::Normal,
+                            AnnotationDepth::One,
+                        ) => {
+                            iter = Box::new(
+                                iter.filter_annotation(&store.annotation(annotation).or_fail()?),
+                            );
+                        }
+                        &Constraint::Annotation(annotation, _, AnnotationDepth::Zero) => {
                             iter =
                                 Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?));
                         }
-                        &Constraint::Filter(Filter::Annotation(annotation)) => {
-                            iter =
-                                Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?));
+                        &Constraint::Annotation(
+                            annotation,
+                            SelectionQualifier::Metadata,
+                            depth,
+                        ) => {
+                            iter = Box::new(iter.filter_annotation_in_targets(
+                                &store.annotation(annotation).or_fail()?,
+                                depth,
+                            ));
                         }
                         c => {
                             return Err(StamError::QuerySyntaxError(
@@ -950,11 +1078,9 @@ impl<'store> QueryIter<'store> {
             Some(Type::TextSelection) => {
                 let mut iter: Box<dyn Iterator<Item = ResultTextSelection<'store>>> =
                     match constraintsiter.next() {
-                        Some(&Constraint::Handle(Filter::TextSelection(resource, handle))) => {
-                            Box::new(store.textselection(resource,handle).into_iter())
-                        }
-                        Some(&Constraint::Handle(Filter::TextSelections(ref handles,_))) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).map(|x| x.as_resulttextselection()))
+                        Some(&Constraint::TextVariable(varname)) => {
+                            let textselection = self.resolve_textvar(varname)?;
+                            Box::new(Some(textselection.clone()).into_iter())
                         }
                         Some(&Constraint::TextResource(res,_)) => {
                             Box::new(store.resource(res).or_fail()?.textselections())
@@ -963,20 +1089,20 @@ impl<'store> QueryIter<'store> {
                             let resource = self.resolve_resourcevar(varname)?;
                             Box::new(resource.textselections())
                         }
-                        Some(&Constraint::Annotation(id,_)) => {
+                        Some(&Constraint::Annotation(id,_,_)) => {
                             Box::new(store.annotation(id).or_fail()?.textselections())
                         }
-                        Some(&Constraint::AnnotationVariable(varname,_)) => {
+                        Some(&Constraint::AnnotationVariable(varname,_,_)) => {
                             let annotation = self.resolve_annotationvar(varname)?;
                             Box::new(annotation.textselections())
                         }
-                        Some(&Constraint::DataKey { set, key }) => Box::new(
+                        Some(&Constraint::DataKey { set, key, qualifier: _ }) => Box::new(
                             store
                                 .find_data(set, key, DataOperator::Any)
                                 .annotations()
                                 .textselections(),
                         ),
-                        Some(&Constraint::DataVariable(varname)) => {
+                        Some(&Constraint::DataVariable(varname,_)) => {
                             let data = self.resolve_datavar(varname)?;
                             Box::new(data.annotations().textselections())
                         }
@@ -984,6 +1110,7 @@ impl<'store> QueryIter<'store> {
                             set,
                             key,
                             ref operator,
+                            qualifier: _,
                         }) => Box::new(
                             store
                                 .find_data(set, key, operator.clone())
@@ -991,12 +1118,6 @@ impl<'store> QueryIter<'store> {
                                 .textselections(),
                         ),
                         Some(&Constraint::Text(text)) => Box::new(store.find_text(text)),
-                        Some(&Constraint::TextVariable(var)) => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!("Constraint on TEXT ?{} is useless as a constraint", var),
-                                "",
-                            ));
-                        }
                         Some(&Constraint::TextRelation { var, operator }) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
                                 Box::new(tsel.related_text(operator))
@@ -1027,9 +1148,6 @@ impl<'store> QueryIter<'store> {
                 //secondary contraints for target TEXT
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
-                        &Constraint::Handle(Filter::TextResource(res)) => {
-                            iter = Box::new(iter.filter_resource(&store.resource(res).or_fail()?));
-                        }
                         &Constraint::TextResource(res,_) => {
                             iter = Box::new(iter.filter_resource(&store.resource(res).or_fail()?));
                         }
@@ -1037,7 +1155,7 @@ impl<'store> QueryIter<'store> {
                             let resource = self.resolve_resourcevar(varname)?;
                             iter = Box::new(iter.filter_resource(&resource));
                         }
-                        &Constraint::DataKey { set, key } => {
+                        &Constraint::DataKey { set, key, qualifier: _ } => {
                             let key = store.key(set, key).or_fail()?;
                             iter = Box::new(iter.filter_key(&key));
                         }
@@ -1045,6 +1163,7 @@ impl<'store> QueryIter<'store> {
                             set,
                             key,
                             ref operator,
+                            qualifier: _,
                         } => {
                             let key = store.key(set, key).or_fail()?;
                             iter = Box::new(iter.filter_key_value(&key, operator.clone()));
@@ -1084,16 +1203,18 @@ impl<'store> QueryIter<'store> {
             Some(Type::AnnotationData) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> =
                     match constraintsiter.next() {
-                        Some(&Constraint::Handle(Filter::AnnotationData(set, handle))) => {
-                            Box::new(store.annotationdata(set, handle).into_iter())
+                        Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
+                            let data = self.resolve_datavar(varname)?;
+                            Box::new(Some(data.clone()).into_iter())
                         }
-                        Some(&Constraint::Handle(Filter::Data(ref handles, _))) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
-                        }
-                        Some(&Constraint::Annotation(id, _)) => {
+                        Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
                             Box::new(store.annotation(id).or_fail()?.data())
                         }
-                        Some(&Constraint::AnnotationVariable(varname, _)) => {
+                        Some(&Constraint::AnnotationVariable(
+                            varname,
+                            SelectionQualifier::Normal,
+                            _,
+                        )) => {
                             let annotation = self.resolve_annotationvar(varname)?;
                             Box::new(annotation.data())
                         }
@@ -1101,8 +1222,12 @@ impl<'store> QueryIter<'store> {
                             set,
                             key,
                             ref operator,
+                            qualifier: SelectionQualifier::Normal,
                         }) => store.find_data(set, key, operator.clone()),
-                        //TODO: KeyVariable
+                        Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            Box::new(key.data())
+                        }
                         Some(c) => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -1121,6 +1246,7 @@ impl<'store> QueryIter<'store> {
                             set,
                             key,
                             ref operator,
+                            qualifier: SelectionQualifier::Normal,
                         } => {
                             iter = Box::new(
                                 iter.filter_any(
@@ -1129,6 +1255,14 @@ impl<'store> QueryIter<'store> {
                                         .to_handles(store),
                                 ),
                             );
+                        }
+                        &Constraint::AnnotationVariable(
+                            varname,
+                            SelectionQualifier::Normal,
+                            _,
+                        ) => {
+                            let annotation = self.resolve_annotationvar(varname)?;
+                            iter = Box::new(iter.filter_annotation(annotation));
                         }
                         c => {
                             return Err(StamError::QuerySyntaxError(
@@ -1224,10 +1358,53 @@ impl<'store> QueryIter<'store> {
                 if let QueryResultItem::AnnotationData(data) = &state.result {
                     return Ok(data);
                 }
+            } else if i == 0 {
+                match query.contextvars.get(name) {
+                    Some(QueryResultItem::AnnotationData(data)) => return Ok(data),
+                    Some(x) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                                "Variable ?{} was found in context but does not have expected type DATA",
+                                name
+                            ),
+                            "",
+                        ))
+                    }
+                    None => {}
+                }
             }
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type DATA not found", name),
+            "",
+        ));
+    }
+
+    fn resolve_keyvar(&self, name: &str) -> Result<&ResultItem<'store, DataKey>, StamError> {
+        for (i, state) in self.statestack.iter().enumerate() {
+            let query = self.queries.get(i).expect("query must exist");
+            if query.name() == Some(name) {
+                if let QueryResultItem::DataKey(key) = &state.result {
+                    return Ok(key);
+                }
+            } else if i == 0 {
+                match query.contextvars.get(name) {
+                    Some(QueryResultItem::DataKey(key)) => return Ok(key),
+                    Some(x) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                            "Variable ?{} was found in context but does not have expected type KEY",
+                            name
+                        ),
+                            "",
+                        ))
+                    }
+                    None => {}
+                }
+            }
+        }
+        return Err(StamError::QuerySyntaxError(
+            format!("Variable ?{} of type KEY not found", name),
             "",
         ));
     }
@@ -1241,6 +1418,20 @@ impl<'store> QueryIter<'store> {
             if query.name() == Some(name) {
                 if let QueryResultItem::Annotation(annotation) = &state.result {
                     return Ok(annotation);
+                }
+            } else if i == 0 {
+                match query.contextvars.get(name) {
+                    Some(QueryResultItem::Annotation(annotation)) => return Ok(annotation),
+                    Some(x) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                            "Variable ?{} was found in context but does not have expected type ANNOTATION",
+                            name
+                        ),
+                            "",
+                        ))
+                    }
+                    None => {}
                 }
             }
         }
@@ -1256,6 +1447,20 @@ impl<'store> QueryIter<'store> {
             if query.name() == Some(name) {
                 if let QueryResultItem::TextSelection(textsel) = &state.result {
                     return Ok(textsel);
+                }
+            } else if i == 0 {
+                match query.contextvars.get(name) {
+                    Some(QueryResultItem::TextSelection(textselection)) => return Ok(textselection),
+                    Some(x) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                                "Variable ?{} was found in context but does not have expected type TEXT",
+                                name
+                            ),
+                            "",
+                        ))
+                    }
+                    None => {}
                 }
             }
         }
@@ -1274,6 +1479,20 @@ impl<'store> QueryIter<'store> {
             if query.name() == Some(name) {
                 if let QueryResultItem::TextResource(resource) = &state.result {
                     return Ok(resource);
+                }
+            } else if i == 0 {
+                match query.contextvars.get(name) {
+                    Some(QueryResultItem::TextResource(resource)) => return Ok(resource),
+                    Some(x) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                            "Variable ?{} was found in context but does not have expected type RESOURCE",
+                            name
+                        ),
+                            "",
+                        ))
+                    }
+                    None => {}
                 }
             }
         }
@@ -1432,4 +1651,39 @@ fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), Stam
         ),
         "",
     ));
+}
+
+fn parse_qualifiers<'a>(
+    arg: &'a str,
+    querystring: &'a str,
+) -> Result<(&'a str, &'a str, SelectionQualifier, AnnotationDepth), StamError> {
+    if arg == "AS" {
+        let (as_arg, remainder, _) = get_arg(querystring)?;
+        let qualifier = match as_arg {
+            "TARGET" | "METADATA" => SelectionQualifier::Metadata,
+            _ => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Expected keyword TARGET or METADATA (same meaning) after RESOURCE AS, got '{}'",
+                        remainder.split(" ").next().unwrap_or("(empty string)")
+                    ),
+                    "",
+                ))
+            }
+        };
+        let (newarg, remainder, _) = get_arg(querystring)?;
+        if newarg == "RECURSIVE" {
+            let (newarg, remainder, _) = get_arg(querystring)?;
+            Ok((newarg, remainder, qualifier, AnnotationDepth::Max))
+        } else {
+            Ok((newarg, remainder, qualifier, AnnotationDepth::One))
+        }
+    } else {
+        Ok((
+            arg,
+            querystring,
+            SelectionQualifier::Normal,
+            AnnotationDepth::One,
+        ))
+    }
 }
