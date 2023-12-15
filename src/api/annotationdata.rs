@@ -84,6 +84,24 @@ impl<'store> ResultItem<'store, AnnotationData> {
         }
     }
 
+    /// Returns an iterator over all annotations about this data, i.e. Annotations with an AnnotationDataSelector.
+    /// Such annotations can be considered metadata.
+    pub fn annotations_as_metadata(
+        &self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+        if let Some(annotations) = self
+            .rootstore()
+            .annotations_by_data_metadata(self.set().handle(), self.handle())
+        {
+            ResultIter::new_sorted(FromHandles::new(
+                annotations.iter().copied(),
+                self.rootstore(),
+            ))
+        } else {
+            ResultIter::new_empty()
+        }
+    }
+
     pub fn test(&self, key: impl Request<DataKey>, operator: &DataOperator) -> bool {
         if key.any() || self.key().test(key) {
             self.as_ref().value().test(operator)
@@ -177,6 +195,24 @@ where
         self,
     ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self.map(|data| data.annotations()).flatten().collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        ResultIter::new_sorted(annotations.into_iter())
+    }
+
+    /// Iterates over all the annotations for all data in this iterator.
+    /// This only returns annotations that target the data via an AnnotationDataSelection, i.e.
+    /// the annotations provide metadata for the data.
+    ///
+    /// The iterator will be consumed and an extra buffer is allocated.
+    /// Annotations will be returned sorted chronologically and returned without duplicates
+    fn annotations_as_metadata(
+        self,
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+        let mut annotations: Vec<_> = self
+            .map(|data| data.annotations_as_metadata())
+            .flatten()
+            .collect();
         annotations.sort_unstable();
         annotations.dedup();
         ResultIter::new_sorted(annotations.into_iter())

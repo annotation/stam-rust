@@ -59,8 +59,26 @@ impl<'store> ResultItem<'store, DataKey> {
     pub fn annotations(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
         let set_handle = self.store().handle().expect("set must have handle");
         let annotationstore = self.rootstore();
-        let annotations: Vec<_> = annotationstore.annotations_by_key(set_handle, self.handle()); //MAYBE TODO: extra reverse index so we can borrow directly?
+        let annotations: Vec<_> = annotationstore.annotations_by_key(set_handle, self.handle()); //MAYBE TODO: extra reverse index so we can borrow directly? (the reversee index has been reserved in the struct but not in use yet)
         ResultIter::new_sorted(FromHandles::new(annotations.into_iter(), self.rootstore()))
+    }
+
+    /// Returns an iterator over all annotations about this datakey, i.e. Annotations with a DataKeySelector.
+    /// Such annotations can be considered metadata.
+    pub fn annotations_as_metadata(
+        &self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, Annotation>>> {
+        if let Some(annotations) = self
+            .rootstore()
+            .annotations_by_key_metadata(self.set().handle(), self.handle())
+        {
+            ResultIter::new_sorted(FromHandles::new(
+                annotations.iter().copied(),
+                self.rootstore(),
+            ))
+        } else {
+            ResultIter::new_empty()
+        }
     }
 
     /// Returns the number of annotations that make use of this key.
@@ -158,6 +176,24 @@ where
         self,
     ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
         let mut annotations: Vec<_> = self.map(|key| key.annotations()).flatten().collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        ResultIter::new_sorted(annotations.into_iter())
+    }
+
+    /// Iterates over all the annotations for all keys in this iterator.
+    /// This only returns annotations that target the key via a DataKeySelector, i.e.
+    /// the annotations provide metadata for the keys.
+    ///
+    /// The iterator will be consumed and an extra buffer is allocated.
+    /// Annotations will be returned sorted chronologically and returned without duplicates
+    fn annotations_as_metadata(
+        self,
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+        let mut annotations: Vec<_> = self
+            .map(|key| key.annotations_as_metadata())
+            .flatten()
+            .collect();
         annotations.sort_unstable();
         annotations.dedup();
         ResultIter::new_sorted(annotations.into_iter())

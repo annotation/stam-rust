@@ -156,18 +156,35 @@ pub struct AnnotationStore {
     /// Reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`Selector::ResourceSelector`]), i.e. metadata
     /// The map is always sorted due to how it is constructed, no explicit sorting needed
     #[n(102)]
-    pub(crate) resource_annotation_map: RelationMap<TextResourceHandle, AnnotationHandle>,
+    pub(crate) resource_annotation_metamap: RelationMap<TextResourceHandle, AnnotationHandle>,
 
     /// Reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`Selector::DataSetSelector`]), i.e. metadata
     /// The map is always sorted due to how it is constructed, no explicit sorting needed
     #[n(103)]
-    pub(crate) dataset_annotation_map: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
+    pub(crate) dataset_annotation_metamap: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
 
     /// Reverse index for annotations that reference other annotations
     /// The map is always sorted due to how it is constructed, no explicit sorting needed
     /// The choice for a BTreeMap here is more for memory-reduction (key may be sparse)
     #[n(104)]
     pub(crate) annotation_annotation_map: RelationBTreeMap<AnnotationHandle, AnnotationHandle>,
+
+    /// This is currently not used yet but reserved for future usage to provide quicker lookups by key
+    #[n(105)]
+    pub(crate) key_annotation_map:
+        TripleRelationMap<AnnotationDataSetHandle, DataKeyHandle, AnnotationHandle>,
+
+    /// Reverse index for DataSet => DataKey => Annotation. Holds only annotations that **directly** reference the DataKey (via [`Selector::DataKeySelector`]), i.e. metadata
+    /// The map is always sorted due to how it is constructed, no explicit sorting needed
+    #[n(106)]
+    pub(crate) key_annotation_metamap:
+        TripleRelationMap<AnnotationDataSetHandle, DataKeyHandle, AnnotationHandle>,
+
+    /// Reverse index for DataSet => DataKey => Annotation. Holds only annotations that **directly** reference the DataKey (via [`Selector::AnnotationDataSelector`]), i.e. metadata
+    /// The map is always sorted due to how it is constructed, no explicit sorting needed
+    #[n(107)]
+    pub(crate) data_annotation_metamap:
+        TripleRelationMap<AnnotationDataSetHandle, AnnotationDataHandle, AnnotationHandle>,
 
     /// path associated with this store
     #[n(200)]
@@ -224,12 +241,14 @@ impl private::StoreCallbacks<TextResource> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: TextResourceHandle) -> Result<(), StamError> {
-        if let Some(annotations) = self.resource_annotation_map.data.get(handle.as_usize()) {
+        if let Some(annotations) = self.resource_annotation_metamap.data.get(handle.as_usize()) {
             if !annotations.is_empty() {
                 return Err(StamError::InUse("TextResource"));
             }
         }
-        self.resource_annotation_map.data.remove(handle.as_usize());
+        self.resource_annotation_metamap
+            .data
+            .remove(handle.as_usize());
         Ok(())
     }
 }
@@ -285,13 +304,14 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
         // first we handle the simple singular targets, and determine if we need to do more
         match annotation.target() {
             Selector::DataSetSelector(dataset_handle) => {
-                if self.config.dataset_annotation_map {
-                    self.dataset_annotation_map.insert(*dataset_handle, handle);
+                if self.config.dataset_annotation_metamap {
+                    self.dataset_annotation_metamap
+                        .insert(*dataset_handle, handle);
                 }
             }
             Selector::ResourceSelector(res_handle) => {
-                if self.config.resource_annotation_map {
-                    self.resource_annotation_map.insert(*res_handle, handle);
+                if self.config.resource_annotation_metamap {
+                    self.resource_annotation_metamap.insert(*res_handle, handle);
                 }
             }
             Selector::AnnotationSelector(a_handle, offset) => {
@@ -309,6 +329,18 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                         .insert(*res_handle, *textselection_handle, handle);
                 }
             }
+            Selector::DataKeySelector(set_handle, key_handle) => {
+                if self.config.key_annotation_metamap {
+                    self.key_annotation_metamap
+                        .insert(*set_handle, *key_handle, handle);
+                }
+            }
+            Selector::AnnotationDataSelector(set_handle, data_handle) => {
+                if self.config.data_annotation_metamap {
+                    self.data_annotation_metamap
+                        .insert(*set_handle, *data_handle, handle);
+                }
+            }
             _ => {
                 multitarget = true;
             }
@@ -321,9 +353,20 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
 
         // if needed, we handle more complex situations where there are multiple targets
         if multitarget {
-            let mut target_resources: Vec<(TextResourceHandle, AnnotationHandle)> = Vec::new();
+            let mut target_meta_resources: Vec<(TextResourceHandle, AnnotationHandle)> = Vec::new();
             let mut target_annotations: Vec<(AnnotationHandle, AnnotationHandle)> = Vec::new();
-            let mut target_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> = Vec::new();
+            let mut target_meta_datasets: Vec<(AnnotationDataSetHandle, AnnotationHandle)> =
+                Vec::new();
+            let mut target_meta_keys: Vec<(
+                AnnotationDataSetHandle,
+                DataKeyHandle,
+                AnnotationHandle,
+            )> = Vec::new();
+            let mut target_meta_data: Vec<(
+                AnnotationDataSetHandle,
+                AnnotationDataHandle,
+                AnnotationHandle,
+            )> = Vec::new();
 
             for selector in annotation.target().iter(self, false) {
                 match selector.as_ref() {
@@ -346,13 +389,23 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                         }
                     }
                     Selector::ResourceSelector(res_handle) => {
-                        if self.config.resource_annotation_map {
-                            target_resources.push((*res_handle, handle));
+                        if self.config.resource_annotation_metamap {
+                            target_meta_resources.push((*res_handle, handle));
                         }
                     }
                     Selector::DataSetSelector(set_handle) => {
-                        if self.config.dataset_annotation_map {
-                            target_datasets.push((*set_handle, handle));
+                        if self.config.dataset_annotation_metamap {
+                            target_meta_datasets.push((*set_handle, handle));
+                        }
+                    }
+                    Selector::DataKeySelector(set_handle, key_handle) => {
+                        if self.config.key_annotation_metamap {
+                            target_meta_keys.push((*set_handle, *key_handle, handle));
+                        }
+                    }
+                    Selector::AnnotationDataSelector(set_handle, data_handle) => {
+                        if self.config.data_annotation_metamap {
+                            target_meta_data.push((*set_handle, *data_handle, handle));
                         }
                     }
                     _ => {} //this matches the complex selectors, they will be returned first and then their children, we can therefore just ignore them
@@ -364,9 +417,24 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
                     .extend(target_annotations.into_iter());
             }
 
-            if self.config.resource_annotation_map {
-                self.resource_annotation_map
-                    .extend(target_resources.into_iter());
+            if self.config.resource_annotation_metamap {
+                self.resource_annotation_metamap
+                    .extend(target_meta_resources.into_iter());
+            }
+
+            if self.config.dataset_annotation_metamap {
+                self.dataset_annotation_metamap
+                    .extend(target_meta_datasets.into_iter());
+            }
+
+            if self.config.key_annotation_metamap {
+                self.key_annotation_metamap
+                    .extend(target_meta_keys.into_iter());
+            }
+
+            if self.config.data_annotation_metamap {
+                self.data_annotation_metamap
+                    .extend(target_meta_data.into_iter());
             }
 
             if self.config.textrelationmap {
@@ -397,10 +465,11 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
         };
 
         if let Some(resource_handle) = resource_handle {
-            self.resource_annotation_map.remove(resource_handle, handle);
+            self.resource_annotation_metamap
+                .remove(resource_handle, handle);
         }
         if let Some(annotationset_handle) = annotationset_handle {
-            self.dataset_annotation_map
+            self.dataset_annotation_metamap
                 .remove(annotationset_handle, handle);
         }
         if let Some(annotation_handle) = annotation_handle {
@@ -446,12 +515,14 @@ impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationDataSetHandle) -> Result<(), StamError> {
-        if let Some(annotations) = self.dataset_annotation_map.data.get(handle.as_usize()) {
+        if let Some(annotations) = self.dataset_annotation_metamap.data.get(handle.as_usize()) {
             if !annotations.is_empty() {
                 return Err(StamError::InUse("AnnotationDataSet"));
             }
         }
-        self.dataset_annotation_map.data.remove(handle.as_usize());
+        self.dataset_annotation_metamap
+            .data
+            .remove(handle.as_usize());
         Ok(())
     }
 }
@@ -599,9 +670,12 @@ impl AnnotationStore {
             dataset_idmap: IdMap::new("S".to_string())
                 .with_resolve_temp_ids(config.strip_temp_ids()),
             dataset_data_annotation_map: TripleRelationMap::new(),
-            dataset_annotation_map: RelationMap::new(),
-            resource_annotation_map: RelationMap::new(),
+            dataset_annotation_metamap: RelationMap::new(),
+            resource_annotation_metamap: RelationMap::new(),
             annotation_annotation_map: RelationBTreeMap::new(),
+            key_annotation_map: TripleRelationMap::new(), //not used yet but reserved
+            key_annotation_metamap: TripleRelationMap::new(), //MAYBE TODO: sparse arrays, maybe better with BTreeMap variant?
+            data_annotation_metamap: TripleRelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
             config,
             filename: None,
@@ -1338,22 +1412,42 @@ impl AnnotationStore {
     /// Returns length for each of the reverse indices
     ///  - dataset_data_annotation_map
     ///  - textrelationmap
-    ///  - resource_annotation_map
-    ///  - dataset_annotation_map
+    ///  - resource_annotation_metamap
+    ///  - dataset_annotation_metamap
     ///  - annotation_annotation_map
     ///  - resource id map
     ///  - dataset id map
     ///  - annotation id map
-    pub fn index_len(&self) -> (usize, usize, usize, usize, usize, usize, usize, usize) {
+    ///  - key_annotation_map (not used yet)
+    ///  - key_annotation_metamap
+    ///  - data_annotation_metamap
+    pub fn index_len(
+        &self,
+    ) -> (
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    ) {
         (
             self.dataset_data_annotation_map.len(),
             self.textrelationmap.len(),
-            self.resource_annotation_map.len(),
-            self.dataset_annotation_map.len(),
+            self.resource_annotation_metamap.len(),
+            self.dataset_annotation_metamap.len(),
             self.annotation_annotation_map.len(),
             self.resource_idmap.len(),
             self.dataset_idmap.len(),
             self.annotation_idmap.len(),
+            self.key_annotation_map.len(),
+            self.key_annotation_metamap.len(),
+            self.data_annotation_metamap.len(),
         )
     }
 
@@ -1363,13 +1457,16 @@ impl AnnotationStore {
     ///  - resource_annotation_map
     ///  - dataset_annotation_map
     ///  - annotation_annotation_map
-    pub fn index_totalcount(&self) -> (usize, usize, usize, usize, usize) {
+    pub fn index_totalcount(&self) -> (usize, usize, usize, usize, usize, usize, usize, usize) {
         (
             self.dataset_data_annotation_map.totalcount(),
             self.textrelationmap.totalcount(),
-            self.resource_annotation_map.totalcount(),
-            self.dataset_annotation_map.totalcount(),
+            self.resource_annotation_metamap.totalcount(),
+            self.dataset_annotation_metamap.totalcount(),
             self.annotation_annotation_map.totalcount(),
+            self.key_annotation_map.totalcount(),
+            self.key_annotation_metamap.totalcount(),
+            self.data_annotation_metamap.totalcount(),
         )
     }
 
@@ -1382,16 +1479,36 @@ impl AnnotationStore {
     ///  - resource id map
     ///  - dataset id map
     ///  - annotation id map
-    pub fn index_meminfo(&self) -> (usize, usize, usize, usize, usize, usize, usize, usize) {
+    ///  - key_annotation_map (not used yet)
+    ///  - key_annotation_metamap
+    ///  - data_annotation_metamap
+    pub fn index_meminfo(
+        &self,
+    ) -> (
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    ) {
         (
             self.dataset_data_annotation_map.meminfo(),
             self.textrelationmap.meminfo(),
-            self.resource_annotation_map.meminfo(),
-            self.dataset_annotation_map.meminfo(),
+            self.resource_annotation_metamap.meminfo(),
+            self.dataset_annotation_metamap.meminfo(),
             self.annotation_annotation_map.meminfo(),
             self.resource_idmap.meminfo(),
             self.dataset_idmap.meminfo(),
             self.annotation_idmap.meminfo(),
+            self.key_annotation_map.meminfo(),
+            self.key_annotation_metamap.meminfo(),
+            self.data_annotation_metamap.meminfo(),
         )
     }
 
@@ -1427,8 +1544,8 @@ impl AnnotationStore {
         self.resources.shrink_to_fit();
         self.annotations.shrink_to_fit();
         self.annotation_annotation_map.shrink_to_fit(true);
-        self.dataset_annotation_map.shrink_to_fit(true);
-        self.resource_annotation_map.shrink_to_fit(true);
+        self.dataset_annotation_metamap.shrink_to_fit(true);
+        self.resource_annotation_metamap.shrink_to_fit(true);
         self.dataset_idmap.shrink_to_fit();
         self.annotation_idmap.shrink_to_fit();
         self.resource_idmap.shrink_to_fit();
@@ -1469,16 +1586,16 @@ impl AnnotationStore {
             self.dataset_idmap.reindex(&remap_annotationsets);
         }
         if !remap_annotations.is_empty() || !remap_resources.is_empty() {
-            self.resource_annotation_map = self
-                .resource_annotation_map
+            self.resource_annotation_metamap = self
+                .resource_annotation_metamap
                 .reindex(&remap_resources, &remap_annotations);
             self.textrelationmap =
                 self.textrelationmap
                     .reindex(&remap_resources, &Vec::new(), &remap_annotations);
         }
         if !remap_annotations.is_empty() || !remap_annotationsets.is_empty() {
-            self.dataset_annotation_map = self
-                .dataset_annotation_map
+            self.dataset_annotation_metamap = self
+                .dataset_annotation_metamap
                 .reindex(&remap_annotationsets, &remap_annotations);
         }
         //TODO: TextSelections (inside resources) are currently not reindexed yet
@@ -1609,7 +1726,7 @@ impl AnnotationStore {
         &self,
         resource_handle: TextResourceHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
-        self.resource_annotation_map.get(resource_handle)
+        self.resource_annotation_metamap.get(resource_handle)
     }
 
     /// Find all annotations with a particular textselection. This is a quick lookup in the reverse index and returns a reference to a vector.
@@ -1675,7 +1792,7 @@ impl AnnotationStore {
     }
     */
 
-    /// Find all annotations referenced by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
+    /// Find all annotations targeting by the specified annotation (i.e. annotations that point AT the specified annotation). This is a lookup in the reverse index and returns a reference to a vector
     ///
     /// This is a low-level function, use [`ResultItem<Annotation>.annotations()`] instead.
     /// Use [`ResultItem<annotation>.annotations_in_targets()`] if you are looking for the annotations that an annotation points at.
@@ -1686,14 +1803,14 @@ impl AnnotationStore {
         self.annotation_annotation_map.get(annotation_handle)
     }
 
-    /// Find all annotations referenced by the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
+    /// Find all annotations targeting the specified annotationset. This is a lookup in the reverse index and returns a reference to a vector.
     /// This only returns annotations that directly point at the dataset, i.e. are metadata for it.
     /// This is a low-level method. Use [`ResultItem<AnnotationDataSet>.annotations_metadata()`] instead.
     pub(crate) fn annotations_by_dataset_metadata(
         &self,
         dataset_handle: AnnotationDataSetHandle,
     ) -> Option<&Vec<AnnotationHandle>> {
-        self.dataset_annotation_map.get(dataset_handle)
+        self.dataset_annotation_metamap.get(dataset_handle)
     }
 
     /// Find all annotations referenced by data. This is a lookup in the reverse index and returns a reference to it.
@@ -1734,6 +1851,30 @@ impl AnnotationStore {
         } else {
             Vec::new()
         }
+    }
+
+    /// Find all annotationst targeting the specified key. This is a lookup in the reverse index and returns a reference to a vector.
+    /// This only returns annotations that directly point at the key (via a DataKeySelector), i.e. are metadata for it.
+    /// This is a low-level method. Use [`ResultItem<DataKey>.annotations_metadata()`] instead.
+    pub(crate) fn annotations_by_key_metadata(
+        &self,
+        dataset_handle: AnnotationDataSetHandle,
+        datakey_handle: DataKeyHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.key_annotation_metamap
+            .get(dataset_handle, datakey_handle)
+    }
+
+    /// Find all annotationst targeting the specified key. This is a lookup in the reverse index and returns a reference to a vector.
+    /// This only returns annotations that directly point at the key (via a DataKeySelector), i.e. are metadata for it.
+    /// This is a low-level method. Use [`ResultItem<DataKey>.annotations_metadata()`] instead.
+    pub(crate) fn annotations_by_data_metadata(
+        &self,
+        dataset_handle: AnnotationDataSetHandle,
+        data_handle: AnnotationDataHandle,
+    ) -> Option<&Vec<AnnotationHandle>> {
+        self.data_annotation_metamap
+            .get(dataset_handle, data_handle)
     }
 }
 

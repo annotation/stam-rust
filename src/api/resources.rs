@@ -178,7 +178,7 @@ where
     }
 
     /// Iterates over all the annotations for all resources in this iterator.
-    /// This only returns annotations that target the resource via a ResourceSelector. See [`Self.annotations()`] for all.
+    /// This only returns annotations that target the resource via a ResourceSelector.
     ///
     /// The iterator will be consumed and an extra buffer is allocated.
     /// Annotations will be returned sorted chronologically and returned without duplicates
@@ -197,12 +197,10 @@ where
     }
 
     /// Iterates over all the annotations for all resources in this iterator.
-    /// This only returns annotations that target the resource via a TextSelector. See [`Self.annotations()`] for all.
+    /// This only returns annotations that target the resource via a TextSelector.
     ///
     /// The iterator will be consumed and an extra buffer is allocated.
     /// Annotations will be returned sorted chronologically and returned without duplicates
-    ///
-    /// If you want annotations unsorted and with possible duplicates, then just do:  `.map(|res| res.annotations()).flatten()` instead
     fn annotations(
         self,
     ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {

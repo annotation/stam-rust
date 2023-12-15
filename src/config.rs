@@ -93,24 +93,39 @@ pub struct Config {
 
     /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
     #[n(101)]
-    pub(crate) resource_annotation_map: bool,
+    pub(crate) resource_annotation_metamap: bool,
 
     /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
     #[n(102)]
-    pub(crate) dataset_annotation_map: bool,
+    pub(crate) dataset_annotation_metamap: bool,
 
     /// Enable/disable index for annotations that reference other annotations
     #[n(103)]
     pub(crate) annotation_annotation_map: bool,
+
+    /// Reserved for future usage, not in use yet
+    #[n(104)]
+    pub(crate) key_annotation_map: bool,
+
+    /// Enable/disable reverse index for DataKey => Annotation. Holds only annotations that **directly** reference the DataKey (via [`crate::Selector::DataKeySelector`]), i.e. metadata
+    #[n(105)]
+    pub(crate) key_annotation_metamap: bool,
+
+    /// Enable/disable reverse index for AnnotationData => Annotation. Holds only annotations that **directly** reference the DataKey (via [`crate::Selector::AnnotationDataSelector`]), i.e. metadata
+    #[n(106)]
+    pub(crate) data_annotation_metamap: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             textrelationmap: true,
-            resource_annotation_map: true,
-            dataset_annotation_map: true,
+            resource_annotation_metamap: true,
+            dataset_annotation_metamap: true,
             annotation_annotation_map: true,
+            key_annotation_map: true,
+            key_annotation_metamap: true,
+            data_annotation_metamap: true,
             generate_ids: false,
             strip_temp_ids: true,
             shrink_to_fit: true,
@@ -144,25 +159,25 @@ impl Config {
     /// Enable/disable reverse index for TextResource => Annotation. Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
     /// Do not change this on a configuration that is already in use!
     pub fn with_resource_annotation_map(mut self, value: bool) -> Self {
-        self.resource_annotation_map = value;
+        self.resource_annotation_metamap = value;
         self
     }
 
     /// Is the reverse index for TextResource => Annotation enabled? Holds only annotations that **directly** reference the TextResource (via [`crate::Selector::ResourceSelector`]), i.e. metadata
     pub fn resource_annotation_map(&self) -> bool {
-        self.resource_annotation_map
+        self.resource_annotation_metamap
     }
 
     /// Enable/disable reverse index for AnnotationDataSet => Annotation. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
     /// Do not change this on a configuration that is already in use!
     pub fn with_dataset_annotation_map(mut self, value: bool) -> Self {
-        self.dataset_annotation_map = value;
+        self.dataset_annotation_metamap = value;
         self
     }
 
     /// Is the reverse index for AnnotationDataSet => Annotation enabled?. Holds only annotations that **directly** reference the AnnotationDataSet (via [`crate::Selector::DataSetSelector`]), i.e. metadata
     pub fn dataset_annotation_map(&self) -> bool {
-        self.dataset_annotation_map
+        self.dataset_annotation_metamap
     }
 
     /// Enable/disable index for annotations that reference other annotations
