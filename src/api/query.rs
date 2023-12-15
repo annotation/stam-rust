@@ -730,6 +730,12 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Resources(ref handles,_)) => {
                             Box::new(FromHandles::new(handles.clone().into_iter(), store))
                         }
+                        Some(&Constraint::Annotations(ref handles, SelectionQualifier::Normal, _)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).resources())
+                        }
+                        Some(&Constraint::Annotations(ref handles, SelectionQualifier::Metadata, _)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).resources_as_metadata())
+                        }
                         Some(&Constraint::DataKey { set, key, qualifier: SelectionQualifier::Normal }) => Box::new(
                             store
                                 .key(set, key).or_fail()?
@@ -837,15 +843,25 @@ impl<'store> QueryIter<'store> {
             ///////////////////////////// target= ANNOTATION ////////////////////////////////////////////
             Some(Type::Annotation) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, Annotation>>> =
+                    //primary constraints for ANNOTATION
                     match constraintsiter.next() {
                         Some(&Constraint::Id(id)) => {
                             Box::new(Some(store.annotation(id).or_fail()?).into_iter())
+                        }
+                        Some(&Constraint::Annotations(ref handles,SelectionQualifier::Normal,AnnotationDepth::Zero)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
+                        }
+                        Some(&Constraint::Annotations(ref handles,SelectionQualifier::Normal,depth)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).annotations_in_targets(depth))
+                        }
+                        Some(&Constraint::Annotations(ref handles,SelectionQualifier::Metadata, AnnotationDepth::One)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).annotations())
                         }
                         Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Normal, depth)) => {
                             let annotation = self.resolve_annotationvar(var)?;
                             Box::new(annotation.annotations_in_targets(depth))
                         }
-                        Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Metadata, AnnotationDepth::One)) => { //TODO: handle Recursive variant?
+                        Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Metadata, AnnotationDepth::One)) => { //TODO LATER: handle Recursive variant?
                             let annotation = self.resolve_annotationvar(var)?;
                             Box::new(annotation.annotations())
                         }
@@ -1078,9 +1094,15 @@ impl<'store> QueryIter<'store> {
             Some(Type::TextSelection) => {
                 let mut iter: Box<dyn Iterator<Item = ResultTextSelection<'store>>> =
                     match constraintsiter.next() {
+                        Some(&Constraint::TextSelections(ref handles,_)) => {
+                            Box::new(ResultTextSelections::new(FromHandles::new(handles.clone().into_iter(), store)))
+                        }
                         Some(&Constraint::TextVariable(varname)) => {
                             let textselection = self.resolve_textvar(varname)?;
                             Box::new(Some(textselection.clone()).into_iter())
+                        }
+                        Some(&Constraint::Annotations(ref handles,_,_)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).textselections())
                         }
                         Some(&Constraint::TextResource(res,_)) => {
                             Box::new(store.resource(res).or_fail()?.textselections())
@@ -1206,6 +1228,12 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
                             let data = self.resolve_datavar(varname)?;
                             Box::new(Some(data.clone()).into_iter())
+                        }
+                        Some(&Constraint::Data(ref handles, _)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
+                        }
+                        Some(&Constraint::Annotations(ref handles, _, _)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).data())
                         }
                         Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
                             Box::new(store.annotation(id).or_fail()?.data())
