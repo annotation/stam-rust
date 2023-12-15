@@ -29,7 +29,7 @@ use crate::types::*;
 use crate::{
     Annotation, AnnotationBuilder, AnnotationDataBuilder, AnnotationDataSet, AnnotationStore,
     Config, Configurable, DataKey, Offset, Selector, SelectorBuilder, SelectorKind, StamError,
-    TextResource, TextResourceBuilder,
+    TextResource, TextResourceBuilder, AnnotationData
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,6 +75,10 @@ struct AnnotationCsv<'a> {
     begin: String,
     #[serde(rename = "EndOffset")]
     end: String,
+    #[serde(rename = "TargetKey")]
+    targetkey: Option<Cow<'a, str>>,
+    #[serde(rename = "TargetData")]
+    targetdata: Option<Cow<'a, str>>,
 }
 
 impl<'a> AnnotationCsv<'a> {
@@ -206,7 +210,7 @@ impl<'a> AnnotationCsv<'a> {
                 for subselector in subselectors {
                     out.push(';'); //delimiter
                     match subselector {
-                        Selector::DataSetSelector(dataset) => {
+                        Selector::DataSetSelector(dataset) | Selector::DataKeySelector(dataset, _) | Selector::AnnotationDataSelector(dataset, _) => {
                             let dataset: &AnnotationDataSet =
                                 store.get(*dataset).expect("dataset must exist");
                             out += dataset.id().expect("dataset must have an id");
@@ -218,13 +222,91 @@ impl<'a> AnnotationCsv<'a> {
             Cow::Owned(out)
         } else {
             match selector {
-                Selector::DataSetSelector(dataset) => {
+                Selector::DataSetSelector(dataset) | Selector::DataKeySelector(dataset, _) | Selector::AnnotationDataSelector(dataset, _) => {
                     let dataset: &AnnotationDataSet =
                         store.get(*dataset).expect("dataset must exist");
                     if let Some(id) = dataset.id() {
                         Cow::Borrowed(id)
                     } else {
                         Cow::Owned(dataset.temp_id().expect("temp_id must succeed"))
+                    }
+                }
+                _ => Cow::Borrowed(""),
+            }
+        }
+    }
+
+    fn set_targetkey(selector: &Selector, store: &'a AnnotationStore) -> Cow<'a, str> {
+        if selector.is_complex() {
+            let mut out: String = String::new();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    out.push(';'); //delimiter
+                    match subselector {
+                        Selector::DataKeySelector(dataset, key) => {
+                            let dataset: &AnnotationDataSet =
+                                store.get(*dataset).expect("dataset must exist");
+                            let key: &DataKey =
+                                dataset.get(*key).expect("key must exist");
+                            out += key.id().expect("key must have an id");
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Cow::Owned(out)
+        } else {
+            match selector {
+                Selector::DataKeySelector(dataset, key) => {
+                    let dataset: &AnnotationDataSet =
+                        store.get(*dataset).expect("dataset must exist");
+                    let key: &DataKey =
+                        dataset.get(*key).expect("key must exist");
+                    if let Some(id) = key.id() {
+                        Cow::Borrowed(id)
+                    } else {
+                        Cow::Owned(key.temp_id().expect("temp_id must succeed"))
+                    }
+                }
+                _ => Cow::Borrowed(""),
+            }
+        }
+    }
+
+    fn set_targetdata(selector: &Selector, store: &'a AnnotationStore) -> Cow<'a, str> {
+        if selector.is_complex() {
+            let mut out: String = String::new();
+            if let Some(subselectors) = selector.subselectors() {
+                for subselector in subselectors {
+                    out.push(';'); //delimiter
+                    match subselector {
+                        Selector::AnnotationDataSelector(dataset, data) => {
+                            let dataset: &AnnotationDataSet =
+                                store.get(*dataset).expect("dataset must exist");
+                            let data: &AnnotationData =
+                                dataset.get(*data).expect("key must exist");
+                            if let Some(id) = data.id() {
+                                out += data.id().expect("key must have an id");
+                            } else {
+                                out += data.temp_id().expect("temp_id must succeed").as_str();
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Cow::Owned(out)
+        } else {
+            match selector {
+                Selector::AnnotationDataSelector(dataset, data) => {
+                    let dataset: &AnnotationDataSet =
+                        store.get(*dataset).expect("dataset must exist");
+                    let data: &AnnotationData =
+                        dataset.get(*data).expect("key must exist");
+                    if let Some(id) = data.id() {
+                        Cow::Borrowed(id)
+                    } else {
+                        Cow::Owned(data.temp_id().expect("temp_id must succeed"))
                     }
                 }
                 _ => Cow::Borrowed(""),
@@ -512,6 +594,14 @@ where
                                 annotation.as_ref().target(),
                                 self,
                             ),
+                            targetkey: Some(AnnotationCsv::set_targetkey(
+                                annotation.as_ref().target(),
+                                self,
+                            )),
+                            targetdata: Some(AnnotationCsv::set_targetdata(
+                                annotation.as_ref().target(),
+                                self,
+                            )),
                             begin: AnnotationCsv::set_beginoffset(
                                 annotation.as_ref().target(),
                                 self,
@@ -555,6 +645,14 @@ where
                                 self,
                             ),
                             end: AnnotationCsv::set_endoffset(annotation.as_ref().target(), self),
+                            targetkey: Some(AnnotationCsv::set_targetkey(
+                                annotation.as_ref().target(),
+                                self,
+                            )),
+                            targetdata: Some(AnnotationCsv::set_targetdata(
+                                annotation.as_ref().target(),
+                                self,
+                            )),
                         }
                     } else {
                         let mut data_ids = String::new();
@@ -602,6 +700,14 @@ where
                                 self,
                             ),
                             end: AnnotationCsv::set_endoffset(annotation.as_ref().target(), self),
+                            targetkey: Some(AnnotationCsv::set_targetkey(
+                                annotation.as_ref().target(),
+                                self,
+                            )),
+                            targetdata: Some(AnnotationCsv::set_targetdata(
+                                annotation.as_ref().target(),
+                                self,
+                            )),
                         }
                     };
                     writer.serialize(out).map_err(|e| {
@@ -774,6 +880,18 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                         "",
                     ));
                 }
+                if self.targetkey.unwrap_or(Cow::Borrowed("")).find(";").is_some() {
+                    return Err(StamError::CsvError(
+                        format!("Multiple target keys were specified, but without a complex selector"),
+                        "",
+                    ));
+                }
+                if self.targetdata.unwrap_or(Cow::Borrowed("")).find(";").is_some() {
+                    return Err(StamError::CsvError(
+                        format!("Multiple target data were specified, but without a complex selector"),
+                        "",
+                    ));
+                }
                 match selectortypes[0] {
                     SelectorKind::TextSelector => {
                         let resource = self.targetresource;
@@ -814,6 +932,16 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                 let targetdatasets: SmallVec<[&str; 1]> = self.targetdataset.split(";").collect();
                 let targetannotations: SmallVec<[&str; 1]> =
                     self.targetannotation.split(";").collect();
+                let targetkeys: SmallVec<[&str; 1]> = if let Some(targetkey) = self.targetkey.as_ref() {
+                    targetkey.split(";").collect()
+                } else {
+                    SmallVec::new()
+                };
+                let targetdata: SmallVec<[&str; 1]> = if let Some(targetdata) = self.targetdata.as_ref() {
+                    targetdata.split(";").collect()
+                } else {
+                    SmallVec::new()
+                };
                 let beginoffsets: SmallVec<[&str; 1]> = self.begin.split(";").collect();
                 let endoffsets: SmallVec<[&str; 1]> = self.end.split(";").collect();
                 let mut maxlen = selectortypes.len();
@@ -831,6 +959,12 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                 };
                 if endoffsets.len() > maxlen {
                     maxlen = endoffsets.len()
+                };
+                if targetkeys.len() > maxlen {
+                    maxlen = targetkeys.len()
+                };
+                if targetdata.len() > maxlen {
+                    maxlen = targetdata.len()
                 };
                 let mut subselectors = Vec::new();
                 //MAYBE TODO: fix the warnings that arise more elegantly
@@ -919,10 +1053,43 @@ impl<'a, 'b> TryInto<AnnotationBuilder<'a>> for AnnotationCsv<'a> {
                             }
                             SelectorBuilder::DataSetSelector(BuildItem::Id(dataset.to_string()))
                         }
-                        x =>
+                        SelectorKind::DataKeySelector  => {
+                            let dataset = targetdatasets.get(i).unwrap_or(targetdatasets.last().unwrap());
+                            let datakey = targetkeys.get(i).unwrap_or(targetkeys.last().unwrap());
+                            if dataset.is_empty() {
+                                return Err(StamError::CsvError(
+                                format!(
+                                    "No dataset specified for subselector #{}", i
+                                ),
+                                "DataKeySelector",
+                                ));
+                            }
+                            SelectorBuilder::DataKeySelector(BuildItem::Id(dataset.to_string()), BuildItem::Id(datakey.to_string()))
+                        }
+                        SelectorKind::AnnotationDataSelector  => {
+                            let dataset = targetdatasets.get(i).unwrap_or(targetdatasets.last().unwrap());
+                            let data = targetdata.get(i).unwrap_or(targetdata.last().unwrap());
+                            if dataset.is_empty() {
+                                return Err(StamError::CsvError(
+                                format!(
+                                    "No dataset specified for subselector #{}", i
+                                ),
+                                "AnnotationDataSelector",
+                                ));
+                            }
+                            SelectorBuilder::AnnotationDataSelector(BuildItem::Id(dataset.to_string()), BuildItem::Id(data.to_string()))
+                        }
+                        SelectorKind::MultiSelector | SelectorKind::CompositeSelector | SelectorKind::DirectionalSelector =>
                             return Err(StamError::CsvError(
                                 format!(
-                                    "SelectorType can't be a subselector under a complex selector: {:?}", x
+                                    "Complex selectors can't be a subselector under a complex selector"
+                                ),
+                                "",
+                            )),
+                        SelectorKind::InternalRangedSelector => 
+                            return Err(StamError::CsvError(
+                                format!(
+                                    "Internal ranged selectors should have been resolved at this stage"
                                 ),
                                 "",
                             ))

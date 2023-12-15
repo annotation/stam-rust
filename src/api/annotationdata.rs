@@ -182,6 +182,15 @@ where
         ResultIter::new_sorted(annotations.into_iter())
     }
 
+    /// Iterate over the keys used in this data
+    /// Keys will be returned chronologically without duplicates.
+    fn keys(self) -> ResultIter<<Vec<ResultItem<'store, DataKey>> as IntoIterator>::IntoIter> {
+        let mut keys: Vec<_> = self.map(|data| data.key()).collect();
+        keys.sort_unstable();
+        keys.dedup();
+        ResultIter::new_sorted(keys.into_iter())
+    }
+
     fn filter_handle(
         self,
         set: AnnotationDataSetHandle,

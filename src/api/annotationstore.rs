@@ -23,6 +23,8 @@ use crate::resources::TextResource;
 use crate::store::*;
 use crate::ResultTextSelection;
 
+use std::collections::BTreeSet;
+
 impl AnnotationStore {
     /// Requests a specific [`TextResource`] from the store to be returned by reference.
     /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, `String` or [`crate::TextResourceHandle`].
@@ -261,6 +263,19 @@ impl AnnotationStore {
         &'store self,
     ) -> Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store> {
         self.find_data(false, false, DataOperator::Any)
+    }
+
+    /// Returns an iterator over all keys in all sets.
+    /// If possible, use a more constrained method (on [`AnnotationDataSet`]), it will have better performance.
+    pub fn keys<'store>(
+        &'store self,
+    ) -> <BTreeSet<ResultItem<'store, DataKey>> as IntoIterator>::IntoIter {
+        let keys: BTreeSet<_> = self
+            .datasets()
+            .map(|dataset| dataset.keys())
+            .flatten()
+            .collect();
+        keys.into_iter()
     }
 
     /// Tests if certain annotation data exists, returns a boolean.

@@ -9,6 +9,8 @@ use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::error::*;
+use crate::annotationdata::{AnnotationData,AnnotationDataHandle};
+use crate::datakey::{DataKey,DataKeyHandle};
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
@@ -248,6 +250,27 @@ pub enum Selector {
     ),
 
 
+    /// Refers to a [`DataKey`] to annotate.
+    /// Annotations using this selector are considered metadata of a key
+    #[n[7]]
+    DataKeySelector(
+        #[n(0)]
+        AnnotationDataSetHandle,
+        #[n(1)]
+        DataKeyHandle
+    ),
+
+    /// Refers to a [`AnnotationData`] to annotate.
+    /// Annotations using this selector can be considered metadata on specific data, it is fairly rare.
+    #[n[8]]
+    AnnotationDataSelector(
+        #[n(0)]
+        AnnotationDataSetHandle,
+        #[n(1)]
+        AnnotationDataHandle
+    ),
+
+
     /// Internal ranged selector, used as subselector for MultiSelector/CompositeSelector/DirectionalSelector
     // Conserves memory by pointing to a internal ID range, end is inclusive
     #[n(52)]
@@ -413,6 +436,8 @@ impl DataSize for Selector {
             Self::AnnotationSelector(handle, handle2) => 8 + data_size(handle) + data_size(handle2),
             Self::ResourceSelector(handle) => 8 + data_size(handle),
             Self::DataSetSelector(handle) => 8 + data_size(handle),
+            Self::DataKeySelector(handle,handle2) => 8 + data_size(handle)+ data_size(handle2),
+            Self::AnnotationDataSelector(handle,handle2) => 8 + data_size(handle)+ data_size(handle2),
             Self::MultiSelector(v) => 8 + data_size(v),
             Self::CompositeSelector(v) => 8 + data_size(v),
             Self::DirectionalSelector(v) => 8 + data_size(v),
@@ -433,6 +458,8 @@ pub enum SelectorKind {
     CompositeSelector = 6,
     DirectionalSelector = 7,
     InternalRangedSelector = 8,
+    DataKeySelector = 9,
+    AnnotationDataSelector = 10,
 }
 
 impl SelectorKind {
@@ -446,6 +473,8 @@ impl SelectorKind {
             Self::CompositeSelector => "CompositeSelector",
             Self::DirectionalSelector => "DirectionalSelector",
             Self::InternalRangedSelector => "InternalRangedSelector",
+            Self::DataKeySelector => "DataKeySelector",
+            Self::AnnotationDataSelector => "AnnotationDataSelector",
         }
     }
 
@@ -469,6 +498,8 @@ impl TryFrom<&str> for SelectorKind {
             "AnnotationSelector" | "annotationselector" | "annotation"  => Ok(Self::AnnotationSelector),
             "TextSelector" | "textselector" | "text" => Ok(Self::TextSelector),
             "DataSetSelector" | "datasetselector" | "set" | "annotationset" | "dataset" => Ok(Self::DataSetSelector),
+            "DataKeySelector" | "datakeyselector" | "key" => Ok(Self::DataKeySelector),
+            "AnnotationDataSelector" | "annotationdataselector" | "dataselector" | "data" => Ok(Self::AnnotationDataSelector),
             "MultiSelector" | "multiselector" | "multi"  => Ok(Self::MultiSelector),
             "CompositeSelector" | "compositeselector" | "composite"  => Ok(Self::CompositeSelector),
             "DirectionalSelector" | "directionalselector" | "directional"  => Ok(Self::DirectionalSelector),
@@ -481,13 +512,15 @@ impl TryFrom<&str> for SelectorKind {
 impl From<&Selector> for SelectorKind {
     fn from(selector: &Selector) -> Self {
         match selector {
-            Selector::ResourceSelector(_) => Self::ResourceSelector,
-            Selector::AnnotationSelector(_, _) => Self::AnnotationSelector,
-            Selector::TextSelector(_, _,_) => Self::TextSelector,
+            Selector::ResourceSelector(..) => Self::ResourceSelector,
+            Selector::AnnotationSelector(..) => Self::AnnotationSelector,
+            Selector::TextSelector(..) => Self::TextSelector,
             Selector::DataSetSelector(_) => Self::DataSetSelector,
-            Selector::MultiSelector(_) => Self::MultiSelector,
-            Selector::CompositeSelector(_) => Self::CompositeSelector,
-            Selector::DirectionalSelector(_) => Self::DirectionalSelector,
+            Selector::DataKeySelector(..) => Self::DataKeySelector,
+            Selector::AnnotationDataSelector(..) => Self::AnnotationDataSelector,
+            Selector::MultiSelector(..) => Self::MultiSelector,
+            Selector::CompositeSelector(..) => Self::CompositeSelector,
+            Selector::DirectionalSelector(..) => Self::DirectionalSelector,
             Selector::RangedTextSelector {
                 ..
             }
@@ -501,13 +534,15 @@ impl From<&Selector> for SelectorKind {
 impl<'a> From<&SelectorBuilder<'a>> for SelectorKind {
     fn from(selector: &SelectorBuilder<'a>) -> Self {
         match selector {
-            SelectorBuilder::ResourceSelector(_) => Self::ResourceSelector,
-            SelectorBuilder::AnnotationSelector(_, _) => Self::AnnotationSelector,
-            SelectorBuilder::TextSelector(_, _) => Self::TextSelector,
-            SelectorBuilder::DataSetSelector(_) => Self::DataSetSelector,
-            SelectorBuilder::MultiSelector(_) => Self::MultiSelector,
-            SelectorBuilder::CompositeSelector(_) => Self::CompositeSelector,
-            SelectorBuilder::DirectionalSelector(_) => Self::DirectionalSelector,
+            SelectorBuilder::ResourceSelector(..) => Self::ResourceSelector,
+            SelectorBuilder::AnnotationSelector(..) => Self::AnnotationSelector,
+            SelectorBuilder::TextSelector(..) => Self::TextSelector,
+            SelectorBuilder::DataSetSelector(..) => Self::DataSetSelector,
+            SelectorBuilder::DataKeySelector(..) => Self::DataKeySelector,
+            SelectorBuilder::AnnotationDataSelector(..) => Self::AnnotationDataSelector,
+            SelectorBuilder::MultiSelector(..) => Self::MultiSelector,
+            SelectorBuilder::CompositeSelector(..) => Self::CompositeSelector,
+            SelectorBuilder::DirectionalSelector(..) => Self::DirectionalSelector,
         }
     }
 }
@@ -525,6 +560,8 @@ pub enum SelectorBuilder<'a> {
     AnnotationSelector(BuildItem<'a,Annotation>, Option<Offset>),
     TextSelector(BuildItem<'a,TextResource>, Offset),
     DataSetSelector(BuildItem<'a,AnnotationDataSet>),
+    DataKeySelector(BuildItem<'a, AnnotationDataSet>, BuildItem<'a,DataKey>),
+    AnnotationDataSelector(BuildItem<'a, AnnotationDataSet>, BuildItem<'a,AnnotationData>),
     MultiSelector(Vec<SelectorBuilder<'a>>),
     CompositeSelector(Vec<SelectorBuilder<'a>>),
     DirectionalSelector(Vec<SelectorBuilder<'a>>),
@@ -556,9 +593,19 @@ impl<'a> SelectorBuilder<'a> {
         Self::AnnotationSelector(annotation.into(), offset)
     }
 
-    // Creates a new ResourceSelector
+    // Creates a new DataSetSelector
     pub fn datasetselector(dataset: impl Into<BuildItem<'a,AnnotationDataSet>>) -> Self {
         Self::DataSetSelector(dataset.into())
+    }
+
+    // Creates a new DataKeySelector
+    pub fn datakeyselector(dataset: impl Into<BuildItem<'a,AnnotationDataSet>>, datakey: impl Into<BuildItem<'a,DataKey>>) -> Self {
+        Self::DataKeySelector(dataset.into(), datakey.into())
+    }
+
+    // Creates a new AnnotationDataSelector
+    pub fn annotationdataselector(dataset: impl Into<BuildItem<'a,AnnotationDataSet>>,annotationdata: impl Into<BuildItem<'a,AnnotationData>>) -> Self {
+        Self::AnnotationDataSelector(dataset.into(), annotationdata.into())
     }
 
     // Creates a new MultiSelector from an iterator
@@ -599,6 +646,14 @@ enum SelectorJson where
     DataSetSelector {
         annotationset: String,
     },
+    DataKeySelector {
+        annotationset: String,
+        key: String,
+    },
+    AnnotationDataSelector {
+        annotationset: String,
+        data: String,
+    },
     MultiSelector { selectors: Vec<SelectorJson> },
     CompositeSelector { selectors: Vec<SelectorJson>},
     DirectionalSelector{ selectors: Vec<SelectorJson>},
@@ -617,6 +672,8 @@ impl<'a> From<SelectorJson> for SelectorBuilder<'a> {
                 offset: o,
             } => Self::AnnotationSelector(a.into(), o),
             SelectorJson::DataSetSelector { annotationset: s } => Self::DataSetSelector(s.into()),
+            SelectorJson::DataKeySelector { annotationset: s, key: k } => Self::DataKeySelector(s.into(), k.into()),
+            SelectorJson::AnnotationDataSelector { annotationset: s, data: d } => Self::AnnotationDataSelector(s.into(), d.into()),
             SelectorJson::MultiSelector { selectors: v } => Self::MultiSelector(v.into_iter().map(|j| j.into()).collect()),
             SelectorJson::CompositeSelector { selectors: v } => Self::CompositeSelector(v.into_iter().map(|j| j.into()).collect()),
             SelectorJson::DirectionalSelector { selectors: v } => Self::DirectionalSelector(v.into_iter().map(|j| j.into()).collect()),
@@ -749,6 +806,48 @@ impl<'a> Serialize for WrappedSelector<'a> {
                 }
                 if let Some(offset) = self.selector.offset(self.store()) {
                     state.serialize_field("offset", &offset)?;
+                }
+                state.end()
+            }
+            Selector::DataKeySelector(dataset_handle, key_handle) => {
+                let dataset: Result<&AnnotationDataSet, _> =
+                    self.store().get(*dataset_handle);
+                let dataset = dataset.map_err(serde::ser::Error::custom)?;
+                let key: Result<&DataKey, _> =
+                    dataset.get(*key_handle);
+                let key = key.map_err(serde::ser::Error::custom)?;
+                let mut state = serializer.serialize_struct("Selector", 3)?;
+                state.serialize_field("@type", "DataKeySelector")?;
+                if let Some(id) = dataset.id() {
+                    state.serialize_field("annotationset", &id)?;
+                } else {
+                    state.serialize_field("annotationset", &dataset.temp_id().map_err(serde::ser::Error::custom)?)?;
+                }
+                if let Some(id) = key.id() {
+                    state.serialize_field("key", &id)?;
+                } else {
+                    state.serialize_field("key", &dataset.temp_id().map_err(serde::ser::Error::custom)?)?;
+                }
+                state.end()
+            }
+            Selector::AnnotationDataSelector(dataset_handle, data_handle) => {
+                let dataset: Result<&AnnotationDataSet, _> =
+                    self.store().get(*dataset_handle);
+                let dataset = dataset.map_err(serde::ser::Error::custom)?;
+                let data: Result<&AnnotationData, _> =
+                    dataset.get(*data_handle);
+                let data = data.map_err(serde::ser::Error::custom)?;
+                let mut state = serializer.serialize_struct("Selector", 3)?;
+                state.serialize_field("@type", "DataKeySelector")?;
+                if let Some(id) = dataset.id() {
+                    state.serialize_field("annotationset", &id)?;
+                } else {
+                    state.serialize_field("annotationset", &dataset.temp_id().map_err(serde::ser::Error::custom)?)?;
+                }
+                if let Some(id) = data.id() {
+                    state.serialize_field("data", &id)?;
+                } else {
+                    state.serialize_field("data", &dataset.temp_id().map_err(serde::ser::Error::custom)?)?;
                 }
                 state.end()
             }
@@ -916,9 +1015,11 @@ impl<'a> Iterator for SelectorIter<'a> {
                             }
                         },
                         // simple selectors fall back to the default behaviour after this match clause
-                        Selector::TextSelector(_, _,_) => {},
+                        Selector::TextSelector(..) => {},
                         Selector::DataSetSelector(_) => {}
                         Selector::ResourceSelector(_) => {}
+                        Selector::DataKeySelector(..) => {}
+                        Selector::AnnotationDataSelector(..) => {}
                     };
                     self.done = true; //this flags that we have processed the selector
                     return Some(Cow::Borrowed(self.selector));

@@ -190,9 +190,14 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Tests if the annotation has certain data, returns a boolean.
-    /// This will be a bit quicker than using `.data().filter_annotationdata()`.
+    /// This will be a bit quicker than using `.data().filter_one()`.
     pub fn has_data(&self, data: &ResultItem<AnnotationData>) -> bool {
         self.as_ref().has_data(data.set().handle(), data.handle())
+    }
+
+    /// Get an iterator over all keys ([`DataKey`]) used by data of this annotation. Shortcut for `.data().keys()`.
+    pub fn keys(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, DataKey>>> {
+        self.data().keys()
     }
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that
@@ -313,6 +318,14 @@ where
         Box::new(ResultIter::new_unsorted(
             self.map(|annotation| annotation.data()).flatten(),
         ))
+    }
+
+    /// Get an iterator over all keys ([`DataKey`]) used by data of this annotation. Shortcut for `.data().keys()`.
+    fn keys(self) -> ResultIter<<Vec<ResultItem<'store, DataKey>> as IntoIterator>::IntoIter> {
+        let mut keys: Vec<_> = self.map(|annotation| annotation.keys()).flatten().collect();
+        keys.sort_unstable();
+        keys.dedup();
+        ResultIter::new_sorted(keys.into_iter())
     }
 
     /// Shortcut for `.textselections().text()`

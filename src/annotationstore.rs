@@ -23,13 +23,14 @@ use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
-use crate::annotationdata::AnnotationDataHandle;
+use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{
     AnnotationDataSet, AnnotationDataSetHandle, DeserializeAnnotationDataSet,
 };
 use crate::config::{Config, Configurable};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
+use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
 use crate::error::*;
 use crate::file::*;
@@ -1046,8 +1047,24 @@ impl AnnotationStore {
                 ))
             }
             SelectorBuilder::DataSetSelector(id) => {
-                let resource: &AnnotationDataSet = self.get(id)?;
-                Ok(Selector::DataSetSelector(resource.handle_or_err()?))
+                let dataset: &AnnotationDataSet = self.get(id)?;
+                Ok(Selector::DataSetSelector(dataset.handle_or_err()?))
+            }
+            SelectorBuilder::DataKeySelector(set, key) => {
+                let dataset: &AnnotationDataSet = self.get(set)?;
+                let key: &DataKey = dataset.get(key)?;
+                Ok(Selector::DataKeySelector(
+                    dataset.handle_or_err()?,
+                    key.handle_or_err()?,
+                ))
+            }
+            SelectorBuilder::AnnotationDataSelector(set, data) => {
+                let dataset: &AnnotationDataSet = self.get(set)?;
+                let data: &AnnotationData = dataset.get(data)?;
+                Ok(Selector::AnnotationDataSelector(
+                    dataset.handle_or_err()?,
+                    data.handle_or_err()?,
+                ))
             }
             SelectorBuilder::MultiSelector(v) => {
                 Ok(Selector::MultiSelector(self.subselectors(v, true)?))

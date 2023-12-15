@@ -1306,7 +1306,59 @@ impl<'store> QueryIter<'store> {
                 Ok(QueryResultIter::Data(iter))
             }
             Some(Type::DataKey) => {
-                todo!("implement datakey!") //TODO
+                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, DataKey>>> =
+                    match constraintsiter.next() {
+                        Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
+                            let data = self.resolve_keyvar(varname)?;
+                            Box::new(Some(data.clone()).into_iter())
+                        }
+                        Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
+                            let data = self.resolve_datavar(varname)?;
+                            Box::new(Some(data.key().clone()).into_iter())
+                        }
+                        Some(&Constraint::Keys(ref handles, _)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
+                        }
+                        Some(&Constraint::Annotations(ref handles, _, _)) => {
+                            Box::new(FromHandles::new(handles.clone().into_iter(), store).keys())
+                        }
+                        Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
+                            Box::new(store.annotation(id).or_fail()?.keys())
+                        }
+                        Some(&Constraint::AnnotationVariable(
+                            varname,
+                            SelectionQualifier::Normal,
+                            _,
+                        )) => {
+                            let annotation = self.resolve_annotationvar(varname)?;
+                            Box::new(annotation.keys())
+                        }
+                        Some(c) => {
+                            return Err(StamError::QuerySyntaxError(
+                                format!(
+                                    "Constraint {} (primary) is not valid for KEY return type",
+                                    c.keyword()
+                                ),
+                                "",
+                            ))
+                        }
+                        None => Box::new(store.keys()),
+                    };
+                //secondary contraints for target DATA
+                while let Some(constraint) = constraintsiter.next() {
+                    match constraint {
+                        c => {
+                            return Err(StamError::QuerySyntaxError(
+                                format!(
+                                "Constraint {} (secondary) is not implemented for queries over KEY",
+                                c.keyword()
+                            ),
+                                "",
+                            ))
+                        }
+                    }
+                }
+                Ok(QueryResultIter::Keys(iter))
             }
             None => unreachable!("Query must have a result type"),
             _ => unimplemented!("Query result type not implemented"),

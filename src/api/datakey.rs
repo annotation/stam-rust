@@ -11,7 +11,9 @@
 //! This module contains the high-level API for [`DataKey`]. This API is implemented on
 //! [`ResultItem<DataKey>`].
 
+use rayon::iter::IntoParallelIterator;
 use std::collections::BTreeSet;
+use std::ops::Deref;
 
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::AnnotationDataSet;
@@ -104,5 +106,221 @@ impl<'store> ResultItem<'store, DataKey> {
             .map(|annotation| annotation.datasets().map(|dataset| dataset.clone()))
             .flatten()
             .collect()
+    }
+}
+
+pub type Keys<'store> = Handles<'store, DataKey>;
+
+impl<'store, I> FullHandleToResultItem<'store, DataKey> for FromHandles<'store, DataKey, I>
+where
+    I: Iterator<Item = (AnnotationDataSetHandle, DataKeyHandle)>,
+{
+    fn get_item(
+        &self,
+        handle: (AnnotationDataSetHandle, DataKeyHandle),
+    ) -> Option<ResultItem<'store, DataKey>> {
+        if let Some(dataset) = self.store.dataset(handle.0) {
+            dataset.key(handle.1)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'store, I> FullHandleToResultItem<'store, DataKey> for FilterAllIter<'store, DataKey, I>
+where
+    I: Iterator<Item = ResultItem<'store, DataKey>>,
+{
+    fn get_item(
+        &self,
+        handle: (AnnotationDataSetHandle, DataKeyHandle),
+    ) -> Option<ResultItem<'store, DataKey>> {
+        if let Some(dataset) = self.store.dataset(handle.0) {
+            dataset.key(handle.1)
+        } else {
+            None
+        }
+    }
+}
+
+pub trait KeyIterator<'store>: Iterator<Item = ResultItem<'store, DataKey>>
+where
+    Self: Sized,
+{
+    fn parallel(self) -> rayon::vec::IntoIter<ResultItem<'store, DataKey>> {
+        let annotations: Vec<_> = self.collect();
+        annotations.into_par_iter()
+    }
+
+    /// Iterate over the annotations that make use of data in this iterator.
+    /// Annotations will be returned chronologically (add `.textual_order()` to sort textually) and contain no duplicates.
+    fn annotations(
+        self,
+    ) -> ResultIter<<Vec<ResultItem<'store, Annotation>> as IntoIterator>::IntoIter> {
+        let mut annotations: Vec<_> = self.map(|key| key.annotations()).flatten().collect();
+        annotations.sort_unstable();
+        annotations.dedup();
+        ResultIter::new_sorted(annotations.into_iter())
+    }
+
+    fn filter_handle(
+        self,
+        set: AnnotationDataSetHandle,
+        key: DataKeyHandle,
+    ) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::DataKey(set, key, SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_set(self, set: &ResultItem<'store, AnnotationDataSet>) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set.handle(), SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_set_handle(self, set: AnnotationDataSetHandle) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set, SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_any(self, keys: Keys<'store>) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::Keys(keys, FilterMode::Any, SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_any_byref(self, keys: &'store Keys<'store>) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::BorrowedKeys(keys, FilterMode::Any, SelectionQualifier::Normal),
+        }
+    }
+
+    /// Constrain this iterator to filter on *all* of the mentioned keys, that is.
+    /// If not all of the items in the parameter exist in the iterator, the iterator returns nothing.
+    fn filter_all(
+        self,
+        keys: Keys<'store>,
+        store: &'store AnnotationStore,
+    ) -> FilterAllIter<'store, DataKey, Self> {
+        FilterAllIter::new(self, keys, store)
+    }
+
+    fn filter_one(self, data: &ResultItem<'store, AnnotationData>) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::AnnotationData(
+                data.set().handle(),
+                data.handle(),
+                SelectionQualifier::Normal,
+            ),
+        }
+    }
+
+    fn filter_annotation(
+        self,
+        annotation: &ResultItem<'store, Annotation>,
+    ) -> FilteredKeys<'store, Self> {
+        self.filter_annotation_handle(annotation.handle())
+    }
+
+    fn filter_annotation_handle(self, annotation: AnnotationHandle) -> FilteredKeys<'store, Self> {
+        FilteredKeys {
+            inner: self,
+            filter: Filter::Annotation(
+                annotation,
+                SelectionQualifier::Normal,
+                AnnotationDepth::default(),
+            ),
+        }
+    }
+}
+
+impl<'store, I> KeyIterator<'store> for I
+where
+    I: Iterator<Item = ResultItem<'store, DataKey>>,
+{
+    //blanket implementation
+}
+
+pub struct FilteredKeys<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, DataKey>>,
+{
+    inner: I,
+    filter: Filter<'store>,
+}
+
+impl<'store, I> Iterator for FilteredKeys<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, DataKey>>,
+{
+    type Item = ResultItem<'store, DataKey>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(item) = self.inner.next() {
+                if self.test_filter(&item) {
+                    return Some(item);
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl<'store, I> FilteredKeys<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, DataKey>>,
+{
+    fn test_filter(&self, key: &ResultItem<'store, DataKey>) -> bool {
+        match &self.filter {
+            Filter::DataKey(set_handle, key_handle, Normal) => {
+                key.handle() == *key_handle && key.set().handle() == *set_handle
+            }
+            Filter::AnnotationDataSet(set_handle, _) => key.set().handle() == *set_handle,
+            Filter::Annotations(annotations, FilterMode::Any, SelectionQualifier::Normal, _) => {
+                key.annotations().filter_any_byref(annotations).test()
+            }
+            Filter::Annotations(annotations, FilterMode::All, SelectionQualifier::Normal, _) => key
+                .annotations()
+                .filter_all(annotations.clone(), key.rootstore())
+                .test(),
+            Filter::BorrowedAnnotations(
+                annotations,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                _,
+            ) => key.annotations().filter_any_byref(annotations).test(),
+            Filter::BorrowedAnnotations(
+                annotations,
+                FilterMode::All,
+                SelectionQualifier::Normal,
+                _,
+            ) => key
+                .annotations()
+                .filter_all(annotations.deref().clone(), key.rootstore())
+                .test(),
+            Filter::Keys(_, FilterMode::All, _) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
+            }
+            Filter::BorrowedKeys(_, FilterMode::All, _) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
+            }
+            _ => unreachable!("Filter {:?} not implemented for FilteredKeys", self.filter),
+        }
     }
 }

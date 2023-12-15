@@ -35,7 +35,7 @@ use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::AnnotationDataSetHandle;
 use crate::annotationstore::AnnotationStore;
-use crate::datakey::DataKeyHandle;
+use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::textselection::{TextSelection, TextSelectionOperator};
@@ -641,6 +641,7 @@ pub(crate) enum Filter<'store> {
         FilterMode,
         SelectionQualifier,
     ),
+    Keys(Handles<'store, DataKey>, FilterMode, SelectionQualifier),
     Text(String, TextMode, &'store str), //the last string represents the delimiter for joining text
     TextSelection(TextResourceHandle, TextSelectionHandle),
     TextSelections(Handles<'store, TextSelection>, FilterMode),
@@ -654,6 +655,11 @@ pub(crate) enum Filter<'store> {
     ),
     BorrowedData(
         &'store Handles<'store, AnnotationData>,
+        FilterMode,
+        SelectionQualifier,
+    ),
+    BorrowedKeys(
+        &'store Handles<'store, DataKey>,
         FilterMode,
         SelectionQualifier,
     ),
