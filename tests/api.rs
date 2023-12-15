@@ -1534,7 +1534,10 @@ fn annotations_in_targets() -> Result<(), StamError> {
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
     let sentence = store.annotation("Sentence1").or_fail()?;
     //get the 2nd word in the sentence
-    let secondword = sentence.annotations_in_targets(false).nth(1).unwrap();
+    let secondword = sentence
+        .annotations_in_targets(AnnotationDepth::default())
+        .nth(1)
+        .unwrap();
     assert_eq!(secondword.text_simple(), Some("human"));
     Ok(())
 }
@@ -1545,7 +1548,9 @@ fn annotations_in_targets_len() -> Result<(), StamError> {
 
     let store = setup_example_6c()?; //<--- used different example! rest of code is the same
     let sentence = store.annotation("Sentence1").or_fail()?;
-    let words: Vec<_> = sentence.annotations_in_targets(false).collect();
+    let words: Vec<_> = sentence
+        .annotations_in_targets(AnnotationDepth::default())
+        .collect();
     assert_eq!(words.len(), 12, "number of targets returned"); //the final punctuation is not included because it's not selected via AnnotationSelector but via a TextSelector
     Ok(())
 }
@@ -1577,7 +1582,10 @@ fn find_data_about() -> Result<(), StamError> {
     let store = setup_example_6c()?;
     let sentence = store.annotation("Sentence1").or_fail()?;
     //get the 2nd word in the sentence
-    let secondword = sentence.annotations_in_targets(false).nth(1).unwrap();
+    let secondword = sentence
+        .annotations_in_targets(AnnotationDepth::default())
+        .nth(1)
+        .unwrap();
     assert_eq!(
         secondword.text_simple(),
         Some("human"),
@@ -1822,7 +1830,13 @@ fn query_parse() -> Result<(), StamError> {
     let mut count = 0;
     for constraint in query.iter() {
         count += 1;
-        if let Constraint::KeyValue { set, key, operator } = constraint {
+        if let Constraint::KeyValue {
+            set,
+            key,
+            operator,
+            qualifier: _,
+        } = constraint
+        {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
             assert_eq!(*operator, DataOperator::Equals("value"));
@@ -1844,7 +1858,13 @@ fn query_parse_quoted() -> Result<(), StamError> {
     let mut count = 0;
     for constraint in query.iter() {
         count += 1;
-        if let Constraint::KeyValue { set, key, operator } = constraint {
+        if let Constraint::KeyValue {
+            set,
+            key,
+            operator,
+            qualifier: _,
+        } = constraint
+        {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
             assert_eq!(*operator, DataOperator::Equals("value"));
@@ -1866,7 +1886,13 @@ fn query_parse_numeric() -> Result<(), StamError> {
     let mut count = 0;
     for constraint in query.iter() {
         count += 1;
-        if let Constraint::KeyValue { set, key, operator } = constraint {
+        if let Constraint::KeyValue {
+            set,
+            key,
+            operator,
+            qualifier: _,
+        } = constraint
+        {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
             assert_eq!(*operator, DataOperator::EqualsInt(5));
