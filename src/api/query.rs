@@ -1361,7 +1361,7 @@ impl<'store> QueryIter<'store> {
             } else if i == 0 {
                 match query.contextvars.get(name) {
                     Some(QueryResultItem::AnnotationData(data)) => return Ok(data),
-                    Some(x) => {
+                    Some(_) => {
                         return Err(StamError::QuerySyntaxError(
                             format!(
                                 "Variable ?{} was found in context but does not have expected type DATA",
@@ -1390,7 +1390,7 @@ impl<'store> QueryIter<'store> {
             } else if i == 0 {
                 match query.contextvars.get(name) {
                     Some(QueryResultItem::DataKey(key)) => return Ok(key),
-                    Some(x) => {
+                    Some(_) => {
                         return Err(StamError::QuerySyntaxError(
                             format!(
                             "Variable ?{} was found in context but does not have expected type KEY",
@@ -1422,7 +1422,7 @@ impl<'store> QueryIter<'store> {
             } else if i == 0 {
                 match query.contextvars.get(name) {
                     Some(QueryResultItem::Annotation(annotation)) => return Ok(annotation),
-                    Some(x) => {
+                    Some(_) => {
                         return Err(StamError::QuerySyntaxError(
                             format!(
                             "Variable ?{} was found in context but does not have expected type ANNOTATION",
@@ -1451,7 +1451,7 @@ impl<'store> QueryIter<'store> {
             } else if i == 0 {
                 match query.contextvars.get(name) {
                     Some(QueryResultItem::TextSelection(textselection)) => return Ok(textselection),
-                    Some(x) => {
+                    Some(_) => {
                         return Err(StamError::QuerySyntaxError(
                             format!(
                                 "Variable ?{} was found in context but does not have expected type TEXT",
@@ -1483,7 +1483,7 @@ impl<'store> QueryIter<'store> {
             } else if i == 0 {
                 match query.contextvars.get(name) {
                     Some(QueryResultItem::TextResource(resource)) => return Ok(resource),
-                    Some(x) => {
+                    Some(_) => {
                         return Err(StamError::QuerySyntaxError(
                             format!(
                             "Variable ?{} was found in context but does not have expected type RESOURCE",
