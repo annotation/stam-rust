@@ -441,6 +441,22 @@ where
         }
     }
 
+    fn filter_key_value_on_text(
+        self,
+        key: &ResultItem<'store, DataKey>,
+        value: DataOperator<'store>,
+    ) -> FilteredResources<'store, Self> {
+        FilteredResources {
+            inner: self,
+            filter: Filter::DataKeyAndOperator(
+                key.set().handle(),
+                key.handle(),
+                value,
+                SelectionQualifier::Normal,
+            ),
+        }
+    }
+
     /// This filter considers only annotations as metadata (i.e. via a ResourceSelector)
     fn filter_key_on_text(
         self,

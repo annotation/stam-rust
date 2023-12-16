@@ -103,6 +103,7 @@ pub enum Constraint<'a> {
         operator: DataOperator<'a>,
         qualifier: SelectionQualifier,
     },
+    KeyValueVariable(&'a str, DataOperator<'a>, SelectionQualifier),
     Text(&'a str),
     /// Disjunction
     Union(Vec<Constraint<'a>>),
@@ -133,7 +134,10 @@ impl<'a> Constraint<'a> {
             Self::Id(..) => "ID",
             Self::TextResource { .. } | Self::ResourceVariable(..) => "RESOURCE",
             Self::TextRelation { .. } => "RELATION",
-            Self::KeyValue { .. } | Self::DataKey { .. } | Self::DataVariable(..) => "DATA",
+            Self::KeyValue { .. }
+            | Self::DataKey { .. }
+            | Self::DataVariable(..)
+            | Self::KeyValueVariable(..) => "DATA",
             Self::KeyVariable(..) => "KEY",
             Self::DataSet { .. } | Self::DataSetVariable { .. } => "DATASET",
             Self::Text { .. } | Self::TextVariable(..) => "TEXT",
@@ -830,6 +834,24 @@ impl<'store> QueryIter<'store> {
                                 .annotations()
                                 .resources_as_metadata(),
                         ),
+                        Some(&Constraint::KeyValueVariable(varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        )) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            Box::new(
+                                 key.data().filter_value(operator.clone()).annotations().resources()
+                            )
+                        },
+                        Some(&Constraint::KeyValueVariable(varname,
+                            ref operator,
+                            SelectionQualifier::Metadata,
+                        )) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            Box::new(
+                                 key.data().filter_value(operator.clone()).annotations().resources_as_metadata()
+                            )
+                        },
                         Some(c) => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -877,6 +899,24 @@ impl<'store> QueryIter<'store> {
                             let key = store.key(set, key).or_fail()?;
                             iter = Box::new(iter.filter_key_value_in_metadata(&key, operator.clone()));
                         }
+                        &Constraint::KeyValueVariable(varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        ) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            iter = Box::new(
+                                 iter.filter_key_value_on_text(&key, operator.clone())
+                            )
+                        },
+                        &Constraint::KeyValueVariable(varname,
+                            ref operator,
+                            SelectionQualifier::Metadata,
+                        ) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            iter = Box::new(
+                                 iter.filter_key_value_in_metadata(&key, operator.clone())
+                            )
+                        },
                         c => {
                             return Err(StamError::QuerySyntaxError(
                                 format!(
@@ -966,6 +1006,15 @@ impl<'store> QueryIter<'store> {
                                 ));
                             }
                         }
+                        Some(&Constraint::KeyValueVariable(varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        )) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            Box::new(
+                                 key.data().filter_value(operator.clone()).annotations()
+                            )
+                        },
                         Some(&Constraint::TextRelation { var, operator }) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
                                 Box::new(tsel.related_text(operator).annotations())
@@ -1057,6 +1106,14 @@ impl<'store> QueryIter<'store> {
                         } => {
                             let key = store.key(set, key).or_fail()?;
                             iter = Box::new(iter.filter_key_value(&key, operator.clone()));
+                        }
+                        &Constraint::KeyValueVariable(
+                            varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        ) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            iter = Box::new(iter.filter_key_value(&key, operator.clone()))
                         }
                         &Constraint::Text(text) => {
                             iter = Box::new(iter.filter_text_byref(text, true, " "))
@@ -1189,6 +1246,15 @@ impl<'store> QueryIter<'store> {
                                 .annotations()
                                 .textselections(),
                         ),
+                        Some(&Constraint::KeyValueVariable(varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        )) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            Box::new(
+                                 key.data().filter_value(operator.clone()).annotations().textselections()
+                            )
+                        },
                         Some(&Constraint::Text(text)) => Box::new(store.find_text(text)),
                         Some(&Constraint::TextRelation { var, operator }) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
@@ -1239,6 +1305,14 @@ impl<'store> QueryIter<'store> {
                         } => {
                             let key = store.key(set, key).or_fail()?;
                             iter = Box::new(iter.filter_key_value(&key, operator.clone()));
+                        }
+                        &Constraint::KeyValueVariable(
+                            varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        ) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            iter = Box::new(iter.filter_key_value(&key, operator.clone()))
                         }
                         &Constraint::Text(text) => {
                             iter = Box::new(iter.filter_text_byref(text, true))
@@ -1302,6 +1376,14 @@ impl<'store> QueryIter<'store> {
                             ref operator,
                             qualifier: SelectionQualifier::Normal,
                         }) => store.find_data(set, key, operator.clone()),
+                        Some(&Constraint::KeyValueVariable(
+                            varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        )) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            Box::new(key.data().filter_value(operator.clone()))
+                        }
                         Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
                             let key = self.resolve_keyvar(varname)?;
                             Box::new(key.data())
@@ -1333,6 +1415,14 @@ impl<'store> QueryIter<'store> {
                                         .to_handles(store),
                                 ),
                             );
+                        }
+                        &Constraint::KeyValueVariable(
+                            varname,
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        ) => {
+                            let key = self.resolve_keyvar(varname)?;
+                            iter = Box::new(iter.filter_key(&key).filter_value(operator.clone()))
                         }
                         &Constraint::AnnotationVariable(
                             varname,
