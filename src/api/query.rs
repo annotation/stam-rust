@@ -2,13 +2,13 @@
 #![allow(dead_code)]
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
 use crate::textselection::TextSelectionOperator;
-use crate::AnnotationDataSetHandle;
 use crate::{store::*, ResultTextSelection};
 use crate::{types::*, DataOperator};
 use crate::{TextResource, TextResourceHandle};
@@ -88,6 +88,7 @@ pub enum Constraint<'a> {
     },
     KeyVariable(&'a str, SelectionQualifier),
     DataVariable(&'a str, SelectionQualifier),
+    DataSetVariable(&'a str, SelectionQualifier),
 
     ResourceVariable(&'a str, SelectionQualifier),
     TextVariable(&'a str),
@@ -451,15 +452,19 @@ impl<'a> Query<'a> {
                 end = "TEXT".len();
                 Some(Type::TextSelection)
             }
+            Some("DATASET") | Some("dataset") => {
+                end = "DATASET".len();
+                Some(Type::AnnotationDataSet)
+            }
             Some(x) => {
                 return Err(StamError::QuerySyntaxError(
-                    format!("Expected result type (ANNOTATION, DATA, TEXT), got '{}'", x),
+                    format!("Expected result type (ANNOTATION, DATA, TEXT, KEY, DATASET), got '{}'", x),
                     "",
                 ))
             }
             None => {
                 return Err(StamError::QuerySyntaxError(
-                    format!("Expected result type (ANNOTATION, DATA, TEXT), got end of string"),
+                    format!("Expected result type (ANNOTATION, DATA, TEXT, KEY, DATASET), got end of string"),
                     "",
                 ))
             }
@@ -563,6 +568,17 @@ impl<'a> Query<'a> {
             .insert(name.into(), QueryResultItem::AnnotationData(data));
     }
 
+    pub fn with_keyvar(mut self, name: impl Into<String>, key: ResultItem<'a, DataKey>) -> Self {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::DataKey(key));
+        self
+    }
+
+    pub fn bind_keyvar(&mut self, name: impl Into<String>, key: ResultItem<'a, DataKey>) {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::DataKey(key));
+    }
+
     pub fn with_textvar(
         mut self,
         name: impl Into<String>,
@@ -600,6 +616,25 @@ impl<'a> Query<'a> {
         self.contextvars
             .insert(name.into(), QueryResultItem::TextResource(resource));
     }
+
+    pub fn with_datasetvar(
+        mut self,
+        name: impl Into<String>,
+        dataset: ResultItem<'a, AnnotationDataSet>,
+    ) -> Self {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::AnnotationDataSet(dataset));
+        self
+    }
+
+    pub fn bind_datasetvar(
+        &mut self,
+        name: impl Into<String>,
+        dataset: ResultItem<'a, AnnotationDataSet>,
+    ) {
+        self.contextvars
+            .insert(name.into(), QueryResultItem::AnnotationDataSet(dataset));
+    }
 }
 
 impl<'a> TryFrom<&'a str> for Query<'a> {
@@ -622,6 +657,7 @@ pub enum QueryResultIter<'store> {
     Annotations(Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>),
     Data(Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>),
     Keys(Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>),
+    DataSets(Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store>),
     TextSelections(Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>),
     Resources(Box<dyn Iterator<Item = ResultItem<'store, TextResource>> + 'store>),
 }
@@ -634,6 +670,7 @@ pub enum QueryResultItem<'store> {
     TextResource(ResultItem<'store, TextResource>),
     DataKey(ResultItem<'store, DataKey>),
     AnnotationData(ResultItem<'store, AnnotationData>),
+    AnnotationDataSet(ResultItem<'store, AnnotationDataSet>),
 }
 
 pub struct QueryState<'store> {
@@ -1305,6 +1342,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Ok(QueryResultIter::Data(iter))
             }
+            ///////////////////////////////// target= KEY ////////////////////////////////////////
             Some(Type::DataKey) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, DataKey>>> =
                     match constraintsiter.next() {
@@ -1344,7 +1382,7 @@ impl<'store> QueryIter<'store> {
                         }
                         None => Box::new(store.keys()),
                     };
-                //secondary contraints for target DATA
+                //secondary contraints for target KEY
                 while let Some(constraint) = constraintsiter.next() {
                     match constraint {
                         c => {
@@ -1359,6 +1397,49 @@ impl<'store> QueryIter<'store> {
                     }
                 }
                 Ok(QueryResultIter::Keys(iter))
+            }
+            ///////////////////////////////// target= DATASET ////////////////////////////////////////
+            Some(Type::AnnotationDataSet) => {
+                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>>> =
+                    match constraintsiter.next() {
+                        Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
+                            let dataset = self.resolve_datasetvar(varname)?;
+                            Box::new(Some(dataset.clone()).into_iter())
+                        }
+                        Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
+                            let data = self.resolve_keyvar(varname)?;
+                            Box::new(Some(data.set().clone()).into_iter())
+                        }
+                        Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
+                            let data = self.resolve_datavar(varname)?;
+                            Box::new(Some(data.set().clone()).into_iter())
+                        }
+                        Some(c) => {
+                            return Err(StamError::QuerySyntaxError(
+                                format!(
+                                    "Constraint {} (primary) is not valid for DATASET return type",
+                                    c.keyword()
+                                ),
+                                "",
+                            ))
+                        }
+                        None => Box::new(store.datasets()),
+                    };
+                //secondary contraints for target KEY
+                while let Some(constraint) = constraintsiter.next() {
+                    match constraint {
+                        c => {
+                            return Err(StamError::QuerySyntaxError(
+                                format!(
+                                "Constraint {} (secondary) is not implemented for queries over DATASET",
+                                c.keyword()
+                            ),
+                                "",
+                            ))
+                        }
+                    }
+                }
+                Ok(QueryResultIter::DataSets(iter))
             }
             None => unreachable!("Query must have a result type"),
             _ => unimplemented!("Query result type not implemented"),
@@ -1485,6 +1566,38 @@ impl<'store> QueryIter<'store> {
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type KEY not found", name),
+            "",
+        ));
+    }
+
+    fn resolve_datasetvar(
+        &self,
+        name: &str,
+    ) -> Result<&ResultItem<'store, AnnotationDataSet>, StamError> {
+        for (i, state) in self.statestack.iter().enumerate() {
+            let query = self.queries.get(i).expect("query must exist");
+            if query.name() == Some(name) {
+                if let QueryResultItem::AnnotationDataSet(dataset) = &state.result {
+                    return Ok(dataset);
+                }
+            } else if i == 0 {
+                match query.contextvars.get(name) {
+                    Some(QueryResultItem::AnnotationDataSet(dataset)) => return Ok(dataset),
+                    Some(_) => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                                "Variable ?{} was found in context but does not have expected type DATASET",
+                                name
+                            ),
+                            "",
+                        ))
+                    }
+                    None => {}
+                }
+            }
+        }
+        return Err(StamError::QuerySyntaxError(
+            format!("Variable ?{} of type DATASET not found", name),
             "",
         ));
     }
