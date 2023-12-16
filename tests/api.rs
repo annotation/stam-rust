@@ -1132,6 +1132,16 @@ fn parse_csv() -> Result<(), StamError> {
 }
 
 #[test]
+fn parse_old_csv() -> Result<(), StamError> {
+    let store = AnnotationStore::from_file(
+        "tests/oldtest.store.stam.csv", //this lacks two optional columns that were added later
+        Config::default().with_debug(true),
+    )?;
+    test_example_a_sanity(&store)?;
+    Ok(())
+}
+
+#[test]
 fn annotate_regex_single2() -> Result<(), StamError> {
     let mut store = setup_example_5()?;
     annotate_regex_for_example_6(&mut store)?;
