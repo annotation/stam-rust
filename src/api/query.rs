@@ -81,6 +81,7 @@ pub enum Constraint<'a> {
 
     /// ID of a TextResource
     TextResource(&'a str, SelectionQualifier),
+    DataSet(&'a str, SelectionQualifier),
     DataKey {
         set: &'a str,
         key: &'a str,
@@ -134,6 +135,7 @@ impl<'a> Constraint<'a> {
             Self::TextRelation { .. } => "RELATION",
             Self::KeyValue { .. } | Self::DataKey { .. } | Self::DataVariable(..) => "DATA",
             Self::KeyVariable(..) => "KEY",
+            Self::DataSet { .. } | Self::DataSetVariable { .. } => "DATASET",
             Self::Text { .. } | Self::TextVariable(..) => "TEXT",
             Self::AnnotationVariable(..) | Self::Annotation(..) => "ANNOTATION",
             Self::Union { .. } => "UNION",
@@ -190,7 +192,7 @@ impl<'a> Constraint<'a> {
             }
             Some("ANNOTATION") => {
                 querystring = querystring["ANNOTATION".len()..].trim_start();
-                let (mut arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, _) = get_arg(querystring)?;
                 let (arg, remainder, qualifier, depth) = parse_qualifiers(arg, remainder)?;
                 querystring = remainder;
                 if arg.starts_with("?") && arg.len() > 1 {
@@ -201,13 +203,24 @@ impl<'a> Constraint<'a> {
             }
             Some("RESOURCE") => {
                 querystring = querystring["RESOURCE".len()..].trim_start();
-                let (mut arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, _) = get_arg(querystring)?;
                 let (arg, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
                 querystring = remainder;
                 if arg.starts_with("?") && arg.len() > 1 {
                     Self::ResourceVariable(&arg[1..], qualifier)
                 } else {
                     Self::TextResource(arg, qualifier)
+                }
+            }
+            Some("DATASET") => {
+                querystring = querystring["DATASET".len()..].trim_start();
+                let (arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
+                querystring = remainder;
+                if arg.starts_with("?") && arg.len() > 1 {
+                    Self::DataSetVariable(&arg[1..], qualifier)
+                } else {
+                    Self::DataSet(arg, qualifier)
                 }
             }
             Some("RELATION") => {
@@ -1402,6 +1415,9 @@ impl<'store> QueryIter<'store> {
             Some(Type::AnnotationDataSet) => {
                 let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>>> =
                     match constraintsiter.next() {
+                        Some(&Constraint::Id(id)) | Some(&Constraint::DataSet(id, _)) => {
+                            Box::new(Some(store.dataset(id).or_fail()?).into_iter())
+                        }
                         Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
                             let dataset = self.resolve_datasetvar(varname)?;
                             Box::new(Some(dataset.clone()).into_iter())
