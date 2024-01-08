@@ -324,7 +324,7 @@ where
 {
     fn test_filter(&self, key: &ResultItem<'store, DataKey>) -> bool {
         match &self.filter {
-            Filter::DataKey(set_handle, key_handle, Normal) => {
+            Filter::DataKey(set_handle, key_handle, _) => {
                 key.handle() == *key_handle && key.set().handle() == *set_handle
             }
             Filter::AnnotationDataSet(set_handle, _) => key.set().handle() == *set_handle,
