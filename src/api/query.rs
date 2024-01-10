@@ -759,6 +759,15 @@ impl QueryNames {
             .copied()
             .ok_or_else(|| StamError::QuerySyntaxError(format!("Variable ?{} not found", name), ""))
     }
+
+    pub fn enumerate(&self) -> Vec<(usize, &str)> {
+        let mut names = Vec::new();
+        for (name, index) in self.0.iter() {
+            names.push((*index, name.as_str()));
+        }
+        names.sort_unstable();
+        names
+    }
 }
 
 /// Represents an entire result row, each result stems from a query
