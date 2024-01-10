@@ -103,6 +103,7 @@ pub enum Constraint<'a> {
         operator: DataOperator<'a>,
         qualifier: SelectionQualifier,
     },
+    Value(DataOperator<'a>, SelectionQualifier),
     KeyValueVariable(&'a str, DataOperator<'a>, SelectionQualifier),
     Text(&'a str),
     /// Disjunction
@@ -114,18 +115,6 @@ pub enum Constraint<'a> {
     Keys(Handles<'a, DataKey>, SelectionQualifier),
     Resources(Handles<'a, TextResource>, SelectionQualifier),
     TextSelections(Handles<'a, TextSelection>, SelectionQualifier),
-    /*
-    /// Use a direct Filter as constraint.
-    /// This is useful when constructing queryies
-    /// programmatically, bypassing the query parser.
-    Filter(Filter<'a>),
-
-    /// Use a direct Filter to select an item.
-    /// This is useful when constructing queryies
-    /// programmatically, bypassing the query parser.
-    /// Filters in this role are used analogous to the ID Constraint.
-    Handle(Filter<'a>),
-    */
 }
 
 impl<'a> Constraint<'a> {
@@ -138,6 +127,7 @@ impl<'a> Constraint<'a> {
             | Self::DataKey { .. }
             | Self::DataVariable(..)
             | Self::KeyValueVariable(..) => "DATA",
+            Self::Value(..) => "VALUE",
             Self::KeyVariable(..) => "KEY",
             Self::DataSet { .. } | Self::DataSetVariable { .. } => "DATASET",
             Self::Text { .. } | Self::TextVariable(..) => "TEXT",
@@ -150,29 +140,6 @@ impl<'a> Constraint<'a> {
             Self::Resources(..) => "RESOURCES",
             Self::TextSelections(..) => "TEXTSELECTIONS",
             Self::Keys(..) => "KEYS",
-            /*
-            //not real keywords that can be parsed, only for debug printing purposes:
-            Self::Handle(..) => "HANDLE",
-            Self::Filter(Filter::TextResource(..))
-            | Self::Filter(Filter::Resources(..))
-            | Self::Filter(Filter::BorrowedResources(..)) => "FILTER(RESOURCE)",
-            Self::Filter(Filter::Text(..))
-            | Self::Filter(Filter::TextSelection(..))
-            | Self::Filter(Filter::TextSelections(..))
-            | Self::Filter(Filter::BorrowedText(..)) => "FILTER(TEXT)",
-            Self::Filter(Filter::TextSelectionOperator(..)) => "FILTER(RELATION)",
-            Self::Filter(Filter::Data(..))
-            | Self::Filter(Filter::BorrowedData(..))
-            | Self::Filter(Filter::DataKey(..))
-            | Self::Filter(Filter::DataOperator(..))
-            | Self::Filter(Filter::DataKeyAndOperator(..))
-            | Self::Filter(Filter::AnnotationData(..)) => "FILTER(DATA)",
-            Self::Filter(Filter::Annotation(..))
-            | Self::Filter(Filter::Annotations(..))
-            | Self::Filter(Filter::BorrowedAnnotations(..)) => "FILTER(ANNOTATION)",
-            Self::Filter(Filter::AnnotationDataSet(..)) => "FILTER(DATASET)",
-            Self::Filter(_) => "FILTER(UNKNOWN)",
-            */
         }
     }
 
@@ -349,6 +316,74 @@ impl<'a> Constraint<'a> {
                         }
                     }
                 }
+            }
+            Some("VALUE") => {
+                querystring = querystring["VALUE".len()..].trim_start();
+                let (arg, remainder, _) = get_arg(querystring)?;
+                let (opstr, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
+                let (value, remainder, valuetype) = get_arg(remainder)?;
+                querystring = remainder;
+                let operator = match (opstr, valuetype) {
+                    ("=", ArgType::String) => DataOperator::Equals(value),
+                    ("=", ArgType::Integer) => DataOperator::EqualsInt(
+                        value.parse().expect("str->int conversion should work"),
+                    ),
+                    ("=", ArgType::Float) => DataOperator::EqualsFloat(
+                        value.parse().expect("str->float conversion should work"),
+                    ),
+                    ("!=", ArgType::String) => {
+                        DataOperator::Not(Box::new(DataOperator::Equals(value)))
+                    }
+                    ("!=", ArgType::Integer) => {
+                        DataOperator::Not(Box::new(DataOperator::EqualsInt(
+                            value.parse().expect("str->int conversion should work"),
+                        )))
+                    }
+                    ("!=", ArgType::Float) => {
+                        DataOperator::Not(Box::new(DataOperator::EqualsFloat(
+                            value.parse().expect("str->float conversion should work"),
+                        )))
+                    }
+                    (">", ArgType::Integer) => DataOperator::GreaterThan(
+                        value.parse().expect("str->int conversion should work"),
+                    ),
+                    (">=", ArgType::Integer) => DataOperator::GreaterThanOrEqual(
+                        value.parse().expect("str->int conversion should work"),
+                    ),
+                    ("<", ArgType::Integer) => DataOperator::LessThan(
+                        value.parse().expect("str->int conversion should work"),
+                    ),
+                    ("<=", ArgType::Integer) => DataOperator::LessThanOrEqual(
+                        value.parse().expect("str->int conversion should work"),
+                    ),
+                    (">", ArgType::Float) => DataOperator::GreaterThanFloat(
+                        value.parse().expect("str->float conversion should work"),
+                    ),
+                    (">=", ArgType::Float) => DataOperator::GreaterThanOrEqualFloat(
+                        value.parse().expect("str->float conversion should work"),
+                    ),
+                    ("<", ArgType::Float) => DataOperator::LessThanFloat(
+                        value.parse().expect("str->float conversion should work"),
+                    ),
+                    ("<=", ArgType::Float) => DataOperator::LessThanOrEqualFloat(
+                        value.parse().expect("str->float conversion should work"),
+                    ),
+                    ("=", ArgType::List) => {
+                        let values: Vec<_> =
+                            value.split("|").map(|x| DataOperator::Equals(x)).collect();
+                        DataOperator::Or(values)
+                    }
+                    _ => {
+                        return Err(StamError::QuerySyntaxError(
+                            format!(
+                            "Invalid combination of operator and value: '{}' and '{}', type {:?}",
+                            opstr, value, valuetype
+                        ),
+                            "",
+                        ))
+                    }
+                };
+                Self::Value(operator, qualifier)
             }
             Some("KEY") => {
                 querystring = querystring["KEY".len()..].trim_start();
@@ -988,6 +1023,10 @@ impl<'store> QueryIter<'store> {
                             ref operator,
                             qualifier: _,
                         }) => Box::new(store.find_data(set, key, operator.clone()).annotations()),
+                        Some(&Constraint::Value(
+                            ref operator,
+                            _
+                        )) => Box::new(store.find_data(false, false, operator.clone()).annotations()),
                         Some(&Constraint::Text(text)) => {
                             Box::new(store.find_text(text).annotations())
                         }
@@ -1106,6 +1145,9 @@ impl<'store> QueryIter<'store> {
                         } => {
                             let key = store.key(set, key).or_fail()?;
                             iter = Box::new(iter.filter_key_value(&key, operator.clone()));
+                        }
+                        &Constraint::Value(ref operator, SelectionQualifier::Normal) => {
+                            iter = Box::new(iter.filter_value(operator.clone()));
                         }
                         &Constraint::KeyValueVariable(
                             varname,
@@ -1255,6 +1297,15 @@ impl<'store> QueryIter<'store> {
                                  key.data().filter_value(operator.clone()).annotations().textselections()
                             )
                         },
+                        Some(&Constraint::Value(
+                            ref operator,
+                            _
+                        )) => Box::new(
+                            store
+                                .find_data(false, false, operator.clone())
+                                .annotations()
+                                .textselections(),
+                        ),
                         Some(&Constraint::Text(text)) => Box::new(store.find_text(text)),
                         Some(&Constraint::TextRelation { var, operator }) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
@@ -1313,6 +1364,12 @@ impl<'store> QueryIter<'store> {
                         ) => {
                             let key = self.resolve_keyvar(varname)?;
                             iter = Box::new(iter.filter_key_value(&key, operator.clone()))
+                        }
+                        &Constraint::Value(
+                            ref operator,
+                            _
+                        ) => {
+                            iter = Box::new(iter.filter_value(operator.clone()));
                         }
                         &Constraint::Text(text) => {
                             iter = Box::new(iter.filter_text_byref(text, true))
@@ -1376,6 +1433,9 @@ impl<'store> QueryIter<'store> {
                             ref operator,
                             qualifier: SelectionQualifier::Normal,
                         }) => store.find_data(set, key, operator.clone()),
+                        Some(&Constraint::Value(ref operator, SelectionQualifier::Normal)) => {
+                            store.find_data(false, false, operator.clone())
+                        }
                         Some(&Constraint::KeyValueVariable(
                             varname,
                             ref operator,
@@ -1416,6 +1476,14 @@ impl<'store> QueryIter<'store> {
                                 ),
                             );
                         }
+                        &Constraint::Value(
+                            ref operator,
+                            SelectionQualifier::Normal,
+                        ) => {
+                            iter = Box::new(
+                                iter.filter_value(operator.clone())
+                            );
+                        }
                         &Constraint::KeyValueVariable(
                             varname,
                             ref operator,
@@ -1447,7 +1515,7 @@ impl<'store> QueryIter<'store> {
             }
             ///////////////////////////////// target= KEY ////////////////////////////////////////
             Some(Type::DataKey) => {
-                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, DataKey>>> =
+                let iter: Box<dyn Iterator<Item = ResultItem<'store, DataKey>>> =
                     match constraintsiter.next() {
                         Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
                             let data = self.resolve_keyvar(varname)?;
@@ -1503,7 +1571,7 @@ impl<'store> QueryIter<'store> {
             }
             ///////////////////////////////// target= DATASET ////////////////////////////////////////
             Some(Type::AnnotationDataSet) => {
-                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>>> =
+                let iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>>> =
                     match constraintsiter.next() {
                         Some(&Constraint::Id(id)) | Some(&Constraint::DataSet(id, _)) => {
                             Box::new(Some(store.dataset(id).or_fail()?).into_iter())
