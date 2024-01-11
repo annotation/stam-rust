@@ -1437,6 +1437,10 @@ impl<'store> QueryIter<'store> {
                             let annotation = self.resolve_annotationvar(varname)?;
                             Box::new(annotation.data())
                         }
+                        Some(&Constraint::TextVariable(varname)) => {
+                            let textselection = self.resolve_textvar(varname)?;
+                            Box::new(textselection.annotations().data())
+                        }
                         Some(&Constraint::KeyValue {
                             set,
                             key,
