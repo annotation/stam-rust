@@ -1055,6 +1055,9 @@ impl<'store> QueryIter<'store> {
                                 ));
                             }
                         }
+                        Some(&Constraint::TextSelections(ref handles,SelectionQualifier::Normal)) => {
+                            Box::new(ResultTextSelections::new(FromHandles::new(handles.clone().into_iter(), store)).annotations())
+                        }
                         Some(&Constraint::KeyValueVariable(varname,
                             ref operator,
                             SelectionQualifier::Normal,
@@ -1441,6 +1444,17 @@ impl<'store> QueryIter<'store> {
                             let textselection = self.resolve_textvar(varname)?;
                             Box::new(textselection.annotations().data())
                         }
+                        Some(&Constraint::TextSelections(
+                            ref handles,
+                            SelectionQualifier::Normal,
+                        )) => Box::new(
+                            ResultTextSelections::new(FromHandles::new(
+                                handles.clone().into_iter(),
+                                store,
+                            ))
+                            .annotations()
+                            .data(),
+                        ),
                         Some(&Constraint::KeyValue {
                             set,
                             key,
