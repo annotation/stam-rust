@@ -180,6 +180,30 @@ impl Config {
         self.dataset_annotation_metamap
     }
 
+    /// Is the reverse index for DataKey => Annotation enabled?. Holds only annotations that **directly** reference the DataKey (via [`crate::Selector::DataKeySelector`]), i.e. metadata
+    pub fn key_annotation_metamap(&self) -> bool {
+        self.key_annotation_metamap
+    }
+
+    /// Enable/disable reverse index for DataKey => Annotation. Holds only annotations that **directly** reference the DataKey (via [`crate::Selector::DataKeySelector`]), i.e. metadata
+    /// Do not change this on a configuration that is already in use!
+    pub fn with_key_annotation_metamap(mut self, value: bool) -> Self {
+        self.key_annotation_metamap = value;
+        self
+    }
+
+    /// Is the reverse index for AnnotationData => Annotation enabled?. Holds only annotations that **directly** reference the AnnotationData (via [`crate::Selector::AnnotationDataSelector`]), i.e. metadata
+    pub fn data_annotation_metamap(&self) -> bool {
+        self.data_annotation_metamap
+    }
+
+    /// Enable/disable reverse index for AnnotationData => Annotation. Holds only annotations that **directly** reference the AnnotationData (via [`crate::Selector::AnnotationDataSelector`]), i.e. metadata
+    /// Do not change this on a configuration that is already in use!
+    pub fn with_data_annotation_metamap(mut self, value: bool) -> Self {
+        self.data_annotation_metamap = value;
+        self
+    }
+
     /// Enable/disable index for annotations that reference other annotations
     /// Do not change this on a configuration that is already in use!
     pub fn with_annotation_annotation_map(mut self, value: bool) -> Self {
