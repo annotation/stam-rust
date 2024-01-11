@@ -18,6 +18,8 @@ use std::collections::HashMap;
 
 use std::borrow::Cow;
 
+const QUERYSPLITCHARS: &[char] = &[' ', '\n', '\r', '\t'];
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum QueryType {
     Select,
@@ -145,7 +147,7 @@ impl<'a> Constraint<'a> {
     }
 
     pub(crate) fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
-        let constraint = match querystring.split(" ").next() {
+        let constraint = match querystring.split(QUERYSPLITCHARS).next() {
             Some("ID") => {
                 querystring = querystring["ID".len()..].trim_start();
                 let (arg, remainder, _) = get_arg(querystring)?;
@@ -202,7 +204,10 @@ impl<'a> Constraint<'a> {
                     return Err(StamError::QuerySyntaxError(
                         format!(
                             "Expected variable after 'RELATION' keyword, got '{}'",
-                            remainder.split(" ").next().unwrap_or("(empty string)")
+                            remainder
+                                .split(QUERYSPLITCHARS)
+                                .next()
+                                .unwrap_or("(empty string)")
                         ),
                         "",
                     ));
@@ -476,19 +481,23 @@ impl<'a> Query<'a> {
 
     pub fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
         let mut end: usize;
-        if let Some("SELECT") = querystring.split(" ").next() {
+        querystring = querystring.trim();
+        if let Some("SELECT") = querystring.split(QUERYSPLITCHARS).next() {
             end = 7;
         } else {
             return Err(StamError::QuerySyntaxError(
                 format!(
                     "Expected SELECT, got '{}'",
-                    querystring.split(" ").next().unwrap_or("(empty string)"),
+                    querystring
+                        .split(QUERYSPLITCHARS)
+                        .next()
+                        .unwrap_or("(empty string)"),
                 ),
                 "",
             ));
         }
         querystring = querystring[end..].trim_start();
-        let resulttype = match &querystring.split(" ").next() {
+        let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
             Some("ANNOTATION") | Some("annotation") => {
                 end = "ANNOTATION".len();
                 Some(Type::Annotation)
@@ -524,7 +533,7 @@ impl<'a> Query<'a> {
         };
         querystring = querystring[end..].trim_start();
         let name = if let Some('?') = querystring.chars().next() {
-            Some(querystring[1..].split(" ").next().unwrap())
+            Some(querystring[1..].split(QUERYSPLITCHARS).next().unwrap())
         } else {
             None
         };
@@ -532,14 +541,17 @@ impl<'a> Query<'a> {
             querystring = querystring[1 + name.len()..].trim_start();
         }
         let mut constraints = Vec::new();
-        match querystring.split(" ").next() {
+        match querystring.split(QUERYSPLITCHARS).next() {
             Some("WHERE") => querystring = querystring["WHERE".len()..].trim_start(),
             Some("{") | Some("") | None => {} //no-op (select all, end of query, no where clause)
             _ => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
                         "Expected WHERE, got '{}'",
-                        querystring.split(" ").next().unwrap_or("(empty string)"),
+                        querystring
+                            .split(QUERYSPLITCHARS)
+                            .next()
+                            .unwrap_or("(empty string)"),
                     ),
                     "",
                 ));
@@ -2076,7 +2088,7 @@ fn parse_qualifiers<'a>(
                 return Err(StamError::QuerySyntaxError(
                     format!(
                         "Expected keyword TARGET or METADATA (same meaning) after RESOURCE AS, got '{}'",
-                        remainder.split(" ").next().unwrap_or("(empty string)")
+                        remainder.split(QUERYSPLITCHARS).next().unwrap_or("(empty string)")
                     ),
                     "",
                 ))
