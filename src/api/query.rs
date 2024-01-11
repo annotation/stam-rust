@@ -1728,37 +1728,21 @@ impl<'store> QueryIter<'store> {
                 if let QueryResultItem::AnnotationData(data) = &state.result {
                     return Ok(data);
                 }
-            } else if i == 0 {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::AnnotationData(data)) => return Ok(data),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Variable ?{} was found in context but does not have expected type DATA",
-                                name
-                            ),
-                            "",
-                        ))
-                    }
-                    None => {}
-                }
             }
         }
-        if self.statestack.is_empty() {
-            if let Some(query) = self.queries.first() {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::AnnotationData(data)) => return Ok(data),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Variable ?{} was found in context but does not have expected type DATA",
-                                name
-                            ),
-                            "",
-                        ))
-                    }
-                    None => {}
+        for query in self.queries.iter() {
+            match query.contextvars.get(name) {
+                Some(QueryResultItem::AnnotationData(data)) => return Ok(data),
+                Some(_) => {
+                    return Err(StamError::QuerySyntaxError(
+                        format!(
+                        "Variable ?{} was found in context but does not have expected type DATA",
+                        name
+                    ),
+                        "",
+                    ))
                 }
+                None => {}
             }
         }
         return Err(StamError::QuerySyntaxError(
@@ -1774,37 +1758,21 @@ impl<'store> QueryIter<'store> {
                 if let QueryResultItem::DataKey(key) = &state.result {
                     return Ok(key);
                 }
-            } else if i == 0 {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::DataKey(key)) => return Ok(key),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                            "Variable ?{} was found in context but does not have expected type KEY",
-                            name
-                        ),
-                            "",
-                        ))
-                    }
-                    None => {}
-                }
             }
         }
-        if self.statestack.is_empty() {
-            if let Some(query) = self.queries.first() {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::DataKey(key)) => return Ok(key),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
+        for query in self.queries.iter() {
+            match query.contextvars.get(name) {
+                Some(QueryResultItem::DataKey(key)) => return Ok(key),
+                Some(_) => {
+                    return Err(StamError::QuerySyntaxError(
+                        format!(
                             "Variable ?{} was found in context but does not have expected type KEY",
                             name
                         ),
-                            "",
-                        ))
-                    }
-                    None => {}
+                        "",
+                    ))
                 }
+                None => {}
             }
         }
         return Err(StamError::QuerySyntaxError(
@@ -1826,37 +1794,21 @@ impl<'store> QueryIter<'store> {
                 if let QueryResultItem::AnnotationDataSet(dataset) = &state.result {
                     return Ok(dataset);
                 }
-            } else if i == 0 {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::AnnotationDataSet(dataset)) => return Ok(dataset),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Variable ?{} was found in context but does not have expected type DATASET",
-                                name
-                            ),
-                            "",
-                        ))
-                    }
-                    None => {}
-                }
             }
         }
-        if self.statestack.is_empty() {
-            if let Some(query) = self.queries.first() {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::AnnotationDataSet(dataset)) => return Ok(dataset),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Variable ?{} was found in context but does not have expected type DATASET",
-                                name
-                            ),
-                            "",
-                        ))
-                    }
-                    None => {}
+        for query in self.queries.iter() {
+            match query.contextvars.get(name) {
+                Some(QueryResultItem::AnnotationDataSet(dataset)) => return Ok(dataset),
+                Some(_) => {
+                    return Err(StamError::QuerySyntaxError(
+                        format!(
+                        "Variable ?{} was found in context but does not have expected type DATASET",
+                        name
+                    ),
+                        "",
+                    ))
                 }
+                None => {}
             }
         }
         return Err(StamError::QuerySyntaxError(
@@ -1875,25 +1827,10 @@ impl<'store> QueryIter<'store> {
                 if let QueryResultItem::Annotation(annotation) = &state.result {
                     return Ok(annotation);
                 }
-            } else if i == 0 {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::Annotation(annotation)) => return Ok(annotation),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                            "Variable ?{} was found in context but does not have expected type ANNOTATION",
-                            name
-                        ),
-                            "",
-                        ))
-                    }
-                    None => {}
-                }
             }
         }
-        if self.statestack.is_empty() {
-            if let Some(query) = self.queries.first() {
-                match query.contextvars.get(name) {
+        for query in self.queries.iter() {
+            match query.contextvars.get(name) {
                     Some(QueryResultItem::Annotation(annotation)) => return Ok(annotation),
                     Some(_) => {
                         return Err(StamError::QuerySyntaxError(
@@ -1906,7 +1843,6 @@ impl<'store> QueryIter<'store> {
                     }
                     None => {}
                 }
-            }
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type ANNOTATION not found", name),
@@ -1921,37 +1857,21 @@ impl<'store> QueryIter<'store> {
                 if let QueryResultItem::TextSelection(textsel) = &state.result {
                     return Ok(textsel);
                 }
-            } else if i == 0 {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::TextSelection(textselection)) => return Ok(textselection),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Variable ?{} was found in context but does not have expected type TEXT",
-                                name
-                            ),
-                            "",
-                        ))
-                    }
-                    None => {}
-                }
             }
         }
-        if self.statestack.is_empty() {
-            if let Some(query) = self.queries.first() {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::TextSelection(textselection)) => return Ok(textselection),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Variable ?{} was found in context but does not have expected type TEXT",
-                                name
-                            ),
-                            "",
-                        ))
-                    }
-                    None => {}
+        for query in self.queries.iter() {
+            match query.contextvars.get(name) {
+                Some(QueryResultItem::TextSelection(textselection)) => return Ok(textselection),
+                Some(_) => {
+                    return Err(StamError::QuerySyntaxError(
+                        format!(
+                        "Variable ?{} was found in context but does not have expected type TEXT",
+                        name
+                    ),
+                        "",
+                    ))
                 }
+                None => {}
             }
         }
         return Err(StamError::QuerySyntaxError(
@@ -1970,20 +1890,21 @@ impl<'store> QueryIter<'store> {
                 if let QueryResultItem::TextResource(resource) = &state.result {
                     return Ok(resource);
                 }
-            } else if i == 0 {
-                match query.contextvars.get(name) {
-                    Some(QueryResultItem::TextResource(resource)) => return Ok(resource),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                            "Variable ?{} was found in context but does not have expected type RESOURCE",
-                            name
-                        ),
-                            "",
-                        ))
-                    }
-                    None => {}
+            }
+        }
+        for query in self.queries.iter() {
+            match query.contextvars.get(name) {
+                Some(QueryResultItem::TextResource(resource)) => return Ok(resource),
+                Some(_) => {
+                    return Err(StamError::QuerySyntaxError(
+                        format!(
+                        "Variable ?{} was found in context but does not have expected type RESOURCE",
+                        name
+                    ),
+                        "",
+                    ))
                 }
+                None => {}
             }
         }
         return Err(StamError::QuerySyntaxError(
