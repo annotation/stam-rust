@@ -514,19 +514,23 @@ impl<'a> Query<'a> {
                 end = "TEXT".len();
                 Some(Type::TextSelection)
             }
+            Some("RESOURCE") | Some("resource") => {
+                end = "RESOURCE".len();
+                Some(Type::TextResource)
+            }
             Some("DATASET") | Some("dataset") => {
                 end = "DATASET".len();
                 Some(Type::AnnotationDataSet)
             }
             Some(x) => {
                 return Err(StamError::QuerySyntaxError(
-                    format!("Expected result type (ANNOTATION, DATA, TEXT, KEY, DATASET), got '{}'", x),
+                    format!("Expected result type (ANNOTATION, DATA, TEXT, KEY, DATASET, RESOURCE), got '{}'", x),
                     "",
                 ))
             }
             None => {
                 return Err(StamError::QuerySyntaxError(
-                    format!("Expected result type (ANNOTATION, DATA, TEXT, KEY, DATASET), got end of string"),
+                    format!("Expected result type (ANNOTATION, DATA, TEXT, KEY, DATASET, RESOURCE), got end of string"),
                     "",
                 ))
             }
@@ -1717,7 +1721,33 @@ impl<'store> QueryIter<'store> {
                                 break; //iterator depleted
                             }
                         }
-                        _ => unimplemented!("further iterators not implemented yet"), //TODO
+                        QueryResultIter::Resources(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::TextResource(result);
+                                self.statestack.push(state);
+                                return true;
+                            } else {
+                                break; //iterator depleted
+                            }
+                        }
+                        QueryResultIter::Keys(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::DataKey(result);
+                                self.statestack.push(state);
+                                return true;
+                            } else {
+                                break; //iterator depleted
+                            }
+                        }
+                        QueryResultIter::DataSets(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::AnnotationDataSet(result);
+                                self.statestack.push(state);
+                                return true;
+                            } else {
+                                break; //iterator depleted
+                            }
+                        }
                     }
                 }
             }
