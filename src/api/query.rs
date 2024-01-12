@@ -1488,6 +1488,11 @@ impl<'store> QueryIter<'store> {
                             let key = self.resolve_keyvar(varname)?;
                             Box::new(key.data())
                         }
+                        Some(&Constraint::DataKey {
+                            set,
+                            key,
+                            qualifier: SelectionQualifier::Normal,
+                        }) => Box::new(store.key(set, key).or_fail()?.data()),
                         Some(&Constraint::DataSet(id, SelectionQualifier::Normal)) => {
                             Box::new(store.dataset(id).or_fail()?.data())
                         }
