@@ -25,7 +25,7 @@ pub enum QueryType {
     Select,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Query<'a> {
     /// The variable name
     name: Option<&'a str>,
@@ -75,7 +75,7 @@ impl Default for AnnotationDepth {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Constraint<'a> {
     Id(&'a str),
 
