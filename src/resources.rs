@@ -671,6 +671,48 @@ impl TextResource {
         }
     }
 
+    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use within a certain range
+    /// By passing a [`PositionMode`] parameter you can specify whether you want only positions where a textselection begins, ends or both.
+    pub fn positions_in_range<'a>(
+        &'a self,
+        mode: PositionMode,
+        begin: usize,
+        end: usize,
+    ) -> Box<dyn Iterator<Item = &'a usize> + 'a> {
+        match mode {
+            PositionMode::Begin => Box::new(
+                self.positionindex
+                    .0
+                    .range((Included(&begin), Excluded(&end)))
+                    .filter_map(|(k, positem)| {
+                        if !positem.begin2end.is_empty() {
+                            Some(k)
+                        } else {
+                            None
+                        }
+                    }),
+            ),
+            PositionMode::End => Box::new(
+                self.positionindex
+                    .0
+                    .range((Included(&begin), Excluded(&end)))
+                    .filter_map(|(k, positem)| {
+                        if !positem.end2begin.is_empty() {
+                            Some(k)
+                        } else {
+                            None
+                        }
+                    }),
+            ),
+            PositionMode::Both => Box::new(
+                self.positionindex
+                    .0
+                    .range((Included(&begin), Excluded(&end)))
+                    .map(|(k, _)| k),
+            ),
+        }
+    }
+
     /// Lookup a position (unicode point) in the PositionIndex. Low-level function.
     /// Only works for positions at which a TextSelection starts or ends (non-inclusive), returns None otherwise
     pub fn position(&self, index: usize) -> Option<&PositionIndexItem> {

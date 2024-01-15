@@ -19,7 +19,7 @@ use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
-use crate::resources::{TextResource, TextResourceHandle};
+use crate::resources::{PositionMode, TextResource, TextResourceHandle};
 use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
 use crate::text::Text;
@@ -270,6 +270,16 @@ impl<'store> ResultTextSelection<'store> {
             Self::Unbound(_, _, textselection) => textselection.clone(),
         });
         self.resource().related_text(operator, tset)
+    }
+
+    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that overlap with this textselection
+    /// and are in use in the underlying resource.
+    /// By passing a [`PositionMode`] parameter you can specify whether you want only positions where a textselection begins, ends or both.
+    /// This is a low-level function. Consider using `.related_text(TextSelectionOperator::overlaps())` instead.
+    pub fn positions<'a>(&'a self, mode: PositionMode) -> Box<dyn Iterator<Item = &'a usize> + 'a> {
+        self.resource()
+            .as_ref()
+            .positions_in_range(mode, self.begin(), self.end())
     }
 }
 
