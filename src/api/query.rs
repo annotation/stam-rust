@@ -546,7 +546,13 @@ impl<'a> Query<'a> {
         };
         querystring = querystring[end..].trim_start();
         let name = if let Some('?') = querystring.chars().next() {
-            Some(querystring[1..].split(QUERYSPLITCHARS).next().unwrap())
+            Some(
+                querystring[1..]
+                    .split(QUERYSPLITCHARS)
+                    .next()
+                    .unwrap()
+                    .trim_end_matches(';'),
+            )
         } else {
             None
         };
