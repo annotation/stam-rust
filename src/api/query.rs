@@ -462,6 +462,15 @@ impl<'a> Query<'a> {
         self.subquery.as_deref()
     }
 
+    /// Returns the last subquery (if any), otherwise returns this query itself
+    pub fn last_subquery(&self) -> &Query<'a> {
+        let mut q = self;
+        while q.subquery.is_some() {
+            q = q.subquery.as_ref().unwrap();
+        }
+        q
+    }
+
     /// Iterates over all constraints in the Query
     pub fn iter(&self) -> std::slice::Iter<Constraint<'a>> {
         self.constraints.iter()
