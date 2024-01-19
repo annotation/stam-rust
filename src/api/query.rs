@@ -25,6 +25,14 @@ pub enum QueryType {
     Select,
 }
 
+impl QueryType {
+    fn as_str(&self) -> &str {
+        match self {
+            QueryType::Select => "SELECT",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Query<'a> {
     /// The variable name
@@ -48,6 +56,15 @@ pub enum SelectionQualifier {
 
     /// This corresponds to the TARGET keyword in STAMQL. It indicates that the item in the constrain is an explicit annotation TARGET. It causes the logic flow to go over methods like annotations_as_metadata() instead of annotations()
     Metadata,
+}
+
+impl SelectionQualifier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Normal => "",
+            Self::Metadata => " AS METADATA",
+        }
+    }
 }
 
 impl Default for SelectionQualifier {
@@ -262,58 +279,7 @@ impl<'a> Constraint<'a> {
                         let (opstr, remainder, _) = get_arg(querystring)?;
                         let (value, remainder, valuetype) = get_arg(remainder)?;
                         querystring = remainder;
-                        let operator = match (opstr, valuetype) {
-                            ("=", ArgType::String) => DataOperator::Equals(value),
-                            ("=", ArgType::Integer) => DataOperator::EqualsInt(
-                                value.parse().expect("str->int conversion should work"),
-                            ),
-                            ("=", ArgType::Float) => DataOperator::EqualsFloat(
-                                value.parse().expect("str->float conversion should work"),
-                            ),
-                            ("!=", ArgType::String) => {
-                                DataOperator::Not(Box::new(DataOperator::Equals(value)))
-                            }
-                            ("!=", ArgType::Integer) => {
-                                DataOperator::Not(Box::new(DataOperator::EqualsInt(
-                                    value.parse().expect("str->int conversion should work"),
-                                )))
-                            }
-                            ("!=", ArgType::Float) => {
-                                DataOperator::Not(Box::new(DataOperator::EqualsFloat(
-                                    value.parse().expect("str->float conversion should work"),
-                                )))
-                            }
-                            (">", ArgType::Integer) => DataOperator::GreaterThan(
-                                value.parse().expect("str->int conversion should work"),
-                            ),
-                            (">=", ArgType::Integer) => DataOperator::GreaterThanOrEqual(
-                                value.parse().expect("str->int conversion should work"),
-                            ),
-                            ("<", ArgType::Integer) => DataOperator::LessThan(
-                                value.parse().expect("str->int conversion should work"),
-                            ),
-                            ("<=", ArgType::Integer) => DataOperator::LessThanOrEqual(
-                                value.parse().expect("str->int conversion should work"),
-                            ),
-                            (">", ArgType::Float) => DataOperator::GreaterThanFloat(
-                                value.parse().expect("str->float conversion should work"),
-                            ),
-                            (">=", ArgType::Float) => DataOperator::GreaterThanOrEqualFloat(
-                                value.parse().expect("str->float conversion should work"),
-                            ),
-                            ("<", ArgType::Float) => DataOperator::LessThanFloat(
-                                value.parse().expect("str->float conversion should work"),
-                            ),
-                            ("<=", ArgType::Float) => DataOperator::LessThanOrEqualFloat(
-                                value.parse().expect("str->float conversion should work"),
-                            ),
-                            ("=", ArgType::List) => {
-                                let values: Vec<_> =
-                                    value.split("|").map(|x| DataOperator::Equals(x)).collect();
-                                DataOperator::Or(values)
-                            }
-                            _ => return Err(StamError::QuerySyntaxError(format!("Invalid combination of operator and value: '{}' and '{}', type {:?}", opstr,value,valuetype), ""))
-                        };
+                        let operator = parse_dataoperator(opstr, value, valuetype)?;
                         Self::KeyValue {
                             set,
                             key,
@@ -329,66 +295,7 @@ impl<'a> Constraint<'a> {
                 let (opstr, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
                 let (value, remainder, valuetype) = get_arg(remainder)?;
                 querystring = remainder;
-                let operator = match (opstr, valuetype) {
-                    ("=", ArgType::String) => DataOperator::Equals(value),
-                    ("=", ArgType::Integer) => DataOperator::EqualsInt(
-                        value.parse().expect("str->int conversion should work"),
-                    ),
-                    ("=", ArgType::Float) => DataOperator::EqualsFloat(
-                        value.parse().expect("str->float conversion should work"),
-                    ),
-                    ("!=", ArgType::String) => {
-                        DataOperator::Not(Box::new(DataOperator::Equals(value)))
-                    }
-                    ("!=", ArgType::Integer) => {
-                        DataOperator::Not(Box::new(DataOperator::EqualsInt(
-                            value.parse().expect("str->int conversion should work"),
-                        )))
-                    }
-                    ("!=", ArgType::Float) => {
-                        DataOperator::Not(Box::new(DataOperator::EqualsFloat(
-                            value.parse().expect("str->float conversion should work"),
-                        )))
-                    }
-                    (">", ArgType::Integer) => DataOperator::GreaterThan(
-                        value.parse().expect("str->int conversion should work"),
-                    ),
-                    (">=", ArgType::Integer) => DataOperator::GreaterThanOrEqual(
-                        value.parse().expect("str->int conversion should work"),
-                    ),
-                    ("<", ArgType::Integer) => DataOperator::LessThan(
-                        value.parse().expect("str->int conversion should work"),
-                    ),
-                    ("<=", ArgType::Integer) => DataOperator::LessThanOrEqual(
-                        value.parse().expect("str->int conversion should work"),
-                    ),
-                    (">", ArgType::Float) => DataOperator::GreaterThanFloat(
-                        value.parse().expect("str->float conversion should work"),
-                    ),
-                    (">=", ArgType::Float) => DataOperator::GreaterThanOrEqualFloat(
-                        value.parse().expect("str->float conversion should work"),
-                    ),
-                    ("<", ArgType::Float) => DataOperator::LessThanFloat(
-                        value.parse().expect("str->float conversion should work"),
-                    ),
-                    ("<=", ArgType::Float) => DataOperator::LessThanOrEqualFloat(
-                        value.parse().expect("str->float conversion should work"),
-                    ),
-                    ("=", ArgType::List) => {
-                        let values: Vec<_> =
-                            value.split("|").map(|x| DataOperator::Equals(x)).collect();
-                        DataOperator::Or(values)
-                    }
-                    _ => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                            "Invalid combination of operator and value: '{}' and '{}', type {:?}",
-                            opstr, value, valuetype
-                        ),
-                            "",
-                        ))
-                    }
-                };
+                let operator = parse_dataoperator(opstr, value, valuetype)?;
                 Self::Value(operator, qualifier)
             }
             Some("KEY") => {
@@ -423,6 +330,123 @@ impl<'a> Constraint<'a> {
             }
         };
         Ok((constraint, querystring))
+    }
+
+    /// Serialize the constraint to a STAMQL String
+    pub fn to_string(&self) -> Result<String, StamError> {
+        let mut s = String::new();
+        match self {
+            Self::Id(id) => {
+                s += &format!("ID \"{}\";", id);
+            }
+            Self::DataKey {
+                set,
+                key,
+                qualifier,
+            } => {
+                s += &format!("DATA{} \"{}\" \"{}\";", qualifier.as_str(), set, key);
+            }
+            Self::KeyValue {
+                set,
+                key,
+                operator,
+                qualifier,
+            } => {
+                if let DataOperator::Any = operator {
+                    s += &format!("DATA{} \"{}\" \"{}\";", qualifier.as_str(), set, key,);
+                } else {
+                    s += &format!(
+                        "DATA{} \"{}\" \"{}\" {};",
+                        qualifier.as_str(),
+                        set,
+                        key,
+                        operator.to_string()?
+                    );
+                }
+            }
+            Self::Value(operator, qualifier) => {
+                s += &format!("VALUE{} {};", qualifier.as_str(), operator.to_string()?);
+            }
+            Self::KeyVariable(varname, qualifier) => {
+                s += &format!("DATA{} ?{};", qualifier.as_str(), varname);
+            }
+            Self::KeyValueVariable(varname, operator, qualifier) => {
+                s += &format!(
+                    "DATA{} ?{} {};",
+                    qualifier.as_str(),
+                    varname,
+                    operator.to_string()?
+                );
+            }
+            Self::AnnotationVariable(varname, qualifier, depth) => {
+                s += &format!(
+                    "ANNOTATION{}{} ?{};",
+                    qualifier.as_str(),
+                    if depth == &AnnotationDepth::Max {
+                        " RECURSIVE"
+                    } else {
+                        " "
+                    },
+                    varname
+                );
+            }
+            Self::DataVariable(varname, qualifier) => {
+                s += &format!("DATA{} ?{};", qualifier.as_str(), varname);
+            }
+            Self::DataSetVariable(varname, qualifier) => {
+                s += &format!("DATASET{} ?{};", qualifier.as_str(), varname);
+            }
+            Self::ResourceVariable(varname, qualifier) => {
+                s += &format!("RESOURCE{} ?{};", qualifier.as_str(), varname);
+            }
+            Self::TextVariable(varname) => {
+                s += &format!("TEXT{};", varname);
+            }
+            Self::Annotation(id, qualifier, depth) => {
+                s += &format!(
+                    "ANNOTATION{}{} \"{}\";",
+                    qualifier.as_str(),
+                    if depth == &AnnotationDepth::Max {
+                        " RECURSIVE"
+                    } else {
+                        " "
+                    },
+                    id
+                );
+            }
+            Self::TextResource(id, qualifier) => {
+                s += &format!("RESOURCE{} \"{}\";", qualifier.as_str(), id);
+            }
+            Self::DataSet(id, qualifier) => {
+                s += &format!("DATASET{} \"{}\";", qualifier.as_str(), id);
+            }
+            Self::Text(text) => {
+                s += &format!("TEXT \"{}\";", text);
+            }
+            Self::TextRelation { var, operator } => {
+                s += &format!("RELATION ?{} {};", var, operator.as_str());
+            }
+            Self::Union(..) => {
+                //TODO
+                return Err(StamError::QuerySyntaxError(
+                    "Query contains UNION constraint that can not yet be serialized to STAMQL (implementation still pending)"
+                        .into(),
+                    "Constraint::to_string()",
+                ));
+            }
+            Self::Annotations(..)
+            | Self::Data(..)
+            | Self::TextSelections(..)
+            | Self::Keys(..)
+            | Self::Resources(..) => {
+                return Err(StamError::QuerySyntaxError(
+                    "Query contains internal constraints that can not be serialized to STAMQL"
+                        .into(),
+                    "Constraint::to_string()",
+                ));
+            }
+        }
+        Ok(s)
     }
 }
 
@@ -486,6 +510,18 @@ impl<'a> Query<'a> {
 
     pub fn resulttype(&self) -> Option<Type> {
         self.resulttype
+    }
+
+    pub fn resulttype_as_str(&self) -> Option<&'static str> {
+        match self.resulttype() {
+            Some(Type::Annotation) => Some("ANNOTATION"),
+            Some(Type::AnnotationData) => Some("DATA"),
+            Some(Type::AnnotationDataSet) => Some("DATASET"),
+            Some(Type::TextResource) => Some("RESOURCE"),
+            Some(Type::TextSelection) => Some("TEXT"),
+            Some(Type::DataKey) => Some("KEY"),
+            _ => None,
+        }
     }
 
     pub fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
@@ -718,6 +754,32 @@ impl<'a> Query<'a> {
     ) {
         self.contextvars
             .insert(name.into(), QueryResultItem::AnnotationDataSet(dataset));
+    }
+
+    /// Serialize the query to a STAMQL String
+    pub fn to_string(&self) -> Result<String, StamError> {
+        let mut s = String::new();
+        s += self.querytype().as_str();
+        s += " ";
+        if let Some(resulttype) = self.resulttype_as_str() {
+            s += resulttype;
+        }
+        if let Some(name) = self.name() {
+            s += " ?";
+            s += name;
+        }
+        if !self.constraints.is_empty() {
+            s += " WHERE\n";
+            for constraint in self.iter() {
+                s += &constraint.to_string()?;
+            }
+        }
+        if let Some(subquery) = self.subquery() {
+            s += " {\n";
+            s += &subquery.to_string()?;
+            s += " }";
+        }
+        Ok(s)
     }
 }
 
@@ -2056,6 +2118,9 @@ enum ArgType {
     Integer,
     Float,
     List,
+    Null,
+    Bool,
+    Any,
 }
 
 fn get_arg_type(s: &str) -> ArgType {
@@ -2089,7 +2154,12 @@ fn get_arg_type(s: &str) -> ArgType {
             ArgType::Integer
         }
     } else {
-        ArgType::String
+        match s {
+            "null" => ArgType::Null,
+            "any" => ArgType::Any,
+            "true" | "false" => ArgType::Bool,
+            _ => ArgType::String,
+        }
     }
 }
 
@@ -2159,4 +2229,80 @@ fn parse_qualifiers<'a>(
             AnnotationDepth::One,
         ))
     }
+}
+
+fn parse_dataoperator<'a>(
+    opstr: &'a str,
+    value: &'a str,
+    valuetype: ArgType,
+) -> Result<DataOperator<'a>, StamError> {
+    let operator = match (opstr, valuetype) {
+        ("=", ArgType::String) => DataOperator::Equals(value),
+        ("=", ArgType::Null) => DataOperator::Null,
+        ("=", ArgType::Any) => DataOperator::Any,
+        ("=", ArgType::Bool) => match value {
+            "true" => DataOperator::True,
+            "false" => DataOperator::False,
+            _ => unreachable!("boolean should be true or false"),
+        },
+        ("=", ArgType::Integer) => {
+            DataOperator::EqualsInt(value.parse().expect("str->int conversion should work"))
+        }
+        ("=", ArgType::Float) => {
+            DataOperator::EqualsFloat(value.parse().expect("str->float conversion should work"))
+        }
+        ("!=", ArgType::String) => DataOperator::Not(Box::new(DataOperator::Equals(value))),
+        ("!=", ArgType::Integer) => DataOperator::Not(Box::new(DataOperator::EqualsInt(
+            value.parse().expect("str->int conversion should work"),
+        ))),
+        ("!=", ArgType::Float) => DataOperator::Not(Box::new(DataOperator::EqualsFloat(
+            value.parse().expect("str->float conversion should work"),
+        ))),
+        ("!=", ArgType::String) => DataOperator::Equals(value),
+        ("!=", ArgType::Null) => DataOperator::Not(Box::new(DataOperator::Null)),
+        ("!=", ArgType::Any) => DataOperator::Not(Box::new(DataOperator::Any)), //this is a tautology, always fails
+        ("!=", ArgType::Bool) => match value {
+            "true" => DataOperator::Not(Box::new(DataOperator::True)),
+            "false" => DataOperator::Not(Box::new(DataOperator::False)),
+            _ => unreachable!("boolean should be true or false"),
+        },
+        (">", ArgType::Integer) => {
+            DataOperator::GreaterThan(value.parse().expect("str->int conversion should work"))
+        }
+        (">=", ArgType::Integer) => DataOperator::GreaterThanOrEqual(
+            value.parse().expect("str->int conversion should work"),
+        ),
+        ("<", ArgType::Integer) => {
+            DataOperator::LessThan(value.parse().expect("str->int conversion should work"))
+        }
+        ("<=", ArgType::Integer) => {
+            DataOperator::LessThanOrEqual(value.parse().expect("str->int conversion should work"))
+        }
+        (">", ArgType::Float) => DataOperator::GreaterThanFloat(
+            value.parse().expect("str->float conversion should work"),
+        ),
+        (">=", ArgType::Float) => DataOperator::GreaterThanOrEqualFloat(
+            value.parse().expect("str->float conversion should work"),
+        ),
+        ("<", ArgType::Float) => {
+            DataOperator::LessThanFloat(value.parse().expect("str->float conversion should work"))
+        }
+        ("<=", ArgType::Float) => DataOperator::LessThanOrEqualFloat(
+            value.parse().expect("str->float conversion should work"),
+        ),
+        ("=", ArgType::List) => {
+            let values: Vec<_> = value.split("|").map(|x| DataOperator::Equals(x)).collect();
+            DataOperator::Or(values)
+        }
+        _ => {
+            return Err(StamError::QuerySyntaxError(
+                format!(
+                    "Invalid combination of operator and value: '{}' and '{}', type {:?}",
+                    opstr, value, valuetype
+                ),
+                "",
+            ))
+        }
+    };
+    Ok(operator)
 }

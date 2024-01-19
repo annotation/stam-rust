@@ -21,6 +21,7 @@ use crate::error::StamError;
 use crate::types::*;
 use datasize::{data_size, DataSize};
 use sealed::sealed;
+use std::ops::Deref;
 
 #[sealed]
 impl TypeInfo for DataValue {
@@ -444,6 +445,55 @@ impl<'a> From<bool> for DataOperator<'a> {
             DataOperator::True
         } else {
             DataOperator::False
+        }
+    }
+}
+
+impl<'a> DataOperator<'a> {
+    /// Turns the DataOperator to a string, compatible with STAMQL
+    pub fn to_string(&self) -> Result<String, StamError> {
+        match self {
+            DataOperator::Any => Ok(format!("= any")),
+            DataOperator::Null => Ok(format!("= null")),
+            DataOperator::True => Ok(format!("= true")),
+            DataOperator::False => Ok(format!("= false")),
+            DataOperator::Equals(s) => Ok(format!("= \"{}\"", s)),
+            DataOperator::Not(expr) => match expr.deref() {
+                DataOperator::Equals(..)
+                | DataOperator::EqualsInt(..)
+                | DataOperator::EqualsFloat(..)
+                | DataOperator::Any
+                | DataOperator::Null
+                | DataOperator::True
+                | DataOperator::False => Ok(format!("!{}", expr.to_string()?)),
+                _ => Err(StamError::QuerySyntaxError(
+                    format!(
+                        "There is no query syntax yet for this dataoperator expression: {:?}",
+                        self
+                    ),
+                    "DataOperator::to_string()",
+                )),
+            },
+            DataOperator::EqualsInt(n) => Ok(format!("= {}", n)),
+            DataOperator::EqualsFloat(n) => Ok(format!("= {}", n)),
+            DataOperator::GreaterThan(n) => Ok(format!("> {}", n)),
+            DataOperator::GreaterThanOrEqual(n) => Ok(format!(">= {}", n)),
+            DataOperator::LessThan(n) => Ok(format!("< {}", n)),
+            DataOperator::LessThanOrEqual(n) => Ok(format!("<= {}", n)),
+            DataOperator::GreaterThanFloat(n) => Ok(format!("> {}", n)),
+            DataOperator::GreaterThanOrEqualFloat(n) => Ok(format!(">= {}", n)),
+            DataOperator::LessThanOrEqualFloat(n) => Ok(format!("<= {}", n)),
+            DataOperator::LessThanFloat(n) => Ok(format!("< {}", n)),
+            _ => {
+                //HasElement, And, Or //TODO: implement
+                Err(StamError::QuerySyntaxError(
+                    format!(
+                        "There is no query syntax yet for this dataoperator expression: {:?}",
+                        self
+                    ),
+                    "DataOperator::to_string()",
+                ))
+            }
         }
     }
 }

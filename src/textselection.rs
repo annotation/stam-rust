@@ -743,6 +743,23 @@ impl TextSelectionOperator {
         }
     }
 
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Equals { .. } => "EQUALS",
+            Self::Overlaps { .. } => "OVERLAPS",
+            Self::Embeds { .. } => "EMBEDS",
+            Self::Embedded { .. } => "EMBEDDED",
+            Self::Before { .. } => "BEFORE",
+            Self::After { .. } => "AFTER",
+            Self::Precedes { .. } => "PRECEDES",
+            Self::Succeeds { .. } => "SUCCEEDS",
+            Self::SameBegin { .. } => "SAMEBEGIN",
+            Self::SameEnd { .. } => "SAMEEND",
+            Self::SameRange { .. } => "SAMERANGE",
+            Self::InSet { .. } => "INSET",
+        }
+    }
+
     pub fn equals() -> Self {
         Self::Equals {
             all: false,
