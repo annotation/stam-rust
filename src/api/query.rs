@@ -772,6 +772,7 @@ impl<'a> Query<'a> {
             s += " WHERE\n";
             for constraint in self.iter() {
                 s += &constraint.to_string()?;
+                s.push('\n');
             }
         }
         if let Some(subquery) = self.subquery() {
@@ -2258,7 +2259,6 @@ fn parse_dataoperator<'a>(
         ("!=", ArgType::Float) => DataOperator::Not(Box::new(DataOperator::EqualsFloat(
             value.parse().expect("str->float conversion should work"),
         ))),
-        ("!=", ArgType::String) => DataOperator::Equals(value),
         ("!=", ArgType::Null) => DataOperator::Not(Box::new(DataOperator::Null)),
         ("!=", ArgType::Any) => DataOperator::Not(Box::new(DataOperator::Any)), //this is a tautology, always fails
         ("!=", ArgType::Bool) => match value {
