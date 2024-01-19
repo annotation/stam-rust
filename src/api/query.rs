@@ -776,9 +776,9 @@ impl<'a> Query<'a> {
             }
         }
         if let Some(subquery) = self.subquery() {
-            s += " {\n";
+            s += "{\n";
             s += &subquery.to_string()?;
-            s += " }";
+            s += "\n}";
         }
         Ok(s)
     }
