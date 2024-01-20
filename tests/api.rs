@@ -1915,6 +1915,32 @@ fn query_parse_numeric() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_data_short() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\";";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::DataKey {
+            set,
+            key,
+            qualifier: _,
+        } = constraint
+        {
+            assert_eq!(*set, "set");
+            assert_eq!(*key, "key");
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn query_parse2() -> Result<(), StamError> {
     let querystring = "SELECT ANNOTATION ?a WHERE TEXT blah;";
     let query: Query = querystring.try_into()?;
