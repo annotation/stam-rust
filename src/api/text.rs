@@ -320,7 +320,9 @@ where
     /// [`FindText::textselection()`] and then run [`FindText::find_text_nocase()`] on that instead.
     fn find_text_nocase(&self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
-            resource: self.clone(),
+            store: self.rootstore(),
+            resources: smallvec!(self.handle()),
+            resourcecursor: 0,
             fragment: fragment.to_lowercase(),
             offset: Offset::whole(),
         }
@@ -480,7 +482,9 @@ where
     /// [`FindText::textselection()`] and then run [`FindText::find_text_nocase()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
-            resource: self.resource(),
+            store: self.rootstore(),
+            resources: smallvec!(self.resource().handle()),
+            resourcecursor: 0,
             fragment: fragment.to_lowercase(),
             offset: Offset::from(self),
         }
@@ -670,7 +674,9 @@ where
     /// [`FindText::textselection()`] and then run [`FindText::find_text_nocase()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store> {
         FindNoCaseTextIter {
-            resource: self.resource(),
+            store: self.rootstore(),
+            resources: smallvec!(self.resource().handle()),
+            resourcecursor: 0,
             fragment: fragment.to_lowercase(),
             offset: Offset::from(self),
         }
@@ -735,6 +741,20 @@ impl AnnotationStore {
                 .collect(),
             resourcecursor: 0,
             fragment,
+            offset: Offset::whole(),
+        }
+    }
+
+    pub fn find_text_nocase<'store>(&'store self, fragment: &str) -> FindNoCaseTextIter<'store> {
+        FindNoCaseTextIter {
+            store: self,
+            resources: self
+                .resources
+                .iter()
+                .filter_map(|x| x.as_ref().map(|res| res.handle().unwrap()))
+                .collect(),
+            resourcecursor: 0,
+            fragment: fragment.to_lowercase(),
             offset: Offset::whole(),
         }
     }
@@ -1117,54 +1137,60 @@ impl<'a, 'b> Iterator for FindTextIter<'a, 'b> {
 /// This iterator is produced by [`FindText::find_text_nocase()`] and searches a text for a single fragment, without regard for casing.
 /// It has more overhead than the exact (case sensitive) variant [`FindTextIter`].
 pub struct FindNoCaseTextIter<'a> {
-    pub(crate) resource: ResultItem<'a, TextResource>,
+    pub(crate) store: &'a AnnotationStore,
+    pub(crate) resources: SmallVec<[TextResourceHandle; 1]>,
+
+    /// Fragment must be lowercase
     pub(crate) fragment: String,
+    pub(crate) resourcecursor: usize,
     pub(crate) offset: Offset,
 }
 
 impl<'a> Iterator for FindNoCaseTextIter<'a> {
     type Item = ResultTextSelection<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(text) = self.resource.text_by_offset(&self.offset).ok() {
-            let text = text.to_lowercase();
-            let begincharpos = self
-                .resource
-                .beginaligned_cursor(&self.offset.begin)
-                .expect("charpos must be valid");
-            let beginbytepos = self
-                .resource
-                .utf8byte(begincharpos)
-                .expect("bytepos must be retrievable");
-            if let Some(foundbytepos) = text.as_str().find(self.fragment.as_str()) {
-                let endbytepos = foundbytepos + self.fragment.len();
-                let newbegin = self
-                    .resource
-                    .utf8byte_to_charpos(beginbytepos + foundbytepos)
-                    .expect("utf-8 byte must resolve to valid charpos");
-                let newend = self
-                    .resource
-                    .utf8byte_to_charpos(beginbytepos + endbytepos)
-                    .expect("utf-8 byte must resolve to valid charpos");
-                //set offset for next run
-                self.offset = Offset {
-                    begin: Cursor::BeginAligned(newend),
-                    end: self.offset.end,
-                };
-                match self
-                    .resource
-                    .textselection(&Offset::simple(newbegin, newend))
-                {
-                    Ok(textselection) => Some(textselection),
-                    Err(e) => {
-                        eprintln!("WARNING: FindNoCaseTextIter ended prematurely: {}", e);
-                        None
+        loop {
+            if let Some(resourcehandle) = self.resources.get(self.resourcecursor).copied() {
+                let resource = self
+                    .store
+                    .resource(resourcehandle)
+                    .expect("resource must exist");
+                if let Some(text) = resource.text_by_offset(&self.offset).ok() {
+                    let beginbytepos = resource
+                        .subslice_utf8_offset(text)
+                        .expect("bytepos must be valid");
+                    let text = text.to_lowercase();
+                    if let Some(foundbytepos) = text.find(self.fragment.as_str()) {
+                        let endbytepos = foundbytepos + self.fragment.len(); //MAYBE TODO: possible issue if uppercase and lowercase variants have different byte length!
+                        let newbegin = resource
+                            .utf8byte_to_charpos(beginbytepos + foundbytepos)
+                            .expect("utf-8 byte must resolve to valid charpos");
+                        let newend = resource
+                            .utf8byte_to_charpos(beginbytepos + endbytepos)
+                            .expect("utf-8 byte must resolve to valid charpos");
+                        //set offset for next run
+                        self.offset = Offset {
+                            begin: Cursor::BeginAligned(newend),
+                            end: self.offset.end,
+                        };
+                        match resource.textselection(&Offset::simple(newbegin, newend)) {
+                            Ok(textselection) => return Some(textselection),
+                            Err(e) => {
+                                eprintln!("WARNING: FindTextIter ended prematurely: {}", e);
+                                return None;
+                            }
+                        }
+                    } else {
+                        self.resourcecursor += 1;
+                        self.offset = Offset::whole();
                     }
+                } else {
+                    self.resourcecursor += 1;
+                    self.offset = Offset::whole();
                 }
             } else {
-                None
+                return None;
             }
-        } else {
-            None
         }
     }
 }
