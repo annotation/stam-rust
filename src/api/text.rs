@@ -715,14 +715,14 @@ impl AnnotationStore {
     pub fn find_text_regex<'store, 'r>(
         &'store self,
         expressions: &'r [Regex],
-        precompiledset: &'r Option<RegexSet>,
+        precompiledset: Option<&'r RegexSet>,
         allow_overlap: bool,
     ) -> impl Iterator<Item = FindRegexMatch<'store, 'r>> {
         self.resources()
             .filter_map(move |resource: ResultItem<'store, TextResource>| {
                 //      ^-- the move is only needed to move the bool in, otherwise we had to make it &'r bool and that'd be weird
                 resource
-                    .find_text_regex(expressions, precompiledset.as_ref(), allow_overlap)
+                    .find_text_regex(expressions, precompiledset, allow_overlap)
                     .ok() //ignore errors!
             })
             .flatten()
@@ -1227,5 +1227,38 @@ impl<'store, 'b> Iterator for SplitTextIter<'store, 'b> {
         } else {
             None
         }
+    }
+}
+
+/// Turns a FindRegexIter into an iterator producing [`ResultTextSelection`]
+/// WARNING: This iterator does *NOT* support capture groups in regular expressions. It will only return the first matching group and discard all others!
+pub struct FindRegexMatchToResultIter<'store, 'regex, I>
+where
+    I: Iterator<Item = FindRegexMatch<'store, 'regex>>,
+{
+    inner: I,
+}
+
+impl<'store, 'regex, I> FindRegexMatchToResultIter<'store, 'regex, I>
+where
+    I: Iterator<Item = FindRegexMatch<'store, 'regex>>,
+{
+    pub fn new(inner: I) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'store, 'regex, I> Iterator for FindRegexMatchToResultIter<'store, 'regex, I>
+where
+    I: Iterator<Item = FindRegexMatch<'store, 'regex>>,
+{
+    type Item = ResultTextSelection<'store>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(regexmatch) = self.inner.next() {
+            if let Some(textsel) = regexmatch.textselections().get(0) {
+                return Some(textsel.clone());
+            }
+        }
+        None
     }
 }

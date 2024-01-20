@@ -127,7 +127,7 @@ pub enum Constraint<'a> {
     Value(DataOperator<'a>, SelectionQualifier),
     KeyValueVariable(&'a str, DataOperator<'a>, SelectionQualifier),
     Text(&'a str, TextMode),
-    Regex(Regex),
+    Regex([Regex; 1]), //this has to be a singleton array because of how find_text_regex() works
     /// Disjunction
     Union(Vec<Constraint<'a>>),
     AnnotationVariable(&'a str, SelectionQualifier, AnnotationDepth),
@@ -181,12 +181,12 @@ impl<'a> Constraint<'a> {
                 if arg.starts_with("?") && arg.len() > 1 {
                     Self::TextVariable(&arg[1..])
                 } else if regex {
-                    Self::Regex(Regex::new(arg).map_err(|err| {
+                    Self::Regex([Regex::new(arg).map_err(|err| {
                         StamError::RegexError(
                             err.into(),
                             "parsing TEXT AS REGEX constraint for query",
                         )
-                    })?)
+                    })?])
                 } else {
                     Self::Text(arg, qualifier)
                 }
@@ -437,7 +437,7 @@ impl<'a> Constraint<'a> {
                 s += &format!("TEXT AS NOCASE \"{}\";", text);
             }
             Self::Regex(regex) => {
-                s += &format!("TEXT AS REGEX \"{}\";", regex.as_str());
+                s += &format!("TEXT AS REGEX \"{}\";", regex[0].as_str());
             }
             Self::TextRelation { var, operator } => {
                 s += &format!("RELATION ?{} {};", var, operator.as_str());
@@ -1294,7 +1294,7 @@ impl<'store> QueryIter<'store> {
                             iter = Box::new(iter.filter_text_byref(text, false, " "))
                         }
                         Constraint::Regex(regex) => {
-                            iter = Box::new(iter.filter_text_regex(regex.clone(), " "))
+                            iter = Box::new(iter.filter_text_regex(regex[0].clone(), " "))
                         }
                         &Constraint::TextVariable(var) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
@@ -1444,6 +1444,7 @@ impl<'store> QueryIter<'store> {
                         ),
                         Some(&Constraint::Text(text, TextMode::Exact)) => Box::new(store.find_text(text)),
                         Some(&Constraint::Text(text, TextMode::CaseInsensitive)) => Box::new(store.find_text_nocase(&text.to_lowercase())),
+                        Some(Constraint::Regex(ref regex)) => Box::new(FindRegexMatchToResultIter::new(store.find_text_regex(regex, None, false))),
                         Some(&Constraint::TextRelation { var, operator }) => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
                                 Box::new(tsel.related_text(operator))
@@ -1515,7 +1516,7 @@ impl<'store> QueryIter<'store> {
                             iter = Box::new(iter.filter_text_byref(text, false))
                         }
                         Constraint::Regex(regex) => {
-                            iter = Box::new(iter.filter_text_regex(regex.clone()))
+                            iter = Box::new(iter.filter_text_regex(regex[0].clone()))
                         }
                         &Constraint::TextRelation { var, operator } => {
                             if let Ok(tsel) = self.resolve_textvar(var) {
