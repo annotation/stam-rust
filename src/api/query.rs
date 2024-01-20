@@ -316,14 +316,13 @@ impl<'a> Constraint<'a> {
                     querystring = remainder;
                     Self::KeyVariable(&arg[1..], qualifier)
                 } else {
-                    let (set, remainder, _) = get_arg(querystring)?;
-                    let (key, remainder, _) = get_arg(remainder)?;
-                    querystring = remainder;
-                    Self::DataKey {
-                        set,
-                        key,
-                        qualifier,
-                    }
+                    return Err(StamError::QuerySyntaxError(
+                        format!(
+                            "Expected variable after KEY, got '{}'. Did you mean to just use DATA?",
+                            arg
+                        ),
+                        "",
+                    ));
                 }
             }
             Some(x) => {

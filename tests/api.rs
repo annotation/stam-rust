@@ -1924,7 +1924,7 @@ fn query_parse2() -> Result<(), StamError> {
     let mut count = 0;
     for constraint in query.iter() {
         count += 1;
-        if let Constraint::Text(value) = constraint {
+        if let Constraint::Text(value, _) = constraint {
             assert_eq!(*value, "blah");
         } else {
             assert!(false, "Constraint not as expected");
