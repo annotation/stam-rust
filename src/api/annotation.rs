@@ -718,7 +718,7 @@ where
         } else {
             FilteredAnnotations {
                 inner: self,
-                filter: Filter::Text(text.to_lowercase(), TextMode::Lowercase, delimiter),
+                filter: Filter::Text(text.to_lowercase(), TextMode::CaseInsensitive, delimiter),
             }
         }
     }
@@ -736,16 +736,33 @@ where
         case_sensitive: bool,
         delimiter: &'store str,
     ) -> FilteredAnnotations<'store, Self> {
-        if case_sensitive {
-            FilteredAnnotations {
-                inner: self,
-                filter: Filter::BorrowedText(text, TextMode::Exact, delimiter),
-            }
-        } else {
-            FilteredAnnotations {
-                inner: self,
-                filter: Filter::BorrowedText(text, TextMode::Lowercase, delimiter),
-            }
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::BorrowedText(
+                text,
+                if case_sensitive {
+                    TextMode::Exact
+                } else {
+                    TextMode::CaseInsensitive
+                },
+                delimiter,
+            ),
+        }
+    }
+
+    /// Constrain the iterator to only return text selections that have text matching the specified regular expression.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    ///
+    /// The `delimiter` parameter determines how multiple possible non-contiguous text selections are joined prior to comparison, you most likely want to set it to either a space or an empty string.
+    fn filter_text_regex(
+        self,
+        regex: Regex,
+        delimiter: &'store str,
+    ) -> FilteredAnnotations<'store, Self> {
+        FilteredAnnotations {
+            inner: self,
+            filter: Filter::Regex(regex, delimiter),
         }
     }
 
@@ -887,11 +904,11 @@ where
                 if let Some(text) = annotation.text_simple() {
                     match textmode {
                         TextMode::Exact => text == reftext.as_str(),
-                        TextMode::Lowercase => text.to_lowercase() == reftext.as_str(),
+                        TextMode::CaseInsensitive => text.to_lowercase() == reftext.as_str(),
                     }
                 } else {
                     let mut text = annotation.text_join(delimiter);
-                    if *textmode == TextMode::Lowercase {
+                    if *textmode == TextMode::CaseInsensitive {
                         text = text.to_lowercase();
                     }
                     text == reftext.as_str()
@@ -901,14 +918,22 @@ where
                 if let Some(text) = annotation.text_simple() {
                     match textmode {
                         TextMode::Exact => text == *reftext,
-                        TextMode::Lowercase => text.to_lowercase() == *reftext,
+                        TextMode::CaseInsensitive => text.to_lowercase() == *reftext,
                     }
                 } else {
                     let mut text = annotation.text_join(delimiter);
-                    if *textmode == TextMode::Lowercase {
+                    if *textmode == TextMode::CaseInsensitive {
                         text = text.to_lowercase();
                     }
                     text == *reftext
+                }
+            }
+            Filter::Regex(regex, delimiter) => {
+                if let Some(text) = annotation.text_simple() {
+                    regex.is_match(text)
+                } else {
+                    let text = annotation.text_join(delimiter);
+                    regex.is_match(text.as_str())
                 }
             }
             Filter::TextSelectionOperator(operator, _) => annotation.related_text(*operator).test(),

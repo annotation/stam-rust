@@ -638,6 +638,7 @@ where
     /// Constrain the iterator to only return text selections that have text matching the specified text
     ///
     /// If you have a borrowed reference, use [`Self::filter_text_byref()`] instead.
+    /// If you want to filter based on a regular expression, use [`Self::filter_text_regex()`] instead.
     ///
     /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
     fn filter_text(
@@ -653,14 +654,14 @@ where
         } else {
             FilteredTextSelections {
                 inner: self,
-                filter: Filter::Text(text.to_lowercase(), TextMode::Lowercase, ""),
+                filter: Filter::Text(text.to_lowercase(), TextMode::CaseInsensitive, ""),
             }
         }
     }
 
     /// Constrain the iterator to only return text selections that have text matching the specified text
     ///
-    /// If you set `case_sensitive` to `false`, then `text` *MUST* be a lower-cased &str!
+    /// If you set `case_sensitive` to false, then `text` *MUST* be a lower-cased &str!
     ///
     /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
     fn filter_text_byref(
@@ -668,16 +669,27 @@ where
         text: &'store str,
         case_sensitive: bool,
     ) -> FilteredTextSelections<'store, Self> {
-        if case_sensitive {
-            FilteredTextSelections {
-                inner: self,
-                filter: Filter::BorrowedText(text, TextMode::Exact, ""), //delimiter is irrelevant in this context
-            }
-        } else {
-            FilteredTextSelections {
-                inner: self,
-                filter: Filter::BorrowedText(text, TextMode::Lowercase, ""),
-            }
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::BorrowedText(
+                text,
+                if case_sensitive {
+                    TextMode::Exact
+                } else {
+                    TextMode::CaseInsensitive
+                },
+                "",
+            ),
+        }
+    }
+
+    /// Constrain the iterator to only return text selections that have text matching the specified regular expression.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the text for each annotation.
+    fn filter_text_regex(self, regex: Regex) -> FilteredTextSelections<'store, Self> {
+        FilteredTextSelections {
+            inner: self,
+            filter: Filter::Regex(regex, ""),
         }
     }
 
@@ -945,7 +957,7 @@ where
             Filter::TextResource(res_handle, _) => textselection.resource().handle() == *res_handle,
             Filter::Text(reftext, textmode, _) => {
                 let text = textselection.text();
-                if *textmode == TextMode::Lowercase {
+                if *textmode == TextMode::CaseInsensitive {
                     text.to_lowercase().as_str() == reftext
                 } else {
                     text == reftext.as_str()
@@ -953,12 +965,13 @@ where
             }
             Filter::BorrowedText(reftext, textmode, _) => {
                 let text = textselection.text();
-                if *textmode == TextMode::Lowercase {
+                if *textmode == TextMode::CaseInsensitive {
                     text.to_lowercase().as_str() == *reftext
                 } else {
                     text == *reftext
                 }
             }
+            Filter::Regex(regex, _) => regex.is_match(textselection.text()),
             Filter::TextSelectionOperator(operator, _) => {
                 textselection.related_text(*operator).test()
             }

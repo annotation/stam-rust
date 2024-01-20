@@ -42,10 +42,10 @@ use crate::textselection::{TextSelection, TextSelectionOperator};
 
 use crate::{store::*, TextSelectionHandle};
 
+use regex::Regex;
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-
 /// Holds a collection of items. The collection may be either
 /// owned or borrowed from the store (usually from a reverse index).
 ///
@@ -596,7 +596,13 @@ pub enum FilterMode {
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum TextMode {
     Exact,
-    Lowercase,
+    CaseInsensitive,
+}
+
+impl Default for TextMode {
+    fn default() -> Self {
+        Self::Exact
+    }
 }
 
 #[derive(Debug)]
@@ -643,6 +649,7 @@ pub(crate) enum Filter<'store> {
     ),
     Keys(Handles<'store, DataKey>, FilterMode, SelectionQualifier),
     Text(String, TextMode, &'store str), //the last string represents the delimiter for joining text
+    Regex(Regex, &'store str),           //the last string represents the delimiter for joining text
     TextSelection(TextResourceHandle, TextSelectionHandle),
     TextSelections(Handles<'store, TextSelection>, FilterMode),
 
