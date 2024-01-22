@@ -152,7 +152,7 @@ impl<'store> ResultItem<'store, Annotation> {
         self.textselections().text_simple()
     }
 
-    /// Returns all underlying text for this annotation concatenatedhttps://en.wikipedia.org/wiki/TempleOS
+    /// Returns all underlying text for this annotation concatenated
     /// Shortcut for `.textselections().text_join()`
     pub fn text_join(&self, delimiter: &str) -> String {
         self.textselections().text_join(delimiter)
