@@ -144,7 +144,7 @@ impl<'store> ResultItem<'store, TextResource> {
 }
 
 /// Holds a collection of [`TextResource`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
-/// [`ToHandles::to_handles()`], which is available on all iterators over resources.
+/// [`ToHandles::to_handles()`], which is available on all iterators over resources ([`ResultItem<TextResource>`]).
 pub type Resources<'store> = Handles<'store, TextResource>;
 
 impl<'store, I> FullHandleToResultItem<'store, TextResource>
@@ -167,6 +167,9 @@ where
     }
 }
 
+/// Trait for iteration over resources ([`ResultItem<TextResource>`]; encapsulation over
+/// [`TextResource`]). Implements numerous filter methods to further constrain the iterator, as well
+/// as methods to map from resources to other items.
 pub trait ResourcesIterator<'store>: Iterator<Item = ResultItem<'store, TextResource>>
 where
     Self: Sized,

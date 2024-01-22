@@ -218,7 +218,7 @@ impl<'store> ResultItem<'store, Annotation> {
 }
 
 /// Holds a collection of [`Annotation`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
-/// [`ToHandles::to_handles()`], which is available on all iterators over annotations.
+/// [`ToHandles::to_handles()`], which is available on all iterators over annotations ([`ResultItem<Annotation>`]).
 pub type Annotations<'store> = Handles<'store, Annotation>;
 
 impl<'store, I> FullHandleToResultItem<'store, Annotation> for FromHandles<'store, Annotation, I>
@@ -239,6 +239,9 @@ where
     }
 }
 
+/// Trait for iteration over annotations ([`ResultItem<Annotation>`]; encapsulation over
+/// [`Annotation`]). Implements numerous filter methods to further constrain the iterator, as well
+/// as methods to map from annotations to other items.
 pub trait AnnotationIterator<'store>: Iterator<Item = ResultItem<'store, Annotation>>
 where
     Self: Sized,

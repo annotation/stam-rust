@@ -508,6 +508,9 @@ where
     }
 }
 
+/// Trait for iteration over text selections ([`ResultTextSelection`]; encapsulation over
+/// [`TextSelection`]). Implements numerous filter methods to further constrain the iterator, as well
+/// as methods to map from text selections to other items.
 pub trait TextSelectionIterator<'store>: Iterator<Item = ResultTextSelection<'store>>
 where
     Self: Sized,

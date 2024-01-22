@@ -22,11 +22,14 @@ use std::borrow::Cow;
 const QUERYSPLITCHARS: &[char] = &[' ', '\n', '\r', '\t'];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+/// Holds the type of a [`Query`].
 pub enum QueryType {
+    /// A query that selects and returns data (STAMQL `SELECT` keyword).
     Select,
 }
 
 impl QueryType {
+    /// Returns the STAMQL keyword for this query type
     fn as_str(&self) -> &str {
         match self {
             QueryType::Select => "SELECT",
@@ -35,6 +38,117 @@ impl QueryType {
 }
 
 #[derive(Debug, Clone)]
+/// This represents a query that can be performed on an [`AnnotationStore`] via
+/// [`AnnotationStore::query()`] to obtain anything in the store. A query can be formulated in
+/// [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query), a dedicated
+/// query language (via [`Query::parse()`], or it can be instantiated programmatically via
+/// [`Query::new()`].
+///
+/// A query consists of a query type ([`QueryType`]), a result type (subset of [`Type`]), a variable to bind to (optional), and
+/// zero or more *constraints* ([`Constraint`]), and optionally a subquery.
+///
+/// ## Examples
+///
+/// *select all occurrences of the text "fly"*
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::parse("SELECT TEXT WHERE
+///                                  TEXT \"fly\";")?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// *the same query as above but constructed directly instead of via STAMQL, this is always more performant as it bypasses the parsing stage. It does not affect the runtime performance of the query evaluation itself though*:
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::new(QueryType::Select, Some(Type::TextSelection), None)
+///                   .with_constraint(Constraint::Text("fly", TextMode::Exact));
+/// # Ok(())
+/// # }
+/// ```
+///
+/// *select all annotations that targets the text "fly"*
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::parse("SELECT ANNOTATION WHERE
+///                                  TEXT \"fly\";")?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// *select all annotations with data 'part-of-speech' and value 'noun' (ad-hoc vocab!), bind the result to a variable*
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::parse("SELECT ANNOTATION ?noun WHERE
+///                                  DATA \"myset\" \"part-of-speech\" = \"noun\";")?;
+/// # Ok(())
+/// # }
+/// ```
+/// *the same query as above but constructed programmatically*:
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::new(QueryType::Select, Some(Type::Annotation), Some("noun"))
+///                   .with_constraint(Constraint::KeyValue {
+///                            set: "myset",
+///                            key: "fly",
+///                            operator: DataOperator::Equals("noun"),
+///                            qualifier: SelectionQualifier::Normal
+///                   });
+/// # Ok(())
+/// # }
+/// ```
+///
+/// *select all annotations that have a part-of-speech annotation (regardless of the value)*
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::parse("SELECT ANNOTATION ?pos WHERE
+///                                  DATA \"myset\" \"part-of-speech\";")?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// *select all annotations with data 'part-of-speech' made by a certain annotator (ad-hoc vocab!)*
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::parse("SELECT ANNOTATION WHERE
+///                              DATA \"myset\" \"part-of-speech\" = \"noun\";
+///                              DATA \"myset\" \"annotator\" = \"John Doe\";")?;
+/// # Ok(())
+/// # }
+/// ```
+///
+///
+/// *select sentences with a particular annotated text in it, as formulated via a subquery*
+///
+/// ```
+/// # use stam::*;
+/// # fn main() -> Result<(),StamError> {
+/// let query = Query::parse("SELECT TEXT ?sentence WHERE
+///                                  DATA \"myset\" \"type\" = \"sentence\";
+///                                    {
+///                                     SELECT TEXT ?fly WHERE
+///                                         RELATION ?sentence EMBEDS;
+///                                         DATA \"myset\" \"part-of-speech\" = \"noun\";
+///                                         TEXT \"fly\";
+///                                    }")?;
+/// # Ok(())
+/// # }
+/// ```
+///
 pub struct Query<'a> {
     /// The variable name
     name: Option<&'a str>,
@@ -55,7 +169,7 @@ pub enum SelectionQualifier {
     /// Normal behaviour, no changes.
     Normal,
 
-    /// This corresponds to the TARGET keyword in STAMQL. It indicates that the item in the constrain is an explicit annotation TARGET. It causes the logic flow to go over methods like annotations_as_metadata() instead of annotations()
+    /// This corresponds to the TARGET or METADATA keyword in STAMQL. It indicates that the item in the constrain is an explicit annotation TARGET. It causes the logic flow to go over methods like annotations_as_metadata() instead of annotations()
     Metadata,
 }
 
@@ -94,52 +208,90 @@ impl Default for AnnotationDepth {
 }
 
 #[derive(Debug, Clone)]
+/// A constraint is a part of a [`Query`] that poses specific selection criteria that must be met.
+/// A query can have multiple constraints which must all be satisfied. See the documentation for
+/// [`Query`] for examples.
 pub enum Constraint<'a> {
+    /// Constrain the selection (type is determined by the query result type) to one instance with a specific identifier (`ID` keyword in STAMQL).
     Id(&'a str),
 
-    /// ID of the annotation
+    /// Constrain by a specific Annotation, referenced by ID (`ANNOTATION` keyword in STAMQL)
     Annotation(&'a str, SelectionQualifier, AnnotationDepth),
 
-    /// ID of a TextResource
+    /// Constrain by a specific TextResource, referenced by ID (`RESOURCE` keyword in STAMQL)
     TextResource(&'a str, SelectionQualifier),
+
+    /// Constrain by a specific AnnotationDataSet, referenced by ID (`DATASET` keyword in STAMQL)
     DataSet(&'a str, SelectionQualifier),
+
+    /// Constrain by a specific DataKey, referenced by set and key ID (`DATA` keyword, without operator/value, in STAMQL)
     DataKey {
         set: &'a str,
         key: &'a str,
         qualifier: SelectionQualifier,
     },
+
+    /// Constrain by a specific DataKey, referenced by variable (`KEY` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     KeyVariable(&'a str, SelectionQualifier),
+
+    /// Constrain by a specific AnnotationData, referenced by variable (`DATA` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     DataVariable(&'a str, SelectionQualifier),
+
+    /// Constrain by a specific AnnotationDataSet, referenced by variable (`DATASET` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     DataSetVariable(&'a str, SelectionQualifier),
 
+    /// Constrain by a specific TextResource, referenced by variable (`RESOURCE` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     ResourceVariable(&'a str, SelectionQualifier),
+
+    /// Constrain by a specific text selection, referenced by variable (`TEXT` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     TextVariable(&'a str),
+
+    /// Constrain by a specific text selection and a particular relation textual relation (`RELATION` keyword in STAMQL), the text selection is referenced by variable (`TEXT` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     TextRelation {
         var: &'a str,
         operator: TextSelectionOperator,
     },
+
+    /// Constrain by a specific DataKey and value, referenced by set and key ID, and a [`DataOperator`] (`DATA` keyword in STAMQL)
     KeyValue {
         set: &'a str,
         key: &'a str,
         operator: DataOperator<'a>,
         qualifier: SelectionQualifier,
     },
+
+    /// Constrain by a specific value (`VALUE` keyword, with operator/value, in STAMQL). This only makes sense in certain contexts like when querying keys.
     Value(DataOperator<'a>, SelectionQualifier),
+
+    /// Constrain by a specific DataKey and value test [`DataOperator`], only the key is referenced by variable, the variable name must *not* carry the `?` prefix here.
     KeyValueVariable(&'a str, DataOperator<'a>, SelectionQualifier),
+
+    /// Constrain by textual content (`TEXT` keyword in STAMQL). The `TextMode` determines whether comparisons are exact or case-insensitive (`TEXT AS NOCASE` in STAMQL). See also [`Constraint::Regex`]
     Text(&'a str, TextMode),
+
+    /// Constrain by textual content via a regular expression (`TEXT AS REGEX` keyword in STAMQL)
     Regex(Regex),
+
     /// Disjunction
     Union(Vec<Constraint<'a>>),
+
+    /// Constrain by a specific Annotation, referenced by variable (`Annotation` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     AnnotationVariable(&'a str, SelectionQualifier, AnnotationDepth),
 
+    /// Constrain by any of multiple annotations
     Annotations(Handles<'a, Annotation>, SelectionQualifier, AnnotationDepth),
+    /// Constrain by any of multiple annotation data
     Data(Handles<'a, AnnotationData>, SelectionQualifier),
+    /// Constrain by any of multiple data keys
     Keys(Handles<'a, DataKey>, SelectionQualifier),
+    /// Constrain by any of multiple resources
     Resources(Handles<'a, TextResource>, SelectionQualifier),
+    /// Constrain by any of multiple text selections
     TextSelections(Handles<'a, TextSelection>, SelectionQualifier),
 }
 
 impl<'a> Constraint<'a> {
+    /// Returns the STAMQL keyword for this constraint
     pub fn keyword(&self) -> &'static str {
         match self {
             Self::Id(..) => "ID",
@@ -341,7 +493,7 @@ impl<'a> Constraint<'a> {
         Ok((constraint, querystring))
     }
 
-    /// Serialize the constraint to a STAMQL String
+    /// Serialize the constraint to a (partial) STAMQL String
     pub fn to_string(&self) -> Result<String, StamError> {
         let mut s = String::new();
         match self {
@@ -466,6 +618,7 @@ impl<'a> Constraint<'a> {
 }
 
 impl<'a> Query<'a> {
+    /// Instantiate a new query. See the top-level documentation of [`Query`] for examples.
     pub fn new(querytype: QueryType, resulttype: Option<Type>, name: Option<&'a str>) -> Self {
         Self {
             name,
@@ -477,26 +630,31 @@ impl<'a> Query<'a> {
         }
     }
 
+    /// Add a constraint to the query
     pub fn with_constraint(mut self, constraint: Constraint<'a>) -> Self {
         self.constraints.push(constraint);
         self
     }
 
+    /// Add a constraint to the query
     pub fn constrain(&mut self, constraint: Constraint<'a>) -> &mut Self {
         self.constraints.push(constraint);
         self
     }
 
+    /// Set the subquery for this query
     pub fn with_subquery(mut self, query: Query<'a>) -> Self {
         self.subquery = Some(Box::new(query));
         self
     }
 
+    // Set the variable name this query will use in the result output. The name should not include the `?` prefix that STAMQL uses.
     pub fn with_name(mut self, name: &'a str) -> Self {
         self.name = Some(name);
         self
     }
 
+    /// REturns the subquery (if any)
     pub fn subquery(&self) -> Option<&Query<'a>> {
         self.subquery.as_deref()
     }
@@ -515,18 +673,22 @@ impl<'a> Query<'a> {
         self.constraints.iter()
     }
 
+    /// Returns the variable name of the Query, the ? prefix STAMQL uses is never included.
     pub fn name(&self) -> Option<&'a str> {
         self.name
     }
 
+    /// Returns the type of the query
     pub fn querytype(&self) -> QueryType {
         self.querytype
     }
 
+    /// Returns the type of the results that this query produces
     pub fn resulttype(&self) -> Option<Type> {
         self.resulttype
     }
 
+    /// Returns the type of the results that this query produces, as a STAMQL keyword.
     pub fn resulttype_as_str(&self) -> Option<&'static str> {
         match self.resulttype() {
             Some(Type::Annotation) => Some("ANNOTATION"),
@@ -539,6 +701,9 @@ impl<'a> Query<'a> {
         }
     }
 
+    /// Parses a query formulated in [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+    /// Returns the [`Query`] if successful, it can subsequently by passed to [`AnnotationStore.query()`] or a [`StamError::QuerySyntaxError`]
+    /// if the query is not valid. See the documentation on [`Query`] itself for examples.
     pub fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
         let mut end: usize;
         querystring = querystring.trim();
@@ -669,6 +834,8 @@ impl<'a> Query<'a> {
         ))
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn with_annotationvar(
         mut self,
         name: impl Into<String>,
@@ -679,6 +846,8 @@ impl<'a> Query<'a> {
         self
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn bind_annotationvar(
         &mut self,
         name: impl Into<String>,
@@ -688,6 +857,8 @@ impl<'a> Query<'a> {
             .insert(name.into(), QueryResultItem::Annotation(annotation));
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn with_datavar(
         mut self,
         name: impl Into<String>,
@@ -698,22 +869,29 @@ impl<'a> Query<'a> {
         self
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn bind_datavar(&mut self, name: impl Into<String>, data: ResultItem<'a, AnnotationData>) {
         self.contextvars
             .insert(name.into(), QueryResultItem::AnnotationData(data));
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn with_keyvar(mut self, name: impl Into<String>, key: ResultItem<'a, DataKey>) -> Self {
         self.contextvars
             .insert(name.into(), QueryResultItem::DataKey(key));
         self
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
     pub fn bind_keyvar(&mut self, name: impl Into<String>, key: ResultItem<'a, DataKey>) {
         self.contextvars
             .insert(name.into(), QueryResultItem::DataKey(key));
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn with_textvar(
         mut self,
         name: impl Into<String>,
@@ -724,6 +902,8 @@ impl<'a> Query<'a> {
         self
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn bind_textvar(
         &mut self,
         name: impl Into<String>,
@@ -733,6 +913,8 @@ impl<'a> Query<'a> {
             .insert(name.into(), QueryResultItem::TextSelection(textselection));
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn with_resourcevar(
         mut self,
         name: impl Into<String>,
@@ -743,6 +925,8 @@ impl<'a> Query<'a> {
         self
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn bind_resourcevar(
         &mut self,
         name: impl Into<String>,
@@ -752,6 +936,8 @@ impl<'a> Query<'a> {
             .insert(name.into(), QueryResultItem::TextResource(resource));
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn with_datasetvar(
         mut self,
         name: impl Into<String>,
@@ -762,6 +948,8 @@ impl<'a> Query<'a> {
         self
     }
 
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn bind_datasetvar(
         &mut self,
         name: impl Into<String>,
@@ -813,25 +1001,51 @@ impl<'a> TryFrom<&'a str> for Query<'a> {
     }
 }
 
-/// This type abstracts over all the main iterators
+/// This type abstracts over all the main iterators.
 /// This abstraction uses dynamic dispatch so comes with a small performance cost
 pub enum QueryResultIter<'store> {
+    /// Corresponds to result type `ANNOTATION` in STAMQL.
+    /// The contained iterator implements trait [`AnnotationIterator`].
     Annotations(Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>),
+    /// Corresponds to result type `DATA` in STAMQL
+    /// The contained iterator implements trait [`DataIterator`].
     Data(Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>),
+    /// Corresponds to result type `KEY` in STAMQL
+    /// The contained iterator implements trait [`KeyIterator`].
     Keys(Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>),
+    /// Corresponds to result type `DATASET` in STAMQL
     DataSets(Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store>),
+    /// Corresponds to result type `TEXT` in STAMQL
+    /// The contained iterator implements trait [`TextSelectionIterator`].
     TextSelections(Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>),
+    /// Corresponds to result type `RESOURCE` in STAMQL
+    /// The contained iterator implements trait [`ResourcesIterator`].
     Resources(Box<dyn Iterator<Item = ResultItem<'store, TextResource>> + 'store>),
 }
 
 #[derive(Clone, Debug)]
+/// This structure encapsulates the different kind of result items that can be returned from queries.
+/// See [`AnnotationStore::query()`] for an example of it in use.
 pub enum QueryResultItem<'store> {
+    /// No result
     None,
+
+    /// Corresponds to result type `TEXT` in STAMQL
     TextSelection(ResultTextSelection<'store>),
+
+    /// Corresponds to result type `ANNOTATION` in STAMQL
     Annotation(ResultItem<'store, Annotation>),
+
+    /// Corresponds to result type `RESOURCE` in STAMQL
     TextResource(ResultItem<'store, TextResource>),
+
+    /// Corresponds to result type `KEY` in STAMQL
     DataKey(ResultItem<'store, DataKey>),
+
+    /// Corresponds to result type `DATA` in STAMQL
     AnnotationData(ResultItem<'store, AnnotationData>),
+
+    /// Corresponds to result type `DATASET` in STAMQL
     AnnotationDataSet(ResultItem<'store, AnnotationDataSet>),
 }
 
@@ -843,6 +1057,9 @@ pub struct QueryState<'store> {
     result: QueryResultItem<'store>,
 }
 
+/// Iterator over the results of a [`Query`]. Querying will be performed as the iterator is
+/// consumed (lazy evaluation). If it is not consumed, no actual querying will be done.
+/// See [`AnnotationStore::query()`] for an example.
 pub struct QueryIter<'store> {
     store: &'store AnnotationStore,
 
@@ -856,9 +1073,12 @@ pub struct QueryIter<'store> {
     done: bool,
 }
 
+/// This is a simple hashmap that can resolve all variable names used in the query to the internally used index numbers
+/// See [`AnnotationStore::query()`] for an example.
 pub struct QueryNames(HashMap<String, usize>);
 
 impl QueryNames {
+    /// Get the index for a given variable name, do not include the `?` prefix STAMQL uses.
     pub fn get(&self, mut name: &str) -> Result<usize, StamError> {
         if name.starts_with("&") {
             name = &name[1..];
@@ -869,6 +1089,7 @@ impl QueryNames {
             .ok_or_else(|| StamError::QuerySyntaxError(format!("Variable ?{} not found", name), ""))
     }
 
+    /// Iterate over all the variable names and returns them in order. The `?` prefix STAMQL uses will never be included.
     pub fn enumerate(&self) -> Vec<(usize, &str)> {
         let mut names = Vec::new();
         for (name, index) in self.0.iter() {
@@ -885,8 +1106,36 @@ pub struct QueryResultItems<'store> {
 }
 
 impl<'store> AnnotationStore {
-    /// Instantiates a query, returns an iterator.
-    /// No actual querying is done yet until you use the iterator.
+    /// Initializes a [`Query`] and returns an iterator ([`QueryIter`]) to loop over the results.
+    /// Note that no actual querying is done yet until you use the iterator, the [`Query`] is lazy-evaluated.
+
+    /// ## Examples
+    ///
+    /// ```ignore
+    /// let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
+    /// for results in store.query(query) {
+    ///     for result in results.iter() {
+    ///        if let QueryResultItem::Annotation(annotation) = result {
+    ///           unimplemented!("do something with the result...");
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// or by name:
+    ///
+    /// ```ignore
+    /// let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
+    /// let iter = store.query(query);
+    /// let names = iter.names();
+    /// for results in iter {
+    ///     if let Ok(result) = results.get_by_name(&names, "a") {
+    ///        if let QueryResultItem::Annotation(annotation) = result {
+    ///           unimplemented!("do something with the result...");
+    ///         }
+    ///     }
+    /// }
+    /// ```
     pub fn query(&'store self, query: Query<'store>) -> QueryIter<'store> {
         let mut iter = QueryIter {
             store: self,
@@ -906,10 +1155,12 @@ impl<'store> AnnotationStore {
 }
 
 impl<'store> QueryIter<'store> {
+    /// Returns the store against which the query is evaluated
     pub fn store(&self) -> &'store AnnotationStore {
         self.store
     }
 
+    /// Returns a structure that can resolve all variable names used in the query
     pub fn names(&self) -> QueryNames {
         let mut map = HashMap::new();
         for (i, query) in self.queries.iter().enumerate() {
@@ -921,7 +1172,7 @@ impl<'store> QueryIter<'store> {
     }
 
     /// Initializes a new state
-    pub fn init_state(&mut self) -> Result<bool, StamError> {
+    pub(crate) fn init_state(&mut self) -> Result<bool, StamError> {
         let queryindex = self.statestack.len();
         let query = self.queries.get(queryindex).expect("query must exist");
         let store = self.store();
@@ -1799,7 +2050,7 @@ impl<'store> QueryIter<'store> {
     /// Advances the query state on the stack, return true if a new result was obtained (stored in the state's result buffer),
     /// Pops items off the stack if they no longer yield result.
     /// If no result at all can be obtained anymore, false is returned.
-    pub fn next_state(&mut self) -> bool {
+    pub(crate) fn next_state(&mut self) -> bool {
         while !self.statestack.is_empty() {
             if let Some(mut state) = self.statestack.pop() {
                 //we pop the state off the stack (we put it back again in cases where it's an undepleted iterator)

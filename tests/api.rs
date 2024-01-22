@@ -2007,6 +2007,32 @@ fn query() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_by_name() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
+    let mut count = 0;
+    let refdata = store
+        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .next()
+        .expect("reference data must exist");
+    let iter = store.query(query);
+    let names = iter.names();
+    for results in iter {
+        if let Ok(result) = results.get_by_name(&names, "a") {
+            match result {
+                QueryResultItem::Annotation(annotation) => {
+                    count += 1;
+                    assert!(annotation.has_data(&refdata));
+                }
+                _ => assert!(false, "wrong return type"),
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn query_subquery() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; }".try_into()?;

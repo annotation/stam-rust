@@ -641,13 +641,13 @@ impl TextResource {
         }
     }
 
-    /// returns a sorted double-ended iterator over all textselections in this resource
-    /// for unsorted (slightly more performant), use [`TextResource::textselections_unsorted()`] instead.
+    /// Returns a sorted double-ended iterator over all textselections in this resource.
+    /// For unsorted (slightly more performant), use [`TextResource::textselections_unsorted()`] instead.
     pub fn iter<'a>(&'a self) -> TextSelectionIter<'a> {
         self.range(0, self.textlen())
     }
 
-    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use
+    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use.
     /// By passing a [`PositionMode`] parameter you can specify whether you want only positions where a textselection begins, ends or both.
     pub fn positions<'a>(&'a self, mode: PositionMode) -> Box<dyn Iterator<Item = &'a usize> + 'a> {
         match mode {
@@ -671,7 +671,7 @@ impl TextResource {
         }
     }
 
-    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use within a certain range
+    /// Returns a sorted iterator over all absolute positions (begin aligned cursors) that are in use within a certain range.
     /// By passing a [`PositionMode`] parameter you can specify whether you want only positions where a textselection begins, ends or both.
     pub fn positions_in_range<'a>(
         &'a self,

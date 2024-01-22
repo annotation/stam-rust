@@ -38,6 +38,7 @@ use crate::error::StamError;
 use crate::types::*;
 
 /// Type for Store elements. The struct that owns a field of this type should implement the trait [`StoreFor<T>`]
+/// This is a low-level construct. Do not confuse with [`AnnotationStore`].
 pub type Store<T> = Vec<Option<T>>;
 
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
@@ -547,6 +548,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
 }
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
+/// It belongs to the low-level API.
 /// It is a sealed trait, not implementable outside this crate.
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
 pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {

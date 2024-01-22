@@ -24,7 +24,7 @@ use crate::types::*;
 use regex::{Regex, RegexSet};
 use smallvec::{smallvec, SmallVec};
 
-/// This trait provides text-searching methods that operate on structures that hold or represent text content.
+/// This trait provides text-searching methods that operate on structures that hold or represent text content. It builds upon the lower-level [`Text`] trait.
 pub trait FindText<'store, 'slf>: Text<'store, 'slf>
 where
     'store: 'slf,
@@ -49,7 +49,7 @@ where
     ) -> Result<FindRegexIter<'store, 'regex>, StamError>;
 
     /// Searches for the specified text fragment. Returns an iterator to iterate over all matches in the text.
-    /// The iterator returns [`TextSelection`] items.
+    /// The iterator returns encapsulated [`TextSelection`] items as [`ResultTextSelection`].
     ///
     /// For more complex and powerful searching use [`FindText::find_text_regex()`] instead
     ///
@@ -69,7 +69,8 @@ where
     /// [`FindText::textselection()`] and then run [`FindText::find_text()`] on that instead.
     fn find_text_nocase(&'slf self, fragment: &str) -> FindNoCaseTextIter<'store>;
 
-    /// Searches for the multiple text fragment in sequence. Returns a vector with [`TextSelection`] instances wrapped as [`ResultTextSelection`].
+    /// Searches for the multiple text fragment in sequence. Returns a vector with
+    /// [`TextSelection`] instances wrapped as [`ResultTextSelection`].
     ///
     /// Matches must appear in the exact order specified, but *may* have other intermittent text,
     /// determined by the `allow_skip_char` closure. A recommended closure for natural language
@@ -328,6 +329,7 @@ where
         }
     }
 
+    /// Splits the text of this resource given a delimiter, the resulting iterator yields [`TextSelection`] items (as [`ResultTextSelection`]).
     fn split_text<'b>(&self, delimiter: &'b str) -> SplitTextIter<'store, 'b> {
         SplitTextIter {
             resource: self.clone(),
@@ -1078,7 +1080,8 @@ impl<'store, 'regex> FindRegexIter<'store, 'regex> {
     }
 }
 
-/// This iterator is produced by [`FindText::find_text()`] and searches a text for a single fragment
+/// This iterator is produced by [`FindText::find_text()`] and searches a text for a single fragment. The search is case sensitive. See [`FindNoCaseTextIter`] for a case-insensitive variant.
+/// The iterator yields [`ResultTextSelection`] items (which encapsulates [`TextSelection`]).
 pub struct FindTextIter<'a, 'b> {
     pub(crate) store: &'a AnnotationStore,
     pub(crate) resources: SmallVec<[TextResourceHandle; 1]>,
@@ -1195,7 +1198,8 @@ impl<'a> Iterator for FindNoCaseTextIter<'a> {
     }
 }
 
-/// This iterator is produced by [`FindText::split_text()`] and searches a text based on regular expressions.
+/// This iterator is produced by [`FindText::split_text()`] and splits a text based on a delimiter.
+/// The iterator yields [`ResultTextSelection`] (which encapsulates [`TextSelection`]).
 pub struct SplitTextIter<'store, 'b> {
     pub(crate) resource: ResultItem<'store, TextResource>,
     pub(crate) iter: std::str::Split<'store, &'b str>,

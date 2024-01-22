@@ -182,6 +182,9 @@ where
     }
 }
 
+/// Trait for iteration over annotation data ([`ResultItem<AnnotationData>`]; encapsulation over
+/// [`AnnotationData`]). Implements numerous filter methods to further constrain the iterator, as
+/// well as methods to map from annotation data to other items.
 pub trait DataIterator<'store>: Iterator<Item = ResultItem<'store, AnnotationData>>
 where
     Self: Sized,

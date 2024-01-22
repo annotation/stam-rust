@@ -59,6 +59,9 @@
 //! * [`Keys`] == [`Handles<DataKey>`] - Arbitrary collection of [`DataKey`] (by reference).
 //! * [`Cursor`] - Points to a text position, position may be relative.
 //! * [`Offset`] - Range (two cursors) that can be used to selects a text, positions may be relative.
+//! * [`Query`] - Holds a query, may be parsed from [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+//! * [`QueryResultItems`]
+//! * [`QueryResultItem`]
 //!
 //! Low-level API:
 //! * [`Annotation`]
