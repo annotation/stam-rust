@@ -218,7 +218,7 @@ impl<'store> ResultItem<'store, Annotation> {
 }
 
 /// Holds a collection of annotations.
-/// This structure is produced by calling [`AnnotationsIter::to_collection()`].
+/// This structure is produced by calling [`AnnotationIterator::to_handles()`].
 /// Use [`Annotations::iter()`] to iterate over the collection.
 pub type Annotations<'store> = Handles<'store, Annotation>;
 

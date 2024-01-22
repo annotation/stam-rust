@@ -43,18 +43,22 @@
 //! * [`ResultItem<AnnotationDataSet>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationDataSet>)
 //! * [`ResultItem<AnnotationData>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationData>)
 //! * [`ResultItem<DataKey>`](struct.ResultItem.html#impl-ResultItem<'store,+DataKey>)
+//! * [`ResultItem<TextResource>`](struct.ResultItem.html#impl-ResultItem<'store,+TextResource>)
 //! * [`DataValue`]
 //! * [`DataOperator`]
-//! * [`ResultItem<TextResource>`](struct.ResultItem.html#impl-ResultItem<'store,+TextResource>)
 //! * [`ResultTextSelection`]
 //! * [`TextSelectionOperator`]
-//! * [`Annotations`] - collection
-//! * [`AnnotationsIter`] - iterator
-//! * [`Data`] - collection
-//! * [`DataIter`] - iterator
-//! * [`TextSelectionsIter`] - iterator
-//! * [`Cursor`]
-//! * [`Offset`]
+//! * [`AnnotationIterator`] - Iterator trait to iterate over annotations, typically produced by an `annotations()` method.
+//! * [`DataIterator`] - Iterator trait to iterate over annotation data, typically produced by a `data()` method.
+//! * [`TextSelectionIterator`] - iterator (trait), typically produced by a `textselections()` or `related_text()` method.
+//! * [`ResourcesIterator`] - iterator (trait), typically produced by a `resources()` method.
+//! * [`KeyIterator`] - iterator (trait), typically produced by a `keys()` method.
+//! * [`Handles<Annotations>`] - Arbitrary collection of [`Annotation`] (by reference)
+//! * [`Handles<AnnotationData>`] - Arbitrary collection of [`AnnotationData`] (by reference)
+//! * [`Handles<TextResource>`] - Arbitrary collection of [`TextResource`] (by reference).
+//! * [`Handles<DataKey>`] - Arbitrary collection of [`DataKey`] (by reference).
+//! * [`Cursor`] - Points to a text position, position may be relative.
+//! * [`Offset`] - Range (two cursors) that can be used to selects a text, positions may be relative.
 //!
 //! Low-level API:
 //! * [`Annotation`]
@@ -62,6 +66,7 @@
 //! * [`AnnotationData`]
 //! * [`TextSelection`]
 //! * [`TextResource`]
+//! * [`DataKey`]
 
 mod annotation;
 mod annotationdata;
