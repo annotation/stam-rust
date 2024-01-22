@@ -53,10 +53,10 @@
 //! * [`TextSelectionIterator`] - iterator (trait), typically produced by a `textselections()` or `related_text()` method.
 //! * [`ResourcesIterator`] - iterator (trait), typically produced by a `resources()` method.
 //! * [`KeyIterator`] - iterator (trait), typically produced by a `keys()` method.
-//! * [`Handles<Annotations>`] - Arbitrary collection of [`Annotation`] (by reference)
-//! * [`Handles<AnnotationData>`] - Arbitrary collection of [`AnnotationData`] (by reference)
-//! * [`Handles<TextResource>`] - Arbitrary collection of [`TextResource`] (by reference).
-//! * [`Handles<DataKey>`] - Arbitrary collection of [`DataKey`] (by reference).
+//! * [`Annotations`] == [`Handles<Annotation>`] - Arbitrary collection of [`Annotation`] (by reference)
+//! * [`Data`] == [`Handles<AnnotationData>`] - Arbitrary collection of [`AnnotationData`] (by reference)
+//! * [`Resources`] ==  [`Handles<TextResource>`] - Arbitrary collection of [`TextResource`] (by reference).
+//! * [`Keys`] == [`Handles<DataKey>`] - Arbitrary collection of [`DataKey`] (by reference).
 //! * [`Cursor`] - Points to a text position, position may be relative.
 //! * [`Offset`] - Range (two cursors) that can be used to selects a text, positions may be relative.
 //!

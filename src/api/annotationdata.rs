@@ -144,6 +144,8 @@ impl<'store> ResultItem<'store, AnnotationData> {
     }
 }
 
+/// Holds a collection of [`AnnotationData`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
+/// [`ToHandles::to_handles()`], which is available on all iterators over data.
 pub type Data<'store> = Handles<'store, AnnotationData>;
 
 impl<'store, I> FullHandleToResultItem<'store, AnnotationData>

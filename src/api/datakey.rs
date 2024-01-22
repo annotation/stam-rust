@@ -127,6 +127,8 @@ impl<'store> ResultItem<'store, DataKey> {
     }
 }
 
+/// Holds a collection of [`DataKey`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
+/// [`ToHandles::to_handles()`], which is available on all iterators over keys.
 pub type Keys<'store> = Handles<'store, DataKey>;
 
 impl<'store, I> FullHandleToResultItem<'store, DataKey> for FromHandles<'store, DataKey, I>

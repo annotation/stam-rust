@@ -44,13 +44,15 @@ use regex::Regex;
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+
 /// Holds a collection of items. The collection may be either
 /// owned or borrowed from the store (usually from a reverse index).
 ///
 /// The items in the collection by definition refer to the [`AnnotationStore`], as
 /// internally the collection only keeps *fully qualified* handles and a reference to the store.
 ///
-/// This structure is produced by calling a [`to_collection()`]. method
+/// This structure is produced via the [`ToHandles`] trait that is implemented
+/// for all iterators over [`ResultItem<T>`].
 #[derive(Clone)]
 pub struct Handles<'store, T>
 where
@@ -75,6 +77,7 @@ where
     }
 }
 
+/// Iterator over the handles in a [`Handles<T>`] collection.
 pub type HandlesIter<'a, T> =
     std::iter::Copied<std::slice::Iter<'a, <T as Storable>::FullHandleType>>;
 
@@ -82,10 +85,12 @@ impl<'store, T> Handles<'store, T>
 where
     T: Storable,
 {
+    /// Are the items in this collection sorted (chronologically, i.e. by handle) or not?
     pub fn returns_sorted(&self) -> bool {
         self.sorted
     }
 
+    /// Returns a reference to the underlying [`AnnotationStore`].
     pub fn store(&self) -> &'store AnnotationStore {
         self.store
     }
@@ -190,11 +195,13 @@ where
     }
 
     /// Returns an iterator over the low-level handles in this collection
+    /// If you want to iterate over the actual items ([`ResultItem<T>`]), then use [`Self::items()`] instead.
     pub fn iter<'a>(&'a self) -> HandlesIter<'a, T> {
         self.array.iter().copied()
     }
 
     /// Returns an iterator over the high-level items in this collection
+    /// If you want to iterate over the low-level handles, then use [`Self::iter()`] instead.
     pub fn items<'a>(&'a self) -> FromHandles<'store, T, HandlesIter<'store, T>>
     where
         'a: 'store,

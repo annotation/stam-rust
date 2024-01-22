@@ -461,9 +461,8 @@ impl TypeInfo for Option<ResultTextSelection<'_>> {
     }
 }
 
-/// Holds a collection of text selections pertaining to resources.
-/// This structure is produced by calling [`ResourcesIter::to_collection()`].
-/// Use [`Resources::iter()`] to iterate over the collection.
+/// Holds a collection of [`TextSelection`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
+/// [`ToHandles::to_handles()`], which is available on all iterators over texts selections.
 pub type TextSelections<'store> = Handles<'store, TextSelection>;
 
 /// Iterator that turns iterators over [`ResultItem<TextSelection>`] into [`ResultTextSelection`].
@@ -733,7 +732,7 @@ where
     }
 
     /// Constrain the iterator to return only the text selections that have this exact data item
-    /// To filter by multiple data instances (union/disjunction), use [`Self::filter_data()`] or (intersection/conjunction) [`Self::filter_data_all()`] instead.
+    /// To filter by multiple data instances (union/disjunction), use [`Self::filter_data()`] or (intersection/conjunction) [`Self::filter_data_all_byref()`] instead.
     ///
     /// This filter is evaluated lazily, it will obtain and check the annotations and data for each text selection.
     fn filter_annotationdata(

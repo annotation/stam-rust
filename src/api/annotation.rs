@@ -217,9 +217,8 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 }
 
-/// Holds a collection of annotations.
-/// This structure is produced by calling [`AnnotationIterator::to_handles()`].
-/// Use [`Annotations::iter()`] to iterate over the collection.
+/// Holds a collection of [`Annotation`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
+/// [`ToHandles::to_handles()`], which is available on all iterators over annotations.
 pub type Annotations<'store> = Handles<'store, Annotation>;
 
 impl<'store, I> FullHandleToResultItem<'store, Annotation> for FromHandles<'store, Annotation, I>
@@ -462,7 +461,7 @@ where
 
     /// Constrain this iterator to filter on annotations that are annotated by by *one of* the mentioned annotations
     ///
-    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    /// The mode parameter determines whether to constrain on *any* match ([`FilterMode::Any`]) or whether to require that the iterator contains *all* of the items in the collection ([`FilterMode::All`]). If in doubt, pick the former.
     ///
     /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_any()`] instead.
     fn filter_annotations(
@@ -483,7 +482,7 @@ where
 
     /// Constrain this iterator to filter on annotations that are annotated by *one of* the mentioned annotations
     ///
-    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    /// The mode parameter determines whether to constrain on *any* match ([`FilterMode::Any`]) or whether to require that the iterator contains *all* of the items in the collection ([`FilterMode::All`]). If in doubt, pick the former.
     ///
     /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_any_byref()`] instead.
     fn filter_annotations_byref(
@@ -518,7 +517,7 @@ where
 
     /// Constrain this iterator to filter on annotations that annotate *any one of* the annotations in the parameter.
     ///
-    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    /// The mode parameter determines whether to constrain on *any* match ([`FilterMode::Any`]) or whether to require that the iterator contains *all* of the items in the collection ([`FilterMode::All`]). If in doubt, pick the former.
     ///
     /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_any()`] instead.
     fn filter_annotations_in_targets(
@@ -535,7 +534,7 @@ where
 
     /// Constrain this iterator to filter on annotations that annotate *any one of* the annotations in the parameter.
     ///
-    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    /// The mode parameter determines whether to constrain on *any* match ([`FilterMode::Any`]) or whether to require that the iterator contains *all* of the items in the collection ([`FilterMode::All`]). If in doubt, pick the former.
     ///
     /// If you are looking to directly constrain the annotations in this iterator, then use [`Self.filter_multiple_byref()`] instead.
     fn filter_annotations_in_targets_byref(
@@ -557,14 +556,12 @@ where
 
     /// Constrain the iterator to only return annotations that have data that corresponds with the items in the passed data.
     ///
-    /// The mode parameter determines whether to constrain on *any* match or whether to require that the iterator contains *all* of the items in the collection.
+    /// The mode parameter determines whether to constrain on *any* match ([`FilterMode::Any`]) or whether to require that the iterator contains *all* of the items in the collection ([`FilterMode::All`]). If in doubt, pick the former.
     ///
     /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
-    // /// If you have a borrowed reference, use [`Self::filter_data_byref()`] instead.
-    /// If you want to check whether multiple data are ALL found in a single annotation, then use [`Self::filter_data_all()`].
+    /// If you have a borrowed reference, use [`Self::filter_data_byref()`] instead.
     ///
     /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
-    // /// If you want eager evaluation, use [`Self::filter_annotations()`] as follows: `annotation.filter_annotations(&data.annotations().into())`.
     fn filter_data(
         self,
         data: Data<'store>,
@@ -576,6 +573,14 @@ where
         }
     }
 
+    /// Constrain the iterator to only return annotations that have data that corresponds with the items in the passed data.
+    ///
+    /// The mode parameter determines whether to constrain on *any* match ([`FilterMode::Any`]) or whether to require that the iterator contains *all* of the items in the collection ([`FilterMode::All`]). If in doubt, pick the former.
+    ///
+    /// If you have a single AnnotationData instance, use [`Self::filter_annotationdata()`] instead.
+    /// If you do not have a borrowed reference, use [`Self::filter_data()`] instead.
+    ///
+    /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     fn filter_data_byref(
         self,
         data: &'store Data<'store>,
@@ -610,7 +615,7 @@ where
     }
 
     /// Constrain the iterator to return only the annotations that have this exact data item
-    /// To filter by multiple data instances (union/disjunction), use [`Self::filter_data()`] or (intersection/conjunction) [`Self::filter_data_all()`] instead.
+    /// To filter by multiple data instances (union/disjunction), use [`Self::filter_data()`] or (intersection/conjunction) [`Self::filter_data()`] with [`FilterMode::All`] instead.
     ///
     /// This filter is evaluated lazily, it will obtain and check the data for each annotation.
     fn filter_annotationdata(

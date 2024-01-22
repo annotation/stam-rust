@@ -143,9 +143,8 @@ impl<'store> ResultItem<'store, TextResource> {
     }
 }
 
-/// Holds a collection of resources.
-/// This structure is produced by calling [`ResourcesIter::to_collection()`].
-/// Use [`Resources::iter()`] to iterate over the collection.
+/// Holds a collection of [`TextResource`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
+/// [`ToHandles::to_handles()`], which is available on all iterators over resources.
 pub type Resources<'store> = Handles<'store, TextResource>;
 
 impl<'store, I> FullHandleToResultItem<'store, TextResource>
@@ -224,8 +223,8 @@ where
         ResultIter::new_unsorted(textselections.into_iter()) //not chronologically sorted
     }
 
-    /// Constrain this iterator to filter only a single resource (by handle). This is a lower-level method, use [`Self::filter_resource()`] instead.
-    /// This method can only be used once! Use [`Self::filter_resources()`] to filter on multiple resources (disjunction).
+    /// Constrain this iterator to filter only a single resource (by handle). This is a lower-level method, use [`Self::filter_one()`] instead.
+    /// This method can only be used once! Use [`Self::filter_any()`], [`Self::filter_any_byref()`] to filter on multiple annotations (disjunction), or [`Self::filter_all()`] (conjunction).
     fn filter_handle(self, handle: TextResourceHandle) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
@@ -234,7 +233,7 @@ where
     }
 
     /// Constrain this iterator to only a single resource
-    /// This method can only be used once! Use [`Self::filter_resources()`] to filter on multiple annotations (disjunction).
+    /// This method can only be used once! Use [`Self::filter_any()`], [`Self::filter_any_byref()`] to filter on multiple annotations (disjunction), or [`Self::filter_all()`] (conjunction).
     fn filter_one(self, resource: &ResultItem<TextResource>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
