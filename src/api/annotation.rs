@@ -816,6 +816,7 @@ impl<'store, I> FilteredAnnotations<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, Annotation>>,
 {
+    #[allow(suspicious_double_ref_op)]
     fn test_filter(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
         match &self.filter {
             Filter::Annotation(handle, SelectionQualifier::Normal, AnnotationDepth::Zero) => {
@@ -937,10 +938,10 @@ where
                 }
             }
             Filter::TextSelectionOperator(operator, _) => annotation.related_text(*operator).test(),
-            Filter::Annotations(handles, FilterMode::All, _, AnnotationDepth::Zero) => {
+            Filter::Annotations(_handles, FilterMode::All, _, AnnotationDepth::Zero) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
             }
-            Filter::BorrowedAnnotations(handles, FilterMode::All, _, AnnotationDepth::Zero) => {
+            Filter::BorrowedAnnotations(_handles, FilterMode::All, _, AnnotationDepth::Zero) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
             }
             _ => unreachable!(

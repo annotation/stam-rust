@@ -286,7 +286,7 @@ impl<'a> AnnotationCsv<'a> {
                             let data: &AnnotationData =
                                 dataset.get(*data).expect("key must exist");
                             if let Some(id) = data.id() {
-                                out += data.id().expect("key must have an id");
+                                out += id;
                             } else {
                                 out += data.temp_id().expect("temp_id must succeed").as_str();
                             }

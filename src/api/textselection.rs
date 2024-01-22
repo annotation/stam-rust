@@ -931,7 +931,7 @@ where
                     false
                 }
             }
-            Filter::TextSelections(handles, FilterMode::All) => {
+            Filter::TextSelections(_handles, FilterMode::All) => {
                 //TODO: implement (not here but in dedicated copy of FilterAllIter)
                 unreachable!("not implemented here")
             }

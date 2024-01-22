@@ -270,7 +270,7 @@ impl<'a> Constraint<'a> {
             }
             Some("DATA") => {
                 querystring = querystring["DATA".len()..].trim_start();
-                let (mut arg, remainder, _) = get_arg(querystring)?;
+                let (arg, remainder, _) = get_arg(querystring)?;
                 let (arg, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
                 querystring = remainder;
                 if arg.starts_with("?") {
@@ -1152,8 +1152,8 @@ impl<'store> QueryIter<'store> {
                         Some(&Constraint::Text(text, TextMode::CaseInsensitive)) => {
                             Box::new(store.find_text_nocase(text).annotations())
                         }
-                        Some(Constraint::Regex(regex)) => {
-                            todo!("implement regex constraint");
+                        Some(Constraint::Regex(_regex)) => {
+                            todo!("regex constraint not implemented yet"); //TODO
                             //Box::new(store.find_text_regex(&regex).annotations())
                         }
                         Some(&Constraint::TextVariable(var)) => {

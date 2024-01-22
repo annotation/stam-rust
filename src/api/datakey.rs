@@ -322,6 +322,7 @@ impl<'store, I> FilteredKeys<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, DataKey>>,
 {
+    #[allow(suspicious_double_ref_op)]
     fn test_filter(&self, key: &ResultItem<'store, DataKey>) -> bool {
         match &self.filter {
             Filter::DataKey(set_handle, key_handle, _) => {

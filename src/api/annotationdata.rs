@@ -391,6 +391,7 @@ impl<'store, I> FilteredData<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, AnnotationData>>,
 {
+    #[allow(suspicious_double_ref_op)]
     fn test_filter(&self, data: &ResultItem<'store, AnnotationData>) -> bool {
         match &self.filter {
             Filter::AnnotationData(set_handle, data_handle, _) => {

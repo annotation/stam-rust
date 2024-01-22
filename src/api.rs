@@ -23,8 +23,6 @@ mod textselection;
 
 pub use annotation::*;
 pub use annotationdata::*;
-pub use annotationdataset::*;
-pub use annotationstore::*;
 pub use datakey::*;
 pub use query::*;
 pub use resources::*;
