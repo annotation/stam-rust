@@ -7,7 +7,7 @@
 [![GitHub build](https://github.com/annotation/stam-rust/actions/workflows/stam.yml/badge.svg?branch=master)](https://github.com/annotation/stam-rust/actions/)
 [![GitHub release](https://img.shields.io/github/release/annotation/stam-rust.svg)](https://GitHub.com/annotation/stam-rust/releases/)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
-![7 - Release Candidate - Technology ready enough and in initial use by end-users in intended scholarly environments. Further validation in progress.](https://w3id.org/research-technology-readiness-levels#Level7ReleaseCandidate)
+![Technology Readiness Level 7/9 - Release Cancidate - Technology ready enough and in initial use by end-users in intended scholarly environments. Further validation in progress.](https://w3id.org/research-technology-readiness-levels/Level7ReleaseCandidate.svg)
 
 # STAM Library
 
