@@ -7,7 +7,7 @@
 [![GitHub build](https://github.com/annotation/stam-rust/actions/workflows/stam.yml/badge.svg?branch=master)](https://github.com/annotation/stam-rust/actions/)
 [![GitHub release](https://img.shields.io/github/release/annotation/stam-rust.svg)](https://GitHub.com/annotation/stam-rust/releases/)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
-![Technology Readiness Level 7/9 - Release Cancidate - Technology ready enough and in initial use by end-users in intended scholarly environments. Further validation in progress.](https://w3id.org/research-technology-readiness-levels/Level7ReleaseCandidate.svg)
+![Technology Readiness Level 7/9 - Release Candidate - Technology ready enough and in initial use by end-users in intended scholarly environments. Further validation in progress.](https://w3id.org/research-technology-readiness-levels/Level7ReleaseCandidate.svg)
 
 # STAM Library
 
@@ -21,7 +21,7 @@ implement the full model and most extensions.
 **What can you do with this library?**
 
 * Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
-* Search in annotations, data and text:
+* Search in annotations, data and text, either programmatically or via the [STAM Query Language](https://github.com/annotation/stam/tree/master/extensions/stam-query).
     * Search annotations by data, textual content, relations between text fragments (overlap, embedding, adjacency, etc),
     * Search in text (incl. via regular expressions) and find annotations targeting found text selections.
     * Search in data (set,key,value) and find annotations that use the data.
@@ -48,6 +48,12 @@ Import the library
 
 ```rust
 use stam;
+```
+
+Or if you prefer losing the namespace:
+
+```rust
+use stam::*;
 ```
 
 Loading a STAM JSON file containing an annotation store:
@@ -119,7 +125,7 @@ instantiated directly. We use `annotate()` rather than `add()` to add annotation
 
 ```rust
 let annotation_handle = store.annotate( stam::AnnotationBuilder::new()
-           .with_target( SelectorBuilder::TextSelector("testres", stam::Offset::simple(6,11))) 
+           .with_target( stam::SelectorBuilder::TextSelector("testres", stam::Offset::simple(6,11))) 
            .with_data("testdataset", "pos", "noun") 
 )?;
 ```
@@ -238,33 +244,38 @@ Notes:
   This is more efficient and less memory intensive because you don't need to
   wait for all results to be collected (and heap allocated) before you can do computation.
 
-The main named iterators in STAM are:
+The main named iterator traits in STAM are:
 
-| Iterator                             | T                      | Methods that produce the iterator             |
+| Iterator trait                       | T                      | Methods that produce the iterator             |
 | ------------------------------------ | ---------------------- | --------------------------------------------- |
-| `AnnotationsIter`                    | `Annotation`           | `annotations()` / `annotations_in_targets()`  |
-| `DataIter`                           | `AnnotationData`       | `data()` / `find_data()`                      |
-| `TextSelectionsIter`                 | `TextSelection`        | `textselections()` / `related_text()`         |
+| `AnnotationsIterator`                | `Annotation`           | `annotations()` / `annotations_in_targets()`  |
+| `DataIterator`                       | `AnnotationData`       | `data()` / `find_data()`                      |
+| `TextSelectionIterator`              | `TextSelection`        | `textselections()` / `related_text()`         |
+| `ResourcesIterator`                  | `AnnotationData`       | `resources()`                                 |
+| `KeyIterator`                        | `DataKey`              | `keys()`                                      |
 | ------------------------------------ | -----------------------|-----------------------------------------------|
 
-The iterators expose an API themselves, allowing various transformations and
+The iterators expose an API allowing various transformations and
 filter actions: You can typically transform one type of iterator to another
 using the methods in the third column. Similarly, you can obtain an iterator
-from `ResultItem` instances (`Annotation`,`TextSelection`,`AnnotationData`)
-through equally named methods.
+from `ResultItem` instances through equally named methods.
+
+All of these iterators have an owned collection counterpart (`Handles<T>`) that
+holds an entire collection in memory, the items are held by reference to a
+store, so the space-overhead is reduced. You can go from the former to the
+latter with `.to_handles()` and from the latter to the format with `.items()`.
 
 
-All of these named iterators have a cached counterpart that holds an entire collection in memory. You can go from the former to the latter with `.to_collection()` and from the latter to the format with `.iter()`.
-
-
-| Iterator                             | Collection             |
+| Iterator Trait                       | Collection             |
 | ------------------------------------ | ---------------------- |
-| `AnnotationsIter`                    | `Annotations`          |
-| `DataIter`                           | `Data`                 |
+| `AnnotationsIterator`                | `Annotations`          |
+| `DataIterator`                       | `Data`                 |
+| `ResourcesIterator`                  | `Resources`            |
 | `TextSelectionsIter`                 | `TextSelections`       |
+| `KeyIterator`                        | `Keys`                 |
 | ------------------------------------ | -----------------------|
 
-The named iterators can be extended by filters, they are applied in a build pattern and return the same iterator with the filter applied:
+The iterators can be extended by filters, they are applied in a build pattern and return the an iterator that still implements the same trait, but with the filter applied:
 
 | Filter method                                  | Description            |
 | ---------------------------------------------- | ---------------------- |
@@ -276,9 +287,10 @@ The named iterators can be extended by filters, they are applied in a build patt
 | `filter_value(value)`                          | Filters on a data value, the parameter can be of various types |
 | ---------------------------------------------- | ---------------------- |
 
-STAM attempts to evaluate the iterators lazily when possible, but in many cases internal buffers need to be allocated.
+All these iterators are lazy-iterator, that is to say they don't do anything unless consumed. Once they are being iterated over, internal buffers may be allocated.
 
-When you are not interested in the actual items but merely want to test whether there are results at all, then use the `test()` method.
+When you are not interested in the actual items but merely want to test whether
+there are results at all, then use the `test()` method that is available on these iterators.
 
 For improved performance, you can add `.parallel()` to an iterator, any
 subsequent iterator methods (generic ones like `map()` and `filter()`, not
@@ -357,28 +369,52 @@ The variants are typically constructed via a helper function on `TextSelectionOp
 
 Example, select all words in a sentence (sentence may be either an `Annotation` or `TextSelection` in this case):
 
-```
+```rust
 let dataset = store.dataset("structure-type").or_fail()?;
 let key_word = dataset.key("word").or_fail()?;
-for word in sentence.related_text(TextSelectionOperator::embeds()).annotations().filter_key(key_word) {
+for word in sentence.related_text(stam::TextSelectionOperator::embeds()).annotations().filter_key(key_word) {
     ...
 }
 ```
 
+### Querying
+
+Rather than searching programmatically, you can also express queries via the
+[STAM Query Language
+(STAMQL)](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+Do note that this incurs a performance penalty due to extra overhead:
+
+```rust
+let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
+let iter = store.query(query);
+let names = iter.names();
+for results in iter {
+    if let Ok(result) = results.get_by_name(&names, "a") {
+       if let QueryResultItem::Annotation(annotation) = result {
+          ...
+        }
+    }
+}
+```
+
+
 ## API Reference Documentation
 
-See [here](https://docs.rs/stam)
+Please consult the [API reference documentation](https://docs.rs/stam) for
+in-depth explanation on all structs, traits and methods, along with some
+examples.
 
 ## Extensions
 
 This library implements the following STAM extensions:
 
 * [STAM-CSV](https://github.com/annotation/stam/tree/master/extensions/stam-csv) - Defines an alternative serialisation format using CSV.
+* [STAM-Query](https://github.com/annotation/stam/tree/master/extensions/stam-query) - Defines the STAM Query Language. 
 
 ## Python binding
 
-This library comes with a binding for Python, see [here](https://github.com/annotation/stam-python)
+This library comes with a binding for Python, see [here](https://github.com/annotation/stam-python).
 
 ## Acknowledgements
 
-This work is conducted at the [KNAW Humanities Cluster](https://huc.knaw.nl/)'s [Digital Infrastructure department](https://di.huc.knaw.nl/), and funded by the [CLARIAH](https://clariah.nl) project (CLARIAH-PLUS, NWO grant 184.034.023) as part of the FAIR Annotations track.
+This work is conducted at the [KNAW Humanities Cluster](https://huc.knaw.nl/)'s [Digital Infrastructure department](https://di.huc.knaw.nl/), and funded by the [CLARIAH](https://clariah.nl) project (CLARIAH-PLUS, NWO grant 184.034.023) as part of the FAIR Annotations track of the Shared Development Roadmap.
