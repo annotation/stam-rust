@@ -241,7 +241,7 @@ impl AnnotationData {
 }
 
 /// This is the builder for [`AnnotationData`]. It contains public IDs or handles that will be resolved.
-/// This structure is usually not instantiated directly but via the [`AnnotationBuilder.with_data()`](crate::AnnotationBuilder::with_data), [`AnnotationStore.insert_data()`] or [`AnnotationDataSet.with_data()`](crate::AnnotationDataSet::with_data()) or [`AnnotationDataSet.build_insert_data()`](crate::AnnotationDataSet::build_insert_data()) methods.
+/// This structure is usually not instantiated directly but via the [`AnnotationBuilder.with_data()`](crate::AnnotationBuilder::with_data), [`AnnotationDataSet.insert_data()`](crate::AnnotationDataSet::insert_data) or [`AnnotationDataSet.with_data()`](crate::AnnotationDataSet::with_data()) or [`AnnotationDataSet.build_insert_data()`](crate::AnnotationDataSet::build_insert_data()) methods.
 /// It also does not have its own `build()` method but is resolved via the aforementioned methods.
 #[derive(Deserialize, Clone, Debug)]
 #[serde(tag = "AnnotationData")]

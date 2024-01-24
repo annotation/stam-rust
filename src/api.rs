@@ -430,6 +430,9 @@ where
     }
 }
 
+/// This trait is implemented on iterators over [`ResultItem<T>`] and turns effectively collects
+/// these items, by only their handles and a reference to a store, as [`Handles<T>`].
+/// It is implemented alongside traits like [`AnnotationIterator`], [`DataIterator`], etc...
 pub trait ToHandles<'store, T>
 where
     T: Storable,
@@ -449,6 +452,9 @@ where
     }
 }
 
+/// This iterator implements a simple `.test()` method that just checks whether an iterator is
+/// empty or yields results. It is implemented alongside traits like [`AnnotationIterator`],
+/// [`DataIterator`], etc...
 pub trait TestableIterator: Iterator
 where
     Self: Sized,
@@ -593,12 +599,26 @@ where
 // Auxiliary data structures the API relies on internally:
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
+/// This determines how a filter is applied when there the filter is provided with multiple
+/// reference instances to match against. It determines if the filter requires a match with
+/// any of the instances (default), or with all of them.
 pub enum FilterMode {
+    /// The filter succeeds if any match is found.
     Any,
+
+    /// The filter only succeeds if all reference instances are matched.
+    /// Note: This might not make sense in some contexts!
     All,
 }
 
+impl Default for FilterMode {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
+/// Determines whether a text search is exact (case sensitive) or case insensitive.
 pub enum TextMode {
     Exact,
     CaseInsensitive,

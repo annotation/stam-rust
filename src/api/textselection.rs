@@ -890,6 +890,9 @@ where
     //blanket implementation
 }
 
+/// An iterator that applies a filter to constrain text selections.
+/// This iterator implements [`TextSelectionIterator`]
+/// and is itself produced by the various `filter_*()` methods on that trait.
 pub struct FilteredTextSelections<'store, I>
 where
     I: Iterator<Item = ResultTextSelection<'store>>,
@@ -1018,6 +1021,9 @@ where
     }
 }
 
+/// An iterator over the actual text of text selections.
+/// This iterator yields `&str` instances and is typically produced
+/// by a `.text()` method when there may be multiple text slices.
 pub struct TextIter<'store, I>
 where
     I: Iterator<Item = ResultTextSelection<'store>>,

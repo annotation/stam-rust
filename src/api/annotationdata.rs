@@ -366,6 +366,9 @@ where
     //blanket implementation
 }
 
+/// An iterator that applies a filter to constrain annotation data.
+/// This iterator implements [`DataIterator`]
+/// and is itself produced by the various `filter_*()` methods on that trait.
 pub struct FilteredData<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, AnnotationData>>,

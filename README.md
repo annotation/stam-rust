@@ -11,12 +11,11 @@
 
 # STAM Library
 
-[STAM](https://github.com/annotation/stam) is a data model for stand-off text
-annotation and described in detail [here](https://github.com/annotation/stam).
-This is a software library to work with the model, written in Rust.
-
-This is the primary software library for working with the data model. We aim to
-implement the full model and most extensions.
+STAM is a standalone data model for stand-off text annotation. This is a
+software library to work with the model from Rust, and is the primary
+library/reference implementation for STAM. It aims to implement the full model
+as per the [STAM specification](https://github.com/annotation/stam) and most of
+the extensions.
 
 **What can you do with this library?**
 
@@ -248,7 +247,7 @@ The main named iterator traits in STAM are:
 
 | Iterator trait                       | T                      | Methods that produce the iterator             |
 | ------------------------------------ | ---------------------- | --------------------------------------------- |
-| `AnnotationsIterator`                | `Annotation`           | `annotations()` / `annotations_in_targets()`  |
+| `AnnotationIterator`                | `Annotation`           | `annotations()` / `annotations_in_targets()`  |
 | `DataIterator`                       | `AnnotationData`       | `data()` / `find_data()`                      |
 | `TextSelectionIterator`              | `TextSelection`        | `textselections()` / `related_text()`         |
 | `ResourcesIterator`                  | `AnnotationData`       | `resources()`                                 |
@@ -268,7 +267,7 @@ latter with `.to_handles()` and from the latter to the format with `.items()`.
 
 | Iterator Trait                       | Collection             |
 | ------------------------------------ | ---------------------- |
-| `AnnotationsIterator`                | `Annotations`          |
+| `AnnotationIterator`                 | `Annotations`          |
 | `DataIterator`                       | `Data`                 |
 | `ResourcesIterator`                  | `Resources`            |
 | `TextSelectionsIter`                 | `TextSelections`       |
@@ -401,7 +400,7 @@ for results in iter {
 ## API Reference Documentation
 
 Please consult the [API reference documentation](https://docs.rs/stam) for
-in-depth explanation on all structs, traits and methods, along with some
+in-depth explanation on all structures, traits and methods, along with some
 examples.
 
 ## Extensions

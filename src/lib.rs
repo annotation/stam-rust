@@ -10,7 +10,7 @@
 
 //! ## Introduction
 //!
-//! STAM is a data model for stand-off text annotation. This is a software library to work with the
+//! STAM is a standalone data model for stand-off text annotation. This is a software library to work with the
 //! model from Rust, and is the primary library/reference implementation for STAM. It aims to
 //! implement the full model as per the [STAM specification](https://github.com/annotation/stam) and most of the
 //! extensions.
@@ -18,7 +18,7 @@
 //! **What can you do with this library?**
 //!
 //! * Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
-//! * Search in annotations, data and text:
+//! * Search in annotations, data and text, either programmatically or via the [STAM Query Language](https://github.com/annotation/stam/tree/master/extensions/stam-query).
 //!    * Search annotations by data, textual content, relations between text fragments (overlap, embedding, adjacency, etc).
 //!    * Search in text (incl. via regular expressions) and find annotations targeting found text selections.
 //!    * Elementary text operations with regard for text offsets (splitting text on a delimiter, stripping text).
@@ -37,39 +37,49 @@
 //! low-level API and a high-level API, the latter is of most interest to end users and is
 //! implemented in `api/*.rs`.
 //!
-//! High-level API (or mixed low/high):
-//! * [`AnnotationStore`]
-//! * [`ResultItem<Annotation>`](struct.ResultItem.html#impl-ResultItem<'store,+Annotation>)
-//! * [`ResultItem<AnnotationDataSet>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationDataSet>)
-//! * [`ResultItem<AnnotationData>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationData>)
-//! * [`ResultItem<DataKey>`](struct.ResultItem.html#impl-ResultItem<'store,+DataKey>)
-//! * [`ResultItem<TextResource>`](struct.ResultItem.html#impl-ResultItem<'store,+TextResource>)
-//! * [`DataValue`]
-//! * [`DataOperator`]
-//! * [`ResultTextSelection`]
-//! * [`TextSelectionOperator`]
-//! * [`AnnotationIterator`] - Iterator trait to iterate over annotations, typically produced by an `annotations()` method.
-//! * [`DataIterator`] - Iterator trait to iterate over annotation data, typically produced by a `data()` method.
-//! * [`TextSelectionIterator`] - iterator (trait), typically produced by a `textselections()` or `related_text()` method.
-//! * [`ResourcesIterator`] - iterator (trait), typically produced by a `resources()` method.
-//! * [`KeyIterator`] - iterator (trait), typically produced by a `keys()` method.
-//! * [`Annotations`] == [`Handles<Annotation>`] - Arbitrary collection of [`Annotation`] (by reference)
-//! * [`Data`] == [`Handles<AnnotationData>`] - Arbitrary collection of [`AnnotationData`] (by reference)
-//! * [`Resources`] ==  [`Handles<TextResource>`] - Arbitrary collection of [`TextResource`] (by reference).
-//! * [`Keys`] == [`Handles<DataKey>`] - Arbitrary collection of [`DataKey`] (by reference).
-//! * [`Cursor`] - Points to a text position, position may be relative.
-//! * [`Offset`] - Range (two cursors) that can be used to selects a text, positions may be relative.
-//! * [`Query`] - Holds a query, may be parsed from [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query).
-//! * [`QueryResultItems`]
-//! * [`QueryResultItem`]
+//! ## Table of Contents (abridged)
 //!
-//! Low-level API:
-//! * [`Annotation`]
-//! * [`AnnotationDataSet`]
-//! * [`AnnotationData`]
-//! * [`TextSelection`]
-//! * [`TextResource`]
-//! * [`DataKey`]
+//! * [`AnnotationStore`] - The main annotation store that holds everything together.
+//! * **Result items:** - These encapsulate the underlying primary structures and is the main way in which things are returned throughout the high-level API.
+//!     * [`ResultItem<Annotation>`](struct.ResultItem.html#impl-ResultItem<'store,+Annotation>)
+//!     * [`ResultItem<AnnotationDataSet>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationDataSet>)
+//!     * [`ResultItem<AnnotationData>`](struct.ResultItem.html#impl-ResultItem<'store,+AnnotationData>)
+//!     * [`ResultItem<DataKey>`](struct.ResultItem.html#impl-ResultItem<'store,+DataKey>)
+//!     * [`ResultItem<TextResource>`](struct.ResultItem.html#impl-ResultItem<'store,+TextResource>)
+//!     * [`ResultTextSelection`]
+//! * **Values and Operators:**
+//!     * [`DataValue`] - Encapsulates an actual value and its type.
+//!     * [`DataOperator`] - Defines a test done on a [`DataValue`]
+//!     * [`TextSelectionOperator`] - Performs a particular comparison of text selections (e.g. overlap, embedding, adjacency, etc..)
+//! * **Iterators:**
+//!     * [`AnnotationIterator`] - Iterator trait to iterate over annotations, typically produced by an `annotations()` method.
+//!     * [`DataIterator`] - Iterator trait to iterate over annotation data, typically produced by a `data()` method.
+//!     * [`TextSelectionIterator`] - iterator (trait), typically produced by a `textselections()` or `related_text()` method.
+//!     * [`ResourcesIterator`] - iterator (trait), typically produced by a `resources()` method.
+//!     * [`KeyIterator`] - iterator (trait), typically produced by a `keys()` method.
+//!     * [`TextIter`] - iterator over actual text, typically produced by a `text()` method.
+//! * **Text operations:**
+//!     * [`FindText`]  - Trait available on textresources and text selections to provide text-searching methods
+//!     * [`Text`] - Lower-level API trait to obtain text.
+//! * **Collections:**
+//!     * [`Annotations`] == [`Handles<Annotation>`] - Arbitrary collection of [`Annotation`] (by reference)
+//!     * [`Data`] == [`Handles<AnnotationData>`] - Arbitrary collection of [`AnnotationData`] (by reference)
+//!     * [`Resources`] ==  [`Handles<TextResource>`] - Arbitrary collection of [`TextResource`] (by reference).
+//!     * [`Keys`] == [`Handles<DataKey>`] - Arbitrary collection of [`DataKey`] (by reference).
+//! * **Querying:**
+//!     * [`Query`] - Holds a query, may be parsed from [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+//!     * [`QueryResultItems`]
+//!     * [`QueryResultItem`]
+//! * **Referencing Text (both high and low-level API):**
+//!     * [`Cursor`] - Points to a text position, position may be relative.
+//!     * [`Offset`] - Range (two cursors) that can be used to selects a text, positions may be relative.
+//! * **Primary structures (low level API)**:
+//!     * [`Annotation`]
+//!     * [`AnnotationDataSet`]
+//!     * [`AnnotationData`]
+//!     * [`TextSelection`]
+//!     * [`TextResource`]
+//!     * [`DataKey`]
 
 mod annotation;
 mod annotationdata;

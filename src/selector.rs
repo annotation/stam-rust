@@ -548,7 +548,7 @@ impl<'a> From<&SelectorBuilder<'a>> for SelectorKind {
 }
 
 /// A `SelectorBuilder` is a recipe that, when applied, identifies the target of an annotation and the part of the
-/// target that the annotation applies to. They produce a `Selector` and you can do so via [`Annotationstore.selector`].
+/// target that the annotation applies to. They produce a `Selector`. You turn a `SelectorBuilder` into a [`Selector`] using [`AnnotationStore::selector`](crate::AnnotationStore::selector).
 ///
 /// A `SelectorBuilder` can refer to anything and is not validated yet, a `Selector` is and should not fail.
 ///

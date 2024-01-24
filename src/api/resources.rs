@@ -619,6 +619,9 @@ where
     //blanket implementation
 }
 
+/// An iterator that applies a filter to constrain resources.
+/// This iterator implements [`ResourcesIterator`]
+/// and is itself produced by the various `filter*()` methods on that trait.
 pub struct FilteredResources<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, TextResource>>,

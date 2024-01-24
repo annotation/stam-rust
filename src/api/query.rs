@@ -1049,7 +1049,7 @@ pub enum QueryResultItem<'store> {
     AnnotationDataSet(ResultItem<'store, AnnotationDataSet>),
 }
 
-pub struct QueryState<'store> {
+pub(crate) struct QueryState<'store> {
     /// The iterator for the current query
     iterator: QueryResultIter<'store>,
 
