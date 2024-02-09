@@ -21,6 +21,9 @@ mod resources;
 mod text;
 mod textselection;
 
+#[cfg(feature = "webanno")]
+mod webanno;
+
 pub use annotation::*;
 pub use annotationdata::*;
 pub use datakey::*;
@@ -28,6 +31,9 @@ pub use query::*;
 pub use resources::*;
 pub use text::*;
 pub use textselection::*;
+
+#[cfg(feature = "webanno")]
+pub use webanno::*;
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
