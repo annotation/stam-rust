@@ -13,10 +13,12 @@
 //! It also implements the [`DataOperator`].
 //! This API is used both on high and low levels.
 
+use chrono::{DateTime, FixedOffset};
 use minicbor::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::cbor::{cbor_decode_datetime, cbor_encode_datetime};
 use crate::error::StamError;
 use crate::types::*;
 use datasize::{data_size, DataSize};
@@ -55,13 +57,23 @@ pub enum DataValue {
     #[n(4)]
     Float(#[n(0)] f64),
 
-    //Datetime(chrono::DateTime), //TODO
     /// Value is an unordered set
     //Set(HashSet<DataValue>),
 
     /// The value is an ordered list
     #[n(5)]
     List(#[n(0)] Vec<DataValue>),
+
+    /// The value is a date/timestamp
+    #[cbor(n(6))]
+    Datetime(
+        #[cbor(
+            n(0),
+            decode_with = "cbor_decode_datetime",
+            encode_with = "cbor_encode_datetime"
+        )]
+        DateTime<FixedOffset>,
+    ),
 }
 
 impl DataSize for DataValue {
@@ -78,6 +90,7 @@ impl DataSize for DataValue {
             Self::Int(v) => 8 + data_size(v),
             Self::Float(v) => 8 + data_size(v),
             Self::List(v) => 8 + data_size(v),
+            Self::Datetime(_) => 8 + (4 * 4), //4*u32, guessed based on chrono source code, may not be accurate
         }
     }
 }
@@ -115,6 +128,17 @@ pub enum DataOperator<'a> {
     LessThanFloat(f64),
     /// The datavalue must be numeric and less than or equal to the value with the operator
     LessThanOrEqualFloat(f64),
+    /// The datavalue must be a datetime and match this reference exactly
+    ExactDatetime(DateTime<FixedOffset>),
+    /// The datavalue must be a datetime and come after this reference datetime
+    AfterDatetime(DateTime<FixedOffset>),
+    /// The datavalue must be a datetime and come before this reference datetime
+    BeforeDatetime(DateTime<FixedOffset>),
+    /// The datavalue must be a datetime and come at or after this reference datetime
+    AtOrAfterDatetime(DateTime<FixedOffset>),
+    /// The datavalue must be a datetime and come at or before this reference datetime
+    AtOrBeforeDatetime(DateTime<FixedOffset>),
+
     HasElement(&'a str),
     HasElementInt(isize),
     HasElementFloat(f64),
@@ -146,6 +170,11 @@ impl<'a> DataValue {
             (Self::Float(n), DataOperator::GreaterThanOrEqualFloat(n2)) => *n >= *n2,
             (Self::Float(n), DataOperator::LessThanFloat(n2)) => *n < *n2,
             (Self::Float(n), DataOperator::LessThanOrEqualFloat(n2)) => *n <= *n2,
+            (Self::Datetime(v), DataOperator::ExactDatetime(v2)) => v == v2,
+            (Self::Datetime(v), DataOperator::AfterDatetime(v2)) => v > v2,
+            (Self::Datetime(v), DataOperator::BeforeDatetime(v2)) => v < v2,
+            (Self::Datetime(v), DataOperator::AtOrAfterDatetime(v2)) => v >= v2,
+            (Self::Datetime(v), DataOperator::AtOrBeforeDatetime(v2)) => v <= v2,
             (Self::List(v), DataOperator::HasElement(s)) => {
                 v.iter().any(|e| e.test(&DataOperator::Equals(s)))
             }
@@ -191,6 +220,7 @@ impl fmt::Display for DataValue {
             Self::Bool(v) => write!(f, "{}", v),
             Self::Int(v) => write!(f, "{}", v),
             Self::Float(v) => write!(f, "{}", v),
+            Self::Datetime(v) => write!(f, "{}", v.to_rfc3339()),
             Self::List(v) => {
                 for (i, item) in v.iter().enumerate() {
                     if i < v.len() - 1 {
@@ -306,6 +336,12 @@ impl From<Vec<DataValue>> for DataValue {
     }
 }
 
+impl From<DateTime<FixedOffset>> for DataValue {
+    fn from(item: DateTime<FixedOffset>) -> Self {
+        Self::Datetime(item)
+    }
+}
+
 // These PartialEq implementation allow for more direct comparisons
 
 impl PartialEq<str> for DataValue {
@@ -380,6 +416,15 @@ impl PartialEq<DataValue> for isize {
     }
 }
 
+impl PartialEq<DataValue> for DateTime<FixedOffset> {
+    fn eq(&self, other: &DataValue) -> bool {
+        match other {
+            DataValue::Datetime(v) => v == self,
+            _ => false,
+        }
+    }
+}
+
 impl<'a> TryFrom<DataOperator<'a>> for DataValue {
     type Error = StamError;
 
@@ -391,6 +436,7 @@ impl<'a> TryFrom<DataOperator<'a>> for DataValue {
             DataOperator::EqualsInt(i) => Ok(Self::Int(i)),
             DataOperator::True => Ok(Self::Bool(true)),
             DataOperator::False => Ok(Self::Bool(false)),
+            DataOperator::ExactDatetime(v) => Ok(Self::Datetime(v)),
             _ => Err(StamError::OtherError(
                 "Data operator can not be converted to a single DataValue",
             )),
@@ -407,6 +453,7 @@ impl<'a> From<&'a DataValue> for DataOperator<'a> {
             DataValue::Float(v) => DataOperator::EqualsFloat(*v),
             DataValue::Bool(true) => DataOperator::True,
             DataValue::Bool(false) => DataOperator::False,
+            DataValue::Datetime(v) => DataOperator::ExactDatetime(*v),
             DataValue::List(_) => {
                 eprintln!("STAM warning: Automatic conversion from list values to operators is not supported!");
                 DataOperator::Null
@@ -436,6 +483,12 @@ impl<'a> From<usize> for DataOperator<'a> {
 impl<'a> From<f64> for DataOperator<'a> {
     fn from(v: f64) -> Self {
         DataOperator::EqualsFloat(v)
+    }
+}
+
+impl<'a> From<DateTime<FixedOffset>> for DataOperator<'a> {
+    fn from(v: DateTime<FixedOffset>) -> Self {
+        DataOperator::ExactDatetime(v)
     }
 }
 
@@ -484,6 +537,11 @@ impl<'a> DataOperator<'a> {
             DataOperator::GreaterThanOrEqualFloat(n) => Ok(format!(">= {}", n)),
             DataOperator::LessThanOrEqualFloat(n) => Ok(format!("<= {}", n)),
             DataOperator::LessThanFloat(n) => Ok(format!("< {}", n)),
+            DataOperator::ExactDatetime(d) => Ok(format!("= {}", d.to_rfc3339())),
+            DataOperator::AfterDatetime(d) => Ok(format!("> {}", d.to_rfc3339())),
+            DataOperator::AtOrAfterDatetime(d) => Ok(format!(">= {}", d.to_rfc3339())),
+            DataOperator::BeforeDatetime(d) => Ok(format!("< {}", d.to_rfc3339())),
+            DataOperator::AtOrBeforeDatetime(d) => Ok(format!("<= {}", d.to_rfc3339())),
             _ => {
                 //HasElement, And, Or //TODO: implement
                 Err(StamError::QuerySyntaxError(

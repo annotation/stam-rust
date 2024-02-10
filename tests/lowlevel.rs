@@ -262,6 +262,32 @@ fn parse_json_annotationdata2() -> Result<(), std::io::Error> {
 }
 
 #[test]
+fn parse_json_annotationdata_datetime() -> Result<(), std::io::Error> {
+    let json = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "D2",
+        "key": "created",
+        "value": {
+            "@type": "Datetime",
+            "value": "2014-11-28T12:00:09+00:00"
+        }
+    }"#;
+
+    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
+
+    assert_eq!(data.id(), &BuildItem::from("D2"));
+    assert_eq!(data.id(), "D2"); //can also be compared with &str etc
+    assert_eq!(data.key(), &BuildItem::from("created"));
+    assert_eq!(data.key(), "created");
+    assert_eq!(
+        data.value(),
+        &DataValue::Datetime(DateTime::parse_from_rfc3339("2014-11-28T12:00:09+00:00").unwrap())
+    );
+
+    Ok(())
+}
+
+#[test]
 fn parse_json_textselector() -> Result<(), std::io::Error> {
     let data = r#"{ 
         "@type": "TextSelector",

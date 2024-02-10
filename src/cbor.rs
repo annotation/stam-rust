@@ -10,6 +10,7 @@
 
 //! This module contain some helper functions for serialisation/deserialisation to/from CBOR (the binary representation).
 
+use chrono::{DateTime, FixedOffset};
 use minicbor::{decode::ArrayIterWithCtx, CborLen, Encode};
 use smallvec::SmallVec;
 use std::sync::{Arc, RwLock};
@@ -97,4 +98,20 @@ pub(crate) fn cbor_encode_serialize_mode<Ctx, W: minicbor::encode::Write>(
     _ctx: &mut Ctx,
 ) -> Result<(), minicbor::encode::Error<W::Error>> {
     Ok(())
+}
+
+pub(crate) fn cbor_encode_datetime<Ctx, W: minicbor::encode::Write>(
+    v: &DateTime<FixedOffset>,
+    e: &mut minicbor::encode::Encoder<W>,
+    ctx: &mut Ctx,
+) -> Result<(), minicbor::encode::Error<W::Error>> {
+    v.to_rfc3339().encode(e, ctx)
+}
+
+pub(crate) fn cbor_decode_datetime<'b, Ctx>(
+    d: &mut minicbor::decode::Decoder<'b>,
+    _ctx: &mut Ctx,
+) -> Result<DateTime<FixedOffset>, minicbor::decode::Error> {
+    let s: String = d.decode()?;
+    DateTime::parse_from_rfc3339(&s).map_err(|err| minicbor::decode::Error::custom(err))
 }

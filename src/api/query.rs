@@ -13,6 +13,7 @@ use crate::{store::*, ResultTextSelection};
 use crate::{types::*, DataOperator};
 use crate::{TextResource, TextResourceHandle};
 
+use chrono::{DateTime, FixedOffset};
 use regex::Regex;
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -2407,6 +2408,7 @@ enum ArgType {
     List,
     Null,
     Bool,
+    Datetime,
     Any,
 }
 
@@ -2445,7 +2447,13 @@ fn get_arg_type(s: &str) -> ArgType {
             "null" => ArgType::Null,
             "any" => ArgType::Any,
             "true" | "false" => ArgType::Bool,
-            _ => ArgType::String,
+            s => {
+                if DateTime::parse_from_rfc3339(&s).is_ok() {
+                    ArgType::Datetime
+                } else {
+                    ArgType::String
+                }
+            }
         }
     }
 }
@@ -2613,6 +2621,21 @@ fn parse_dataoperator<'a>(
             let values: Vec<_> = value.split("|").map(|x| DataOperator::Equals(x)).collect();
             DataOperator::Or(values)
         }
+        ("=", ArgType::Datetime) => DataOperator::ExactDatetime(
+            DateTime::parse_from_rfc3339(value).expect("datetime RFC3339 parsing should work"),
+        ),
+        (">", ArgType::Datetime) => DataOperator::AfterDatetime(
+            DateTime::parse_from_rfc3339(value).expect("datetime RFC3339 parsing should work"),
+        ),
+        (">=", ArgType::Datetime) => DataOperator::AtOrAfterDatetime(
+            DateTime::parse_from_rfc3339(value).expect("datetime RFC3339 parsing should work"),
+        ),
+        ("<", ArgType::Datetime) => DataOperator::BeforeDatetime(
+            DateTime::parse_from_rfc3339(value).expect("datetime RFC3339 parsing should work"),
+        ),
+        ("<=", ArgType::Datetime) => DataOperator::AtOrBeforeDatetime(
+            DateTime::parse_from_rfc3339(value).expect("datetime RFC3339 parsing should work"),
+        ),
         _ => {
             return Err(StamError::QuerySyntaxError(
                 format!(

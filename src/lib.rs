@@ -134,6 +134,7 @@ pub use textselection::{
 };
 pub use types::*;
 
+pub use chrono::{DateTime, FixedOffset};
 pub use regex::{Regex, RegexSet};
 
 mod tests;
