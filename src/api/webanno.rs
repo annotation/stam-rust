@@ -3,6 +3,7 @@ use crate::AnnotationDataSet;
 use crate::DataValue;
 use crate::Selector;
 use crate::TextResource;
+use chrono::{DateTime, Local};
 
 use nanoid::nanoid;
 use std::borrow::Cow;
@@ -110,6 +111,12 @@ pub struct WebAnnoConfig {
 
     /// Extra JSON-LD context to export, these must be URLs to JSONLD files.
     pub extra_context: Vec<String>,
+
+    /// Automatically add a 'generated' triple for each annotation, with the timestamp of serialisation
+    pub auto_generated: bool,
+
+    /// Automatically add a 'generator' triple for each annotation, with the software details
+    pub auto_generator: bool,
 }
 
 impl Default for WebAnnoConfig {
@@ -120,6 +127,8 @@ impl Default for WebAnnoConfig {
             default_set_iri: "_:".to_string(),
             default_resource_iri: "_:".to_string(),
             extra_context: Vec::new(),
+            auto_generated: true,
+            auto_generator: true,
         }
     }
 }
@@ -157,20 +166,30 @@ impl<'store> ResultItem<'store, Annotation> {
         ann_out += "  \"type\": \"Annotation\",\n";
 
         let mut body_out = String::with_capacity(512);
-        let mut supress_default_body_type = false;
+        let mut suppress_default_body_type = false;
+        let mut suppress_auto_generated = false;
+        let mut suppress_auto_generator = false;
         //gather annotation properties (outside of body)
         for data in self.data() {
             let key = data.key();
             let key_id = key.id().expect("keys must have an ID");
             match data.set().id() {
                 Some(CONTEXT_ANNO) | Some(NS_ANNO) => match key_id {
-                    "motivation" | "generated" | "generator" | "created" | "creator" => {
+                    "generated" => {
+                        suppress_auto_generated = true;
+                        ann_out += &output_predicate_datavalue(key_id, data.value(), "  ");
+                    }
+                    "generator" => {
+                        suppress_auto_generator = true;
+                        ann_out += &output_predicate_datavalue(key_id, data.value(), "  ");
+                    }
+                    "motivation" | "created" | "creator" => {
                         ann_out += &output_predicate_datavalue(key_id, data.value(), "  ");
                     }
                     key_id => {
                         //go to body
                         if key_id == "type" {
-                            supress_default_body_type = true; //no need for the default because we provided one explicitly
+                            suppress_default_body_type = true; //no need for the default because we provided one explicitly
                         }
                         ann_out += &output_predicate_datavalue(key_id, data.value(), "    ");
                     }
@@ -190,9 +209,16 @@ impl<'store> ResultItem<'store, Annotation> {
             }
         }
 
+        if config.auto_generated && !suppress_auto_generated {
+            ann_out += &format!("  \"generated\": \"{}\",\n", Local::now().to_rfc3339());
+        }
+        if config.auto_generator && !suppress_auto_generator {
+            ann_out += "  \"generator\": {{ \"id\": \"https://github.com/annotation/stam-rust\", \"type\": \"Software\", \"name\": \"STAM Library\"  }},\n";
+        }
+
         if !body_out.is_empty() {
             ann_out += "  \"body\": {\n";
-            if !supress_default_body_type {
+            if !suppress_default_body_type {
                 ann_out += "      \"type\": \"Dataset\",\n";
             }
             ann_out += &body_out;
