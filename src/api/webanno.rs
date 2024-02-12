@@ -3,7 +3,7 @@ use crate::AnnotationDataSet;
 use crate::DataValue;
 use crate::Selector;
 use crate::TextResource;
-use chrono::{DateTime, Local};
+use chrono::Local;
 
 use nanoid::nanoid;
 use std::borrow::Cow;

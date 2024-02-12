@@ -31,7 +31,7 @@ use crate::types::*;
 use crate::{Filter, FilterMode, TextMode};
 use sealed::sealed;
 use serde::ser::{SerializeStruct, Serializer};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use rayon::prelude::*;
 use std::cmp::Ordering;
