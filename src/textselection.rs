@@ -1678,8 +1678,6 @@ impl TestTextSelection for TextSelection {
             _ => unreachable!("unknown operator+modifier combination"),
         }
     }
-
-    //there are no to_json() methods etc here, but you can convert a TextSelection to an Offset, which does have them
 }
 
 impl Extend<TextSelection> for TextSelectionSet {
