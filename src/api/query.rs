@@ -2366,6 +2366,10 @@ impl<'store> QueryResultItems<'store> {
         self.items.iter()
     }
 
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
     /// Returns a result by index number
     pub fn get(&self, index: usize) -> Option<&QueryResultItem<'store>> {
         self.items.get(index)
