@@ -30,6 +30,8 @@ use crate::textselection::{
 use crate::types::*;
 use crate::{Filter, FilterMode, TextMode};
 use sealed::sealed;
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 
 use rayon::prelude::*;
 use std::cmp::Ordering;
@@ -102,6 +104,20 @@ impl<'store> ResultItem<'store, TextSelection> {
     ) -> impl Iterator<Item = ResultTextSelection<'store>> {
         let tset: TextSelectionSet = self.clone().into();
         self.resource().related_text(operator, tset)
+    }
+}
+
+impl<'store> Serialize for ResultTextSelection<'store> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("TextSelection", 4)?;
+        state.serialize_field("@type", "TextSelection")?;
+        state.serialize_field("begin", &self.begin())?;
+        state.serialize_field("end", &self.end())?;
+        state.serialize_field("text", &self.text())?;
+        state.end()
     }
 }
 
@@ -280,6 +296,14 @@ impl<'store> ResultTextSelection<'store> {
         self.resource()
             .as_ref()
             .positions_in_range(mode, self.begin(), self.end())
+    }
+
+    /// Writes a textselection to a STAM JSON string, with appropriate formatting, note that
+    /// this is not used in normal serialisation (Text Selections aren't serialised).
+    pub fn to_json(&self) -> Result<String, StamError> {
+        serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Serializing textselection to string: {}", e))
+        })
     }
 }
 
