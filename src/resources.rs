@@ -320,6 +320,17 @@ impl Serialize for TextResource {
     }
 }
 
+impl TextResource {
+    /// Writes a Resource to one big STAM JSON string, with appropriate formatting
+    /// If the actual data is in a stand-off file, this will be written to as well.
+    pub fn to_json_string(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string_pretty(self).map_err(|e| {
+            StamError::SerializationError(format!("Writing resource to string: {}", e))
+        })
+    }
+}
+
 impl PartialOrd for TextResource {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.intid.partial_cmp(&other.intid)
