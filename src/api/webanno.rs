@@ -19,10 +19,13 @@ pub trait IRI<'store> {
 }
 
 impl<'store> IRI<'store> for ResultItem<'store, DataKey> {
-    fn iri(&self, default_prefix: &str) -> Option<Cow<'store, str>> {
+    fn iri(&self, default_set_prefix: &str) -> Option<Cow<'store, str>> {
         Some(into_iri(
             self.id().expect("key must have an ID"),
-            &self.set().iri(default_prefix).expect("set must have an ID"),
+            &self
+                .set()
+                .iri(default_set_prefix)
+                .expect("set must have an ID"),
         ))
     }
 }
@@ -134,6 +137,7 @@ impl Default for WebAnnoConfig {
 }
 
 impl<'store> ResultItem<'store, Annotation> {
+    /// Outputs the annotation as a W3C Web Annotation, the JSON output will be on a single line without pretty formatting.
     pub fn to_webannotation(&self, config: &WebAnnoConfig) -> String {
         if let Selector::AnnotationDataSelector(..) | Selector::DataKeySelector(..) =
             self.as_ref().target()
@@ -142,8 +146,7 @@ impl<'store> ResultItem<'store, Annotation> {
             return String::new();
         }
         let mut ann_out = String::with_capacity(1024);
-        ann_out += "{\n";
-        ann_out += "  \"@context\": ";
+        ann_out += "{ \"@context\": ";
         if !config.extra_context.is_empty() {
             ann_out += &format!(
                 "[ \"{}\", {} ]",
@@ -153,22 +156,24 @@ impl<'store> ResultItem<'store, Annotation> {
         } else {
             ann_out += &format!("\"{}\"", CONTEXT_ANNO);
         }
-        ann_out += ",\n";
+        ann_out += ",";
         if let Some(iri) = self.iri(&config.default_annotation_iri) {
-            ann_out += &format!("  \"id\": \"{}\",\n", iri);
+            ann_out += &format!("  \"id\": \"{}\",", iri);
         } else if config.generate_annotation_iri {
             let id = nanoid!();
             ann_out += &format!(
-                "  \"id\": \"{}\",\n",
+                " \"id\": \"{}\",",
                 into_iri(&id, &config.default_annotation_iri)
             )
         }
-        ann_out += "  \"type\": \"Annotation\",\n";
+        ann_out += " \"type\": \"Annotation\",";
 
         let mut body_out = String::with_capacity(512);
         let mut suppress_default_body_type = false;
         let mut suppress_auto_generated = false;
         let mut suppress_auto_generator = false;
+
+        let mut outputted_to_main = false;
         //gather annotation properties (outside of body)
         for data in self.data() {
             let key = data.key();
@@ -176,65 +181,77 @@ impl<'store> ResultItem<'store, Annotation> {
             match data.set().id() {
                 Some(CONTEXT_ANNO) | Some(NS_ANNO) => match key_id {
                     "generated" => {
+                        if outputted_to_main {
+                            ann_out.push(',');
+                        }
                         suppress_auto_generated = true;
-                        ann_out += &output_predicate_datavalue(key_id, data.value(), "  ");
+                        outputted_to_main = true;
+                        ann_out += &output_predicate_datavalue(key_id, data.value());
                     }
                     "generator" => {
+                        if outputted_to_main {
+                            ann_out.push(',');
+                        }
                         suppress_auto_generator = true;
-                        ann_out += &output_predicate_datavalue(key_id, data.value(), "  ");
+                        outputted_to_main = true;
+                        ann_out += &output_predicate_datavalue(key_id, data.value());
                     }
                     "motivation" | "created" | "creator" => {
-                        ann_out += &output_predicate_datavalue(key_id, data.value(), "  ");
+                        if outputted_to_main {
+                            ann_out.push(',');
+                        }
+                        outputted_to_main = true;
+                        ann_out += &output_predicate_datavalue(key_id, data.value());
                     }
                     key_id => {
-                        //go to body
+                        //other predicates -> go into body
                         if key_id == "type" {
                             suppress_default_body_type = true; //no need for the default because we provided one explicitly
                         }
-                        ann_out += &output_predicate_datavalue(key_id, data.value(), "    ");
+                        if !body_out.is_empty() {
+                            body_out.push(',');
+                        }
+                        body_out += &output_predicate_datavalue(key_id, data.value());
                     }
                 },
                 Some(_set_id) => {
-                    let predicate = key
-                        .iri(
-                            &data
-                                .set()
-                                .iri(&config.default_set_iri)
-                                .expect("set must have ID"),
-                        )
-                        .expect("key must have ID");
-                    body_out += &output_predicate_datavalue(&predicate, data.value(), "    ");
+                    //different set, go into body
+                    let predicate = key.iri(&config.default_set_iri).expect("set must have ID");
+                    if !body_out.is_empty() {
+                        body_out.push(',');
+                    }
+                    body_out += &output_predicate_datavalue(&predicate, data.value());
                 }
                 None => unreachable!("all sets should have a public identifier"),
             }
         }
 
         if config.auto_generated && !suppress_auto_generated {
-            ann_out += &format!("  \"generated\": \"{}\",\n", Local::now().to_rfc3339());
+            ann_out += &format!(" \"generated\": \"{}\",", Local::now().to_rfc3339());
         }
         if config.auto_generator && !suppress_auto_generator {
-            ann_out += "  \"generator\": {{ \"id\": \"https://github.com/annotation/stam-rust\", \"type\": \"Software\", \"name\": \"STAM Library\"  }},\n";
+            ann_out += "  \"generator\": { \"id\": \"https://github.com/annotation/stam-rust\", \"type\": \"Software\", \"name\": \"STAM Library\"  },";
         }
 
         if !body_out.is_empty() {
-            ann_out += "  \"body\": {\n";
+            ann_out += " \"body\": {";
             if !suppress_default_body_type {
-                ann_out += "      \"type\": \"Dataset\",\n";
+                ann_out += " \"type\": \"Dataset\",";
             }
             ann_out += &body_out;
-            ann_out += "\n  },\n";
+            ann_out += "},";
         }
 
-        ann_out += "  \"target\": {\n";
+        ann_out += " \"target\": {";
         ann_out += &output_selector(self.as_ref().target(), self.store(), config, false);
-        ann_out += "\n  }\n";
+        ann_out += "}";
 
         ann_out += "}";
         ann_out
     }
 }
 
-fn output_predicate_datavalue(predicate: &str, datavalue: &DataValue, indentation: &str) -> String {
+fn output_predicate_datavalue(predicate: &str, datavalue: &DataValue) -> String {
     let value_is_iri = if let DataValue::String(s) = datavalue {
         is_iri(s)
     } else {
@@ -243,17 +260,9 @@ fn output_predicate_datavalue(predicate: &str, datavalue: &DataValue, indentatio
     if value_is_iri {
         // Any String value that is a valid IRI *SHOULD* be interpreted as such
         // in conversion from/to RDF.
-        format!(
-            "{}\"{}\": {{ \"id\": \"{}\" }},\n",
-            indentation, predicate, datavalue
-        )
+        format!("\"{}\": {{ \"id\": \"{}\" }}", predicate, datavalue)
     } else {
-        format!(
-            "{}\"{}\": {},\n",
-            indentation,
-            predicate,
-            &value_to_json(datavalue)
-        )
+        format!("\"{}\": {}", predicate, &value_to_json(datavalue))
     }
 }
 
@@ -273,7 +282,7 @@ fn output_selector(
                 .get(*tsel_handle)
                 .expect("text selection must exist");
             ann_out += &format!(
-                "      \"source\": \"{}\",\n    \"selector\": {{\n      \"type\": \"TextPositionSelector\",\n      \"start\": {},\n      \"end\": {}\n    }}",
+                " \"source\": \"{}\", \"selector\": {{ \"type\": \"TextPositionSelector\", \"start\": {}, \"end\": {} }}",
                 into_iri(
                     resource.id().expect("resource must have ID"),
                     &config.default_resource_iri
@@ -285,19 +294,16 @@ fn output_selector(
         Selector::AnnotationSelector(a_handle, None) => {
             let annotation = store.annotation(*a_handle).expect("annotation must exist");
             if let Some(iri) = annotation.iri(&config.default_annotation_iri) {
-                ann_out += &format!(
-                    "      \"id\": \"{}\",\n    \"type\": \"Annotation\"\n    }}",
-                    iri
-                );
+                ann_out += &format!(" \"id\": \"{}\", \"type\": \"Annotation\" }}", iri);
             } else {
-                ann_out += "    \"id\": null }";
+                ann_out += " \"id\": null }";
                 eprintln!("WARNING: Annotation points to an annotation that has no public ID! Unable to serialize to Web Annotatations");
             }
         }
         Selector::ResourceSelector(res_handle) => {
             let resource = store.resource(*res_handle).expect("resource must exist");
             ann_out += &format!(
-                "      \"id\": \"{}\",\n    \"type\": \"Text\"\n    }}",
+                " \"id\": \"{}\", \"type\": \"Text\" }}",
                 into_iri(
                     resource.id().expect("resource must have ID"),
                     &config.default_resource_iri
@@ -307,7 +313,7 @@ fn output_selector(
         Selector::DataSetSelector(set_handle) => {
             let dataset = store.dataset(*set_handle).expect("resource must exist");
             ann_out += &format!(
-                "      \"id\": \"{}\",\n    \"type\": \"Dataset\"\n    }}",
+                " \"id\": \"{}\", \"type\": \"Dataset\" }}",
                 into_iri(
                     dataset.id().expect("dataset must have ID"),
                     &config.default_resource_iri
@@ -315,32 +321,31 @@ fn output_selector(
             );
         }
         Selector::CompositeSelector(selectors) => {
-            ann_out += "      \"type\": \"http://www.w3.org/ns/oa#Composite\",\n    \"items\": [";
+            ann_out += " \"type\": \"http://www.w3.org/ns/oa#Composite\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
                 if i != selectors.len() - 1 {
                     ann_out += &output_selector(selector, store, config, true);
-                    ann_out += ",\n";
+                    ann_out += ",";
                 }
             }
             ann_out += " ] }";
         }
         Selector::MultiSelector(selectors) => {
-            ann_out +=
-                "      \"type\": \"http://www.w3.org/ns/oa#Independents\",\n    \"items\": [";
+            ann_out += " \"type\": \"http://www.w3.org/ns/oa#Independents\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
                 ann_out += &output_selector(selector, store, config, true);
                 if i != selectors.len() - 1 {
-                    ann_out += ",\n";
+                    ann_out += ",";
                 }
             }
             ann_out += " ] }";
         }
         Selector::DirectionalSelector(selectors) => {
-            ann_out += "      \"type\": \"http://www.w3.org/ns/oa#List\",\n    \"items\": [";
+            ann_out += " \"type\": \"http://www.w3.org/ns/oa#List\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
                 ann_out += &output_selector(selector, store, config, true);
                 if i != selectors.len() - 1 {
-                    ann_out += ",\n";
+                    ann_out += ",";
                 }
             }
             ann_out += " ] }";
