@@ -47,7 +47,7 @@ impl Serialize for DataKey {
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("DataKey", 1)?;
+        let mut state = serializer.serialize_struct("DataKey", 2)?;
         state.serialize_field("@type", "DataKey")?;
         state.serialize_field("@id", &self.id)?;
         state.end()
