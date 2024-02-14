@@ -567,7 +567,7 @@ impl AnnotationDataSet {
         if key.is_none() {
             if id.is_none() {
                 return Err(StamError::HandleError(
-                    "AnnotationData Hsupplied to AnnotationDataSet.insert_data() (often via with_data()) was not found in this set",
+                    "AnnotationData supplied to AnnotationDataSet.insert_data() (often via with_data()) was not found in this set",
                 ));
             } else {
                 return Err(StamError::IncompleteError(
