@@ -2379,6 +2379,40 @@ impl<'store> QueryResultItems<'store> {
         self.items.pop()
     }
 
+    /// Returns a result by variable name (if specified), or get the first result.
+    /// Raises an error if there are no results.
+    pub fn get_by_name_or_first(
+        &self,
+        names: &QueryNames,
+        var: Option<&str>,
+    ) -> Result<&QueryResultItem<'store>, StamError> {
+        if let Some(var) = var {
+            self.get_by_name(names, var)
+        } else {
+            self.iter().next().ok_or(StamError::QuerySyntaxError(
+                "Query returned no results".to_string(),
+                "(get_by_name_or_first)",
+            ))
+        }
+    }
+
+    /// Returns a result by variable name (if specified), or get the last result.
+    /// Raises an error if there are no results.
+    pub fn get_by_name_or_last(
+        &self,
+        names: &QueryNames,
+        var: Option<&str>,
+    ) -> Result<&QueryResultItem<'store>, StamError> {
+        if let Some(var) = var {
+            self.get_by_name(names, var)
+        } else {
+            self.iter().last().ok_or(StamError::QuerySyntaxError(
+                "Query returned no results".to_string(),
+                "(get_by_name_or_last)",
+            ))
+        }
+    }
+
     /// Returns a result by variable name
     pub fn get_by_name(
         &self,
