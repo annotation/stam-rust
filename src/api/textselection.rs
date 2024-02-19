@@ -1065,3 +1065,9 @@ where
         self.inner.next().map(|ts| ts.text())
     }
 }
+
+impl<'store> From<ResultItem<'store, TextResource>> for ResultTextSelection<'store> {
+    fn from(resource: ResultItem<'store, TextResource>) -> Self {
+        resource.to_textselection()
+    }
+}

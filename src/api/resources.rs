@@ -19,6 +19,7 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
+use crate::selector::Offset;
 use crate::store::*;
 use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
 use crate::{Filter, FilterMode};
@@ -78,6 +79,34 @@ impl<'store> ResultItem<'store, TextResource> {
         Ok(ResultTextSelection::Bound(
             textselection.as_resultitem(self.as_ref(), self.store()),
         ))
+    }
+
+    /// Get a text selection pointing to the whole resource, you can also call this implicitly via the `From` trait (`resource.into()`).
+    pub fn to_textselection(self) -> ResultTextSelection<'store> {
+        self.textselection_by_offset(&Offset::whole())
+            .expect("to_textselection() should never fail")
+    }
+
+    /// Return a textselection by offset
+    /// If you want the whole text as a ResultTextSelection, just use call `into()` instead.
+    pub fn textselection_by_offset(
+        &self,
+        offset: &Offset,
+    ) -> Result<ResultTextSelection<'store>, StamError> {
+        let textselection = self.as_ref().textselection_by_offset(offset)?;
+        if let Some(handle) = textselection.handle() {
+            Ok(self
+                .as_ref()
+                .get(handle)?
+                .as_resultitem(self.as_ref(), self.store())
+                .as_resulttextselection())
+        } else {
+            Ok(ResultTextSelection::Unbound(
+                self.store(),
+                self.as_ref(),
+                textselection,
+            ))
+        }
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
