@@ -120,6 +120,9 @@ pub struct WebAnnoConfig {
 
     /// Automatically add a 'generator' triple for each annotation, with the software details
     pub auto_generator: bool,
+
+    /// Automatically generate a JSON-LD context alias for all URIs in keys, maps URI prefixes to namespace prefixes
+    pub context_namespaces: Vec<(String, String)>,
 }
 
 impl Default for WebAnnoConfig {
@@ -132,7 +135,67 @@ impl Default for WebAnnoConfig {
             extra_context: Vec::new(),
             auto_generated: true,
             auto_generator: true,
+            context_namespaces: Vec::new(),
         }
+    }
+}
+
+impl WebAnnoConfig {
+    pub fn with_namespace(mut self, prefix: String, uri: String) -> Self {
+        self.context_namespaces.push((uri, prefix));
+        self
+    }
+
+    pub fn uri_to_namespace<'a>(&self, s: &'a str) -> Cow<'a, str> {
+        for (uri_prefix, ns_prefix) in self.context_namespaces.iter() {
+            if s.starts_with(uri_prefix) {
+                return Cow::Owned(format!("{}:{}", ns_prefix, &s[uri_prefix.len()..]));
+            }
+        }
+        Cow::Borrowed(s)
+    }
+
+    /// Generates a JSON-LD string to use for @context
+    pub fn serialize_context(&self) -> String {
+        let mut out = String::new();
+        if !self.extra_context.is_empty() {
+            if !self.context_namespaces.is_empty() {
+                out += &format!(
+                    "[ \"{}\", {}, {{ {} }} ]",
+                    CONTEXT_ANNO,
+                    self.extra_context.join(", "),
+                    self.serialize_context_namespaces(),
+                );
+            } else {
+                out += &format!(
+                    "[ \"{}\", {} ]",
+                    CONTEXT_ANNO,
+                    self.extra_context.join(", ")
+                );
+            }
+        } else if !self.context_namespaces.is_empty() {
+            out += &format!(
+                "[ \"{}\", {{ {} }} ]",
+                CONTEXT_ANNO,
+                self.serialize_context_namespaces()
+            );
+        } else {
+            out += &format!("\"{}\"", CONTEXT_ANNO);
+        }
+        out
+    }
+
+    fn serialize_context_namespaces(&self) -> String {
+        let mut out = String::new();
+        for (uri, namespace) in self.context_namespaces.iter() {
+            out += &format!(
+                "{}\"{}\": \"{}\"",
+                if out.is_empty() { "" } else { ", " },
+                namespace,
+                uri,
+            );
+        }
+        out
     }
 }
 
@@ -147,15 +210,7 @@ impl<'store> ResultItem<'store, Annotation> {
         }
         let mut ann_out = String::with_capacity(1024);
         ann_out += "{ \"@context\": ";
-        if !config.extra_context.is_empty() {
-            ann_out += &format!(
-                "[ \"{}\", {} ]",
-                CONTEXT_ANNO,
-                config.extra_context.join(", ")
-            );
-        } else {
-            ann_out += &format!("\"{}\"", CONTEXT_ANNO);
-        }
+        ann_out += &config.serialize_context();
         ann_out += ",";
         if let Some(iri) = self.iri(&config.default_annotation_iri) {
             ann_out += &format!("  \"id\": \"{}\",", iri);
@@ -186,7 +241,7 @@ impl<'store> ResultItem<'store, Annotation> {
                         }
                         suppress_auto_generated = true;
                         outputted_to_main = true;
-                        ann_out += &output_predicate_datavalue(key_id, data.value());
+                        ann_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
                     "generator" => {
                         if outputted_to_main {
@@ -194,14 +249,14 @@ impl<'store> ResultItem<'store, Annotation> {
                         }
                         suppress_auto_generator = true;
                         outputted_to_main = true;
-                        ann_out += &output_predicate_datavalue(key_id, data.value());
+                        ann_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
                     "motivation" | "created" | "creator" => {
                         if outputted_to_main {
                             ann_out.push(',');
                         }
                         outputted_to_main = true;
-                        ann_out += &output_predicate_datavalue(key_id, data.value());
+                        ann_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
                     key_id => {
                         //other predicates -> go into body
@@ -211,7 +266,7 @@ impl<'store> ResultItem<'store, Annotation> {
                         if !body_out.is_empty() {
                             body_out.push(',');
                         }
-                        body_out += &output_predicate_datavalue(key_id, data.value());
+                        body_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
                 },
                 Some(_set_id) => {
@@ -220,7 +275,7 @@ impl<'store> ResultItem<'store, Annotation> {
                     if !body_out.is_empty() {
                         body_out.push(',');
                     }
-                    body_out += &output_predicate_datavalue(&predicate, data.value());
+                    body_out += &output_predicate_datavalue(&predicate, data.value(), config);
                 }
                 None => unreachable!("all sets should have a public identifier"),
             }
@@ -251,7 +306,11 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 }
 
-fn output_predicate_datavalue(predicate: &str, datavalue: &DataValue) -> String {
+fn output_predicate_datavalue(
+    predicate: &str,
+    datavalue: &DataValue,
+    config: &WebAnnoConfig,
+) -> String {
     let value_is_iri = if let DataValue::String(s) = datavalue {
         is_iri(s)
     } else {
@@ -260,9 +319,17 @@ fn output_predicate_datavalue(predicate: &str, datavalue: &DataValue) -> String 
     if value_is_iri {
         // Any String value that is a valid IRI *SHOULD* be interpreted as such
         // in conversion from/to RDF.
-        format!("\"{}\": {{ \"id\": \"{}\" }}", predicate, datavalue)
+        format!(
+            "\"{}\": {{ \"id\": \"{}\" }}",
+            config.uri_to_namespace(predicate),
+            datavalue
+        )
     } else {
-        format!("\"{}\": {}", predicate, &value_to_json(datavalue))
+        format!(
+            "\"{}\": {}",
+            config.uri_to_namespace(predicate),
+            &value_to_json(datavalue)
+        )
     }
 }
 
