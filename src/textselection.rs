@@ -322,6 +322,45 @@ impl TextSelection {
         }
     }
 
+    /// Converts a relative offset, expressed in the coordinates of this text selection, to an absolute one
+    /// expressed in the coordinates of the resource.
+    pub fn absolute_offset(&self, offset: &Offset) -> Result<Offset, StamError> {
+        let textlen = self.end() - self.begin();
+        let begin = Cursor::BeginAligned(
+            self.begin()
+                + match offset.begin {
+                    Cursor::BeginAligned(x) => x,
+                    Cursor::EndAligned(x) => {
+                        if x.abs() as usize > textlen {
+                            return Err(StamError::CursorOutOfBounds(
+                                offset.begin,
+                                "(textselection_by_offset)",
+                            ));
+                        } else {
+                            textlen - (x as usize)
+                        }
+                    }
+                },
+        );
+        let end = Cursor::BeginAligned(
+            self.begin()
+                + match offset.end {
+                    Cursor::BeginAligned(x) => x,
+                    Cursor::EndAligned(x) => {
+                        if x.abs() as usize > textlen {
+                            return Err(StamError::CursorOutOfBounds(
+                                offset.end,
+                                "(textselection_by_offset)",
+                            ));
+                        } else {
+                            textlen - (x as usize)
+                        }
+                    }
+                },
+        );
+        Ok(Offset::new(begin, end))
+    }
+
     /// Resolves a relative cursor to a relative begin aligned cursor, resolving all end-aligned positions
     fn beginaligned_cursor(&self, cursor: &Cursor) -> Result<usize, StamError> {
         let textlen = self.end() - self.begin();

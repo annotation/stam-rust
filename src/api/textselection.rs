@@ -197,8 +197,10 @@ impl<'store> ResultTextSelection<'store> {
         }
     }
 
-    /// Returns the offset of this text selection in another. Returns None if they are not embedded.
+    /// Returns the offset of this text selection in another, i.e. returning a relative offset. Returns None if they are not embedded.
     /// This also checks whether the textselections pertain to the same resource. Returns None otherwise.
+    ///
+    /// If you want to turn a relative offset into an absolute one, use [`Self.absolute_offset()`].
     pub fn relative_offset(
         &self,
         container: &ResultTextSelection<'store>,
@@ -212,6 +214,25 @@ impl<'store> ResultTextSelection<'store> {
             Self::Bound(item) => item.as_ref().relative_offset(container, offsetmode),
             Self::Unbound(_, _, item) => item.relative_offset(container, offsetmode),
         }
+    }
+
+    /// Converts a relative offset, expressed in the coordinates of this text selection, to an absolute one
+    /// expressed in the coordinates of the resource.
+    pub fn absolute_offset(&self, offset: &Offset) -> Result<Offset, StamError> {
+        match self {
+            Self::Bound(item) => item.as_ref().absolute_offset(offset),
+            Self::Unbound(_, _, item) => item.absolute_offset(offset),
+        }
+    }
+
+    /// Return a textselection by *relative* offset.
+    /// The offset is relative to the current textselection.
+    pub fn textselection_by_offset(
+        &self,
+        offset: &Offset,
+    ) -> Result<ResultTextSelection<'store>, StamError> {
+        self.resource()
+            .textselection_by_offset(&self.absolute_offset(offset)?)
     }
 
     pub(crate) fn store(&self) -> &'store TextResource {
