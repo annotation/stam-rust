@@ -519,7 +519,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         if let Some(intid) = self.handle() {
             if let Some(idmap) = idmap {
                 loop {
-                    let id = format!("{}{}", idmap.autoprefix, nanoid!());
+                    let id = generate_id(&idmap.autoprefix, "");
                     let id_copy = id.clone();
                     if idmap.data.insert(id, intid).is_none() {
                         //checks for collisions (extremely unlikely)
@@ -530,7 +530,7 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
             }
         }
         // if the item is not bound or has no IDmap, we can't check collisions, but that's okay
-        self.with_id(format!("X{}", nanoid!()))
+        self.with_id(generate_id("X", ""))
     }
 
     /// Builder pattern to set the public ID
@@ -1682,4 +1682,10 @@ pub(crate) fn resolve_temp_id(id: &str) -> Option<usize> {
         }
     }
     None
+}
+
+/// Generate an ID with a random 21-byte and ID/URI-safe component
+/// This does no collision check (but they will be *extremely* unlikely)
+pub fn generate_id(prefix: &str, suffix: &str) -> String {
+    format!("{}{}{}", prefix, nanoid!(), suffix)
 }
