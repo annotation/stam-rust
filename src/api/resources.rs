@@ -83,30 +83,8 @@ impl<'store> ResultItem<'store, TextResource> {
 
     /// Get a text selection pointing to the whole resource, you can also call this implicitly via the `From` trait (`resource.into()`).
     pub fn to_textselection(self) -> ResultTextSelection<'store> {
-        self.textselection_by_offset(&Offset::whole())
+        self.textselection(&Offset::whole())
             .expect("to_textselection() should never fail")
-    }
-
-    /// Return a textselection by offset
-    /// If you want the whole text as a ResultTextSelection, just use call `into()` instead.
-    pub fn textselection_by_offset(
-        &self,
-        offset: &Offset,
-    ) -> Result<ResultTextSelection<'store>, StamError> {
-        let textselection = self.as_ref().textselection_by_offset(offset)?;
-        if let Some(handle) = textselection.handle() {
-            Ok(self
-                .as_ref()
-                .get(handle)?
-                .as_resultitem(self.as_ref(), self.store())
-                .as_resulttextselection())
-        } else {
-            Ok(ResultTextSelection::Unbound(
-                self.store(),
-                self.as_ref(),
-                textselection,
-            ))
-        }
     }
 
     /// Returns a sorted double-ended iterator over a range of all textselections and returns all
