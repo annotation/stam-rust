@@ -225,16 +225,6 @@ impl<'store> ResultTextSelection<'store> {
         }
     }
 
-    /// Return a textselection by *relative* offset.
-    /// The offset is relative to the current textselection.
-    pub fn textselection_by_offset(
-        &self,
-        offset: &Offset,
-    ) -> Result<ResultTextSelection<'store>, StamError> {
-        self.resource()
-            .textselection_by_offset(&self.absolute_offset(offset)?)
-    }
-
     pub(crate) fn store(&self) -> &'store TextResource {
         match self {
             Self::Bound(item) => item.store(),
