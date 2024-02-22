@@ -1,6 +1,6 @@
 [package]
 name = "stam"
-version = "0.9.1"
+version = "0.10.0"
 edition = "2021"
 authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
 description = "STAM is a powerful library for dealing with stand-off annotations on text"
@@ -13,10 +13,10 @@ repository = "https://github.com/annotation/stam-rust"
 keywords = [ "text-processing", "annotation", "linguistics", "standoff", "nlp"]
 
 [dependencies]
-chrono = { version = "0.4.33", features = ["serde"] }
+chrono = { version = "0.4.34", features = ["serde"] }
 sealed = "0.5.0"
-serde = { version = "1.0.189", features = ["derive"] }
-serde_json = "1.0.111"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
 serde_path_to_error = "0.1.15"
 smallvec = { version = "1.13.1", features = ["union"] }
 regex = "1.10.3"
