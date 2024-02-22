@@ -331,13 +331,13 @@ impl TextSelection {
                 + match offset.begin {
                     Cursor::BeginAligned(x) => x,
                     Cursor::EndAligned(x) => {
-                        if x.abs() as usize > textlen {
+                        if textlen < x.abs() as usize {
                             return Err(StamError::CursorOutOfBounds(
                                 offset.begin,
                                 "(textselection_by_offset)",
                             ));
                         } else {
-                            textlen - (x as usize)
+                            textlen - (x.abs() as usize)
                         }
                     }
                 },
@@ -347,13 +347,13 @@ impl TextSelection {
                 + match offset.end {
                     Cursor::BeginAligned(x) => x,
                     Cursor::EndAligned(x) => {
-                        if x.abs() as usize > textlen {
+                        if textlen < x.abs() as usize {
                             return Err(StamError::CursorOutOfBounds(
                                 offset.end,
                                 "(textselection_by_offset)",
                             ));
                         } else {
-                            textlen - (x as usize)
+                            textlen - (x.abs() as usize)
                         }
                     }
                 },
