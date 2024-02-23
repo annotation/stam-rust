@@ -504,7 +504,7 @@ pub struct ResultTextSelectionSet<'store> {
 }
 
 impl<'store> ResultTextSelectionSet<'store> {
-    pub fn as_ref(&self) -> &TextSelectionSet {
+    pub fn inner(&self) -> &TextSelectionSet {
         &self.tset
     }
 }

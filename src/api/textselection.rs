@@ -24,8 +24,8 @@ use crate::selector::{Offset, OffsetMode};
 use crate::store::*;
 use crate::text::Text;
 use crate::textselection::{
-    ResultTextSelection, ResultTextSelectionSet, TextSelection, TextSelectionHandle,
-    TextSelectionOperator, TextSelectionSet,
+    ResultTextSelection, ResultTextSelectionSet, TestTextSelection, TextSelection,
+    TextSelectionHandle, TextSelectionOperator, TextSelectionSet,
 };
 use crate::types::*;
 use crate::{Filter, FilterMode, TextMode};
@@ -316,6 +316,28 @@ impl<'store> ResultTextSelection<'store> {
             StamError::SerializationError(format!("Serializing textselection to string: {}", e))
         })
     }
+
+    /// Compares whether a particular spatial relation holds between two text selections
+    pub fn test(&self, operator: &TextSelectionOperator, other: &ResultTextSelection) -> bool {
+        if self.resource() != other.resource() {
+            false
+        } else {
+            self.inner().test(operator, other.inner())
+        }
+    }
+
+    /// Compares whether a particular spatial relation holds between this text selections and a set of others
+    pub fn test_set(
+        &self,
+        operator: &TextSelectionOperator,
+        other: &ResultTextSelectionSet,
+    ) -> bool {
+        if self.resource() != other.resource() {
+            false
+        } else {
+            self.inner().test_set(operator, other.inner())
+        }
+    }
 }
 
 impl<'store> ResultTextSelectionSet<'store> {
@@ -349,6 +371,28 @@ impl<'store> ResultTextSelectionSet<'store> {
                         .map(|x| x.as_resultitem(resource, rootstore))
                 }),
         )
+    }
+
+    /// Compares whether a particular spatial relation holds between two text selections
+    pub fn test(&self, operator: &TextSelectionOperator, other: &ResultTextSelection) -> bool {
+        if self.resource() != other.resource() {
+            false
+        } else {
+            self.inner().test(operator, other.inner())
+        }
+    }
+
+    /// Compares whether a particular spatial relation holds between this text selections and a set of others
+    pub fn test_set(
+        &self,
+        operator: &TextSelectionOperator,
+        other: &ResultTextSelectionSet,
+    ) -> bool {
+        if self.resource() != other.resource() {
+            false
+        } else {
+            self.inner().test_set(operator, other.inner())
+        }
     }
 }
 
