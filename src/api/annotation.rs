@@ -244,7 +244,7 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Compares whether a particular spatial relation holds between this annotation and a textselection set.
     /// This only works if both reference text in the same resource.
-    pub fn test_textrelationset(
+    pub fn test_textselectionset(
         &self,
         operator: &TextSelectionOperator,
         other: &ResultTextSelectionSet,
@@ -259,7 +259,7 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Compares whether a particular spatial relation holds between this annotation and a textselection
     /// This only works if both reference text in the same resource.
-    pub fn test_textrelation(
+    pub fn test_textselection(
         &self,
         operator: &TextSelectionOperator,
         other: &ResultTextSelection,
