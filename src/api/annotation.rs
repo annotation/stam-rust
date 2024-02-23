@@ -26,7 +26,10 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Selector, SelectorKind};
-use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
+use crate::textselection::{
+    ResultTextSelection, ResultTextSelectionSet, TestTextSelection, TextSelectionOperator,
+    TextSelectionSet,
+};
 use crate::{Filter, FilterMode, TextMode};
 
 impl<'store> FullHandle<Annotation> for ResultItem<'store, Annotation> {
@@ -214,6 +217,44 @@ impl<'store> ResultItem<'store, Annotation> {
         //first we gather all textselections for this annotation in a set, as the chosen operator may apply to them jointly
         let tset: TextSelectionSet = self.textselections().collect();
         tset.as_resultset(self.store()).related_text(operator)
+    }
+
+    /// Returns the text this resources references as a single text selection set.
+    /// This only works if the resource references text *AND* all text pertains to a single resource.
+    pub fn textselectionset(&self) -> Option<ResultTextSelectionSet> {
+        self.try_into().ok()
+    }
+
+    /// Compares whether a particular spatial relation holds between two annotations
+    /// This only works if both annotations reference text in the same resource.
+    pub fn test(
+        &self,
+        operator: &TextSelectionOperator,
+        other: &ResultItem<'store, Annotation>,
+    ) -> bool {
+        if let Some(tset) = self.textselectionset() {
+            if let Some(tset2) = other.textselectionset() {
+                if tset.resource() == tset2.resource() && tset.test_set(operator, &tset2) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Compares whether a particular spatial relation holds between this annotation and a textselection set.
+    /// This only works if both annotations reference text in the same resource.
+    pub fn test_set(
+        &self,
+        operator: &TextSelectionOperator,
+        other: &ResultTextSelectionSet,
+    ) -> bool {
+        if let Some(tset) = self.textselectionset() {
+            if tset.resource() == other.resource() && tset.test_set(operator, other) {
+                return true;
+            }
+        }
+        false
     }
 }
 
