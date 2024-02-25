@@ -15,7 +15,7 @@
 
 use rayon::prelude::*;
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
 
 use crate::annotation::{Annotation, AnnotationHandle, TargetIter};
@@ -221,8 +221,21 @@ impl<'store> ResultItem<'store, Annotation> {
 
     /// Returns the text this resources references as a single text selection set.
     /// This only works if the resource references text *AND* all text pertains to a single resource.
-    pub fn textselectionset(&self) -> Option<ResultTextSelectionSet> {
+    /// If it can reference multiple resources, use `textselectionsets()` instead.
+    pub fn textselectionset(&self) -> Option<ResultTextSelectionSet<'store>> {
         self.try_into().ok()
+    }
+
+    /// Groups text selections targeting the same resource together in a TextSelectionSet.
+    pub fn textselectionsets(&self) -> impl Iterator<Item = ResultTextSelectionSet<'store>> {
+        let mut map: BTreeMap<TextResourceHandle, Vec<ResultTextSelection<'store>>> =
+            BTreeMap::new();
+        for tsel in self.textselections() {
+            map.entry(tsel.resource().handle())
+                .or_insert_with(move || Vec::new())
+                .push(tsel);
+        }
+        map.into_iter().map(|(_, v)| v.into_iter().collect())
     }
 
     /// Compares whether a particular spatial relation holds between two annotations

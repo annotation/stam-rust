@@ -1161,3 +1161,17 @@ impl<'store> TryFrom<&ResultItem<'store, Annotation>> for ResultTextSelectionSet
         }
     }
 }
+
+impl<'store> FromIterator<ResultTextSelection<'store>> for ResultTextSelectionSet<'store> {
+    fn from_iter<T: IntoIterator<Item = ResultTextSelection<'store>>>(iter: T) -> Self {
+        let mut store: Option<&'store AnnotationStore> = None;
+        let tset: TextSelectionSet = iter
+            .into_iter()
+            .inspect(|x| store = Some(x.rootstore()))
+            .collect();
+        ResultTextSelectionSet {
+            tset,
+            rootstore: store.expect("Iterator may not be empty"),
+        }
+    }
+}
