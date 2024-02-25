@@ -239,14 +239,13 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Compares whether a particular spatial relation holds between two annotations
-    /// This only works if both annotations reference text in the same resource.
     pub fn test(
         &self,
         operator: &TextSelectionOperator,
         other: &ResultItem<'store, Annotation>,
     ) -> bool {
-        if let Some(tset) = self.textselectionset() {
-            if let Some(tset2) = other.textselectionset() {
+        for tset in self.textselectionsets() {
+            for tset2 in other.textselectionsets() {
                 if tset.resource() == tset2.resource() && tset.test_set(operator, &tset2) {
                     return true;
                 }
@@ -256,13 +255,12 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Compares whether a particular spatial relation holds between this annotation and a textselection set.
-    /// This only works if both reference text in the same resource.
     pub fn test_textselectionset(
         &self,
         operator: &TextSelectionOperator,
         other: &ResultTextSelectionSet,
     ) -> bool {
-        if let Some(tset) = self.textselectionset() {
+        for tset in self.textselectionsets() {
             if tset.resource() == other.resource() && tset.test_set(operator, other) {
                 return true;
             }
@@ -271,13 +269,12 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Compares whether a particular spatial relation holds between this annotation and a textselection
-    /// This only works if both reference text in the same resource.
     pub fn test_textselection(
         &self,
         operator: &TextSelectionOperator,
         other: &ResultTextSelection,
     ) -> bool {
-        if let Some(tset) = self.textselectionset() {
+        for tset in self.textselectionsets() {
             if tset.resource() == other.resource() && tset.test(operator, other) {
                 return true;
             }
