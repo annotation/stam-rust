@@ -109,6 +109,9 @@ pub enum StamError {
     /// Undefined variable in query
     UndefinedVariable(String, &'static str),
 
+    #[cfg(feature = "transpose")]
+    TransposeError(String, &'static str),
+
     /// Category for other errors, try to use this sparingly
     OtherError(&'static str),
 }
@@ -215,6 +218,13 @@ impl From<&StamError> for String {
             }
             StamError::ValueError(value, contextmsg) => {
                 format!("ValueError: Unexpected value: {} - ({})", value, contextmsg)
+            }
+            #[cfg(feature = "transpose")]
+            StamError::TransposeError(msg, contextmsg) => {
+                format!(
+                    "TransposeError: Unable to transpose: {} - ({})",
+                    msg, contextmsg
+                )
             }
             StamError::UndefinedVariable(varname, contextmsg) => {
                 format!(

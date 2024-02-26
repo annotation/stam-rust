@@ -24,6 +24,9 @@ mod textselection;
 #[cfg(feature = "webanno")]
 mod webanno;
 
+#[cfg(feature = "transpose")]
+mod transpose;
+
 pub use annotation::*;
 pub use annotationdata::*;
 pub use datakey::*;
@@ -34,6 +37,9 @@ pub use textselection::*;
 
 #[cfg(feature = "webanno")]
 pub use webanno::*;
+
+#[cfg(feature = "transpose")]
+pub use transpose::*;
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};

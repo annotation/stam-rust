@@ -27,9 +27,10 @@ minicbor = { version = "0.20.0", features = ["derive","std" ] }
 rayon = "1.8.1"
 
 [features]
-default = ["csv","webanno"]
+default = ["csv","webanno","transpose"]
 csv = []
 webanno = []
+transpose = []
 
 [dev-dependencies]
 criterion = "0.4.0"
