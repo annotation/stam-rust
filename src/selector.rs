@@ -578,49 +578,67 @@ impl<'a> SelectorBuilder<'a> {
         self.kind().is_complex()
     }
 
-    // Creates a new ResourceSelector
+    /// Creates a new ResourceSelector
     pub fn resourceselector(resource: impl Into<BuildItem<'a,TextResource>>) -> Self {
         Self::ResourceSelector(resource.into())
     }
 
-    // Creates a new TextSelector
+    /// Creates a new TextSelector
     pub fn textselector(resource: impl Into<BuildItem<'a,TextResource>>, offset: impl Into<Offset>) -> Self {
         Self::TextSelector(resource.into(), offset.into())
     }
 
-    // Creates a new AnnotationSelector
+    /// Creates a new AnnotationSelector
     pub fn annotationselector(annotation: impl Into<BuildItem<'a,Annotation>>, offset: Option<Offset>) -> Self {
         Self::AnnotationSelector(annotation.into(), offset)
     }
 
-    // Creates a new DataSetSelector
+    /// Creates a new DataSetSelector
     pub fn datasetselector(dataset: impl Into<BuildItem<'a,AnnotationDataSet>>) -> Self {
         Self::DataSetSelector(dataset.into())
     }
 
-    // Creates a new DataKeySelector
+    /// Creates a new DataKeySelector
     pub fn datakeyselector(dataset: impl Into<BuildItem<'a,AnnotationDataSet>>, datakey: impl Into<BuildItem<'a,DataKey>>) -> Self {
         Self::DataKeySelector(dataset.into(), datakey.into())
     }
 
-    // Creates a new AnnotationDataSelector
+    /// Creates a new AnnotationDataSelector
     pub fn annotationdataselector(dataset: impl Into<BuildItem<'a,AnnotationDataSet>>,annotationdata: impl Into<BuildItem<'a,AnnotationData>>) -> Self {
         Self::AnnotationDataSelector(dataset.into(), annotationdata.into())
     }
 
-    // Creates a new MultiSelector from an iterator
+    /// Creates a new MultiSelector from an iterator
     pub fn multiselector<I>(iter: I) -> Self where I: IntoIterator<Item = SelectorBuilder<'a>>, {
         Self::MultiSelector(iter.into_iter().collect())
     }
 
-    // Creates a new CompositeSelector from an iterator
+    /// Creates a new CompositeSelector from an iterator
     pub fn compositeselector<I>(iter: I) -> Self where I: IntoIterator<Item = SelectorBuilder<'a>>  {
         Self::CompositeSelector(iter.into_iter().collect())
     }
 
-    // Creates a new DirectionalSelector from an iterator
+    /// Creates a new DirectionalSelector from an iterator
     pub fn directionalselector<I>(iter: I) -> Self where I: IntoIterator<Item = SelectorBuilder<'a>> {
         Self::DirectionalSelector(iter.into_iter().collect())
+    }
+
+    /// Returns the offset associated with the selector (if any)
+    pub fn offset(&self) -> Option<&Offset> {
+        if let Self::AnnotationSelector(_, Some(offset)) | Self::TextSelector(_, offset) = self {
+            Some(offset)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the resource associated with the selector (if any)
+    pub fn resource(&self) -> Option<&BuildItem<TextResource>> {
+        if let Self::ResourceSelector(resource) | Self::TextSelector(resource, _) = self {
+            Some(resource)
+        } else {
+            None
+        }
     }
 }
 
