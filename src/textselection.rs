@@ -392,6 +392,96 @@ impl TextSelection {
             end,
         })
     }
+
+    /// Convert this text selection to its higher level API counterpart
+    pub fn to_resulttextselection<'store>(
+        self,
+        resource: &'store TextResource,
+        store: &'store AnnotationStore,
+    ) -> ResultTextSelection<'store> {
+        if let Some(handle) = self.handle() {
+            let tsel = resource.get(handle).expect("handle should be valid"); //obtain the text selection again so we are sure we have the right lifetime
+            ResultTextSelection::Bound(tsel.as_resultitem(resource, store))
+        } else {
+            if let Ok(Some(handle)) = resource.known_textselection(&self.into()) {
+                //bind the textselection
+                let tsel = resource.get(handle).expect("handle should be valid"); //obtain the text selection again so we are sure we have the right lifetime
+                ResultTextSelection::Bound(tsel.as_resultitem(resource, store))
+            } else {
+                ResultTextSelection::Unbound(store, resource, self)
+            }
+        }
+    }
+
+    /// Compute the intersection (overlap) between two text selections
+    /// Returns the intersection part, self - other, other - self, as three new Text Selections.
+    /// Returns none if there is no intersection at all. The text selections will not be bound to any handles.
+    ///
+    /// If you merely want to test for overlap, then use `test()` instead.
+    pub fn intersection(
+        &self,
+        other: &TextSelection,
+    ) -> Option<(TextSelection, Option<TextSelection>, Option<TextSelection>)> {
+        let mut begin: Option<usize> = None;
+        let mut end: Option<usize> = None;
+        if other.begin >= self.begin && other.begin < self.end {
+            begin = Some(other.begin);
+        } else if self.begin >= other.begin && self.begin < other.end {
+            begin = Some(self.begin);
+        }
+        if other.end > self.begin && other.end <= self.end {
+            end = Some(other.end);
+        } else if self.end > other.begin && self.end <= other.end {
+            end = Some(self.end);
+        }
+        if other.begin <= self.begin && other.end >= self.end {
+            begin = Some(self.begin);
+            end = Some(self.end);
+        } else if self.begin <= other.begin && self.end >= other.end {
+            begin = Some(other.begin);
+            end = Some(other.end);
+        }
+        if let (Some(begin), Some(end)) = (begin, end) {
+            let intersection = TextSelection {
+                intid: None,
+                begin,
+                end,
+            };
+            let self_remainder = if begin > self.begin {
+                Some(TextSelection {
+                    intid: None,
+                    begin: self.begin,
+                    end: begin,
+                })
+            } else if end < self.end {
+                Some(TextSelection {
+                    intid: None,
+                    begin: end,
+                    end: self.end,
+                })
+            } else {
+                None
+            };
+            let other_remainder = if begin > other.begin {
+                Some(TextSelection {
+                    intid: None,
+                    begin: other.begin,
+                    end: begin,
+                })
+            } else if end < other.end {
+                Some(TextSelection {
+                    intid: None,
+                    begin: end,
+                    end: other.end,
+                })
+            } else {
+                None
+            };
+            Some((intersection, self_remainder, other_remainder))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, DataSize, Decode, Encode)]
@@ -506,6 +596,16 @@ pub struct ResultTextSelectionSet<'store> {
 impl<'store> ResultTextSelectionSet<'store> {
     pub fn inner(&self) -> &TextSelectionSet {
         &self.tset
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'a {
+        let store = self.rootstore();
+        let resource = store
+            .get(self.tset.resource())
+            .expect("resource must exist");
+        self.tset
+            .iter()
+            .map(|x| x.to_resulttextselection(resource, store))
     }
 }
 
