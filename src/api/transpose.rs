@@ -9,21 +9,28 @@ use smallvec::SmallVec;
 
 #[derive(Clone, Default)]
 pub struct TransposeConfig {
-    source_side: TranspositionSide,
+    pub source_side: TranspositionSide,
 
     /// Allow a simple transposition as output, by default this is set to `false` as we usually want to have an transposed annotation
-    allow_simple: bool,
+    pub allow_simple: bool,
 
     /// Do not produce a transposition annotation, only output the transposed annotation (allow_simple must be set to false)
     /// This effectively throws away the provenance information.
-    no_transposition: bool,
+    pub no_transposition: bool,
 
     /// Identifier to assign to the newly outputted transposition (if not set, a random one will be generated)
-    transposition_id: Option<String>,
+    pub transposition_id: Option<String>,
+
+    /// Identifier to assign to the source annotation, if this is an existing one set existing_source_side.
+    pub source_side_id: Option<String>,
+
+    /// Indicates that the source part of the transposition is an existing annotation. This adds some extra
+    /// constraints as not all existing annotations may be transposable without a resegmentation!
+    pub existing_source_side: bool,
 
     /// Identifiers to assign to the annotation (if not set, random ones will be generated)
-    /// The indices correspond to the various sides of the transposition that is being transposed over (in the same order)
-    side_ids: Vec<String>,
+    /// The indices correspond to the various sides of the transposition that is being transposed over (in the same order, minus the source)
+    pub target_side_ids: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -52,10 +59,34 @@ impl<'store> Transposable<'store> for ResultItem<'store, Annotation> {
     fn transpose(
         &self,
         via: &ResultItem<'store, Annotation>,
-        config: TransposeConfig,
+        mut config: TransposeConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         if let Some(tset) = self.textselectionset() {
-            tset.transpose(via, config)
+            if config.source_side_id.is_none() {
+                config.source_side_id = Some(
+                    self.id()
+                        .map(|x| x.to_string())
+                        .unwrap_or_else(|| generate_id("", "")),
+                );
+                config.existing_source_side = true;
+            }
+            Ok(tset
+                .transpose(via, config)?
+                .into_iter()
+                .map(|mut builder| {
+                    //target annotations will have empty data, the transposition itself already has data (1):
+                    if builder.data().is_empty() {
+                        //copy the data from the transposed annotation to the empty target annotations
+                        for data in self.data() {
+                            builder =
+                                builder.with_existing_data(data.set().handle(), data.handle());
+                        }
+                        builder
+                    } else {
+                        builder
+                    }
+                })
+                .collect())
         } else {
             Err(StamError::TransposeError(
                 "Can not transpose an annotation that references no text or text in multiple resources".to_string(),
@@ -196,20 +227,34 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     .clone()
                     .unwrap_or_else(|| generate_id("transposition-", ""));
                 let mut subselectors: Vec<SelectorBuilder<'static>> = Vec::new();
+                let mut target_id_iter = config.target_side_ids.into_iter();
+                let source_id = config
+                    .source_side_id
+                    .clone()
+                    .unwrap_or_else(|| generate_id("", "-transpositionsource"));
                 for (side_i, selectors) in selectors_per_side.into_iter().enumerate() {
-                    let side_id = config
-                        .side_ids
-                        .get(side_i)
-                        .map(|x| x.clone())
-                        .unwrap_or_else(|| generate_id("", "-transposed"));
-                    builders.push(
-                        AnnotationBuilder::new()
-                            .with_id(side_id.clone())
-                            .with_target(SelectorBuilder::DirectionalSelector(selectors)),
-                    );
-                    if !config.no_transposition {
-                        subselectors
-                            .push(SelectorBuilder::AnnotationSelector(side_id.into(), None));
+                    if source_side != Some(side_i) || !config.existing_source_side {
+                        let side_id = if source_side == Some(side_i) {
+                            source_id.clone()
+                        } else {
+                            target_id_iter
+                                .next()
+                                .unwrap_or_else(|| generate_id("", "-transposed"))
+                        };
+                        builders.push(
+                            AnnotationBuilder::new()
+                                .with_id(side_id.clone())
+                                .with_target(SelectorBuilder::DirectionalSelector(selectors)),
+                        );
+                        if !config.no_transposition {
+                            subselectors
+                                .push(SelectorBuilder::AnnotationSelector(side_id.into(), None));
+                        }
+                    } else {
+                        subselectors.push(SelectorBuilder::AnnotationSelector(
+                            source_id.clone().into(),
+                            None,
+                        ));
                     }
                 }
                 if !config.no_transposition {
