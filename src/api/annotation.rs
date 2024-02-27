@@ -24,12 +24,14 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
+use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Selector, SelectorKind};
 use crate::textselection::{
     ResultTextSelection, ResultTextSelectionSet, TestTextSelection, TextSelectionOperator,
     TextSelectionSet,
 };
+use crate::types::Type;
 use crate::{Filter, FilterMode, TextMode};
 
 impl<'store> FullHandle<Annotation> for ResultItem<'store, Annotation> {
@@ -224,6 +226,24 @@ impl<'store> ResultItem<'store, Annotation> {
     /// If it can reference multiple resources, use `textselectionsets()` instead.
     pub fn textselectionset(&self) -> Option<ResultTextSelectionSet<'store>> {
         self.try_into().ok()
+    }
+
+    /// Returns the text this resources references as a single text selection set.
+    /// The text must pertain to the specified resource.
+    pub fn textselectionset_in(
+        &self,
+        resource: impl Request<TextResource>,
+    ) -> Option<ResultTextSelectionSet<'store>> {
+        let mut textselections: Vec<ResultTextSelection<'store>> = Vec::new();
+        let handle = resource
+            .to_handle(self.rootstore())
+            .expect("resource must have handle");
+        for tsel in self.textselections() {
+            if tsel.resource().handle() == handle {
+                textselections.push(tsel);
+            }
+        }
+        Some(textselections.into_iter().collect())
     }
 
     /// Groups text selections targeting the same resource together in a TextSelectionSet.
