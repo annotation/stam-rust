@@ -564,3 +564,80 @@ pub fn setup_example_7(n: usize) -> Result<AnnotationStore, StamError> {
 
     Ok(store)
 }
+
+pub fn setup_example_8() -> Result<AnnotationStore, StamError> {
+    //simple transposition
+    let mut store = AnnotationStore::default()
+        .with_id("example8")
+        .add(TextResource::from_string(
+            "humanrights",
+            "all human beings are born free and equal in dignity and rights.",
+            Config::default(),
+        ))?
+        .add(TextResource::from_string(
+            "warhol",
+            "human beings are born solitary, but everywhere they are in chains.",
+            Config::default(),
+        ))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("SimpleTransposition1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("humanrights", Offset::simple(4, 25)), //"human beings are born",
+                    SelectorBuilder::textselector("warhol", Offset::simple(0, 21)), //"human beings are born",
+                ]))
+                .with_data(
+                    "https://w3id.org/stam/extensions/stam-transpose/",
+                    "Transposition",
+                    DataValue::Null,
+                ),
+        )?;
+    Ok(store)
+}
+
+pub fn setup_example_8b() -> Result<AnnotationStore, StamError> {
+    //complex transposition
+
+    let mut store = AnnotationStore::default()
+        .with_id("example8")
+        .add(TextResource::from_string(
+            "humanrights",
+            "all human beings are born free and equal in dignity and rights.",
+            Config::default(),
+        ))?
+        .add(TextResource::from_string(
+            "warhol",
+            "human beings are born solitary, but everywhere they are in chains.",
+            Config::default(),
+        ))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A1")
+                .with_target(
+                    SelectorBuilder::textselector("humanrights", Offset::simple(4, 25)), //"human beings are born",
+                )
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A2")
+                .with_target(
+                    SelectorBuilder::textselector("warhol", Offset::simple(0, 21)), //"human beings are born",
+                )
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("SimpleTransposition1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::annotationselector("A1", None),
+                    SelectorBuilder::annotationselector("A2", None),
+                ]))
+                .with_data(
+                    "https://w3id.org/stam/extensions/stam-transpose/",
+                    "Transposition",
+                    DataValue::Null,
+                ),
+        )?;
+    Ok(store)
+}

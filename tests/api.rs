@@ -2063,3 +2063,33 @@ fn query_subquery() -> Result<(), StamError> {
     assert_eq!(count, 1);
     Ok(())
 }
+
+#[test]
+#[cfg(feature = "transpose")]
+fn transposition_simple() -> Result<(), StamError> {
+    let store = setup_example_8()?;
+    let annotation = store.annotation("SimpleTransposition1").or_fail()?;
+    assert_eq!(annotation.text().count(), 2);
+    let mut iter = annotation.text();
+    assert_eq!(iter.next(), Some("human beings are born"));
+    assert_eq!(iter.next(), Some("human beings are born"));
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "transpose")]
+fn transposition_complex() -> Result<(), StamError> {
+    let store = setup_example_8b()?;
+    let phrase1 = store.annotation("A1").or_fail()?;
+    assert_eq!(phrase1.text_simple(), Some("human beings are born"));
+    let phrase2 = store.annotation("A2").or_fail()?;
+    assert_eq!(phrase2.text_simple(), Some("human beings are born"));
+    let annotation = store.annotation("SimpleTransposition1").or_fail()?;
+    assert_eq!(
+        annotation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2
+    );
+    Ok(())
+}
