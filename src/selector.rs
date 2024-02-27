@@ -633,7 +633,7 @@ impl<'a> SelectorBuilder<'a> {
     }
 
     /// Returns the resource associated with the selector (if any)
-    pub fn resource(&self) -> Option<&BuildItem<TextResource>> {
+    pub fn resource(&self) -> Option<&BuildItem<'a, TextResource>> {
         if let Self::ResourceSelector(resource) | Self::TextSelector(resource, _) = self {
             Some(resource)
         } else {
