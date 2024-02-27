@@ -567,7 +567,7 @@ pub fn setup_example_7(n: usize) -> Result<AnnotationStore, StamError> {
 
 pub fn setup_example_8() -> Result<AnnotationStore, StamError> {
     //simple transposition
-    let mut store = AnnotationStore::default()
+    let store = AnnotationStore::default()
         .with_id("example8")
         .add(TextResource::from_string(
             "humanrights",
@@ -598,7 +598,7 @@ pub fn setup_example_8() -> Result<AnnotationStore, StamError> {
 pub fn setup_example_8b() -> Result<AnnotationStore, StamError> {
     //complex transposition
 
-    let mut store = AnnotationStore::default()
+    let store = AnnotationStore::default()
         .with_id("example8")
         .add(TextResource::from_string(
             "humanrights",
