@@ -211,6 +211,14 @@ impl<'a> AnnotationBuilder<'a> {
         Self::default()
     }
 
+    pub fn data(&self) -> &Vec<AnnotationDataBuilder<'a>> {
+        &self.data
+    }
+
+    pub fn target(&self) -> Option<&SelectorBuilder<'a>> {
+        self.target.as_ref()
+    }
+
     /// Set an explicit ID. If you want to generate a random one, pass the result of `generate_id()` to the first parameter.
     pub fn with_id(mut self, id: impl Into<String>) -> Self {
         self.id = BuildItem::Id(id.into());
