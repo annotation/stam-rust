@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::api::*;
 use crate::datavalue::DataValue;
 use crate::selector::{Offset, OffsetMode, SelectorBuilder};
@@ -116,21 +118,58 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         let mut relative_offsets = Vec::new();
         let mut selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]> = SmallVec::new();
 
+        let resource = self.resource();
+        let mut source_found = false;
         let mut simple_transposition = true; //falsify
+
+        let mut tselbuffer: VecDeque<TextSelection> =
+            self.inner().iter().map(|x| x.clone()).collect(); //MAYBE TODO: slightly waste of time/space if the transposition turns out to be a simple transposition rather than a complex one
 
         // match the textselectionset against the sides in a complex transposition (or ascertain that we are dealing with a simple transposition instead)
         // the source side that matches can never be the same as the target side that is mappped to
-        for annotation in via.annotations_in_targets(AnnotationDepth::One) {
-            simple_transposition = false;
-            if let Some(refset) = annotation.textselectionset_in(self.resource()) {
-                //TODO
+        while let Some(tsel) = tselbuffer.pop_front() {
+            for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
+            {
+                simple_transposition = false;
+                if selectors_per_side.len() <= side_i {
+                    selectors_per_side.push(Vec::new());
+                }
+                if let Some(refset) = annotation.textselectionset_in(self.resource()) {
+                    // We may have multiple text selections to transpose (all must be found)
+                    for reftsel in refset.iter() {
+                        if reftsel.resource() == resource
+                            && (source_side.is_none() || source_side == Some(side_i))
+                        {
+                            if let Some((intersection, remainder, _)) =
+                                tsel.intersection(reftsel.inner())
+                            {
+                                source_side = Some(side_i);
+                                source_found = true; //source_side might have been pre-set so we need this extra flag
+                                let relative_offset = intersection
+                                    .relative_offset(reftsel.inner(), OffsetMode::default())
+                                    .expect("intersection offset must be valid");
+                                relative_offsets.push(relative_offset);
+                                selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
+                                    resource.handle().into(),
+                                    intersection.into(),
+                                ));
+                                if let Some(remainder) = remainder {
+                                    //the text selection was not matched/consumed entirely
+                                    //add the remainder of the text selection back to the buffer
+                                    tselbuffer.push_front(remainder);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if simple_transposition {
+                break;
             }
         }
 
         if simple_transposition {
-            let resource = self.resource();
-            let mut source_found = false;
-
             // We may have multiple text selections to transpose (all must be found)
             for tsel in self.inner().iter() {
                 // each text selection in a simple transposition corresponds to a side
@@ -193,6 +232,39 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 mapped_tsel.inner().into(),
                             );
                         selectors_per_side[side_i].push(mapped_selector);
+                    }
+                }
+            }
+        } else {
+            //complex transposition
+            if !tselbuffer.is_empty() {
+                return Err(StamError::TransposeError(
+                    format!(
+                        "Not all source fragments were found in the complex transposition {}, not enough to transpose",
+                        via.id().unwrap_or("(no-id)"),
+                    ),
+                    "",
+                ));
+            }
+
+            // now map the targets (there may be multiple target sides)
+            for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
+            {
+                if selectors_per_side.len() <= side_i {
+                    selectors_per_side.push(Vec::new());
+                }
+                if source_side != Some(side_i) {
+                    for reftsel in annotation.textselections() {
+                        let resource = reftsel.resource().handle();
+                        for offset in relative_offsets.iter() {
+                            let mapped_tsel = reftsel.textselection(&offset)?;
+                            let mapped_selector: SelectorBuilder<'static> =
+                                SelectorBuilder::TextSelector(
+                                    resource.into(),
+                                    mapped_tsel.inner().into(),
+                                );
+                            selectors_per_side[side_i].push(mapped_selector);
+                        }
                     }
                 }
             }

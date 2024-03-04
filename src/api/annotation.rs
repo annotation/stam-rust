@@ -243,7 +243,12 @@ impl<'store> ResultItem<'store, Annotation> {
                 textselections.push(tsel);
             }
         }
-        Some(textselections.into_iter().collect())
+        //important check because into_iter().collect() [from_iter()] panics if passed an empty iter!
+        if textselections.is_empty() {
+            None
+        } else {
+            Some(textselections.into_iter().collect())
+        }
     }
 
     /// Groups text selections targeting the same resource together in a TextSelectionSet.

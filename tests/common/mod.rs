@@ -628,7 +628,7 @@ pub fn setup_example_8b() -> Result<AnnotationStore, StamError> {
         )?
         .with_annotation(
             AnnotationBuilder::new()
-                .with_id("SimpleTransposition1")
+                .with_id("ComplexTransposition1")
                 .with_target(SelectorBuilder::DirectionalSelector(vec![
                     SelectorBuilder::annotationselector("A1", None),
                     SelectorBuilder::annotationselector("A2", None),

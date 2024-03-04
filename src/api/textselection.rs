@@ -1171,7 +1171,7 @@ impl<'store> FromIterator<ResultTextSelection<'store>> for ResultTextSelectionSe
             .collect();
         ResultTextSelectionSet {
             tset,
-            rootstore: store.expect("Iterator may not be empty"),
+            rootstore: store.expect("Iterator may not be empty"), //TODO: this is suboptimal, it will panic when an empty iterator is passed!
         }
     }
 }
