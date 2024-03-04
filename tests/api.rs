@@ -2084,7 +2084,7 @@ fn transposition_complex() -> Result<(), StamError> {
     assert_eq!(phrase1.text_simple(), Some("human beings are born"));
     let phrase2 = store.annotation("A2").or_fail()?;
     assert_eq!(phrase2.text_simple(), Some("human beings are born"));
-    let annotation = store.annotation("SimpleTransposition1").or_fail()?;
+    let annotation = store.annotation("ComplexTransposition1").or_fail()?;
     assert_eq!(
         annotation
             .annotations_in_targets(AnnotationDepth::One)
