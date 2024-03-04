@@ -23,12 +23,20 @@ pub struct TransposeConfig {
     /// Identifier to assign to the newly outputted transposition (if not set, a random one will be generated)
     pub transposition_id: Option<String>,
 
+    /// Identifier to assign to the newly outputted resegmentation (if any is created and this is not set, a random ID will be generated)
+    pub resegmentation_id: Option<String>,
+
     /// Identifier to assign to the source annotation, if this is an existing one set existing_source_side.
     pub source_side_id: Option<String>,
 
     /// Indicates that the source part of the transposition is an existing annotation. This adds some extra
     /// constraints as not all existing annotations may be transposable without a resegmentation!
     pub existing_source_side: bool,
+
+    /// Do not produce a resegmentation annotation. If needed for a complex transposition, a resegmented annotation is still created, but
+    /// the resegmented version (used as source in the transposition) is not linked to the original source annotation. This effectively throws away provenance information.
+    /// This only comes into play if `no_transposition == false` , `existing_source_side == true` and `source_side_id.is_some()`.
+    pub no_resegmentation: bool,
 
     /// Identifiers to assign to the annotation (if not set, random ones will be generated)
     /// The indices correspond to the various sides of the transposition that is being transposed over (in the same order, minus the source)
@@ -121,6 +129,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         let resource = self.resource();
         let mut source_found = false;
         let mut simple_transposition = true; //falsify
+        let mut resegment = false;
 
         let mut tselbuffer: VecDeque<(TextSelection, usize)> =
             self.inner().iter().map(|x| (x.clone(), 0)).collect(); //MAYBE TODO: slightly waste of time/space if the transposition turns out to be a simple transposition rather than a complex one
@@ -161,6 +170,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                     source_offset,
                                 ));
                                 if let Some(remainder) = remainder {
+                                    resegment = true;
                                     //the text selection was not matched/consumed entirely
                                     //add the remainder of the text selection back to the buffer
                                     tselbuffer
@@ -308,10 +318,14 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     .unwrap_or_else(|| generate_id("transposition-", ""));
                 let mut subselectors: Vec<SelectorBuilder<'static>> = Vec::new();
                 let mut target_id_iter = config.target_side_ids.into_iter();
-                let source_id = config
-                    .source_side_id
-                    .clone()
-                    .unwrap_or_else(|| generate_id("", "-transpositionsource"));
+                let source_id = if resegment {
+                    generate_id("", "-transpositionsource")
+                } else {
+                    config
+                        .source_side_id
+                        .clone()
+                        .unwrap_or_else(|| generate_id("", "-transpositionsource"))
+                };
                 for (side_i, selectors) in selectors_per_side.into_iter().enumerate() {
                     if source_side != Some(side_i) || !config.existing_source_side {
                         let side_id = if source_side == Some(side_i) {
@@ -331,6 +345,47 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 .push(SelectorBuilder::AnnotationSelector(side_id.into(), None));
                         }
                     } else {
+                        if resegment {
+                            let resegmentation_id = config
+                                .resegmentation_id
+                                .clone()
+                                .unwrap_or_else(|| generate_id("resegmentation-", ""));
+
+                            //add the resegmented annotation (will be the source side of the transposition):
+                            builders.push(
+                                AnnotationBuilder::new()
+                                    .with_id(source_id.clone())
+                                    .with_target(SelectorBuilder::DirectionalSelector(selectors)),
+                            );
+
+                            if !config.no_resegmentation
+                                && config.existing_source_side
+                                && config.source_side_id.is_some()
+                            {
+                                // create an extra resegmentation annotation
+                                // linking the resegmented annotation to the real source
+                                let real_source_id = config.source_side_id.clone().unwrap();
+                                builders.push(
+                                    AnnotationBuilder::new()
+                                        .with_id(resegmentation_id)
+                                        .with_data(
+                                            "https://w3id.org/stam/extensions/stam-transpose/",
+                                            "Resegmentation",
+                                            DataValue::Null,
+                                        )
+                                        .with_target(SelectorBuilder::DirectionalSelector(vec![
+                                            SelectorBuilder::AnnotationSelector(
+                                                real_source_id.into(),
+                                                None,
+                                            ),
+                                            SelectorBuilder::AnnotationSelector(
+                                                source_id.clone().into(),
+                                                None,
+                                            ),
+                                        ])),
+                                );
+                            }
+                        }
                         subselectors.push(SelectorBuilder::AnnotationSelector(
                             source_id.clone().into(),
                             None,

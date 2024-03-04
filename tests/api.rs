@@ -2204,7 +2204,7 @@ fn transpose_over_complex_transposition() -> Result<(), StamError> {
 
 #[test]
 #[cfg(feature = "transpose")]
-fn transpose_over_complex_transposition_2() -> Result<(), StamError> {
+fn transpose_over_complex_transposition_with_resegmentation() -> Result<(), StamError> {
     let mut store = setup_example_8c()?;
     store.annotate(
         AnnotationBuilder::new()
@@ -2224,12 +2224,13 @@ fn transpose_over_complex_transposition_2() -> Result<(), StamError> {
     );
     let config = TransposeConfig {
         transposition_id: Some("NewTransposition".to_string()),
+        resegmentation_id: Some("NewResegmentation".to_string()),
         target_side_ids: vec!["A3t".to_string()],
         ..Default::default()
     };
     let targets =
         store.annotate_from_iter(source.transpose(&transposition, config)?.into_iter())?;
-    assert_eq!(targets.len(), 2);
+    assert_eq!(targets.len(), 4, "Test the number of generated annotations");
     let new_transposition = store.annotation("NewTransposition").or_fail()?;
     assert_eq!(
         new_transposition
@@ -2238,7 +2239,12 @@ fn transpose_over_complex_transposition_2() -> Result<(), StamError> {
         2,
         "new transposition must have two target annotations (source annotation and transposed annotation)"
     );
-    let source = store.annotation("A3").or_fail()?; //reobtain (otherwise borrow checker complains after mutation)
+    assert!(
+        new_transposition
+            .annotations_in_targets(AnnotationDepth::One)
+            .all(|a| a.id() != Some("A3")),
+        "the source annotation may NOT be a direct part of the transposition in this case"
+    );
     let transposed = store.annotation("A3t").or_fail()?;
     eprintln!("{:?}", transposed);
     let tsels: ResultTextSelectionSet = transposed.textselections().collect();
@@ -2259,5 +2265,13 @@ fn transpose_over_complex_transposition_2() -> Result<(), StamError> {
     assert_eq!(tsel1.end(), 3, "transposed offset check (1)");
     assert_eq!(tsel2.begin(), 5, "transposed offset check (2)");
     assert_eq!(tsel2.end(), 8, "transposed offset check (2)");
+    let resegmentation = store.annotation("NewResegmentation").or_fail()?;
+    assert_eq!(
+        resegmentation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2,
+        "resegmentation must have two target annotations (source annotation and resegmented annotation)"
+    );
     Ok(())
 }
