@@ -2330,8 +2330,6 @@ fn transpose_over_complex_transposition_invalid() -> Result<(), StamError> {
         target_side_ids: vec!["A3t".to_string()],
         ..Default::default()
     };
-    let result = source.transpose(&transposition, config);
-    eprintln!("{:#?}", result);
-    assert!(result.is_err());
+    assert!(source.transpose(&transposition, config).is_err());
     Ok(())
 }
