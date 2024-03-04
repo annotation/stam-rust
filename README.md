@@ -409,6 +409,7 @@ This library implements the following STAM extensions:
 
 * [STAM-CSV](https://github.com/annotation/stam/tree/master/extensions/stam-csv) - Defines an alternative serialisation format using CSV.
 * [STAM-Query](https://github.com/annotation/stam/tree/master/extensions/stam-query) - Defines the STAM Query Language. 
+* [STAM-Transpose](https://github.com/annotation/stam/tree/master/extensions/stam-transpose) -  Defines linking identical textual parts across resources. 
 
 ## Python binding
 
