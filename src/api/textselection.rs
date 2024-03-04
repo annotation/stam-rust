@@ -1131,15 +1131,16 @@ impl<'store> TryFrom<&ResultItem<'store, Annotation>> for ResultTextSelectionSet
     type Error = StamError;
     fn try_from(annotation: &ResultItem<'store, Annotation>) -> Result<Self, Self::Error> {
         let mut invalid = false;
+        let invalid = &mut invalid;
         let mut foundresource: Option<TextResourceHandle> = None;
         let tset: TextSelectionSet = annotation
             .textselections()
-            .take_while(move |tsel| {
+            .take_while(|tsel| {
                 if foundresource.is_some() {
                     if foundresource.unwrap() == tsel.resource().handle() {
                         true
                     } else {
-                        invalid = true;
+                        *invalid = true;
                         false
                     }
                 } else {
@@ -1149,7 +1150,7 @@ impl<'store> TryFrom<&ResultItem<'store, Annotation>> for ResultTextSelectionSet
                 }
             })
             .collect();
-        if invalid {
+        if *invalid {
             Err(StamError::NoText(
                 "conversion Annotation->TextSelectionSet failed: Annotation does not reference any text or text does not pertain to a single resource",
             ))

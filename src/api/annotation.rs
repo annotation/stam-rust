@@ -24,14 +24,11 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
-use crate::error::*;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Selector, SelectorKind};
 use crate::textselection::{
-    ResultTextSelection, ResultTextSelectionSet, TestTextSelection, TextSelectionOperator,
-    TextSelectionSet,
+    ResultTextSelection, ResultTextSelectionSet, TextSelectionOperator, TextSelectionSet,
 };
-use crate::types::Type;
 use crate::{Filter, FilterMode, TextMode};
 
 impl<'store> FullHandle<Annotation> for ResultItem<'store, Annotation> {
