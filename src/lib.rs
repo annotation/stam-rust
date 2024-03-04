@@ -131,8 +131,9 @@ pub use store::{
 };
 pub use text::Text;
 pub use textselection::{
-    ResultTextSelection, TestTextSelection, TextSelection, TextSelectionHandle,
-    TextSelectionOperator, TextSelectionSet, TextSelectionSetIntoIter, TextSelectionSetIter,
+    ResultTextSelection, ResultTextSelectionSet, TestTextSelection, TextSelection,
+    TextSelectionHandle, TextSelectionOperator, TextSelectionSet, TextSelectionSetIntoIter,
+    TextSelectionSetIter,
 };
 pub use types::*;
 

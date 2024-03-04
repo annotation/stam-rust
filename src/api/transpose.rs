@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use crate::api::*;
 use crate::datavalue::DataValue;
 use crate::selector::{Offset, OffsetMode, SelectorBuilder};
-use crate::textselection::{ResultTextSelection, ResultTextSelectionSet};
+use crate::textselection::ResultTextSelectionSet;
 use crate::AnnotationBuilder;
 use crate::StamError;
 
@@ -114,20 +114,20 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             } else {
                 None
             };
+        let mut relative_offsets: Vec<Offset> = Vec::new();
         // Found (source) or mapped (target) text selections per side, the first index corresponds to a side
-        let mut relative_offsets = Vec::new();
         let mut selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]> = SmallVec::new();
 
         let resource = self.resource();
         let mut source_found = false;
         let mut simple_transposition = true; //falsify
 
-        let mut tselbuffer: VecDeque<TextSelection> =
-            self.inner().iter().map(|x| x.clone()).collect(); //MAYBE TODO: slightly waste of time/space if the transposition turns out to be a simple transposition rather than a complex one
+        let mut tselbuffer: VecDeque<(TextSelection, usize)> =
+            self.inner().iter().map(|x| (x.clone(), 0)).collect(); //MAYBE TODO: slightly waste of time/space if the transposition turns out to be a simple transposition rather than a complex one
 
         // match the textselectionset against the sides in a complex transposition (or ascertain that we are dealing with a simple transposition instead)
         // the source side that matches can never be the same as the target side that is mappped to
-        while let Some(tsel) = tselbuffer.pop_front() {
+        while let Some((tsel, remainder_begin)) = tselbuffer.pop_front() {
             for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
             {
                 simple_transposition = false;
@@ -147,16 +147,24 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 source_found = true; //source_side might have been pre-set so we need this extra flag
                                 let relative_offset = intersection
                                     .relative_offset(reftsel.inner(), OffsetMode::default())
-                                    .expect("intersection offset must be valid");
+                                    .expect("intersection offset must be valid"); //the relative offset will be used to select target fragments later
+                                let mut source_offset: Offset = intersection.into();
+                                if remainder_begin > 0 {
+                                    //we may need to correct the source offset if we cut a source part in two
+                                    source_offset = source_offset
+                                        .transpose(remainder_begin as isize)
+                                        .expect("transposition of offset must succeed");
+                                }
                                 relative_offsets.push(relative_offset);
                                 selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
                                     resource.handle().into(),
-                                    intersection.into(),
+                                    source_offset,
                                 ));
                                 if let Some(remainder) = remainder {
                                     //the text selection was not matched/consumed entirely
                                     //add the remainder of the text selection back to the buffer
-                                    tselbuffer.push_front(remainder);
+                                    tselbuffer
+                                        .push_front((remainder, remainder.begin() - tsel.begin()));
                                 }
                                 break;
                             }
@@ -254,17 +262,17 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     selectors_per_side.push(Vec::new());
                 }
                 if source_side != Some(side_i) {
-                    for reftsel in annotation.textselections() {
+                    for (reftsel, offset) in
+                        annotation.textselections().zip(relative_offsets.iter())
+                    {
                         let resource = reftsel.resource().handle();
-                        for offset in relative_offsets.iter() {
-                            let mapped_tsel = reftsel.textselection(&offset)?;
-                            let mapped_selector: SelectorBuilder<'static> =
-                                SelectorBuilder::TextSelector(
-                                    resource.into(),
-                                    mapped_tsel.inner().into(),
-                                );
-                            selectors_per_side[side_i].push(mapped_selector);
-                        }
+                        let mapped_tsel = reftsel.textselection(&offset)?;
+                        let mapped_selector: SelectorBuilder<'static> =
+                            SelectorBuilder::TextSelector(
+                                resource.into(),
+                                mapped_tsel.inner().into(),
+                            );
+                        selectors_per_side[side_i].push(mapped_selector);
                     }
                 }
             }

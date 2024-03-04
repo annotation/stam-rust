@@ -598,6 +598,10 @@ impl<'store> ResultTextSelectionSet<'store> {
         &self.tset
     }
 
+    pub fn len(&self) -> usize {
+        self.inner().len()
+    }
+
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = ResultTextSelection<'store>> + 'a {
         let store = self.rootstore();
         let resource = store

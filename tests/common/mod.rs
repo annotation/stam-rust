@@ -641,3 +641,52 @@ pub fn setup_example_8b() -> Result<AnnotationStore, StamError> {
         )?;
     Ok(store)
 }
+
+pub fn setup_example_8c() -> Result<AnnotationStore, StamError> {
+    //complex transposition (we'll use this to test the word 'human' which is split over two textselections in this transposition)
+
+    let store = AnnotationStore::default()
+        .with_id("example8")
+        .add(TextResource::from_string(
+            "humanrights",
+            "all human beings are born free and equal in dignity and rights.",
+            Config::default(),
+        ))?
+        .add(TextResource::from_string(
+            "warhol",
+            " hu-\nman beings are born solitary, but everywhere they are in chains.",
+            Config::default(),
+        ))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("humanrights", Offset::simple(4, 6)), //"hu",
+                    SelectorBuilder::textselector("humanrights", Offset::simple(6, 25)), //"man beings are born",
+                ]))
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A2")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("warhol", Offset::simple(1, 3)), //"hu",
+                    SelectorBuilder::textselector("warhol", Offset::simple(5, 24)), //"man beings are born",
+                ]))
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("ComplexTransposition1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::annotationselector("A1", None),
+                    SelectorBuilder::annotationselector("A2", None),
+                ]))
+                .with_data(
+                    "https://w3id.org/stam/extensions/stam-transpose/",
+                    "Transposition",
+                    DataValue::Null,
+                ),
+        )?;
+    Ok(store)
+}

@@ -2186,7 +2186,6 @@ fn transpose_over_complex_transposition() -> Result<(), StamError> {
     );
     let source = store.annotation("A3").or_fail()?; //reobtain (otherwise borrow checker complains after mutation)
     let transposed = store.annotation("A3t").or_fail()?;
-    eprintln!("{:?}", transposed);
     assert_eq!(
         transposed.text_simple(),
         source.text_simple(),
@@ -2200,5 +2199,65 @@ fn transpose_over_complex_transposition() -> Result<(), StamError> {
     );
     assert_eq!(tsel.begin(), 0, "transposed offset check");
     assert_eq!(tsel.end(), 5, "transposed offset check");
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "transpose")]
+fn transpose_over_complex_transposition_2() -> Result<(), StamError> {
+    let mut store = setup_example_8c()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("A3")
+            .with_data("mydataset", "species", "homo sapiens")
+            .with_target(SelectorBuilder::textselector(
+                "humanrights",
+                Offset::simple(4, 9),
+            )),
+    )?;
+    let transposition = store.annotation("ComplexTransposition1").or_fail()?;
+    let source = store.annotation("A3").or_fail()?;
+    assert_eq!(
+        source.text_join(""),
+        "human",
+        "sanity check for source annotation"
+    );
+    let config = TransposeConfig {
+        transposition_id: Some("NewTransposition".to_string()),
+        target_side_ids: vec!["A3t".to_string()],
+        ..Default::default()
+    };
+    let targets =
+        store.annotate_from_iter(source.transpose(&transposition, config)?.into_iter())?;
+    assert_eq!(targets.len(), 2);
+    let new_transposition = store.annotation("NewTransposition").or_fail()?;
+    assert_eq!(
+        new_transposition
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2,
+        "new transposition must have two target annotations (source annotation and transposed annotation)"
+    );
+    let source = store.annotation("A3").or_fail()?; //reobtain (otherwise borrow checker complains after mutation)
+    let transposed = store.annotation("A3t").or_fail()?;
+    eprintln!("{:?}", transposed);
+    let tsels: ResultTextSelectionSet = transposed.textselections().collect();
+    assert_eq!(
+        tsels.resource().id(),
+        Some("warhol"),
+        "transposed annotation must reference the target resource"
+    );
+    assert_eq!(
+        tsels.len(),
+        2,
+        "transposed annotation must reference two text selections"
+    );
+    let mut iter = tsels.iter();
+    let tsel1 = iter.next().unwrap();
+    let tsel2 = iter.next().unwrap();
+    assert_eq!(tsel1.begin(), 1, "transposed offset check (1)");
+    assert_eq!(tsel1.end(), 3, "transposed offset check (1)");
+    assert_eq!(tsel2.begin(), 5, "transposed offset check (2)");
+    assert_eq!(tsel2.end(), 8, "transposed offset check (2)");
     Ok(())
 }
