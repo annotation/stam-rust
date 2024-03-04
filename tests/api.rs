@@ -2275,7 +2275,6 @@ fn transpose_over_complex_transposition_with_resegmentation() -> Result<(), Stam
         "the source annotation may NOT be a direct part of the transposition in this case"
     );
     let transposed = store.annotation("A3t").or_fail()?;
-    eprintln!("{:?}", transposed);
     let tsels: ResultTextSelectionSet = transposed.textselections().collect();
     assert_eq!(
         tsels.resource().id(),
