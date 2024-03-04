@@ -364,25 +364,3 @@ impl<'store> ResultItem<'store, Annotation> {
         }
     }
 }
-
-/// Finds matches of one textselection in another
-fn transpose_find_sources(
-    tsel: &TextSelection,
-    reftsel: &TextSelection,
-    sources: &mut Vec<TextSelection>,
-) -> bool {
-    if let Some((intersection, tsel_remainder, reftsel_remainder)) = tsel.intersection(reftsel) {
-        sources.push(intersection);
-        if let (Some(tsel_remainder), Some(reftsel_remainder)) = (tsel_remainder, reftsel_remainder)
-        {
-            // there is still a remainder left to process:
-            transpose_find_sources(&tsel_remainder, &reftsel_remainder, sources)
-        } else {
-            // we are done if there is no remainder anymore for the current text selection
-            tsel_remainder.is_none()
-        }
-    } else {
-        sources.clear(); //clear the buffer, results lead nowhere
-        false
-    }
-}
