@@ -164,18 +164,22 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                         .transpose(remainder_begin as isize)
                                         .expect("transposition of offset must succeed");
                                 }
-                                relative_offsets.push(relative_offset);
-                                selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
-                                    resource.handle().into(),
-                                    source_offset,
-                                ));
                                 if let Some(remainder) = remainder {
+                                    if remainder.begin() < intersection.begin() {
+                                        //not a valid intersection, skip to the next
+                                        continue;
+                                    }
                                     resegment = true;
                                     //the text selection was not matched/consumed entirely
                                     //add the remainder of the text selection back to the buffer
                                     tselbuffer
                                         .push_front((remainder, remainder.begin() - tsel.begin()));
                                 }
+                                relative_offsets.push(relative_offset);
+                                selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
+                                    resource.handle().into(),
+                                    source_offset,
+                                ));
                                 break;
                             }
                         }
@@ -289,7 +293,14 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         }
 
         match selectors_per_side[source_side.expect("source side must exist at this point")].len() {
-            0 => unreachable!("sources must have been found at this point"),
+            0 => 
+                Err(StamError::TransposeError(
+                    format!(
+                        "No source fragments were found in the complex transposition {}, unable to transpose",
+                        via.id().unwrap_or("(no-id)"),
+                    ),
+                    "",
+                )),
             1 if config.allow_simple && !config.no_transposition => {
                 //output is a simple transposition
                 builders.push(

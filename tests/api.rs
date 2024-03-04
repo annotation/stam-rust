@@ -2150,6 +2150,35 @@ fn transpose_over_simple_transposition() -> Result<(), StamError> {
 
 #[test]
 #[cfg(feature = "transpose")]
+fn transpose_over_simple_transposition_invalid() -> Result<(), StamError> {
+    let mut store = setup_example_8()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("A3")
+            .with_data("mydataset", "species", "homo sapiens")
+            .with_target(SelectorBuilder::textselector(
+                "humanrights",
+                Offset::simple(0, 9), //"all human"
+            )),
+    )?;
+    let transposition = store.annotation("SimpleTransposition1").or_fail()?;
+    let source = store.annotation("A3").or_fail()?;
+    assert_eq!(
+        source.text_simple(),
+        Some("all human"),
+        "sanity check for source annotation"
+    );
+    let config = TransposeConfig {
+        transposition_id: Some("NewTransposition".to_string()),
+        target_side_ids: vec!["A3t".to_string()],
+        ..Default::default()
+    };
+    assert!(source.transpose(&transposition, config).is_err());
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "transpose")]
 fn transpose_over_complex_transposition() -> Result<(), StamError> {
     let mut store = setup_example_8b()?;
     store.annotate(
@@ -2273,5 +2302,36 @@ fn transpose_over_complex_transposition_with_resegmentation() -> Result<(), Stam
         2,
         "resegmentation must have two target annotations (source annotation and resegmented annotation)"
     );
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "transpose")]
+fn transpose_over_complex_transposition_invalid() -> Result<(), StamError> {
+    let mut store = setup_example_8b()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("A3")
+            .with_data("mydataset", "species", "homo sapiens")
+            .with_target(SelectorBuilder::textselector(
+                "humanrights",
+                Offset::simple(0, 9), //"all human"
+            )),
+    )?;
+    let transposition = store.annotation("ComplexTransposition1").or_fail()?;
+    let source = store.annotation("A3").or_fail()?;
+    assert_eq!(
+        source.text_simple(),
+        Some("all human"),
+        "sanity check for source annotation"
+    );
+    let config = TransposeConfig {
+        transposition_id: Some("NewTransposition".to_string()),
+        target_side_ids: vec!["A3t".to_string()],
+        ..Default::default()
+    };
+    let result = source.transpose(&transposition, config);
+    eprintln!("{:#?}", result);
+    assert!(result.is_err());
     Ok(())
 }
