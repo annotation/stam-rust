@@ -84,7 +84,7 @@ impl<'store> Transposable<'store> for ResultItem<'store, Annotation> {
                 .transpose(via, config)?
                 .into_iter()
                 .map(|mut builder| {
-                    //target annotations will have empty data, the transposition itself already has data (1):
+                    //target annotations will have empty data, the transposition itself already has data (1), resegmentations already have data too (1):
                     if builder.data().is_empty() {
                         //copy the data from the transposed annotation to the empty target annotations
                         for data in self.data() {
