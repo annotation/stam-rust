@@ -1734,10 +1734,10 @@ pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
                 let mut version = &id[pos + 1..];
                 if version.chars().next() == Some('v') {
                     version = &id[pos + 2..];
-                }
-                if let Ok(mut version) = version.parse::<usize>() {
-                    version += 1;
-                    return format!("{}{}", &id[..pos + 1], version);
+                    if let Ok(mut version) = version.parse::<usize>() {
+                        version += 1;
+                        return format!("{}v{}", &id[..pos + 1], version);
+                    }
                 }
             }
             regenerate_id(id, fallback)
