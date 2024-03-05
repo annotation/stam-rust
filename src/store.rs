@@ -1695,23 +1695,14 @@ pub enum IdStrategy {
     AddSuffix(String),
     AddRandomSuffix,
     AddPrefix(String),
-    UpdateVersionOr(Box<IdStrategy>),
+    UpdateVersion,
     Replace(String),
     ReplaceRandom { prefix: String, suffix: String },
 }
 
-impl IdStrategy {
-    pub fn update_version_or_random() -> Self {
-        Self::UpdateVersionOr(Box::new(Self::ReplaceRandom {
-            prefix: String::new(),
-            suffix: String::new(),
-        }))
-    }
-}
-
 impl Default for IdStrategy {
     fn default() -> Self {
-        Self::update_version_or_random()
+        Self::UpdateVersion
     }
 }
 
@@ -1729,7 +1720,7 @@ pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
         }
         IdStrategy::Replace(s) => s.clone(),
         IdStrategy::ReplaceRandom { prefix, suffix } => generate_id(prefix, suffix),
-        IdStrategy::UpdateVersionOr(fallback) => {
+        IdStrategy::UpdateVersion => {
             if let Some(pos) = id.rfind(|c: char| c.is_ascii_punctuation()) {
                 let mut version = &id[pos + 1..];
                 if version.chars().next() == Some('v') {
@@ -1740,7 +1731,7 @@ pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
                     }
                 }
             }
-            regenerate_id(id, fallback)
+            format!("{}/v2", &id)
         }
     }
 }
