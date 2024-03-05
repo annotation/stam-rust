@@ -1700,6 +1700,21 @@ pub enum IdStrategy {
     ReplaceRandom { prefix: String, suffix: String },
 }
 
+impl IdStrategy {
+    pub fn update_version_or_random() -> Self {
+        Self::UpdateVersionOr(Box::new(Self::ReplaceRandom {
+            prefix: String::new(),
+            suffix: String::new(),
+        }))
+    }
+}
+
+impl Default for IdStrategy {
+    fn default() -> Self {
+        Self::update_version_or_random()
+    }
+}
+
 /// Take an existing ID an apply a update stategy to create a derived new ID
 pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
     match strategy {
@@ -1716,13 +1731,13 @@ pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
         IdStrategy::ReplaceRandom { prefix, suffix } => generate_id(prefix, suffix),
         IdStrategy::UpdateVersionOr(fallback) => {
             if let Some(pos) = id.rfind(|c: char| c.is_ascii_punctuation()) {
-                let mut version = &id[pos..];
+                let mut version = &id[pos + 1..];
                 if version.chars().next() == Some('v') {
-                    version = &id[pos + 1..];
+                    version = &id[pos + 2..];
                 }
                 if let Ok(mut version) = version.parse::<usize>() {
                     version += 1;
-                    return format!("{}{}", &id[..pos], version);
+                    return format!("{}{}", &id[..pos + 1], version);
                 }
             }
             regenerate_id(id, fallback)
