@@ -127,7 +127,8 @@ pub use selector::{
     Offset, OffsetMode, Selector, SelectorBuilder, SelectorIter, SelectorKind, SelfSelector,
 };
 pub use store::{
-    generate_id, BuildItem, Request, ResultItem, StamResult, Storable, Store, StoreFor,
+    generate_id, regenerate_id, BuildItem, IdStrategy, Request, ResultItem, StamResult, Storable,
+    Store, StoreFor,
 };
 pub use text::Text;
 pub use textselection::{

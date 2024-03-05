@@ -1689,3 +1689,43 @@ pub(crate) fn resolve_temp_id(id: &str) -> Option<usize> {
 pub fn generate_id(prefix: &str, suffix: &str) -> String {
     format!("{}{}{}", prefix, nanoid!(), suffix)
 }
+
+#[derive(Clone, Debug)]
+pub enum IdStrategy {
+    AddSuffix(String),
+    AddRandomSuffix,
+    AddPrefix(String),
+    UpdateVersionOr(Box<IdStrategy>),
+    Replace(String),
+    ReplaceRandom { prefix: String, suffix: String },
+}
+
+/// Take an existing ID an apply a update stategy to create a derived new ID
+pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
+    match strategy {
+        IdStrategy::AddSuffix(s) => {
+            format!("{}{}", id, s)
+        }
+        IdStrategy::AddRandomSuffix => {
+            format!("{}{}", id, nanoid!())
+        }
+        IdStrategy::AddPrefix(s) => {
+            format!("{}{}", s, id)
+        }
+        IdStrategy::Replace(s) => s.clone(),
+        IdStrategy::ReplaceRandom { prefix, suffix } => generate_id(prefix, suffix),
+        IdStrategy::UpdateVersionOr(fallback) => {
+            if let Some(pos) = id.rfind(|c: char| c.is_ascii_punctuation()) {
+                let mut version = &id[pos..];
+                if version.chars().next() == Some('v') {
+                    version = &id[pos + 1..];
+                }
+                if let Ok(mut version) = version.parse::<usize>() {
+                    version += 1;
+                    return format!("{}{}", &id[..pos], version);
+                }
+            }
+            regenerate_id(id, fallback)
+        }
+    }
+}
