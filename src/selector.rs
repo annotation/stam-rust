@@ -94,6 +94,17 @@ impl Offset {
             end: self.end.shift(distance)?,
         })
     }
+
+    /// Returns the length of the offset.
+    /// If the underlying cursor types are not of the same type, the length
+    /// is undefined and None is returned.
+    pub fn len(&self) -> Option<usize> {
+        match (self.begin, self.end) {
+            (Cursor::BeginAligned(begin), Cursor::BeginAligned(end)) => Some(end - begin),
+            (Cursor::EndAligned(begin), Cursor::EndAligned(end)) => Some((end - begin).abs() as usize),
+            _ => None
+        }
+    }
 }
 
 impl Default for Offset {
