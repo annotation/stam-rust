@@ -87,19 +87,12 @@ impl Offset {
     }
 
     /// Create a new offset by moving this one right (positive distance) or left (negative distance)
-    /// This only works for offsets that use begin aligned cursors and will never produce negative offsets!
-    pub fn transpose(&self, distance: isize) -> Result<Offset,StamError> {
-        match (self.begin, self.end) {
-            (Cursor::BeginAligned(b), Cursor::BeginAligned(e)) => if distance >= 0 {
-                Ok(Self { begin: Cursor::BeginAligned(b+distance as usize), end: Cursor::BeginAligned(e+distance as usize) })
-            } else if b as isize + distance < 0 {
-                Err(StamError::CursorOutOfBounds(Cursor::BeginAligned(b), "Can't transpose offset, distance exceeds cursor"))
-            } else {
-                Ok(Self { begin: Cursor::BeginAligned(b- distance.abs() as usize), end: Cursor::BeginAligned(e-distance.abs() as usize) })
-            }
-            _ => 
-                Err(StamError::InvalidOffset(self.begin,self.end, "Can't transpose this type of offset"))
-        }
+    /// This will never produce negative offsets! If the cursor type doesn't support shifting (that far) in a direction then an error will be raised.
+    pub fn shift(&self, distance: isize) -> Result<Offset,StamError> {
+        Ok(Offset {
+            begin: self.begin.shift(distance)?,
+            end: self.end.shift(distance)?,
+        })
     }
 }
 

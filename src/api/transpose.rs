@@ -161,7 +161,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 if remainder_begin > 0 {
                                     //we may need to correct the source offset if we cut a source part in two
                                     source_offset = source_offset
-                                        .transpose(remainder_begin as isize)
+                                        .shift(remainder_begin as isize)
                                         .expect("transposition of offset must succeed");
                                 }
                                 if let Some(remainder) = remainder {

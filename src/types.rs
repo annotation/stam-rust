@@ -86,6 +86,39 @@ impl std::fmt::Display for Cursor {
     }
 }
 
+impl Cursor {
+    /// Shift this cursor to the right (positive distance) or left (negative distance).
+    /// Will return an error if the cursor exceeds bounds, which depends on the type of cursor.
+    pub fn shift(&self, distance: isize) -> Result<Self, StamError> {
+        match self {
+            Self::BeginAligned(cursor) => {
+                if distance >= 0 {
+                    Ok(Self::BeginAligned(cursor + distance as usize))
+                } else if distance.abs() as usize <= *cursor {
+                    Ok(Self::BeginAligned(cursor - distance.abs() as usize))
+                } else {
+                    Err(StamError::CursorOutOfBounds(
+                        Cursor::BeginAligned(*cursor),
+                        "Can't shift cursor to the left, distance exceeds cursor",
+                    ))
+                }
+            }
+            Self::EndAligned(cursor) => {
+                if distance <= 0 {
+                    Ok(Self::EndAligned(cursor + distance))
+                } else if distance <= cursor.abs() {
+                    Ok(Self::EndAligned(cursor + distance))
+                } else {
+                    Err(StamError::CursorOutOfBounds(
+                        Cursor::EndAligned(*cursor),
+                        "Can't shift cursor to the right, distance exceeds cursor",
+                    ))
+                }
+            }
+        }
+    }
+}
+
 /// The handle trait is implemented for various handle types. They have in common that refer to the internal id
 /// of a [`Storable`](crate::store::Storable) item in a struct implementing [`StoreFor`](crate::store::StoreFor) by index. Types implementing this are lightweight and do not borrow anything, they can be passed and copied freely.
 // To get an actual reference to the item from a handle type, call the [`get()`](StoreFor<T>::get()) method on the store that holds it.
