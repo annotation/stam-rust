@@ -493,14 +493,24 @@ impl AnnotationStore {
         // Create the target selector if needed
         // If the selector fails, the annotate() fails with an error
         if builder.target.is_none() {
-            return Err(StamError::NoTarget(""));
+            return Err(StamError::NoTarget("(AnnotationStore.annotate)"));
         }
-        let target = self.selector(builder.target.unwrap())?;
+        let target = self.selector(builder.target.unwrap()).map_err(|err| {
+            StamError::BuildError(
+                Box::new(err),
+                "Getting target selector failed (AnnotationStore.annotate)",
+            )
+        })?;
 
         // Convert AnnotationDataBuilder into AnnotationData that is ready to be stored
         let mut data = DataVec::with_capacity(builder.data.len());
         for dataitem in builder.data {
-            let (datasethandle, datahandle) = self.insert_data(dataitem)?;
+            let (datasethandle, datahandle) = self.insert_data(dataitem).map_err(|err| {
+                StamError::BuildError(
+                    Box::new(err),
+                    "Inserting dataitem failed (AnnotationStore.annotate)",
+                )
+            })?;
             data.push((datasethandle, datahandle));
         }
 
