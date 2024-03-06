@@ -1060,11 +1060,17 @@ impl AnnotationStore {
     pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
         match item {
             SelectorBuilder::ResourceSelector(id) => {
-                let resource: &TextResource = self.get(id)?;
+                let resource: &TextResource = self.get(&id).map_err(|err| {
+                    eprintln!("Unable to find targeted resource: {:?}", id);
+                    StamError::BuildError(Box::new(err), "Unable to resolve ResourceSelector")
+                })?;
                 Ok(Selector::ResourceSelector(resource.handle_or_err()?))
             }
             SelectorBuilder::TextSelector(res_id, offset) => {
-                let resource: &mut TextResource = self.get_mut(res_id)?;
+                let resource: &mut TextResource = self.get_mut(&res_id).map_err(|err| {
+                    eprintln!("Unable to find targeted resource: {:?}", res_id);
+                    StamError::BuildError(Box::new(err), "Unable to resolve ResourceSelector")
+                })?;
                 let textselection = resource.textselection_by_offset(&offset)?;
                 let textselection_handle: TextSelectionHandle =
                     if let Some(textselection_handle) = textselection.handle() {
@@ -1083,7 +1089,10 @@ impl AnnotationStore {
             }
             SelectorBuilder::AnnotationSelector(a_id, offset) => {
                 if let Some(offset) = offset {
-                    let target_annotation: &Annotation = self.get(&a_id)?;
+                    let target_annotation: &Annotation = self.get(&a_id).map_err(|err| {
+                        eprintln!("Unable to find targeted Annotation: {:?}", a_id);
+                        StamError::BuildError(Box::new(err), "Unable to resolve AnnotationSelector")
+                    })?;
                     let target_annotation_handle = target_annotation.handle_or_err()?;
                     if let Some(parent_textselection) =
                         target_annotation.target().textselection(self)
@@ -1114,27 +1123,45 @@ impl AnnotationStore {
                         ));
                     }
                 }
-                let target_annotation: &Annotation = self.get(&a_id)?;
+                let target_annotation: &Annotation = self.get(&a_id).map_err(|err| {
+                    eprintln!("Unable to find targeted Annotation: {:?}", a_id);
+                    StamError::BuildError(Box::new(err), "Unable to resolve AnnotationSelector")
+                })?;
                 Ok(Selector::AnnotationSelector(
                     target_annotation.handle_or_err()?,
                     None,
                 ))
             }
             SelectorBuilder::DataSetSelector(id) => {
-                let dataset: &AnnotationDataSet = self.get(id)?;
+                let dataset: &AnnotationDataSet = self.get(&id).map_err(|err| {
+                    eprintln!("Unable to find targeted AnnotationDataSet: {:?}", id);
+                    StamError::BuildError(Box::new(err), "Unable to resolve DataSetSelector")
+                })?;
                 Ok(Selector::DataSetSelector(dataset.handle_or_err()?))
             }
             SelectorBuilder::DataKeySelector(set, key) => {
-                let dataset: &AnnotationDataSet = self.get(set)?;
-                let key: &DataKey = dataset.get(key)?;
+                let dataset: &AnnotationDataSet = self.get(&set).map_err(|err| {
+                    eprintln!("Unable to find targeted AnnotationDataSet: {:?}", set);
+                    StamError::BuildError(Box::new(err), "Unable to resolve DataKeySelector")
+                })?;
+                let key: &DataKey = dataset.get(key).map_err(|err| {
+                    eprintln!("Unable to find targeted DataKey: {:?}", set);
+                    StamError::BuildError(Box::new(err), "Unable to resolve DataKeySelector")
+                })?;
                 Ok(Selector::DataKeySelector(
                     dataset.handle_or_err()?,
                     key.handle_or_err()?,
                 ))
             }
             SelectorBuilder::AnnotationDataSelector(set, data) => {
-                let dataset: &AnnotationDataSet = self.get(set)?;
-                let data: &AnnotationData = dataset.get(data)?;
+                let dataset: &AnnotationDataSet = self.get(&set).map_err(|err| {
+                    eprintln!("Unable to find targeted AnnotationDataSet: {:?}", set);
+                    StamError::BuildError(Box::new(err), "Unable to resolve AnnotationDataSelector")
+                })?;
+                let data: &AnnotationData = dataset.get(&data).map_err(|err| {
+                    eprintln!("Unable to find targeted AnnotationData: {:?}", data);
+                    StamError::BuildError(Box::new(err), "Unable to resolve AnnotationDataSelector")
+                })?;
                 Ok(Selector::AnnotationDataSelector(
                     dataset.handle_or_err()?,
                     data.handle_or_err()?,
