@@ -1983,6 +1983,39 @@ fn query_parse_subquery() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_union() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE [ DATA \"set\" \"key\" = \"value\" OR DATA \"set\" \"key\" = \"value\" ];";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::Union(subconstraints) = constraint {
+            assert_eq!(subconstraints.len(), 2, "Subconstraint count");
+            for subconstraint in subconstraints {
+                if let Constraint::KeyValue {
+                    set,
+                    key,
+                    operator,
+                    qualifier: _,
+                } = subconstraint
+                {
+                    assert_eq!(*set, "set");
+                    assert_eq!(*key, "key");
+                    assert_eq!(*operator, DataOperator::Equals("value"));
+                } else {
+                    assert!(false, "Subconstraint not as expected");
+                }
+            }
+        }
+    }
+    assert_eq!(count, 1, "Number of constraints");
+    Ok(())
+}
+
+#[test]
 fn query() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;

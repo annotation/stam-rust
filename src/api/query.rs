@@ -478,6 +478,31 @@ impl<'a> Constraint<'a> {
                     ));
                 }
             }
+            Some("[") => {
+                let mut subconstraints: Vec<Constraint<'a>> = Vec::new();
+                querystring = querystring[1..].trim_start();
+                loop {
+                    let (subconstraint, remainder) = Self::parse(querystring)?;
+                    subconstraints.push(subconstraint);
+                    let remainder = remainder.trim_start();
+                    if remainder.starts_with("OR ") {
+                        querystring = &remainder[3..];
+                        continue;
+                    } else if remainder.starts_with("]") {
+                        querystring = &remainder[1..];
+                        break;
+                    } else if remainder.is_empty() {
+                        querystring = remainder;
+                        break;
+                    } else {
+                        return Err(StamError::QuerySyntaxError(
+                            format!("Expected OR or ] , got '{}'", remainder),
+                            "Parsing [ ] block failed",
+                        ));
+                    }
+                }
+                Self::Union(subconstraints)
+            }
             Some(x) => {
                 return Err(StamError::QuerySyntaxError(
                     format!("Expected constraint type (DATA, TEXT), got '{}'", x),
@@ -2496,6 +2521,7 @@ fn get_arg_type(s: &str) -> ArgType {
     }
 }
 
+// returns (argument,remainder,type)
 fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), StamError> {
     let mut quote = false;
     let mut escaped = false;
@@ -2508,13 +2534,21 @@ fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), Stam
             } else {
                 return Ok((
                     &querystring[begin..i],
-                    &querystring[i + 1..]
-                        .trim_start_matches(|c| c == ';' || c == ' ' || c == '\t' || c == '\n'),
+                    &querystring[i + 1..].trim_start_matches(|c| {
+                        c == ';' || c == ' ' || c == ']' || c == '\t' || c == '\n'
+                    }),
                     ArgType::String,
                 ));
             }
         }
-        if !quote && (c == ';' || c == ' ' || c == '\n' || c == '\t') {
+        if !quote && querystring[i..].starts_with(" OR ") {
+            let arg = &querystring[0..i];
+            return Ok((
+                arg,
+                &querystring[i + 1..i + 4].trim_start(),
+                get_arg_type(arg),
+            ));
+        } else if !quote && (c == ';' || c == ' ' || c == ']' || c == '\n' || c == '\t') {
             let arg = &querystring[0..i];
             return Ok((arg, &querystring[i + 1..].trim_start(), get_arg_type(arg)));
         }
