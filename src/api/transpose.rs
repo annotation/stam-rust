@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 
-use crate::api::*;
+use crate::{api::*, ResultTextSelection};
 use crate::datavalue::DataValue;
 use crate::selector::{Offset, OffsetMode, SelectorBuilder};
+use crate::text::Text;
 use crate::textselection::ResultTextSelectionSet;
 use crate::AnnotationBuilder;
 use crate::StamError;
@@ -41,6 +42,9 @@ pub struct TransposeConfig {
     /// Identifiers to assign to the annotation (if not set, random ones will be generated)
     /// The indices correspond to the various sides of the transposition that is being transposed over (in the same order, minus the source)
     pub target_side_ids: Vec<String>,
+
+    /// Disable sanity check (increases performance)
+    pub debug: bool,
 }
 
 #[derive(Clone)]
@@ -122,7 +126,8 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             } else {
                 None
             };
-        let mut relative_offsets: Vec<Offset> = Vec::new();
+        let mut relative_offsets: Vec<(usize,Offset)> = Vec::new(); //first integer is the sequence number of the text selection (in a particular side)
+        let mut source_textselections = Vec::new(); //Only used for verification when !config.no_check
         // Found (source) or mapped (target) text selections per side, the first index corresponds to a side
         let mut selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]> = SmallVec::new();
 
@@ -131,57 +136,96 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         let mut simple_transposition = true; //falsify
         let mut resegment = false;
 
-        let mut tselbuffer: VecDeque<(TextSelection, usize)> =
-            self.inner().iter().map(|x| (x.clone(), 0)).collect(); //MAYBE TODO: slightly waste of time/space if the transposition turns out to be a simple transposition rather than a complex one
+        let mut tselbuffer: VecDeque<TextSelection> =
+            self.inner().iter().map(|x| x.clone()).collect(); //MAYBE TODO: slightly waste of time/space if the transposition turns out to be a simple transposition rather than a complex one
 
-        // match the textselectionset against the sides in a complex transposition (or ascertain that we are dealing with a simple transposition instead)
-        // the source side that matches can never be the same as the target side that is mappped to
-        while let Some((tsel, remainder_begin)) = tselbuffer.pop_front() {
+        if config.debug {
+            eprintln!("[stam transpose] ----------------------------");
+        }
+
+
+        // match the current textselectionset against all the sides in a complex transposition (or ascertain
+        // that we are dealing with a simple transposition instead) the source side that matches
+        // can never be the same as the target side that is mappped to
+        while let Some(tsel) = tselbuffer.pop_front() {
+
+            // iterate over all the sides
             for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
             {
                 simple_transposition = false;
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
                 }
-                if let Some(refset) = annotation.textselectionset_in(self.resource()) {
-                    // We may have multiple text selections to transpose (all must be found)
-                    for reftsel in refset.iter() {
-                        if reftsel.resource() == resource
-                            && (source_side.is_none() || source_side == Some(side_i))
+
+                if config.debug {
+                    let tsel = ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,tsel.clone());
+                    eprintln!("[stam transpose] Looking for source fragment \"{}\" in side {}", tsel.text().replace("\n","\\n"), side_i);
+                }
+
+                // We may have multiple text selections to transpose (all must be found)
+                for (refseqnr, reftsel) in annotation.textselections().enumerate() {
+                    if reftsel.resource() == resource && source_side.is_none() || source_side == Some(side_i) //source side check
+                    {
+                        // get the intersection of our text selection (tsel) and the one from the reference set (reftsel)
+                        // this may be a partial match where we end up with a remainder containing
+                        // the rest of our initial text selection (tsel)
+                        if let Some((intersection, remainder, _)) =
+                            tsel.intersection(reftsel.inner())
                         {
-                            if let Some((intersection, remainder, _)) =
-                                tsel.intersection(reftsel.inner())
-                            {
+                            let relative_offset = intersection
+                                .relative_offset(reftsel.inner(), OffsetMode::default())
+                                .expect("intersection offset must be valid"); //the relative offset will be used to select target fragments later
+                            let source_offset: Offset = intersection.into();
+                            if let Some(remainder) = remainder {
+                                if remainder.begin() < intersection.begin() {
+                                    //not a valid intersection, skip to the next
+                                    relative_offsets.clear();
+                                    selectors_per_side[side_i].clear();
+                                    source_textselections.clear();
+                                    source_side = None;
+                                    source_found = false;
+                                    if config.debug {
+                                        eprintln!("[stam transpose] remainder preceeds intersection, bailing out...");
+                                    }
+                                    continue;
+                                }
+                                resegment = true;
+                                //the text selection was not matched/consumed entirely
+                                //add the remainder of the text selection back to the buffer
+                                tselbuffer
+                                    .push_front(remainder);
+                                if config.debug {
+                                    let tmp = ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,tsel.clone());
+                                    let remainder  = ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,remainder.clone());
+                                    eprintln!("[stam transpose] Found source fragment #{}: {:?} \"{}\" in \"{}\" with remainder \"{}\"", 
+                                        source_textselections.len(), 
+                                        &relative_offset, 
+                                        &tmp.text().replace("\n", "\\n"), 
+                                        &reftsel.text().replace("\n", "\\n"),
+                                        remainder.text().replace("\n","\\n")
+                                    );
+                                    source_textselections.push(ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,intersection.clone()));
+                                }
+                            } else {
                                 source_side = Some(side_i);
                                 source_found = true; //source_side might have been pre-set so we need this extra flag
-                                let relative_offset = intersection
-                                    .relative_offset(reftsel.inner(), OffsetMode::default())
-                                    .expect("intersection offset must be valid"); //the relative offset will be used to select target fragments later
-                                let mut source_offset: Offset = intersection.into();
-                                if remainder_begin > 0 {
-                                    //we may need to correct the source offset if we cut a source part in two
-                                    source_offset = source_offset
-                                        .shift(remainder_begin as isize)
-                                        .expect("transposition of offset must succeed");
+                                if config.debug {
+                                    let tmp = ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,tsel.clone());
+                                    eprintln!("[stam transpose] Found source fragment #{}: {:?} \"{}\" in \"{}\"", 
+                                        source_textselections.len(), 
+                                        &relative_offset, 
+                                        &tmp.text().replace("\n", "\\n"), 
+                                        &reftsel.text().replace("\n", "\\n"),
+                                    );
+                                    source_textselections.push(ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,intersection.clone()));
                                 }
-                                if let Some(remainder) = remainder {
-                                    if remainder.begin() < intersection.begin() {
-                                        //not a valid intersection, skip to the next
-                                        continue;
-                                    }
-                                    resegment = true;
-                                    //the text selection was not matched/consumed entirely
-                                    //add the remainder of the text selection back to the buffer
-                                    tselbuffer
-                                        .push_front((remainder, remainder.begin() - tsel.begin()));
-                                }
-                                relative_offsets.push(relative_offset);
-                                selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
-                                    resource.handle().into(),
-                                    source_offset,
-                                ));
-                                break;
                             }
+                            relative_offsets.push((refseqnr, relative_offset));
+                            selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
+                                resource.handle().into(),
+                                source_offset,
+                            ));
+                            break;
                         }
                     }
                 }
@@ -208,7 +252,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                             let relative_offset = intersection
                                 .relative_offset(reftsel.inner(), OffsetMode::default())
                                 .expect("intersection offset must be valid");
-                            relative_offsets.push(relative_offset);
+                            relative_offsets.push((0,relative_offset));
                             selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
                                 resource.handle().into(),
                                 intersection.into(),
@@ -246,7 +290,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     selectors_per_side.push(Vec::new());
                 }
                 if source_side != Some(side_i) {
-                    for offset in relative_offsets.iter() {
+                    for (_, offset) in relative_offsets.iter() {
                         let mapped_tsel = reftsel.textselection(&offset)?;
                         let mapped_selector: SelectorBuilder<'static> =
                             SelectorBuilder::TextSelector(
@@ -276,14 +320,31 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     selectors_per_side.push(Vec::new());
                 }
                 if source_side != Some(side_i) {
-                    for (reftsel, offset) in
-                        annotation.textselections().zip(relative_offsets.iter())
-                    {
-                        let resource = reftsel.resource().handle();
-                        let mapped_tsel = reftsel.textselection(&offset)?;
+                    for (j, (refseqnr, relative_offset)) in relative_offsets.iter().enumerate() {
+                        //select the text selection we seek
+                        let reftsel = annotation.textselections().nth(*refseqnr).expect("element must exist"); //MAYBE TODO: improve performance
+                        //select the proper subselection thereof
+                        let mapped_tsel = reftsel.textselection(&relative_offset)?;
+                        if config.debug {
+                            // extra sanity check
+                            let source_tsel = &source_textselections[j];
+                            if mapped_tsel.text() != source_tsel.text() {
+                                return Err(StamError::TransposeError(
+                                    format!(
+                                        "Transposition failed due to internal error! \"{}\" -> \"{}\" is invalid, relative offset {:?}, reference target text selection: \"{}\", transposed via {}",
+                                        source_tsel.text().replace("\n","\\n"),
+                                        mapped_tsel.text().replace("\n","\\n"),
+                                        &relative_offset,
+                                        reftsel.text().replace("\n","\\n"),
+                                        via.id().unwrap_or("(no-id)"),
+                                    ),
+                                    "(debug mode verification stage in transpose())",
+                                ));
+                            }
+                        }
                         let mapped_selector: SelectorBuilder<'static> =
                             SelectorBuilder::TextSelector(
-                                resource.into(),
+                                reftsel.resource().handle().into(),
                                 mapped_tsel.inner().into(),
                             );
                         selectors_per_side[side_i].push(mapped_selector);
@@ -292,11 +353,21 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             }
         }
 
+        if source_side.is_none() {
+            return Err(StamError::TransposeError(
+                    format!(
+                        "No source fragments were found in the complex transposition {}, unable to transpose (1)",
+                        via.id().unwrap_or("(no-id)"),
+                    ),
+                    "",
+            ));
+        }
+
         match selectors_per_side[source_side.expect("source side must exist at this point")].len() {
             0 => 
                 Err(StamError::TransposeError(
                     format!(
-                        "No source fragments were found in the complex transposition {}, unable to transpose",
+                        "No source fragments were found in the complex transposition {}, unable to transpose (2)",
                         via.id().unwrap_or("(no-id)"),
                     ),
                     "",
