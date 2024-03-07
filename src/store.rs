@@ -41,6 +41,13 @@ use crate::types::*;
 /// This is a low-level construct. Do not confuse with [`AnnotationStore`].
 pub type Store<T> = Vec<Option<T>>;
 
+const ID_LEN: usize = 21;
+const ID_ALPHABET: [char; 62] = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i',
+    'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B',
+    'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U',
+    'V', 'W', 'X', 'Y', 'Z',
+];
 /// A map mapping public IDs to internal ids, implemented as a HashMap.
 /// Used to resolve public IDs to internal ones.
 #[derive(Debug, Clone, DataSize, Decode, Encode)]
@@ -1687,7 +1694,7 @@ pub(crate) fn resolve_temp_id(id: &str) -> Option<usize> {
 /// Generate an ID with a random 21-byte and ID/URI-safe component
 /// This does no collision check (but they will be *extremely* unlikely)
 pub fn generate_id(prefix: &str, suffix: &str) -> String {
-    format!("{}{}{}", prefix, nanoid!(), suffix)
+    format!("{}{}{}", prefix, nanoid!(ID_LEN, &ID_ALPHABET), suffix)
 }
 
 #[derive(Clone, Debug)]
@@ -1713,7 +1720,7 @@ pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
             format!("{}{}", id, s)
         }
         IdStrategy::AddRandomSuffix => {
-            format!("{}{}", id, nanoid!())
+            format!("{}{}", id, nanoid!(ID_LEN, &ID_ALPHABET))
         }
         IdStrategy::AddPrefix(s) => {
             format!("{}{}", s, id)
