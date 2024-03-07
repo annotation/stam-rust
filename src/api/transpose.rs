@@ -72,7 +72,7 @@ impl<'store> Transposable<'store> for ResultItem<'store, Annotation> {
         mut config: TransposeConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         if let Some(tset) = self.textselectionset() {
-            if config.source_side_id.is_none() {
+            if config.source_side_id.is_none() && self.id().is_some() {
                 config.source_side_id = Some(
                     self.id()
                         .map(|x| x.to_string())
@@ -327,8 +327,10 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     .transposition_id
                     .clone()
                     .unwrap_or_else(|| generate_id("transposition-", ""));
-                let mut subselectors: Vec<SelectorBuilder<'static>> = Vec::new();
+                let mut transposition_selectors: Vec<SelectorBuilder<'static>> = Vec::new();
                 let mut target_id_iter = config.target_side_ids.into_iter();
+
+                // ID for the source annotation in the transposition
                 let source_id = if resegment {
                     generate_id("", "-transpositionsource")
                 } else {
@@ -352,7 +354,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 .with_target(SelectorBuilder::DirectionalSelector(selectors)),
                         );
                         if !config.no_transposition {
-                            subselectors
+                            transposition_selectors
                                 .push(SelectorBuilder::AnnotationSelector(side_id.into(), None));
                         }
                     } else {
@@ -396,8 +398,28 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                         ])),
                                 );
                             }
+                        } else {
+                            if !self.rootstore().annotation(source_id.as_str()).is_some() {
+                                if !config.existing_source_side {
+                                    //add a copied source annotation (will be the source side of the transposition):
+                                    //this occurs if the original one has no ID to link to
+                                    builders.push(
+                                        AnnotationBuilder::new()
+                                            .with_id(source_id.clone())
+                                            .with_target(SelectorBuilder::DirectionalSelector(selectors)),
+                                    );
+                                } else {
+                                    return Err(StamError::TransposeError(
+                                        format!(
+                                            "Expected existing source annotation with ID {}",
+                                            source_id.as_str(),
+                                        ),
+                                        "",
+                                    ));
+                                }
+                            }
                         }
-                        subselectors.push(SelectorBuilder::AnnotationSelector(
+                        transposition_selectors.push(SelectorBuilder::AnnotationSelector(
                             source_id.clone().into(),
                             None,
                         ));
@@ -412,7 +434,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 "Transposition",
                                 DataValue::Null,
                             )
-                            .with_target(SelectorBuilder::DirectionalSelector(subselectors)),
+                            .with_target(SelectorBuilder::DirectionalSelector(transposition_selectors)),
                     );
                 }
                 Ok(builders)
