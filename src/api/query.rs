@@ -4,11 +4,11 @@ use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
 use crate::textselection::TextSelectionOperator;
+use crate::{api::*, Configurable};
 use crate::{store::*, ResultTextSelection};
 use crate::{types::*, DataOperator};
 use crate::{TextResource, TextResourceHandle};
@@ -1201,863 +1201,55 @@ impl<'store> QueryIter<'store> {
     pub(crate) fn init_state(&mut self) -> Result<bool, StamError> {
         let queryindex = self.statestack.len();
         let query = self.queries.get(queryindex).expect("query must exist");
-        let store = self.store();
         let mut constraintsiter = query.constraints.iter();
 
         let iter = match query.resulttype {
-            ///////////////////////////// target= RESOURCE ////////////////////////////////////////////
             Some(Type::TextResource) => {
-                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, TextResource>>> =
-                    match constraintsiter.next() {
-                        Some(&Constraint::Id(id)) | Some(&Constraint::TextResource(id,_)) => {
-                            Box::new(Some(store.resource(id).or_fail()?).into_iter())
-                        }
-                        Some(&Constraint::Resources(ref handles,_)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
-                        }
-                        Some(&Constraint::Annotations(ref handles, SelectionQualifier::Normal, _)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).resources())
-                        }
-                        Some(&Constraint::Annotations(ref handles, SelectionQualifier::Metadata, _)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).resources_as_metadata())
-                        }
-                        Some(&Constraint::DataKey { set, key, qualifier: SelectionQualifier::Normal }) => Box::new(
-                            store
-                                .key(set, key).or_fail()?
-                                .annotations()
-                                .resources(),
-                        ),
-                        //KEY AS METADATA
-                        Some(&Constraint::DataKey { set, key, qualifier: SelectionQualifier::Metadata }) => Box::new(
-                            store
-                                .key(set, key).or_fail()?
-                                .annotations()
-                                .resources_as_metadata(),
-                        ),
-                        Some(&Constraint::DataVariable(var, SelectionQualifier::Normal)) => {
-                            let data = self.resolve_datavar(var)?;
-                            Box::new(data.annotations().resources())
-                        }
-                        //DATA AS METADATA
-                        Some(&Constraint::DataVariable(var, SelectionQualifier::Metadata)) => {
-                            let data = self.resolve_datavar(var)?;
-                            Box::new(data.annotations().resources_as_metadata())
-                        }
-                        Some(&Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: SelectionQualifier::Normal,
-                        }) => Box::new(
-                            store
-                                .find_data(set, key, operator.clone())
-                                .annotations()
-                                .resources(),
-                        ),
-                        Some(&Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: SelectionQualifier::Metadata,
-                        }) => Box::new(
-                            store
-                                .find_data(set, key, operator.clone())
-                                .annotations()
-                                .resources_as_metadata(),
-                        ),
-                        Some(&Constraint::KeyValueVariable(varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        )) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            Box::new(
-                                 key.data().filter_value(operator.clone()).annotations().resources()
-                            )
-                        },
-                        Some(&Constraint::KeyValueVariable(varname,
-                            ref operator,
-                            SelectionQualifier::Metadata,
-                        )) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            Box::new(
-                                 key.data().filter_value(operator.clone()).annotations().resources_as_metadata()
-                            )
-                        },
-                        Some(c) => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (primary) is not implemented for queries over resources",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                        None => Box::new(store.resources()),
-                    };
-                //secondary contraints for target RESOURCE
+                let mut iter = self.init_state_resources(constraintsiter.next())?;
                 while let Some(constraint) = constraintsiter.next() {
-                    match constraint {
-                        &Constraint::DataKey { set, key, qualifier: SelectionQualifier::Metadata } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key_in_metadata(&key));
-                        }
-                        &Constraint::DataKey { set, key, qualifier: SelectionQualifier::Normal } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key_on_text(&key));
-                        }
-                        &Constraint::KeyVariable(var, SelectionQualifier::Metadata) => {
-                            let key = self.resolve_keyvar(var)?;
-                            iter = Box::new(iter.filter_key_in_metadata(&key));
-                        }
-                        &Constraint::KeyVariable(var, SelectionQualifier::Normal) => {
-                            let key = self.resolve_keyvar(var)?;
-                            iter = Box::new(iter.filter_key_on_text(&key));
-                        }
-                        &Constraint::DataVariable(var, SelectionQualifier::Metadata) => {
-                            let data = self.resolve_datavar(var)?;
-                            iter = Box::new(iter.filter_annotationdata_in_metadata(&data));
-                        }
-                        &Constraint::DataVariable(var, SelectionQualifier::Normal) => {
-                            let data = self.resolve_datavar(var)?;
-                            iter = Box::new(iter.filter_annotationdata_on_text(&data));
-                        }
-                        &Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: SelectionQualifier::Metadata,
-                        } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key_value_in_metadata(&key, operator.clone()));
-                        }
-                        &Constraint::KeyValueVariable(varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        ) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            iter = Box::new(
-                                 iter.filter_key_value_on_text(&key, operator.clone())
-                            )
-                        },
-                        &Constraint::KeyValueVariable(varname,
-                            ref operator,
-                            SelectionQualifier::Metadata,
-                        ) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            iter = Box::new(
-                                 iter.filter_key_value_in_metadata(&key, operator.clone())
-                            )
-                        },
-                        c => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (secondary) is not implemented for queries over resources",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                    }
+                    iter = self.update_state_resources(constraint, iter)?;
                 }
                 Ok(QueryResultIter::Resources(iter))
             }
             ///////////////////////////// target= ANNOTATION ////////////////////////////////////////////
             Some(Type::Annotation) => {
-                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, Annotation>>> =
-                    //primary constraints for ANNOTATION
-                    match constraintsiter.next() {
-                        Some(&Constraint::Id(id)) => {
-                            Box::new(Some(store.annotation(id).or_fail()?).into_iter())
-                        }
-                        Some(&Constraint::Annotations(ref handles,SelectionQualifier::Normal,AnnotationDepth::Zero)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
-                        }
-                        Some(&Constraint::Annotations(ref handles,SelectionQualifier::Normal,depth)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).annotations_in_targets(depth))
-                        }
-                        Some(&Constraint::Annotations(ref handles,SelectionQualifier::Metadata, AnnotationDepth::One)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).annotations())
-                        }
-                        Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Normal, depth)) => {
-                            let annotation = self.resolve_annotationvar(var)?;
-                            Box::new(annotation.annotations_in_targets(depth))
-                        }
-                        Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Metadata, AnnotationDepth::One)) => { //TODO LATER: handle Recursive variant?
-                            let annotation = self.resolve_annotationvar(var)?;
-                            Box::new(annotation.annotations())
-                        }
-                        Some(&Constraint::TextResource(res, SelectionQualifier::Normal)) => {
-                            Box::new(store.resource(res).or_fail()?.annotations())
-                        }
-                        Some(&Constraint::TextResource(res, SelectionQualifier::Metadata)) => {
-                            Box::new(store.resource(res).or_fail()?.annotations_as_metadata())
-                        }
-                        Some(&Constraint::ResourceVariable(var, SelectionQualifier::Normal)) => {
-                            let resource = self.resolve_resourcevar(var)?;
-                            Box::new(resource.annotations())
-                        }
-                        Some(&Constraint::ResourceVariable(var, SelectionQualifier::Metadata)) => {
-                            let resource = self.resolve_resourcevar(var)?;
-                            Box::new(resource.annotations_as_metadata())
-                        }
-                        Some(&Constraint::Annotation(annotation, SelectionQualifier::Normal, depth)) => {
-                            Box::new(store.annotation(annotation).or_fail()?.annotations_in_targets(depth))
-                        }
-                        Some(&Constraint::Annotation(annotation, SelectionQualifier::Metadata, AnnotationDepth::One)) => {
-                            Box::new(store.annotation(annotation).or_fail()?.annotations())
-                        }
-                        Some(&Constraint::DataKey { set, key, qualifier: SelectionQualifier::Normal }) => {
-                            Box::new(store.key(set, key).or_fail()?.annotations())
-                        }
-                        Some(&Constraint::DataVariable(var, SelectionQualifier::Normal)) => {
-                            let data = self.resolve_datavar(var)?;
-                            Box::new(data.annotations())
-                        }
-                        Some(&Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: _,
-                        }) => Box::new(store.find_data(set, key, operator.clone()).annotations()),
-                        Some(&Constraint::Value(
-                            ref operator,
-                            _
-                        )) => Box::new(store.find_data(false, false, operator.clone()).annotations()),
-                        Some(&Constraint::Text(text, TextMode::Exact)) => {
-                            Box::new(store.find_text(text).annotations())
-                        }
-                        Some(&Constraint::Text(text, TextMode::CaseInsensitive)) => {
-                            Box::new(store.find_text_nocase(text).annotations())
-                        }
-                        Some(Constraint::Regex(_regex)) => {
-                            todo!("regex constraint not implemented yet"); //TODO
-                            //Box::new(store.find_text_regex(&regex).annotations())
-                        }
-                        Some(&Constraint::TextVariable(var)) => {
-                            if let Ok(tsel) = self.resolve_textvar(var) {
-                                Box::new(tsel.annotations())
-                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                Box::new(annotation.textselections().annotations())
-                            } else {
-                                return Err(StamError::QuerySyntaxError(
-                                    format!(
-                                        "Variable ?{} of type TEXT or ANNOTATION not found",
-                                        var
-                                    ),
-                                    "",
-                                ));
-                            }
-                        }
-                        Some(&Constraint::TextSelections(ref handles,SelectionQualifier::Normal)) => {
-                            Box::new(ResultTextSelections::new(FromHandles::new(handles.clone().into_iter(), store)).annotations())
-                        }
-                        Some(&Constraint::KeyValueVariable(varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        )) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            Box::new(
-                                 key.data().filter_value(operator.clone()).annotations()
-                            )
-                        },
-                        Some(&Constraint::TextRelation { var, operator }) => {
-                            if let Ok(tsel) = self.resolve_textvar(var) {
-                                Box::new(tsel.related_text(operator).annotations())
-                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                Box::new(
-                                    annotation
-                                        .textselections()
-                                        .related_text(operator)
-                                        .annotations(),
-                                )
-                            } else {
-                                return Err(StamError::QuerySyntaxError(
-                                    format!(
-                                        "Variable ?{} of type TEXT or ANNOTATION not found",
-                                        var
-                                    ),
-                                    "",
-                                ));
-                            }
-                        }
-                        Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
-                        Some(c) => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (primary) is not implemented for queries over annotations",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                        None => Box::new(store.annotations()),
-                    };
-                //secondary contraints for target ANNOTATION
+                let mut iter = self.init_state_annotations(constraintsiter.next())?;
                 while let Some(constraint) = constraintsiter.next() {
-                    match constraint {
-                        &Constraint::TextResource(res, SelectionQualifier::Normal) => {
-                            iter = Box::new(iter.filter_resource(&store.resource(res).or_fail()?));
-                        }
-                        &Constraint::TextResource(res, SelectionQualifier::Metadata) => {
-                            iter = Box::new(
-                                iter.filter_resource_as_metadata(&store.resource(res).or_fail()?),
-                            );
-                        }
-                        &Constraint::ResourceVariable(varname, SelectionQualifier::Normal) => {
-                            let resource = self.resolve_resourcevar(varname)?;
-                            iter = Box::new(iter.filter_resource(resource));
-                        }
-                        &Constraint::ResourceVariable(varname, SelectionQualifier::Metadata) => {
-                            let resource = self.resolve_resourcevar(varname)?;
-                            iter = Box::new(iter.filter_resource_as_metadata(resource));
-                        }
-                        &Constraint::AnnotationVariable(
-                            var,
-                            SelectionQualifier::Normal,
-                            AnnotationDepth::One,
-                        ) => {
-                            let annotation = self.resolve_annotationvar(var)?;
-                            iter = Box::new(iter.filter_annotation(annotation));
-                        }
-                        &Constraint::AnnotationVariable(var, _, AnnotationDepth::Zero) => {
-                            let annotation = self.resolve_annotationvar(var)?;
-                            iter = Box::new(iter.filter_one(annotation));
-                        }
-                        &Constraint::AnnotationVariable(
-                            var,
-                            SelectionQualifier::Metadata,
-                            depth,
-                        ) => {
-                            let annotation = self.resolve_annotationvar(var)?;
-                            iter = Box::new(iter.filter_annotation_in_targets(annotation, depth));
-                        }
-                        &Constraint::DataVariable(varname, SelectionQualifier::Normal) => {
-                            let data = self.resolve_datavar(varname)?;
-                            iter = Box::new(iter.filter_annotationdata(data));
-                        }
-                        &Constraint::DataKey {
-                            set,
-                            key,
-                            qualifier: SelectionQualifier::Normal,
-                        } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key(&key));
-                        }
-                        &Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: SelectionQualifier::Normal,
-                        } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key_value(&key, operator.clone()));
-                        }
-                        &Constraint::Value(ref operator, SelectionQualifier::Normal) => {
-                            iter = Box::new(iter.filter_value(operator.clone()));
-                        }
-                        &Constraint::KeyValueVariable(
-                            varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        ) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            iter = Box::new(iter.filter_key_value(&key, operator.clone()))
-                        }
-                        &Constraint::Text(text, TextMode::Exact) => {
-                            iter = Box::new(iter.filter_text_byref(text, true, " "))
-                        }
-                        &Constraint::Text(text, TextMode::CaseInsensitive) => {
-                            iter = Box::new(iter.filter_text_byref(text, false, " "))
-                        }
-                        Constraint::Regex(regex) => {
-                            iter = Box::new(iter.filter_text_regex(regex.clone(), " "))
-                        }
-                        &Constraint::TextVariable(var) => {
-                            if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter =
-                                    Box::new(iter.filter_any(tsel.annotations().to_handles(store)))
-                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                iter = Box::new(iter.filter_any(
-                                    annotation.textselections().annotations().to_handles(store),
-                                ))
-                            } else {
-                                return Err(StamError::QuerySyntaxError(
-                                    format!(
-                                        "Variable ?{} of type TEXT or ANNOTATION not found",
-                                        var
-                                    ),
-                                    "",
-                                ));
-                            }
-                        }
-                        &Constraint::TextRelation { var, operator } => {
-                            if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter = Box::new(iter.filter_any(
-                                    tsel.related_text(operator).annotations().to_handles(store),
-                                ))
-                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                iter = Box::new(
-                                    iter.filter_any(
-                                        annotation
-                                            .textselections()
-                                            .related_text(operator)
-                                            .annotations()
-                                            .to_handles(store),
-                                    ),
-                                )
-                            } else {
-                                return Err(StamError::QuerySyntaxError(
-                                    format!(
-                                        "Variable ?{} of type TEXT or ANNOTATION not found",
-                                        var
-                                    ),
-                                    "",
-                                ));
-                            }
-                        }
-                        &Constraint::Annotation(
-                            annotation,
-                            SelectionQualifier::Normal,
-                            AnnotationDepth::One,
-                        ) => {
-                            iter = Box::new(
-                                iter.filter_annotation(&store.annotation(annotation).or_fail()?),
-                            );
-                        }
-                        &Constraint::Annotation(annotation, _, AnnotationDepth::Zero) => {
-                            iter =
-                                Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?));
-                        }
-                        &Constraint::Annotation(
-                            annotation,
-                            SelectionQualifier::Metadata,
-                            depth,
-                        ) => {
-                            iter = Box::new(iter.filter_annotation_in_targets(
-                                &store.annotation(annotation).or_fail()?,
-                                depth,
-                            ));
-                        }
-                        c => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} is not implemented for queries over annotations",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                    }
+                    iter = self.update_state_annotations(constraint, iter)?;
                 }
                 Ok(QueryResultIter::Annotations(iter))
             }
             /////////////////////////////////// target=TEXT //////////////////////////////////////
             Some(Type::TextSelection) => {
-                let mut iter: Box<dyn Iterator<Item = ResultTextSelection<'store>>> =
-                    match constraintsiter.next() {
-                        Some(&Constraint::TextSelections(ref handles,_)) => {
-                            Box::new(ResultTextSelections::new(FromHandles::new(handles.clone().into_iter(), store)))
-                        }
-                        Some(&Constraint::TextVariable(varname)) => {
-                            let textselection = self.resolve_textvar(varname)?;
-                            Box::new(Some(textselection.clone()).into_iter())
-                        }
-                        Some(&Constraint::Annotations(ref handles,_,_)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).textselections())
-                        }
-                        Some(&Constraint::TextResource(res,_)) => {
-                            Box::new(store.resource(res).or_fail()?.textselections())
-                        }
-                        Some(&Constraint::ResourceVariable(varname,_)) => {
-                            let resource = self.resolve_resourcevar(varname)?;
-                            Box::new(resource.textselections())
-                        }
-                        Some(&Constraint::Annotation(id,_,_)) => {
-                            Box::new(store.annotation(id).or_fail()?.textselections())
-                        }
-                        Some(&Constraint::AnnotationVariable(varname,_,_)) => {
-                            let annotation = self.resolve_annotationvar(varname)?;
-                            Box::new(annotation.textselections())
-                        }
-                        Some(&Constraint::DataKey { set, key, qualifier: _ }) => Box::new(
-                            store
-                                .find_data(set, key, DataOperator::Any)
-                                .annotations()
-                                .textselections(),
-                        ),
-                        Some(&Constraint::DataVariable(varname,_)) => {
-                            let data = self.resolve_datavar(varname)?;
-                            Box::new(data.annotations().textselections())
-                        }
-                        Some(&Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: _,
-                        }) => Box::new(
-                            store
-                                .find_data(set, key, operator.clone())
-                                .annotations()
-                                .textselections(),
-                        ),
-                        Some(&Constraint::KeyValueVariable(varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        )) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            Box::new(
-                                 key.data().filter_value(operator.clone()).annotations().textselections()
-                            )
-                        },
-                        Some(&Constraint::Value(
-                            ref operator,
-                            _
-                        )) => Box::new(
-                            store
-                                .find_data(false, false, operator.clone())
-                                .annotations()
-                                .textselections(),
-                        ),
-                        Some(&Constraint::Text(text, TextMode::Exact)) => Box::new(store.find_text(text)),
-                        Some(&Constraint::Text(text, TextMode::CaseInsensitive)) => Box::new(store.find_text_nocase(&text.to_lowercase())),
-                        Some(&Constraint::TextRelation { var, operator }) => {
-                            if let Ok(tsel) = self.resolve_textvar(var) {
-                                Box::new(tsel.related_text(operator))
-                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                Box::new(annotation.textselections().related_text(operator))
-                            } else {
-                                return Err(StamError::QuerySyntaxError(
-                                    format!(
-                                        "Variable ?{} of type TEXT or ANNOTATION not found",
-                                        var
-                                    ),
-                                    "",
-                                ));
-                            }
-                        }
-                        Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
-                        Some(c) => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (primary) is not implemented for queries over TEXT selections",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                        None => Box::new(store.annotations().textselections()),
-                    };
-                //secondary contraints for target TEXT
+                let mut iter = self.init_state_textselections(constraintsiter.next())?;
                 while let Some(constraint) = constraintsiter.next() {
-                    match constraint {
-                        &Constraint::TextResource(res,_) => {
-                            iter = Box::new(iter.filter_resource(&store.resource(res).or_fail()?));
-                        }
-                        &Constraint::ResourceVariable(varname,_) => {
-                            let resource = self.resolve_resourcevar(varname)?;
-                            iter = Box::new(iter.filter_resource(&resource));
-                        }
-                        &Constraint::DataKey { set, key, qualifier: _ } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key(&key));
-                        }
-                        &Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: _,
-                        } => {
-                            let key = store.key(set, key).or_fail()?;
-                            iter = Box::new(iter.filter_key_value(&key, operator.clone()));
-                        }
-                        &Constraint::KeyValueVariable(
-                            varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        ) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            iter = Box::new(iter.filter_key_value(&key, operator.clone()))
-                        }
-                        &Constraint::Value(
-                            ref operator,
-                            _
-                        ) => {
-                            iter = Box::new(iter.filter_value(operator.clone()));
-                        }
-                        &Constraint::Text(text, TextMode::Exact) => {
-                            iter = Box::new(iter.filter_text_byref(text, true))
-                        }
-                        &Constraint::Text(text, TextMode::CaseInsensitive) => {
-                            iter = Box::new(iter.filter_text_byref(text, false))
-                        }
-                        Constraint::Regex(regex) => {
-                            iter = Box::new(iter.filter_text_regex(regex.clone()))
-                        }
-                        &Constraint::TextRelation { var, operator } => {
-                            if let Ok(tsel) = self.resolve_textvar(var) {
-                                iter = Box::new(iter.filter_any(tsel.related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)))
-                            } else if let Ok(annotation) = self.resolve_annotationvar(var) {
-                                iter = Box::new(iter.filter_any(
-                                    annotation.textselections().related_text(operator).filter_map(|x| x.as_resultitem().map(|x| x.clone())).to_handles(store)
-                                ))
-                            } else {
-                                return Err(StamError::QuerySyntaxError(
-                                    format!(
-                                        "Variable ?{} of type TEXT or ANNOTATION not found",
-                                        var
-                                    ),
-                                    "",
-                                ));
-                            }
-                        }
-                        c => return Err(StamError::QuerySyntaxError(
-                            format!(
-                                "Constraint {} (secondary) is not implemented for queries over TEXT selections",
-                                c.keyword()
-                            ),
-                            "",
-                        )),
-                    }
+                    iter = self.update_state_textselections(constraint, iter)?;
                 }
                 Ok(QueryResultIter::TextSelections(iter))
             }
             ///////////////////////////////// target= DATA ////////////////////////////////////////
             Some(Type::AnnotationData) => {
-                let mut iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>>> =
-                    match constraintsiter.next() {
-                        Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
-                            let data = self.resolve_datavar(varname)?;
-                            Box::new(Some(data.clone()).into_iter())
-                        }
-                        Some(&Constraint::Data(ref handles, _)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
-                        }
-                        Some(&Constraint::Annotations(ref handles, _, _)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).data())
-                        }
-                        Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
-                            Box::new(store.annotation(id).or_fail()?.data())
-                        }
-                        Some(&Constraint::AnnotationVariable(
-                            varname,
-                            SelectionQualifier::Normal,
-                            _,
-                        )) => {
-                            let annotation = self.resolve_annotationvar(varname)?;
-                            Box::new(annotation.data())
-                        }
-                        Some(&Constraint::TextVariable(varname)) => {
-                            let textselection = self.resolve_textvar(varname)?;
-                            Box::new(textselection.annotations().data())
-                        }
-                        Some(&Constraint::TextSelections(
-                            ref handles,
-                            SelectionQualifier::Normal,
-                        )) => Box::new(
-                            ResultTextSelections::new(FromHandles::new(
-                                handles.clone().into_iter(),
-                                store,
-                            ))
-                            .annotations()
-                            .data(),
-                        ),
-                        Some(&Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: SelectionQualifier::Normal,
-                        }) => store.find_data(set, key, operator.clone()),
-                        Some(&Constraint::Value(ref operator, SelectionQualifier::Normal)) => {
-                            store.find_data(false, false, operator.clone())
-                        }
-                        Some(&Constraint::KeyValueVariable(
-                            varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        )) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            Box::new(key.data().filter_value(operator.clone()))
-                        }
-                        Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            Box::new(key.data())
-                        }
-                        Some(&Constraint::DataKey {
-                            set,
-                            key,
-                            qualifier: SelectionQualifier::Normal,
-                        }) => Box::new(store.key(set, key).or_fail()?.data()),
-                        Some(&Constraint::DataSet(id, SelectionQualifier::Normal)) => {
-                            Box::new(store.dataset(id).or_fail()?.data())
-                        }
-                        Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
-                            let dataset = self.resolve_datasetvar(varname)?;
-                            Box::new(dataset.data())
-                        }
-                        Some(c) => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (primary) is not valid for DATA return type",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                        None => Box::new(store.data()),
-                    };
-                //secondary contraints for target DATA
+                let mut iter = self.init_state_data(constraintsiter.next())?;
                 while let Some(constraint) = constraintsiter.next() {
-                    match constraint {
-                        &Constraint::KeyValue {
-                            set,
-                            key,
-                            ref operator,
-                            qualifier: SelectionQualifier::Normal,
-                        } => {
-                            iter = Box::new(
-                                iter.filter_any(
-                                    store
-                                        .find_data(set, key, operator.clone())
-                                        .to_handles(store),
-                                ),
-                            );
-                        }
-                        &Constraint::Value(
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        ) => {
-                            iter = Box::new(
-                                iter.filter_value(operator.clone())
-                            );
-                        }
-                        &Constraint::KeyValueVariable(
-                            varname,
-                            ref operator,
-                            SelectionQualifier::Normal,
-                        ) => {
-                            let key = self.resolve_keyvar(varname)?;
-                            iter = Box::new(iter.filter_key(&key).filter_value(operator.clone()))
-                        }
-                        &Constraint::AnnotationVariable(
-                            varname,
-                            SelectionQualifier::Normal,
-                            _,
-                        ) => {
-                            let annotation = self.resolve_annotationvar(varname)?;
-                            iter = Box::new(iter.filter_annotation(annotation));
-                        }
-                        c => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (secondary) is not implemented for queries over DATA",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                    }
+                    iter = self.update_state_data(constraint, iter)?;
                 }
                 Ok(QueryResultIter::Data(iter))
             }
             ///////////////////////////////// target= KEY ////////////////////////////////////////
             Some(Type::DataKey) => {
-                let iter: Box<dyn Iterator<Item = ResultItem<'store, DataKey>>> =
-                    match constraintsiter.next() {
-                        Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
-                            let data = self.resolve_keyvar(varname)?;
-                            Box::new(Some(data.clone()).into_iter())
-                        }
-                        Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
-                            let data = self.resolve_datavar(varname)?;
-                            Box::new(Some(data.key().clone()).into_iter())
-                        }
-                        Some(&Constraint::Keys(ref handles, _)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store))
-                        }
-                        Some(&Constraint::Annotations(ref handles, _, _)) => {
-                            Box::new(FromHandles::new(handles.clone().into_iter(), store).keys())
-                        }
-                        Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
-                            Box::new(store.annotation(id).or_fail()?.keys())
-                        }
-                        Some(&Constraint::AnnotationVariable(
-                            varname,
-                            SelectionQualifier::Normal,
-                            _,
-                        )) => {
-                            let annotation = self.resolve_annotationvar(varname)?;
-                            Box::new(annotation.keys())
-                        }
-                        Some(c) => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (primary) is not valid for KEY return type",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                        None => Box::new(store.keys()),
-                    };
+                let mut iter = self.init_state_keys(constraintsiter.next())?;
                 //secondary contraints for target KEY
                 while let Some(constraint) = constraintsiter.next() {
-                    match constraint {
-                        c => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                "Constraint {} (secondary) is not implemented for queries over KEY",
-                                c.keyword()
-                            ),
-                                "",
-                            ))
-                        }
-                    }
+                    iter = self.update_state_keys(constraint, iter)?;
                 }
                 Ok(QueryResultIter::Keys(iter))
             }
             ///////////////////////////////// target= DATASET ////////////////////////////////////////
             Some(Type::AnnotationDataSet) => {
-                let iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>>> =
-                    match constraintsiter.next() {
-                        Some(&Constraint::Id(id)) | Some(&Constraint::DataSet(id, _)) => {
-                            Box::new(Some(store.dataset(id).or_fail()?).into_iter())
-                        }
-                        Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
-                            let dataset = self.resolve_datasetvar(varname)?;
-                            Box::new(Some(dataset.clone()).into_iter())
-                        }
-                        Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
-                            let data = self.resolve_keyvar(varname)?;
-                            Box::new(Some(data.set().clone()).into_iter())
-                        }
-                        Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
-                            let data = self.resolve_datavar(varname)?;
-                            Box::new(Some(data.set().clone()).into_iter())
-                        }
-                        Some(c) => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                    "Constraint {} (primary) is not valid for DATASET return type",
-                                    c.keyword()
-                                ),
-                                "",
-                            ))
-                        }
-                        None => Box::new(store.datasets()),
-                    };
+                let mut iter = self.init_state_datasets(constraintsiter.next())?;
                 //secondary contraints for target KEY
                 while let Some(constraint) = constraintsiter.next() {
-                    match constraint {
-                        c => {
-                            return Err(StamError::QuerySyntaxError(
-                                format!(
-                                "Constraint {} (secondary) is not implemented for queries over DATASET",
-                                c.keyword()
-                            ),
-                                "",
-                            ))
-                        }
-                    }
+                    iter = self.update_state_datasets(constraint, iter)?;
                 }
                 Ok(QueryResultIter::DataSets(iter))
             }
@@ -2145,6 +1337,902 @@ impl<'store> QueryIter<'store> {
         //mark as done (otherwise the iterator would restart from scratch again)
         self.done = true;
         false
+    }
+
+    /// Apply primary constraint for ANNOTATION result type
+    pub(crate) fn init_state_annotations(
+        &self,
+        constraint: Option<&Constraint<'store>>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>, StamError> {
+        let store: &'store AnnotationStore = self.store();
+        //primary constraints for ANNOTATION
+        Ok(match constraint {
+            Some(&Constraint::Id(id)) => {
+                Box::new(Some(store.annotation(id).or_fail()?).into_iter())
+            }
+            Some(&Constraint::Annotations(
+                ref handles,
+                SelectionQualifier::Normal,
+                AnnotationDepth::Zero,
+            )) => Box::new(FromHandles::new(handles.clone().into_iter(), store)),
+            Some(&Constraint::Annotations(ref handles, SelectionQualifier::Normal, depth)) => {
+                Box::new(
+                    FromHandles::new(handles.clone().into_iter(), store)
+                        .annotations_in_targets(depth),
+                )
+            }
+            Some(&Constraint::Annotations(
+                ref handles,
+                SelectionQualifier::Metadata,
+                AnnotationDepth::One,
+            )) => Box::new(FromHandles::new(handles.clone().into_iter(), store).annotations()),
+            Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Normal, depth)) => {
+                let annotation = self.resolve_annotationvar(var)?;
+                Box::new(annotation.annotations_in_targets(depth))
+            }
+            Some(&Constraint::AnnotationVariable(
+                var,
+                SelectionQualifier::Metadata,
+                AnnotationDepth::One,
+            )) => {
+                //TODO LATER: handle Recursive variant?
+                let annotation = self.resolve_annotationvar(var)?;
+                Box::new(annotation.annotations())
+            }
+            Some(&Constraint::TextResource(res, SelectionQualifier::Normal)) => {
+                Box::new(store.resource(res).or_fail()?.annotations())
+            }
+            Some(&Constraint::TextResource(res, SelectionQualifier::Metadata)) => {
+                Box::new(store.resource(res).or_fail()?.annotations_as_metadata())
+            }
+            Some(&Constraint::ResourceVariable(var, SelectionQualifier::Normal)) => {
+                let resource = self.resolve_resourcevar(var)?;
+                Box::new(resource.annotations())
+            }
+            Some(&Constraint::ResourceVariable(var, SelectionQualifier::Metadata)) => {
+                let resource = self.resolve_resourcevar(var)?;
+                Box::new(resource.annotations_as_metadata())
+            }
+            Some(&Constraint::Annotation(annotation, SelectionQualifier::Normal, depth)) => {
+                Box::new(
+                    store
+                        .annotation(annotation)
+                        .or_fail()?
+                        .annotations_in_targets(depth),
+                )
+            }
+            Some(&Constraint::Annotation(
+                annotation,
+                SelectionQualifier::Metadata,
+                AnnotationDepth::One,
+            )) => Box::new(store.annotation(annotation).or_fail()?.annotations()),
+            Some(&Constraint::DataKey {
+                set,
+                key,
+                qualifier: SelectionQualifier::Normal,
+            }) => Box::new(store.key(set, key).or_fail()?.annotations()),
+            Some(&Constraint::DataVariable(var, SelectionQualifier::Normal)) => {
+                let data = self.resolve_datavar(var)?;
+                Box::new(data.annotations())
+            }
+            Some(&Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: _,
+            }) => Box::new(store.find_data(set, key, operator.clone()).annotations()),
+            Some(&Constraint::Value(ref operator, _)) => Box::new(
+                store
+                    .find_data(false, false, operator.clone())
+                    .annotations(),
+            ),
+            Some(&Constraint::Text(text, TextMode::Exact)) => {
+                Box::new(store.find_text(text).annotations())
+            }
+            Some(&Constraint::Text(text, TextMode::CaseInsensitive)) => {
+                Box::new(store.find_text_nocase(text).annotations())
+            }
+            Some(Constraint::Regex(_regex)) => {
+                todo!("regex constraint not implemented yet"); //TODO
+                                                               //Box::new(store.find_text_regex(&regex).annotations())
+            }
+            Some(&Constraint::TextVariable(var)) => {
+                if let Ok(tsel) = self.resolve_textvar(var) {
+                    Box::new(tsel.annotations())
+                } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                    Box::new(annotation.textselections().annotations())
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                        "",
+                    ));
+                }
+            }
+            Some(&Constraint::TextSelections(ref handles, SelectionQualifier::Normal)) => Box::new(
+                ResultTextSelections::new(FromHandles::new(handles.clone().into_iter(), store))
+                    .annotations(),
+            ),
+            Some(&Constraint::KeyValueVariable(
+                varname,
+                ref operator,
+                SelectionQualifier::Normal,
+            )) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(key.data().filter_value(operator.clone()).annotations())
+            }
+            Some(&Constraint::TextRelation { var, operator }) => {
+                if let Ok(tsel) = self.resolve_textvar(var) {
+                    Box::new(tsel.related_text(operator).annotations())
+                } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                    Box::new(
+                        annotation
+                            .textselections()
+                            .related_text(operator)
+                            .annotations(),
+                    )
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                        "",
+                    ));
+                }
+            }
+            Some(&Constraint::Union(ref subconstraints)) => {
+                todo!("UNION not implemented yet")
+            }
+            Some(c) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (primary) is not implemented for queries over annotations",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+            None => Box::new(store.annotations()),
+        })
+    }
+
+    /// Apply secondary constraint for ANNOTATION result type
+    pub(crate) fn update_state_annotations(
+        &self,
+        constraint: &Constraint<'store>,
+        iter: Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>, StamError> {
+        let store = self.store();
+        Ok(match constraint {
+            &Constraint::TextResource(res, SelectionQualifier::Normal) => {
+                Box::new(iter.filter_resource(&store.resource(res).or_fail()?))
+            }
+            &Constraint::TextResource(res, SelectionQualifier::Metadata) => {
+                Box::new(iter.filter_resource_as_metadata(&store.resource(res).or_fail()?))
+            }
+            &Constraint::ResourceVariable(varname, SelectionQualifier::Normal) => {
+                let resource = self.resolve_resourcevar(varname)?;
+                Box::new(iter.filter_resource(resource))
+            }
+            &Constraint::ResourceVariable(varname, SelectionQualifier::Metadata) => {
+                let resource = self.resolve_resourcevar(varname)?;
+                Box::new(iter.filter_resource_as_metadata(resource))
+            }
+            &Constraint::AnnotationVariable(
+                var,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ) => {
+                let annotation = self.resolve_annotationvar(var)?;
+                Box::new(iter.filter_annotation(annotation))
+            }
+            &Constraint::AnnotationVariable(var, _, AnnotationDepth::Zero) => {
+                let annotation = self.resolve_annotationvar(var)?;
+                Box::new(iter.filter_one(annotation))
+            }
+            &Constraint::AnnotationVariable(var, SelectionQualifier::Metadata, depth) => {
+                let annotation = self.resolve_annotationvar(var)?;
+                Box::new(iter.filter_annotation_in_targets(annotation, depth))
+            }
+            &Constraint::DataVariable(varname, SelectionQualifier::Normal) => {
+                let data = self.resolve_datavar(varname)?;
+                Box::new(iter.filter_annotationdata(data))
+            }
+            &Constraint::DataKey {
+                set,
+                key,
+                qualifier: SelectionQualifier::Normal,
+            } => {
+                let key = store.key(set, key).or_fail()?;
+                Box::new(iter.filter_key(&key))
+            }
+            &Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: SelectionQualifier::Normal,
+            } => {
+                let key = store.key(set, key).or_fail()?;
+                Box::new(iter.filter_key_value(&key, operator.clone()))
+            }
+            &Constraint::Value(ref operator, SelectionQualifier::Normal) => {
+                Box::new(iter.filter_value(operator.clone()))
+            }
+            &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Normal) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(iter.filter_key_value(&key, operator.clone()))
+            }
+            &Constraint::Text(text, TextMode::Exact) => {
+                Box::new(iter.filter_text_byref(text, true, " "))
+            }
+            &Constraint::Text(text, TextMode::CaseInsensitive) => {
+                Box::new(iter.filter_text_byref(text, false, " "))
+            }
+            Constraint::Regex(regex) => Box::new(iter.filter_text_regex(regex.clone(), " ")),
+            &Constraint::TextVariable(var) => {
+                if let Ok(tsel) = self.resolve_textvar(var) {
+                    Box::new(iter.filter_any(tsel.annotations().to_handles(store)))
+                } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                    Box::new(
+                        iter.filter_any(
+                            annotation.textselections().annotations().to_handles(store),
+                        ),
+                    )
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                        "",
+                    ));
+                }
+            }
+            &Constraint::TextRelation { var, operator } => {
+                if let Ok(tsel) = self.resolve_textvar(var) {
+                    Box::new(
+                        iter.filter_any(
+                            tsel.related_text(operator).annotations().to_handles(store),
+                        ),
+                    )
+                } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                    Box::new(
+                        iter.filter_any(
+                            annotation
+                                .textselections()
+                                .related_text(operator)
+                                .annotations()
+                                .to_handles(store),
+                        ),
+                    )
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                        "",
+                    ));
+                }
+            }
+            &Constraint::Annotation(
+                annotation,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ) => Box::new(iter.filter_annotation(&store.annotation(annotation).or_fail()?)),
+            &Constraint::Annotation(annotation, _, AnnotationDepth::Zero) => {
+                Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?))
+            }
+            &Constraint::Annotation(annotation, SelectionQualifier::Metadata, depth) => Box::new(
+                iter.filter_annotation_in_targets(&store.annotation(annotation).or_fail()?, depth),
+            ),
+            c => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} is not implemented for queries over annotations",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+        })
+    }
+
+    /// Apply primary constraint for DATA result type
+    pub(crate) fn init_state_data(
+        &self,
+        constraint: Option<&Constraint<'store>>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>, StamError>
+    {
+        let store = self.store();
+        Ok(match constraint {
+            Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
+                let data = self.resolve_datavar(varname)?;
+                Box::new(Some(data.clone()).into_iter())
+            }
+            Some(&Constraint::Data(ref handles, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store))
+            }
+            Some(&Constraint::Annotations(ref handles, _, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store).data())
+            }
+            Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
+                Box::new(store.annotation(id).or_fail()?.data())
+            }
+            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _)) => {
+                let annotation = self.resolve_annotationvar(varname)?;
+                Box::new(annotation.data())
+            }
+            Some(&Constraint::TextVariable(varname)) => {
+                let textselection = self.resolve_textvar(varname)?;
+                Box::new(textselection.annotations().data())
+            }
+            Some(&Constraint::TextSelections(ref handles, SelectionQualifier::Normal)) => Box::new(
+                ResultTextSelections::new(FromHandles::new(handles.clone().into_iter(), store))
+                    .annotations()
+                    .data(),
+            ),
+            Some(&Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: SelectionQualifier::Normal,
+            }) => store.find_data(set, key, operator.clone()),
+            Some(&Constraint::Value(ref operator, SelectionQualifier::Normal)) => {
+                store.find_data(false, false, operator.clone())
+            }
+            Some(&Constraint::KeyValueVariable(
+                varname,
+                ref operator,
+                SelectionQualifier::Normal,
+            )) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(key.data().filter_value(operator.clone()))
+            }
+            Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(key.data())
+            }
+            Some(&Constraint::DataKey {
+                set,
+                key,
+                qualifier: SelectionQualifier::Normal,
+            }) => Box::new(store.key(set, key).or_fail()?.data()),
+            Some(&Constraint::DataSet(id, SelectionQualifier::Normal)) => {
+                Box::new(store.dataset(id).or_fail()?.data())
+            }
+            Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
+                let dataset = self.resolve_datasetvar(varname)?;
+                Box::new(dataset.data())
+            }
+            Some(c) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (primary) is not valid for DATA return type",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+            None => Box::new(store.data()),
+        })
+    }
+
+    /// Apply secondary constraint for DATA result type
+    pub(crate) fn update_state_data(
+        &self,
+        constraint: &Constraint<'store>,
+        iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, AnnotationData>> + 'store>, StamError>
+    {
+        let store = self.store();
+        Ok(match constraint {
+            &Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: SelectionQualifier::Normal,
+            } => Box::new(
+                iter.filter_any(
+                    store
+                        .find_data(set, key, operator.clone())
+                        .to_handles(store),
+                ),
+            ),
+            &Constraint::Value(ref operator, SelectionQualifier::Normal) => {
+                Box::new(iter.filter_value(operator.clone()))
+            }
+            &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Normal) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(iter.filter_key(&key).filter_value(operator.clone()))
+            }
+            &Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _) => {
+                let annotation = self.resolve_annotationvar(varname)?;
+                Box::new(iter.filter_annotation(annotation))
+            }
+            c => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (secondary) is not implemented for queries over DATA",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+        })
+    }
+
+    /// Apply primary constraint for KEY result type
+    pub(crate) fn init_state_keys(
+        &self,
+        constraint: Option<&Constraint<'store>>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>, StamError> {
+        let store = self.store();
+        Ok(match constraint {
+            Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
+                let data = self.resolve_keyvar(varname)?;
+                Box::new(Some(data.clone()).into_iter())
+            }
+            Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
+                let data = self.resolve_datavar(varname)?;
+                Box::new(Some(data.key().clone()).into_iter())
+            }
+            Some(&Constraint::Keys(ref handles, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store))
+            }
+            Some(&Constraint::Annotations(ref handles, _, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store).keys())
+            }
+            Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
+                Box::new(store.annotation(id).or_fail()?.keys())
+            }
+            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _)) => {
+                let annotation = self.resolve_annotationvar(varname)?;
+                Box::new(annotation.keys())
+            }
+            Some(c) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (primary) is not valid for KEY return type",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+            None => Box::new(store.keys()),
+        })
+    }
+
+    /// Apply secondary constraint for KEY result type
+    pub(crate) fn update_state_keys(
+        &self,
+        constraint: &Constraint<'store>,
+        iter: Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>, StamError> {
+        match constraint {
+            c => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (secondary) is not implemented for queries over KEY",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+        }
+    }
+
+    /// Apply primary constraint for DATASET result type
+    pub(crate) fn init_state_datasets(
+        &self,
+        constraint: Option<&Constraint<'store>>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store>, StamError>
+    {
+        let store = self.store();
+        Ok(match constraint {
+            Some(&Constraint::Id(id)) | Some(&Constraint::DataSet(id, _)) => {
+                Box::new(Some(store.dataset(id).or_fail()?).into_iter())
+            }
+            Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
+                let dataset = self.resolve_datasetvar(varname)?;
+                Box::new(Some(dataset.clone()).into_iter())
+            }
+            Some(&Constraint::KeyVariable(varname, SelectionQualifier::Normal)) => {
+                let data = self.resolve_keyvar(varname)?;
+                Box::new(Some(data.set().clone()).into_iter())
+            }
+            Some(&Constraint::DataVariable(varname, SelectionQualifier::Normal)) => {
+                let data = self.resolve_datavar(varname)?;
+                Box::new(Some(data.set().clone()).into_iter())
+            }
+            Some(c) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (primary) is not valid for DATASET return type",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+            None => Box::new(store.datasets()),
+        })
+    }
+
+    /// Apply secondary constraint for DATASET result type
+    pub(crate) fn update_state_datasets(
+        &self,
+        constraint: &Constraint<'store>,
+        iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store>, StamError>
+    {
+        match constraint {
+            c => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (secondary) is not implemented for queries over DATASET",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+        }
+    }
+
+    /// Apply primary constraint for TEXT result type
+    pub(crate) fn init_state_textselections(
+        &self,
+        constraint: Option<&Constraint<'store>>,
+    ) -> Result<Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>, StamError> {
+        let store = self.store();
+        Ok(match constraint {
+            Some(&Constraint::TextSelections(ref handles, _)) => Box::new(
+                ResultTextSelections::new(FromHandles::new(handles.clone().into_iter(), store)),
+            ),
+            Some(&Constraint::TextVariable(varname)) => {
+                let textselection = self.resolve_textvar(varname)?;
+                Box::new(Some(textselection.clone()).into_iter())
+            }
+            Some(&Constraint::Annotations(ref handles, _, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store).textselections())
+            }
+            Some(&Constraint::TextResource(res, _)) => {
+                Box::new(store.resource(res).or_fail()?.textselections())
+            }
+            Some(&Constraint::ResourceVariable(varname, _)) => {
+                let resource = self.resolve_resourcevar(varname)?;
+                Box::new(resource.textselections())
+            }
+            Some(&Constraint::Annotation(id, _, _)) => {
+                Box::new(store.annotation(id).or_fail()?.textselections())
+            }
+            Some(&Constraint::AnnotationVariable(varname, _, _)) => {
+                let annotation = self.resolve_annotationvar(varname)?;
+                Box::new(annotation.textselections())
+            }
+            Some(&Constraint::DataKey {
+                set,
+                key,
+                qualifier: _,
+            }) => Box::new(
+                store
+                    .find_data(set, key, DataOperator::Any)
+                    .annotations()
+                    .textselections(),
+            ),
+            Some(&Constraint::DataVariable(varname, _)) => {
+                let data = self.resolve_datavar(varname)?;
+                Box::new(data.annotations().textselections())
+            }
+            Some(&Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: _,
+            }) => Box::new(
+                store
+                    .find_data(set, key, operator.clone())
+                    .annotations()
+                    .textselections(),
+            ),
+            Some(&Constraint::KeyValueVariable(
+                varname,
+                ref operator,
+                SelectionQualifier::Normal,
+            )) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(
+                    key.data()
+                        .filter_value(operator.clone())
+                        .annotations()
+                        .textselections(),
+                )
+            }
+            Some(&Constraint::Value(ref operator, _)) => Box::new(
+                store
+                    .find_data(false, false, operator.clone())
+                    .annotations()
+                    .textselections(),
+            ),
+            Some(&Constraint::Text(text, TextMode::Exact)) => Box::new(store.find_text(text)),
+            Some(&Constraint::Text(text, TextMode::CaseInsensitive)) => {
+                Box::new(store.find_text_nocase(&text.to_lowercase()))
+            }
+            Some(&Constraint::TextRelation { var, operator }) => {
+                if let Ok(tsel) = self.resolve_textvar(var) {
+                    Box::new(tsel.related_text(operator))
+                } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                    Box::new(annotation.textselections().related_text(operator))
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                        "",
+                    ));
+                }
+            }
+            Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
+            Some(c) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                    "Constraint {} (primary) is not implemented for queries over TEXT selections",
+                    c.keyword()
+                ),
+                    "",
+                ))
+            }
+            None => Box::new(store.annotations().textselections()),
+        })
+    }
+
+    /// Apply secondary constraint for TEXT result type
+    pub(crate) fn update_state_textselections(
+        &self,
+        constraint: &Constraint<'store>,
+        iter: Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>,
+    ) -> Result<Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>, StamError> {
+        let store = self.store();
+        Ok(match constraint {
+            &Constraint::TextResource(res, _) => {
+                Box::new(iter.filter_resource(&store.resource(res).or_fail()?))
+            }
+            &Constraint::ResourceVariable(varname, _) => {
+                let resource = self.resolve_resourcevar(varname)?;
+                Box::new(iter.filter_resource(&resource))
+            }
+            &Constraint::DataKey {
+                set,
+                key,
+                qualifier: _,
+            } => {
+                let key = store.key(set, key).or_fail()?;
+                Box::new(iter.filter_key(&key))
+            }
+            &Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: _,
+            } => {
+                let key = store.key(set, key).or_fail()?;
+                Box::new(iter.filter_key_value(&key, operator.clone()))
+            }
+            &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Normal) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(iter.filter_key_value(&key, operator.clone()))
+            }
+            &Constraint::Value(ref operator, _) => Box::new(iter.filter_value(operator.clone())),
+            &Constraint::Text(text, TextMode::Exact) => {
+                Box::new(iter.filter_text_byref(text, true))
+            }
+            &Constraint::Text(text, TextMode::CaseInsensitive) => {
+                Box::new(iter.filter_text_byref(text, false))
+            }
+            Constraint::Regex(regex) => Box::new(iter.filter_text_regex(regex.clone())),
+            &Constraint::TextRelation { var, operator } => {
+                if let Ok(tsel) = self.resolve_textvar(var) {
+                    Box::new(
+                        iter.filter_any(
+                            tsel.related_text(operator)
+                                .filter_map(|x| x.as_resultitem().map(|x| x.clone()))
+                                .to_handles(store),
+                        ),
+                    )
+                } else if let Ok(annotation) = self.resolve_annotationvar(var) {
+                    Box::new(
+                        iter.filter_any(
+                            annotation
+                                .textselections()
+                                .related_text(operator)
+                                .filter_map(|x| x.as_resultitem().map(|x| x.clone()))
+                                .to_handles(store),
+                        ),
+                    )
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type TEXT or ANNOTATION not found", var),
+                        "",
+                    ));
+                }
+            }
+            c => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                    "Constraint {} (secondary) is not implemented for queries over TEXT selections",
+                    c.keyword()
+                ),
+                    "",
+                ))
+            }
+        })
+    }
+
+    /// Apply primary constraint for RESOURCE result type
+    pub(crate) fn init_state_resources(
+        &self,
+        constraint: Option<&Constraint<'store>>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, TextResource>> + 'store>, StamError>
+    {
+        let store = self.store();
+        Ok(match constraint {
+            Some(&Constraint::Id(id)) | Some(&Constraint::TextResource(id, _)) => {
+                Box::new(Some(store.resource(id).or_fail()?).into_iter())
+            }
+            Some(&Constraint::Resources(ref handles, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store))
+            }
+            Some(&Constraint::Annotations(ref handles, SelectionQualifier::Normal, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store).resources())
+            }
+            Some(&Constraint::Annotations(ref handles, SelectionQualifier::Metadata, _)) => {
+                Box::new(
+                    FromHandles::new(handles.clone().into_iter(), store).resources_as_metadata(),
+                )
+            }
+            Some(&Constraint::DataKey {
+                set,
+                key,
+                qualifier: SelectionQualifier::Normal,
+            }) => Box::new(store.key(set, key).or_fail()?.annotations().resources()),
+            //KEY AS METADATA
+            Some(&Constraint::DataKey {
+                set,
+                key,
+                qualifier: SelectionQualifier::Metadata,
+            }) => Box::new(
+                store
+                    .key(set, key)
+                    .or_fail()?
+                    .annotations()
+                    .resources_as_metadata(),
+            ),
+            Some(&Constraint::DataVariable(var, SelectionQualifier::Normal)) => {
+                let data = self.resolve_datavar(var)?;
+                Box::new(data.annotations().resources())
+            }
+            //DATA AS METADATA
+            Some(&Constraint::DataVariable(var, SelectionQualifier::Metadata)) => {
+                let data = self.resolve_datavar(var)?;
+                Box::new(data.annotations().resources_as_metadata())
+            }
+            Some(&Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: SelectionQualifier::Normal,
+            }) => Box::new(
+                store
+                    .find_data(set, key, operator.clone())
+                    .annotations()
+                    .resources(),
+            ),
+            Some(&Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: SelectionQualifier::Metadata,
+            }) => Box::new(
+                store
+                    .find_data(set, key, operator.clone())
+                    .annotations()
+                    .resources_as_metadata(),
+            ),
+            Some(&Constraint::KeyValueVariable(
+                varname,
+                ref operator,
+                SelectionQualifier::Normal,
+            )) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(
+                    key.data()
+                        .filter_value(operator.clone())
+                        .annotations()
+                        .resources(),
+                )
+            }
+            Some(&Constraint::KeyValueVariable(
+                varname,
+                ref operator,
+                SelectionQualifier::Metadata,
+            )) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(
+                    key.data()
+                        .filter_value(operator.clone())
+                        .annotations()
+                        .resources_as_metadata(),
+                )
+            }
+            Some(c) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (primary) is not implemented for queries over resources",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+            None => Box::new(store.resources()),
+        })
+    }
+
+    /// Apply secondary constraint for RESOURCE result type
+    pub(crate) fn update_state_resources(
+        &self,
+        constraint: &Constraint<'store>,
+        iter: Box<dyn Iterator<Item = ResultItem<'store, TextResource>> + 'store>,
+    ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, TextResource>> + 'store>, StamError>
+    {
+        let store = self.store();
+        Ok(match constraint {
+            &Constraint::DataKey {
+                set,
+                key,
+                qualifier: SelectionQualifier::Metadata,
+            } => {
+                let key = store.key(set, key).or_fail()?;
+                Box::new(iter.filter_key_in_metadata(&key))
+            }
+            &Constraint::DataKey {
+                set,
+                key,
+                qualifier: SelectionQualifier::Normal,
+            } => {
+                let key = store.key(set, key).or_fail()?;
+                Box::new(iter.filter_key_on_text(&key))
+            }
+            &Constraint::KeyVariable(var, SelectionQualifier::Metadata) => {
+                let key = self.resolve_keyvar(var)?;
+                Box::new(iter.filter_key_in_metadata(&key))
+            }
+            &Constraint::KeyVariable(var, SelectionQualifier::Normal) => {
+                let key = self.resolve_keyvar(var)?;
+                Box::new(iter.filter_key_on_text(&key))
+            }
+            &Constraint::DataVariable(var, SelectionQualifier::Metadata) => {
+                let data = self.resolve_datavar(var)?;
+                Box::new(iter.filter_annotationdata_in_metadata(&data))
+            }
+            &Constraint::DataVariable(var, SelectionQualifier::Normal) => {
+                let data = self.resolve_datavar(var)?;
+                Box::new(iter.filter_annotationdata_on_text(&data))
+            }
+            &Constraint::KeyValue {
+                set,
+                key,
+                ref operator,
+                qualifier: SelectionQualifier::Metadata,
+            } => {
+                let key = store.key(set, key).or_fail()?;
+                Box::new(iter.filter_key_value_in_metadata(&key, operator.clone()))
+            }
+            &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Normal) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(iter.filter_key_value_on_text(&key, operator.clone()))
+            }
+            &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Metadata) => {
+                let key = self.resolve_keyvar(varname)?;
+                Box::new(iter.filter_key_value_in_metadata(&key, operator.clone()))
+            }
+            c => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Constraint {} (secondary) is not implemented for queries over resources",
+                        c.keyword()
+                    ),
+                    "",
+                ))
+            }
+        })
     }
 
     pub(crate) fn build_result(&self) -> QueryResultItems<'store> {
