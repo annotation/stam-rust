@@ -2134,7 +2134,7 @@ fn query_subquery() -> Result<(), StamError> {
 #[test]
 fn query_union() -> Result<(), StamError> {
     let store = setup_example_6()?;
-    //this example could have been just a DataOperator::And but we want to set the UNION construction:
+    //this example could have been just a DataOperator::And but we want to test the UNION construction:
     let query: Query =
         "SELECT ANNOTATION ?a WHERE [ DATA myset type = phrase OR DATA myset type = sentence ];"
             .try_into()?;
