@@ -2153,7 +2153,7 @@ fn query_union() -> Result<(), StamError> {
         if let Ok(result) = results.get_by_name(&names, "a") {
             match result {
                 QueryResultItem::Annotation(annotation) => {
-                    count += 2;
+                    count += 1;
                     assert!(annotation.has_data(&refdata) || annotation.has_data(&refdata2));
                 }
                 _ => assert!(false, "wrong return type"),
