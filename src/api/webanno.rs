@@ -426,7 +426,9 @@ fn output_selector(
         }
         Selector::RangedTextSelector { .. } | Selector::RangedAnnotationSelector { .. } => {
             if nested {
-                todo!("Serialisation of ranged selectors not implemented yet");
+                for subselector in selector.iter(store, false) {
+                    ann_out += &output_selector(&subselector, store, config, false);
+                }
             } else {
                 unreachable!(
                 "Internal Ranged selectors can not be serialized directly, they can be serialized only when under a complex selector",
