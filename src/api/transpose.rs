@@ -419,11 +419,19 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 .next()
                                 .unwrap_or_else(|| generate_id("", "-transposed"))
                         };
-                        builders.push(
-                            AnnotationBuilder::new()
-                                .with_id(side_id.clone())
-                                .with_target(SelectorBuilder::DirectionalSelector(selectors)),
-                        );
+                        if selectors.len() == 1 {
+                            builders.push(
+                                AnnotationBuilder::new()
+                                    .with_id(side_id.clone())
+                                    .with_target(selectors.into_iter().next().expect("a selector must exist")),
+                            );
+                        } else {
+                            builders.push(
+                                AnnotationBuilder::new()
+                                    .with_id(side_id.clone())
+                                    .with_target(SelectorBuilder::DirectionalSelector(selectors)),
+                            );
+                        }
                         if !config.no_transposition {
                             transposition_selectors
                                 .push(SelectorBuilder::AnnotationSelector(side_id.into(), None));
@@ -436,11 +444,19 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 .unwrap_or_else(|| generate_id("resegmentation-", ""));
 
                             //add the resegmented annotation (will be the source side of the transposition):
-                            builders.push(
-                                AnnotationBuilder::new()
-                                    .with_id(source_id.clone())
-                                    .with_target(SelectorBuilder::DirectionalSelector(selectors)),
-                            );
+                            if selectors.len() == 1 {
+                                builders.push(
+                                    AnnotationBuilder::new()
+                                        .with_id(source_id.clone())
+                                        .with_target(selectors.into_iter().next().expect("a selector must exist")),
+                                );
+                            } else {
+                                builders.push(
+                                    AnnotationBuilder::new()
+                                        .with_id(source_id.clone())
+                                        .with_target(SelectorBuilder::DirectionalSelector(selectors)),
+                                );
+                            }
 
                             if !config.no_resegmentation
                                 && config.existing_source_side
@@ -474,11 +490,19 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 if !config.existing_source_side {
                                     //add a copied source annotation (will be the source side of the transposition):
                                     //this occurs if the original one has no ID to link to
-                                    builders.push(
-                                        AnnotationBuilder::new()
-                                            .with_id(source_id.clone())
-                                            .with_target(SelectorBuilder::DirectionalSelector(selectors)),
-                                    );
+                                    if selectors.len() == 1 {
+                                        builders.push(
+                                            AnnotationBuilder::new()
+                                                .with_id(source_id.clone())
+                                                .with_target(selectors.into_iter().next().expect("a selector must exist")),
+                                        );
+                                    } else {
+                                        builders.push(
+                                            AnnotationBuilder::new()
+                                                .with_id(source_id.clone())
+                                                .with_target(SelectorBuilder::DirectionalSelector(selectors)),
+                                        );
+                                    }
                                 } else {
                                     return Err(StamError::TransposeError(
                                         format!(
@@ -497,6 +521,15 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     }
                 }
                 if !config.no_transposition {
+                    if transposition_selectors.len() < 2 {
+                        return Err(StamError::TransposeError(
+                            format!(
+                                "Expected two sides for the transposition, got only {}",
+                                transposition_selectors.len(),
+                            ),
+                            "",
+                        ));
+                    }
                     builders.push(
                         AnnotationBuilder::new()
                             .with_id(transposition_id)
