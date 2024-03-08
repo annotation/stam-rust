@@ -163,7 +163,7 @@ where
     }
 }
 
-/// Trait for iteration over annotations ([`ResultItem<DataKey>`]; encapsulation over
+/// Trait for iteration over data keys ([`ResultItem<DataKey>`]; encapsulation over
 /// [`DataKey`]). Implements numerous filter methods to further constrain the iterator, as well
 /// as methods to map from keys to other items.
 pub trait KeyIterator<'store>: Iterator<Item = ResultItem<'store, DataKey>>

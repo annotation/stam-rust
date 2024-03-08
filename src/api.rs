@@ -29,6 +29,7 @@ mod transpose;
 
 pub use annotation::*;
 pub use annotationdata::*;
+pub use annotationdataset::*;
 pub use datakey::*;
 pub use query::*;
 pub use resources::*;
@@ -43,7 +44,7 @@ pub use transpose::*;
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
-use crate::annotationdataset::AnnotationDataSetHandle;
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
@@ -214,11 +215,20 @@ where
 
     /// Returns an iterator over the high-level items in this collection
     /// If you want to iterate over the low-level handles, then use [`Self::iter()`] instead.
+    /// If you want to consume the current iterator, use `into_items()` instead.
     pub fn items<'a>(&'a self) -> FromHandles<'store, T, HandlesIter<'store, T>>
     where
         'a: 'store,
     {
         FromHandles::new(self.iter(), self.store())
+    }
+
+    /// Returns an iterator over the high-level items in this collection
+    /// If you want to iterate over the low-level handles, then use [`Self::iter()`] instead.
+    /// If you do not want to consume the current iterator, use `items()` instead.
+    pub fn into_items(self) -> FromHandles<'store, T, OwnedHandlesIter<'store, T>> {
+        let store = self.store();
+        FromHandles::new(self.into_iter(), store)
     }
 
     /// Computes the union between two collections, retains order and ensures there are no duplicates
@@ -685,6 +695,11 @@ pub(crate) enum Filter<'store> {
         SelectionQualifier,
     ),
     Keys(Handles<'store, DataKey>, FilterMode, SelectionQualifier),
+    DataSets(
+        Handles<'store, AnnotationDataSet>,
+        FilterMode,
+        SelectionQualifier,
+    ),
     Text(String, TextMode, &'store str), //the last string represents the delimiter for joining text
     Regex(Regex, &'store str),           //the last string represents the delimiter for joining text
     TextSelection(TextResourceHandle, TextSelectionHandle),
@@ -704,6 +719,11 @@ pub(crate) enum Filter<'store> {
     ),
     BorrowedKeys(
         &'store Handles<'store, DataKey>,
+        FilterMode,
+        SelectionQualifier,
+    ),
+    BorrowedDataSets(
+        &'store Handles<'store, AnnotationDataSet>,
         FilterMode,
         SelectionQualifier,
     ),

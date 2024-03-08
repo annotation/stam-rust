@@ -18,6 +18,8 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::store::*;
 
+use rayon::iter::IntoParallelIterator;
+
 impl<'store> FullHandle<AnnotationDataSet> for ResultItem<'store, AnnotationDataSet> {
     fn fullhandle(&self) -> <AnnotationDataSet as Storable>::FullHandleType {
         self.handle()
@@ -160,6 +162,10 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     }
 }
 
+/// Holds a collection of [`AnnotationDataSet`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
+/// [`ToHandles::to_handles()`], which is available on all iterators over keys ([`ResultItem<AnnotationDataSet>`]).
+pub type AnnotationDataSets<'store> = Handles<'store, AnnotationDataSet>;
+
 impl<'store, I> FullHandleToResultItem<'store, AnnotationDataSet>
     for FromHandles<'store, AnnotationDataSet, I>
 where
@@ -170,5 +176,135 @@ where
         handle: AnnotationDataSetHandle,
     ) -> Option<ResultItem<'store, AnnotationDataSet>> {
         self.store.dataset(handle)
+    }
+}
+
+impl<'store, I> FullHandleToResultItem<'store, AnnotationDataSet>
+    for FilterAllIter<'store, AnnotationDataSet, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationDataSet>>,
+{
+    fn get_item(
+        &self,
+        handle: AnnotationDataSetHandle,
+    ) -> Option<ResultItem<'store, AnnotationDataSet>> {
+        self.store.dataset(handle)
+    }
+}
+
+/// Trait for iteration over datasets ([`ResultItem<AnnotationDataSet>`]; encapsulation over
+/// [`AnnotationDataSet`]). Implements numerous filter methods to further constrain the iterator, as well
+/// as methods to map from keys to other items.
+pub trait DataSetIterator<'store>: Iterator<Item = ResultItem<'store, AnnotationDataSet>>
+where
+    Self: Sized,
+{
+    fn parallel(self) -> rayon::vec::IntoIter<ResultItem<'store, AnnotationDataSet>> {
+        let datasets: Vec<_> = self.collect();
+        datasets.into_par_iter()
+    }
+
+    fn filter_handle(self, set: AnnotationDataSetHandle) -> FilteredDataSets<'store, Self> {
+        FilteredDataSets {
+            inner: self,
+            filter: Filter::AnnotationDataSet(set, SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_any(self, datasets: AnnotationDataSets<'store>) -> FilteredDataSets<'store, Self> {
+        FilteredDataSets {
+            inner: self,
+            filter: Filter::DataSets(datasets, FilterMode::Any, SelectionQualifier::Normal),
+        }
+    }
+
+    fn filter_any_byref(
+        self,
+        datasets: &'store AnnotationDataSets<'store>,
+    ) -> FilteredDataSets<'store, Self> {
+        FilteredDataSets {
+            inner: self,
+            filter: Filter::BorrowedDataSets(datasets, FilterMode::Any, SelectionQualifier::Normal),
+        }
+    }
+
+    /// Constrain this iterator to filter on *all* of the mentioned data sets, that is.
+    /// If not all of the items in the parameter exist in the iterator, the iterator returns nothing.
+    fn filter_all(
+        self,
+        datasets: AnnotationDataSets<'store>,
+        store: &'store AnnotationStore,
+    ) -> FilterAllIter<'store, AnnotationDataSet, Self> {
+        FilterAllIter::new(self, datasets, store)
+    }
+
+    fn filter_one(
+        self,
+        data: &ResultItem<'store, AnnotationData>,
+    ) -> FilteredDataSets<'store, Self> {
+        FilteredDataSets {
+            inner: self,
+            filter: Filter::AnnotationData(
+                data.set().handle(),
+                data.handle(),
+                SelectionQualifier::Normal,
+            ),
+        }
+    }
+}
+
+impl<'store, I> DataSetIterator<'store> for I
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationDataSet>>,
+{
+    //blanket implementation
+}
+
+/// An iterator that applies a filter to constrain keys.
+/// This iterator implements [`KeyIterator`]
+/// and is itself produced by the various `filter_*()` methods on that trait.
+pub struct FilteredDataSets<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationDataSet>>,
+{
+    inner: I,
+    filter: Filter<'store>,
+}
+
+impl<'store, I> Iterator for FilteredDataSets<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationDataSet>>,
+{
+    type Item = ResultItem<'store, AnnotationDataSet>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(item) = self.inner.next() {
+                if self.test_filter(&item) {
+                    return Some(item);
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl<'store, I> FilteredDataSets<'store, I>
+where
+    I: Iterator<Item = ResultItem<'store, AnnotationDataSet>>,
+{
+    fn test_filter(&self, key: &ResultItem<'store, AnnotationDataSet>) -> bool {
+        match &self.filter {
+            Filter::DataSets(_, FilterMode::All, _) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
+            }
+            Filter::BorrowedDataSets(_, FilterMode::All, _) => {
+                unreachable!("not handled by this iterator but by FilterAllIter")
+            }
+            _ => unreachable!(
+                "Filter {:?} not implemented for FilteredDataSets",
+                self.filter
+            ),
+        }
     }
 }
