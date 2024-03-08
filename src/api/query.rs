@@ -481,7 +481,7 @@ impl<'a> Constraint<'a> {
             Some("[") => {
                 let mut subconstraints: Vec<Constraint<'a>> = Vec::new();
                 querystring = querystring[1..].trim_start();
-                loop {
+                while !querystring.is_empty() {
                     let (subconstraint, remainder) = Self::parse(querystring)?;
                     subconstraints.push(subconstraint);
                     let remainder = remainder.trim_start();
@@ -500,6 +500,12 @@ impl<'a> Constraint<'a> {
                             "Parsing [ ] block failed",
                         ));
                     }
+                }
+                if subconstraints.is_empty() {
+                    return Err(StamError::QuerySyntaxError(
+                        "Constraints for UNION operator is empty".to_string(),
+                        "Parsing [ ] block failed",
+                    ));
                 }
                 Self::Union(subconstraints)
             }
@@ -2716,12 +2722,20 @@ fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), Stam
             let arg = &querystring[0..i];
             return Ok((
                 arg,
-                &querystring[i + 1..i + 4].trim_start(),
+                &querystring[i + 1..].trim_start_matches(|c| {
+                    c == ';' || c == ' ' || c == ']' || c == '\t' || c == '\n'
+                }),
                 get_arg_type(arg),
             ));
         } else if !quote && (c == ';' || c == ' ' || c == ']' || c == '\n' || c == '\t') {
             let arg = &querystring[0..i];
-            return Ok((arg, &querystring[i + 1..].trim_start(), get_arg_type(arg)));
+            return Ok((
+                arg,
+                &querystring[i + 1..].trim_start_matches(|c| {
+                    c == ';' || c == ' ' || c == ']' || c == '\t' || c == '\n'
+                }),
+                get_arg_type(arg),
+            ));
         }
         escaped = c == '\\';
     }

@@ -2016,6 +2016,40 @@ fn query_parse_union() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_union_unquoted() -> Result<(), StamError> {
+    let querystring =
+        "SELECT ANNOTATION ?a WHERE [ DATA set key = value OR DATA set key = value ];";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::Union(subconstraints) = constraint {
+            assert_eq!(subconstraints.len(), 2, "Subconstraint count");
+            for subconstraint in subconstraints {
+                if let Constraint::KeyValue {
+                    set,
+                    key,
+                    operator,
+                    qualifier: _,
+                } = subconstraint
+                {
+                    assert_eq!(*set, "set");
+                    assert_eq!(*key, "key");
+                    assert_eq!(*operator, DataOperator::Equals("value"));
+                } else {
+                    assert!(false, "Subconstraint not as expected");
+                }
+            }
+        }
+    }
+    assert_eq!(count, 1, "Number of constraints");
+    Ok(())
+}
+
+#[test]
 fn query() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
@@ -2094,6 +2128,39 @@ fn query_subquery() -> Result<(), StamError> {
         }
     }
     assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn query_union() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    //this example could have been just a DataOperator::And but we want to set the UNION construction:
+    let query: Query =
+        "SELECT ANNOTATION ?a WHERE [ DATA myset type = phrase OR DATA myset type = sentence ];"
+            .try_into()?;
+    let mut count = 0;
+    let refdata = store
+        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .next()
+        .expect("reference data must exist");
+    let refdata2 = store
+        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .next()
+        .expect("reference data must exist");
+    let iter = store.query(query);
+    let names = iter.names();
+    for results in iter {
+        if let Ok(result) = results.get_by_name(&names, "a") {
+            match result {
+                QueryResultItem::Annotation(annotation) => {
+                    count += 2;
+                    assert!(annotation.has_data(&refdata) || annotation.has_data(&refdata2));
+                }
+                _ => assert!(false, "wrong return type"),
+            }
+        }
+    }
+    assert_eq!(count, 2);
     Ok(())
 }
 
