@@ -1204,6 +1204,7 @@ impl<'store> QueryIter<'store> {
         let mut constraintsiter = query.constraints.iter();
 
         let iter = match query.resulttype {
+            ///////////////////////////// target= RESOURCE ////////////////////////////////////////////
             Some(Type::TextResource) => {
                 let mut iter = self.init_state_resources(constraintsiter.next())?;
                 while let Some(constraint) = constraintsiter.next() {
@@ -1478,7 +1479,12 @@ impl<'store> QueryIter<'store> {
                 }
             }
             Some(&Constraint::Union(ref subconstraints)) => {
-                todo!("UNION not implemented yet")
+                let mut handles: Handles<'store, Annotation> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_annotations(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(handles.into_items())
             }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
@@ -1617,6 +1623,14 @@ impl<'store> QueryIter<'store> {
             &Constraint::Annotation(annotation, SelectionQualifier::Metadata, depth) => Box::new(
                 iter.filter_annotation_in_targets(&store.annotation(annotation).or_fail()?, depth),
             ),
+            &Constraint::Union(ref subconstraints) => {
+                let mut handles: Handles<'store, Annotation> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_annotations(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(iter.filter_any(handles))
+            }
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -1696,6 +1710,14 @@ impl<'store> QueryIter<'store> {
                 let dataset = self.resolve_datasetvar(varname)?;
                 Box::new(dataset.data())
             }
+            Some(&Constraint::Union(ref subconstraints)) => {
+                let mut handles: Handles<'store, AnnotationData> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_data(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(handles.into_items())
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -1741,6 +1763,14 @@ impl<'store> QueryIter<'store> {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(iter.filter_annotation(annotation))
             }
+            &Constraint::Union(ref subconstraints) => {
+                let mut handles: Handles<'store, AnnotationData> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_data(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(iter.filter_any(handles))
+            }
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -1781,6 +1811,14 @@ impl<'store> QueryIter<'store> {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.keys())
             }
+            Some(&Constraint::Union(ref subconstraints)) => {
+                let mut handles: Handles<'store, DataKey> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_keys(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(handles.into_items())
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -1800,7 +1838,17 @@ impl<'store> QueryIter<'store> {
         constraint: &Constraint<'store>,
         iter: Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>,
     ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, DataKey>> + 'store>, StamError> {
-        match constraint {
+        let store = self.store();
+        Ok(match constraint {
+            //TODO: implement constraints
+            &Constraint::Union(ref subconstraints) => {
+                let mut handles: Handles<'store, DataKey> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_keys(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(iter.filter_any(handles))
+            }
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -1810,7 +1858,7 @@ impl<'store> QueryIter<'store> {
                     "",
                 ))
             }
-        }
+        })
     }
 
     /// Apply primary constraint for DATASET result type
@@ -1836,6 +1884,14 @@ impl<'store> QueryIter<'store> {
                 let data = self.resolve_datavar(varname)?;
                 Box::new(Some(data.set().clone()).into_iter())
             }
+            Some(&Constraint::Union(ref subconstraints)) => {
+                let mut handles: Handles<'store, AnnotationDataSet> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_datasets(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(handles.into_items())
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -1856,7 +1912,16 @@ impl<'store> QueryIter<'store> {
         iter: Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store>,
     ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, AnnotationDataSet>> + 'store>, StamError>
     {
-        match constraint {
+        let store = self.store();
+        Ok(match constraint {
+            &Constraint::Union(ref subconstraints) => {
+                let mut handles: Handles<'store, AnnotationDataSet> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_datasets(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(iter.filter_any(handles))
+            }
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -1866,7 +1931,7 @@ impl<'store> QueryIter<'store> {
                     "",
                 ))
             }
-        }
+        })
     }
 
     /// Apply primary constraint for TEXT result type
@@ -2152,6 +2217,14 @@ impl<'store> QueryIter<'store> {
                         .resources_as_metadata(),
                 )
             }
+            Some(&Constraint::Union(ref subconstraints)) => {
+                let mut handles: Handles<'store, TextResource> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_resources(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(handles.into_items())
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2222,6 +2295,14 @@ impl<'store> QueryIter<'store> {
             &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Metadata) => {
                 let key = self.resolve_keyvar(varname)?;
                 Box::new(iter.filter_key_value_in_metadata(&key, operator.clone()))
+            }
+            &Constraint::Union(ref subconstraints) => {
+                let mut handles: Handles<'store, TextResource> = Handles::new_empty(store);
+                for subconstraint in subconstraints {
+                    let mut iter = self.init_state_resources(Some(subconstraint))?;
+                    handles.union(&iter.to_handles(store));
+                }
+                Box::new(iter.filter_any(handles))
             }
             c => {
                 return Err(StamError::QuerySyntaxError(
