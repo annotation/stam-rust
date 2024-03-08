@@ -293,7 +293,7 @@ impl<'store, I> FilteredDataSets<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, AnnotationDataSet>>,
 {
-    fn test_filter(&self, key: &ResultItem<'store, AnnotationDataSet>) -> bool {
+    fn test_filter(&self, _dataset: &ResultItem<'store, AnnotationDataSet>) -> bool {
         match &self.filter {
             Filter::DataSets(_, FilterMode::All, _) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")

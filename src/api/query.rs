@@ -619,13 +619,15 @@ impl<'a> Constraint<'a> {
             Self::TextRelation { var, operator } => {
                 s += &format!("RELATION ?{} {};", var, operator.as_str());
             }
-            Self::Union(..) => {
-                //TODO
-                return Err(StamError::QuerySyntaxError(
-                    "Query contains UNION constraint that can not yet be serialized to STAMQL (implementation still pending)"
-                        .into(),
-                    "Constraint::to_string()",
-                ));
+            Self::Union(subconstraints) => {
+                s += "[ ";
+                for (i, subconstraint) in subconstraints.iter().enumerate() {
+                    s += subconstraint.to_string()?.as_str();
+                    if i < subconstraints.len() - 1 {
+                        s += " OR ";
+                    }
+                }
+                s += " ];";
             }
             Self::Annotations(..)
             | Self::Data(..)
