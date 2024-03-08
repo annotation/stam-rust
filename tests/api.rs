@@ -2050,6 +2050,18 @@ fn query_parse_union_unquoted() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_union2() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\"; [ DATA \"set\" \"key\" = \"value\" OR DATA \"set\" \"key\" = \"value\" ]; RESOURCE \"x\";";
+    let query: Query = querystring.try_into()?;
+    let mut count = 0;
+    for _ in query.iter() {
+        count += 1;
+    }
+    assert_eq!(count, 3, "Number of constraints");
+    Ok(())
+}
+
+#[test]
 fn query() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;

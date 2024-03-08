@@ -318,6 +318,13 @@ impl<'a> Constraint<'a> {
         }
     }
 
+    fn closed(querystring: &str) -> bool {
+        querystring.is_empty()
+            || querystring.starts_with(";")
+            || querystring.starts_with("OR ")
+            || querystring.starts_with("]")
+    }
+
     pub(crate) fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
         let constraint = match querystring.split(QUERYSPLITCHARS).next() {
             Some("ID") => {
@@ -432,7 +439,7 @@ impl<'a> Constraint<'a> {
                     let set = arg;
                     let (key, remainder, _) = get_arg(remainder)?;
                     querystring = remainder;
-                    if querystring.is_empty() {
+                    if Self::closed(querystring) {
                         Self::DataKey {
                             set,
                             key,
@@ -522,6 +529,9 @@ impl<'a> Constraint<'a> {
                 ))
             }
         };
+        if querystring.starts_with(";") {
+            querystring = &querystring[1..].trim_start();
+        }
         Ok((constraint, querystring))
     }
 
@@ -2711,31 +2721,17 @@ fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), Stam
             } else {
                 return Ok((
                     &querystring[begin..i],
-                    &querystring[i + 1..].trim_start_matches(|c| {
-                        c == ';' || c == ' ' || c == ']' || c == '\t' || c == '\n'
-                    }),
+                    &querystring[i + 1..].trim_start(),
                     ArgType::String,
                 ));
             }
         }
         if !quote && querystring[i..].starts_with(" OR ") {
             let arg = &querystring[0..i];
-            return Ok((
-                arg,
-                &querystring[i + 1..].trim_start_matches(|c| {
-                    c == ';' || c == ' ' || c == ']' || c == '\t' || c == '\n'
-                }),
-                get_arg_type(arg),
-            ));
+            return Ok((arg, &querystring[i + 1..].trim_start(), get_arg_type(arg)));
         } else if !quote && (c == ';' || c == ' ' || c == ']' || c == '\n' || c == '\t') {
             let arg = &querystring[0..i];
-            return Ok((
-                arg,
-                &querystring[i + 1..].trim_start_matches(|c| {
-                    c == ';' || c == ' ' || c == ']' || c == '\t' || c == '\n'
-                }),
-                get_arg_type(arg),
-            ));
+            return Ok((arg, &querystring[i + 1..].trim_start(), get_arg_type(arg)));
         }
         escaped = c == '\\';
     }
