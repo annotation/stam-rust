@@ -197,9 +197,52 @@ impl<'store> ResultItem<'store, Annotation> {
         self.as_ref().has_data(data.set().handle(), data.handle())
     }
 
+    /// Returns an iterator over the AnnotationData that this annotation targets directly.
+    /// This returns only resources that are targeted via a [`Selector::AnnotationDataSelector`] and
+    /// returns no duplicates even if data is referenced multiple times.
+    pub fn data_as_metadata(
+        &self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, AnnotationData>>> {
+        let collection: BTreeSet<(AnnotationDataSetHandle, AnnotationDataHandle)> = self
+            .as_ref()
+            .target()
+            .iter(self.store(), true)
+            .filter_map(|selector| {
+                if let Selector::AnnotationDataSelector(set_handle, data_handle) = selector.as_ref()
+                {
+                    Some((*set_handle, *data_handle))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        ResultIter::new_sorted(FromHandles::new(collection.into_iter(), self.store()))
+    }
+
     /// Get an iterator over all keys ([`DataKey`]) used by data of this annotation. Shortcut for `.data().keys()`.
     pub fn keys(&self) -> ResultIter<impl Iterator<Item = ResultItem<'store, DataKey>>> {
         self.data().keys()
+    }
+
+    /// Returns an iterator over the DataKeys that this annotation targets directly.
+    /// This returns only resources that are targeted via a [`Selector::DataKeySelector`] and
+    /// returns no duplicates even if a key is referenced multiple times.
+    pub fn keys_as_metadata(
+        &self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'store, DataKey>>> {
+        let collection: BTreeSet<(AnnotationDataSetHandle, DataKeyHandle)> = self
+            .as_ref()
+            .target()
+            .iter(self.store(), true)
+            .filter_map(|selector| {
+                if let Selector::DataKeySelector(set_handle, key_handle) = selector.as_ref() {
+                    Some((*set_handle, *key_handle))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        ResultIter::new_sorted(FromHandles::new(collection.into_iter(), self.store()))
     }
 
     /// Applies a [`TextSelectionOperator`] to find all other text selections that

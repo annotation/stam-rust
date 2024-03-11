@@ -20,6 +20,7 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
@@ -163,7 +164,7 @@ pub struct AnnotationStore {
     #[n(103)]
     pub(crate) dataset_annotation_metamap: RelationMap<AnnotationDataSetHandle, AnnotationHandle>,
 
-    /// Reverse index for annotations that reference other annotations
+    /// Reverse index for annotations that are referenced by other annotations (A is a target of B)
     /// The map is always sorted due to how it is constructed, no explicit sorting needed
     /// The choice for a BTreeMap here is more for memory-reduction (key may be sparse)
     #[n(104)]
@@ -242,13 +243,19 @@ impl private::StoreCallbacks<TextResource> for AnnotationStore {
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: TextResourceHandle) -> Result<(), StamError> {
         if let Some(annotations) = self.resource_annotation_metamap.data.get(handle.as_usize()) {
-            if !annotations.is_empty() {
-                return Err(StamError::InUse("TextResource"));
+            for a_handle in annotations.clone() {
+                <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
             }
         }
-        self.resource_annotation_metamap
-            .data
-            .remove(handle.as_usize());
+        if let Some(map) = self.textrelationmap.data.get(handle.as_usize()) {
+            let mut annotations: BTreeSet<AnnotationHandle> = BTreeSet::new();
+            annotations.extend(map.data.iter().flatten());
+            for a_handle in annotations {
+                <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
+            }
+        }
+        self.resource_annotation_metamap.remove_all(handle);
+        self.textrelationmap.remove_all(handle);
         Ok(())
     }
 }
@@ -448,33 +455,79 @@ impl private::StoreCallbacks<Annotation> for AnnotationStore {
     }
 
     /// called before the item is removed from the store
-    /// updates the relation maps, no need to call manually
+    /// removes all dependencies, like updating relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationHandle) -> Result<(), StamError> {
-        let annotation: &Annotation = self.get(handle)?;
-        let resource_handle: Option<TextResourceHandle> = match annotation.target() {
-            Selector::ResourceSelector(res_handle) => Some(*res_handle),
-            _ => None,
-        };
-        let annotationset_handle: Option<AnnotationDataSetHandle> = match annotation.target() {
-            Selector::DataSetSelector(annotationset_handle) => Some(*annotationset_handle),
-            _ => None,
-        };
-        let annotation_handle: Option<AnnotationHandle> = match annotation.target() {
-            Selector::AnnotationSelector(annotation_handle, _) => Some(*annotation_handle),
-            _ => None,
-        };
+        //recursion step: remove all annotations that reference this one
+        if let Some(handles) = self.annotation_annotation_map.get(handle) {
+            //annotations that point at us (we clone to lose the reference and not break exclusive mutable borrow rules)
+            for a_handle in handles.clone() {
+                <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
+            }
+        }
+        self.annotation_annotation_map.remove_all(handle);
 
-        if let Some(resource_handle) = resource_handle {
+        //high-level API:
+        let annotation = self.annotation(handle).or_fail()?;
+        let annotation_targets: Vec<_> = annotation
+            .annotations_in_targets(Default::default())
+            .map(|annotation| annotation.handle())
+            .collect();
+        let resource_targets: Vec<_> = annotation
+            .resources_as_metadata()
+            .map(|resource| resource.handle())
+            .collect();
+        let dataset_targets: Vec<_> = annotation
+            .datasets()
+            .map(|dataset| dataset.handle())
+            .collect();
+        let data_targets: Vec<_> = annotation
+            .data_as_metadata()
+            .map(|data| data.fullhandle())
+            .collect();
+        let key_targets: Vec<_> = annotation
+            .keys_as_metadata()
+            .map(|key| key.fullhandle())
+            .collect();
+        let text_targets: Vec<_> = annotation
+            .textselections()
+            .filter_map(|textselection| {
+                if let Some(ts_handle) = textselection.handle() {
+                    Some((textselection.resource().handle(), ts_handle))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let data_handles: Vec<_> = annotation.data().map(|data| data.fullhandle()).collect();
+
+        for annotation_handle in annotation_targets {
+            self.annotation_annotation_map
+                .remove(annotation_handle, handle);
+        }
+        for resource_handle in resource_targets {
             self.resource_annotation_metamap
                 .remove(resource_handle, handle);
         }
-        if let Some(annotationset_handle) = annotationset_handle {
+        for dataset_handle in dataset_targets {
             self.dataset_annotation_metamap
-                .remove(annotationset_handle, handle);
+                .remove(dataset_handle, handle);
         }
-        if let Some(annotation_handle) = annotation_handle {
-            self.annotation_annotation_map
-                .remove(annotation_handle, handle);
+
+        for (set_handle, data_handle) in data_handles {
+            self.dataset_data_annotation_map
+                .remove(set_handle, data_handle, handle);
+        }
+        for (set_handle, data_handle) in data_targets {
+            self.dataset_data_annotation_map
+                .remove(set_handle, data_handle, handle);
+        }
+        for (set_handle, key_handle) in key_targets {
+            self.key_annotation_metamap
+                .remove(set_handle, key_handle, handle);
+        }
+        for (resource_handle, ts_handle) in text_targets {
+            self.textrelationmap
+                .remove(resource_handle, ts_handle, handle);
         }
 
         Ok(())
@@ -516,8 +569,9 @@ impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationDataSetHandle) -> Result<(), StamError> {
         if let Some(annotations) = self.dataset_annotation_metamap.data.get(handle.as_usize()) {
-            if !annotations.is_empty() {
-                return Err(StamError::InUse("AnnotationDataSet"));
+            //remove annotations that point at us (we clone to lose the reference and not break exclusive mutable borrow rules)
+            for a_handle in annotations.clone() {
+                <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
             }
         }
         self.dataset_annotation_metamap

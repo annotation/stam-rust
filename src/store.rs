@@ -168,6 +168,14 @@ where
         }
     }
 
+    pub fn remove_all(&mut self, x: A) {
+        if x.as_usize() >= self.data.len() {
+            if let Some(values) = self.data.get_mut(x.as_usize()) {
+                values.clear();
+            }
+        }
+    }
+
     pub fn get(&self, x: A) -> Option<&Vec<B>> {
         self.data.get(x.as_usize())
     }
@@ -279,6 +287,11 @@ where
         }
     }
 
+    /// Remove a relation from the map
+    pub fn remove_all(&mut self, x: A) {
+        self.data.remove(&x);
+    }
+
     pub fn get(&self, x: A) -> Option<&Vec<B>> {
         self.data.get(&x)
     }
@@ -378,6 +391,20 @@ where
             v.get(y)
         } else {
             None
+        }
+    }
+
+    /// Remove a relation from the map
+    pub fn remove(&mut self, x: A, y: B, z: C) {
+        if let Some(map) = self.data.get_mut(x.as_usize()) {
+            map.remove(y, z);
+        }
+    }
+
+    /// Remove a relation from the map
+    pub fn remove_all(&mut self, x: A) {
+        if x.as_usize() >= self.data.len() {
+            self.data.remove(x.as_usize());
         }
     }
 
@@ -736,30 +763,34 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
         Err(StamError::HandleError(Self::store_typeinfo()))
     }
 
-    /// Removes an item by handle, returns an error if the item has dependencies and can't be removed
-    fn remove(&mut self, handle: T::HandleType) -> Result<(), StamError> {
-        //callback to remove the item from relation maps, may return an error and refuse to remove an item
-        self.preremove(handle)?;
+    /// Removes an item, along with any annotations that point to it
+    fn remove(&mut self, item: impl Request<T>) -> Result<(), StamError> {
+        if let Some(handle) = item.to_handle(self) {
+            //callback to remove the item from relation maps
+            self.preremove(handle)?;
 
-        //remove item from idmap
-        if let Some(Some(item)) = self.store().get(handle.as_usize()) {
-            let id: Option<String> = item.id().map(|x| x.to_string());
-            if let Some(id) = id {
-                if let Some(idmap) = self.idmap_mut() {
-                    idmap.data.remove(id.as_str());
+            //remove item from idmap
+            if let Some(Some(item)) = self.store().get(handle.as_usize()) {
+                let id: Option<String> = item.id().map(|x| x.to_string());
+                if let Some(id) = id {
+                    if let Some(idmap) = self.idmap_mut() {
+                        idmap.data.remove(id.as_str());
+                    }
                 }
+            } else {
+                return Err(StamError::HandleError(
+                    "Unable to remove non-existing handle",
+                ));
             }
-        } else {
-            return Err(StamError::HandleError(
-                "Unable to remove non-existing handle",
-            ));
-        }
 
-        //now remove the actual item, removing means just setting its previously occupied index to None
-        //(and the actual item is owned so will be deallocated)
-        let item = self.store_mut().get_mut(handle.as_usize()).unwrap();
-        *item = None;
-        Ok(())
+            //now remove the actual item, removing means just setting its previously occupied index to None
+            //(and the actual item is owned so will be deallocated)
+            let item = self.store_mut().get_mut(handle.as_usize()).unwrap();
+            *item = None;
+            Ok(())
+        } else {
+            Err(StamError::HandleError(Self::store_typeinfo()))
+        }
     }
 
     /// Resolves an ID to a handle.

@@ -233,7 +233,7 @@ impl private::StoreCallbacks<DataKey> for AnnotationDataSet {
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: DataKeyHandle) -> Result<(), StamError> {
         if self.handle().is_some() {
-            return Err(StamError::InUse("Refusing to remove datakey because its AnnotationDataSet is bound and we can't guarantee it's not used"));
+            return Err(StamError::InUse("Refusing to remove datakey because its AnnotationDataSet is bound and we can't guarantee it's not used (recursion not supported at this level)"));
         }
         if let Some(datavec) = self.key_data_map.data.get(handle.as_usize()) {
             if datavec.is_empty() {
@@ -311,7 +311,7 @@ impl private::StoreCallbacks<AnnotationData> for AnnotationDataSet {
     fn preremove(&mut self, handle: AnnotationDataHandle) -> Result<(), StamError> {
         let data: &AnnotationData = self.get(handle)?;
         if self.handle().is_some() {
-            return Err(StamError::InUse("Refusing to remove annotationdata because AnnotationDataSet is bound and we can't guarantee it's not used"));
+            return Err(StamError::InUse("Refusing to remove annotationdata because AnnotationDataSet is bound and we can't guarantee it's not used (recursion not supported at this level)"));
         }
         self.key_data_map.remove(data.key, handle);
         self.mark_changed();
