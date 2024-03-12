@@ -162,6 +162,15 @@ impl Storable for Annotation {
     ) -> Self::FullHandleType {
         handle
     }
+
+    fn merge(&mut self, _other: Self) -> Result<(), StamError> {
+        return Err(StamError::OtherError("Can not merge annotations"));
+    }
+
+    fn unbind(mut self) -> Self {
+        self.intid = None;
+        self
+    }
 }
 
 impl PartialEq<Annotation> for Annotation {

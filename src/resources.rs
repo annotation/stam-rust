@@ -285,6 +285,20 @@ impl Storable for TextResource {
     ) -> Self::FullHandleType {
         handle
     }
+
+    fn merge(&mut self, other: Self) -> Result<(), StamError> {
+        if self.text != other.text {
+            return Err(StamError::OtherError(
+                "Can not merge text resources if their text is not identical",
+            ));
+        }
+        Ok(())
+    }
+
+    fn unbind(mut self) -> Self {
+        self.intid = None;
+        self
+    }
 }
 
 impl Serialize for TextResource {

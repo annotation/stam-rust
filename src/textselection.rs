@@ -181,6 +181,15 @@ impl Storable for TextSelection {
     ) -> Self::FullHandleType {
         (storehandle, handle)
     }
+
+    fn merge(&mut self, _other: Self) -> Result<(), StamError> {
+        return Err(StamError::OtherError("Can not merge text selections"));
+    }
+
+    fn unbind(mut self) -> Self {
+        self.intid = None;
+        self
+    }
 }
 
 impl Hash for TextSelection {

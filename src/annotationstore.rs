@@ -607,9 +607,13 @@ impl FromJson for AnnotationStore {
         let reader = open_file_reader(filename, self.config())?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
 
+        self.set_merge_mode(true);
+
         DeserializeAnnotationStore::new(self)
             .deserialize(deserializer)
             .map_err(|e| StamError::DeserializationError(e.to_string()))?;
+
+        self.set_merge_mode(false);
 
         Ok(())
     }
@@ -622,11 +626,24 @@ impl FromJson for AnnotationStore {
         });
         let deserializer = &mut serde_json::Deserializer::from_str(string);
 
+        self.set_merge_mode(true);
+
         DeserializeAnnotationStore::new(self)
             .deserialize(deserializer)
             .map_err(|e| StamError::DeserializationError(e.to_string()))?;
 
+        self.set_merge_mode(false);
+
         Ok(())
+    }
+}
+
+impl AnnotationStore {
+    fn set_merge_mode(&mut self, value: bool) {
+        self.config.merge = value;
+        for dataset in <AnnotationStore as StoreFor<AnnotationDataSet>>::iter_mut(self) {
+            dataset.config.merge = value;
+        }
     }
 }
 
@@ -2028,6 +2045,7 @@ impl<'de> serde::de::Visitor<'de> for AnnotationsVisitor<'_> {
     where
         A: serde::de::SeqAccess<'de>,
     {
+        let pre_length = self.store.annotations_len();
         loop {
             let annotationbuilder: Option<AnnotationBuilder> = seq.next_element()?;
             if let Some(mut annotationbuilder) = annotationbuilder {
@@ -2046,8 +2064,10 @@ impl<'de> serde::de::Visitor<'de> for AnnotationsVisitor<'_> {
                     // temporary public IDs are deserialized exactly
                     // as they were serialized. So if there were any gaps,
                     // we need to deserialize these too:
-                    if self.store.annotations_len() > handle {
-                        return Err(serde::de::Error::custom("unable to resolve temporary public identifiers, did you start with an empty store? It won't work otherwise."));
+                    if self.store.annotations_len() > handle + pre_length {
+                        return Err(serde::de::Error::custom(
+                            "unable to resolve temporary public identifiers for annotations",
+                        ));
                     } else if handle > self.store.annotations_len() {
                         // expand the gaps, though this wastes memory if ensures that all references
                         // are valid without explicitly storing public identifiers.

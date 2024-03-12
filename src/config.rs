@@ -87,6 +87,12 @@ pub struct Config {
     )]
     pub(crate) serialize_mode: Arc<RwLock<SerializeMode>>,
 
+    #[serde(skip)]
+    #[n(9)]
+    /// Attempt to automatically merge items rather than raise an error about Duplicate IDs
+    /// You usually don't need to set this yourself, it is used internally when merging annotation stores.
+    pub(crate) merge: bool,
+
     /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
     #[n(100)]
     pub(crate) textrelationmap: bool,
@@ -134,6 +140,7 @@ impl Default for Config {
             milestone_interval: 100,
             workdir: None,
             debug: false,
+            merge: false,
             serialize_mode: Arc::new(RwLock::new(SerializeMode::AllowInclude)),
         }
     }

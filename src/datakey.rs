@@ -158,6 +158,18 @@ impl Storable for DataKey {
     ) -> Self::FullHandleType {
         (storehandle, handle)
     }
+
+    fn merge(&mut self, other: Self) -> Result<(), StamError> {
+        let intid = self.intid;
+        *self = other;
+        self.intid = intid; //retain same internal ID
+        Ok(())
+    }
+
+    fn unbind(mut self) -> Self {
+        self.intid = None;
+        self
+    }
 }
 
 impl PartialEq<DataKey> for DataKey {

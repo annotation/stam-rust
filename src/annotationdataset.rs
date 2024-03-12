@@ -88,7 +88,7 @@ pub struct AnnotationDataSet {
     /// Configuration
     #[data_size(skip)]
     #[n(9)]
-    config: Config,
+    pub(crate) config: Config,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, DataSize, Encode, Decode)]
@@ -176,6 +176,28 @@ impl Storable for AnnotationDataSet {
         handle: Self::HandleType,
     ) -> Self::FullHandleType {
         handle
+    }
+
+    fn merge(&mut self, other: Self) -> Result<(), StamError> {
+        let merge = self.config.merge;
+        self.config.merge = true; //enable merge mode for underlying keys and data
+        for key in other.keys {
+            if let Some(key) = key {
+                self.insert(key.unbind())?;
+            }
+        }
+        for data in other.data {
+            if let Some(data) = data {
+                self.insert(data.unbind())?;
+            }
+        }
+        self.config.merge = merge; //reset merge mode
+        Ok(())
+    }
+
+    fn unbind(mut self) -> Self {
+        self.intid = None;
+        self
     }
 }
 
@@ -867,6 +889,7 @@ impl<'de> serde::de::Visitor<'de> for DataVisitor<'_> {
     where
         A: serde::de::SeqAccess<'de>,
     {
+        let pre_length = self.store.data_len();
         loop {
             let databuilder: Option<AnnotationDataBuilder> = seq.next_element()?;
             if let Some(mut databuilder) = databuilder {
@@ -885,8 +908,10 @@ impl<'de> serde::de::Visitor<'de> for DataVisitor<'_> {
                     // temporary public IDs are deserialized exactly
                     // as they were serialized. So if there were any gaps,
                     // we need to deserialize these too:
-                    if self.store.data_len() > handle {
-                        return Err(serde::de::Error::custom("unable to resolve temporary public identifiers, did you start with an empty store? It won't work otherwise."));
+                    if self.store.data_len() > handle + pre_length {
+                        return Err(serde::de::Error::custom(
+                            "unable to resolve temporary public identifiers for annotation data",
+                        ));
                     } else if handle > self.store.data_len() {
                         // expand the gaps, though this wastes memory if ensures that all references
                         // are valid without explicitly storing public identifiers.

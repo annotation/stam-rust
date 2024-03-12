@@ -552,6 +552,14 @@ pub trait Storable: PartialEq + TypeInfo + Debug + Sized {
         //no-op
         self
     }
+
+    /// Merge another item into this one
+    /// This is a low-level API method, mostly for internal use.
+    fn merge(&mut self, other: Self) -> Result<(), StamError>;
+
+    /// Unbind an item
+    /// This is a low-level API method that can not be used publicly due to ownership restrictions.
+    fn unbind(self) -> Self;
 }
 
 /// This trait is implemented on types that provide storage for a certain other generic type (T)
@@ -615,11 +623,20 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
                     if *existing_item == item {
                         return Ok(existing_item.handle().unwrap());
                     }
-                    //in all other cases, we return an error
-                    return Err(StamError::DuplicateIdError(
-                        id.to_string(),
-                        Self::store_typeinfo(),
-                    ));
+
+                    if self.config().merge {
+                        // is the existing item different but we are in merge mode? Then merge
+                        // (note that merge is only supported for some Storables)
+                        let existing_item = self.get_mut(id).unwrap();
+                        existing_item.merge(item)?;
+                        return Ok(existing_item.handle().unwrap());
+                    } else {
+                        //in all other cases, we return an error
+                        return Err(StamError::DuplicateIdError(
+                            id.to_string(),
+                            Self::store_typeinfo(),
+                        ));
+                    }
                 }
 
                 self.idmap_mut().map(|idmap| {
