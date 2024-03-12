@@ -174,7 +174,7 @@ impl From<&StamError> for String {
                 format!("SerializationError: Serialization failed: {}", err)
             }
             StamError::DeserializationError(err) => {
-                format!("DeserializationError: Serialization failed: {}", err)
+                format!("DeserializationError: Deserialization failed: {}", err)
             }
             StamError::BuildError(err, contextmsg) => {
                 format!("BuildError: Error during build: {} ({})", err, contextmsg)
