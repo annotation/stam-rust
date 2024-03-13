@@ -361,16 +361,16 @@ fn output_selector(
         Selector::AnnotationSelector(a_handle, None) => {
             let annotation = store.annotation(*a_handle).expect("annotation must exist");
             if let Some(iri) = annotation.iri(&config.default_annotation_iri) {
-                ann_out += &format!(" \"id\": \"{}\", \"type\": \"Annotation\" }}", iri);
+                ann_out += &format!(" \"id\": \"{}\", \"type\": \"Annotation\" ", iri);
             } else {
-                ann_out += " \"id\": null }";
+                ann_out += " \"id\": null ";
                 eprintln!("WARNING: Annotation points to an annotation that has no public ID! Unable to serialize to Web Annotatations");
             }
         }
         Selector::ResourceSelector(res_handle) => {
             let resource = store.resource(*res_handle).expect("resource must exist");
             ann_out += &format!(
-                " \"id\": \"{}\", \"type\": \"Text\" }}",
+                " \"id\": \"{}\", \"type\": \"Text\" ",
                 into_iri(
                     resource.id().expect("resource must have ID"),
                     &config.default_resource_iri
@@ -380,7 +380,7 @@ fn output_selector(
         Selector::DataSetSelector(set_handle) => {
             let dataset = store.dataset(*set_handle).expect("resource must exist");
             ann_out += &format!(
-                " \"id\": \"{}\", \"type\": \"Dataset\" }}",
+                " \"id\": \"{}\", \"type\": \"Dataset\" ",
                 into_iri(
                     dataset.id().expect("dataset must have ID"),
                     &config.default_resource_iri
@@ -390,32 +390,32 @@ fn output_selector(
         Selector::CompositeSelector(selectors) => {
             ann_out += " \"type\": \"http://www.w3.org/ns/oa#Composite\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
+                ann_out += &format!("{{ {} }}", &output_selector(selector, store, config, true));
                 if i != selectors.len() - 1 {
-                    ann_out += &output_selector(selector, store, config, true);
                     ann_out += ",";
                 }
             }
-            ann_out += " ] }";
+            ann_out += " ]";
         }
         Selector::MultiSelector(selectors) => {
             ann_out += " \"type\": \"http://www.w3.org/ns/oa#Independents\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
-                ann_out += &output_selector(selector, store, config, true);
+                ann_out += &format!("{{ {} }}", &output_selector(selector, store, config, true));
                 if i != selectors.len() - 1 {
                     ann_out += ",";
                 }
             }
-            ann_out += " ] }";
+            ann_out += " ]";
         }
         Selector::DirectionalSelector(selectors) => {
             ann_out += " \"type\": \"http://www.w3.org/ns/oa#List\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
-                ann_out += &output_selector(selector, store, config, true);
+                ann_out += &format!("{{ {} }}", &output_selector(selector, store, config, true));
                 if i != selectors.len() - 1 {
                     ann_out += ",";
                 }
             }
-            ann_out += " ] }";
+            ann_out += " ]";
         }
         Selector::DataKeySelector(..) | Selector::AnnotationDataSelector(..) => {
             if nested {
@@ -426,9 +426,18 @@ fn output_selector(
         }
         Selector::RangedTextSelector { .. } | Selector::RangedAnnotationSelector { .. } => {
             if nested {
-                for subselector in selector.iter(store, false) {
-                    ann_out += &output_selector(&subselector, store, config, false);
+                ann_out += " \"type\": \"http://www.w3.org/ns/oa#List\", \"items\": [";
+                let subselectors: Vec<_> = selector.iter(store, false).collect();
+                for (i, subselector) in subselectors.iter().enumerate() {
+                    ann_out += &format!(
+                        "{{ {} }}",
+                        &output_selector(&subselector, store, config, false)
+                    );
+                    if i != subselectors.len() - 1 {
+                        ann_out += ",";
+                    }
                 }
+                ann_out += " ]";
             } else {
                 unreachable!(
                 "Internal Ranged selectors can not be serialized directly, they can be serialized only when under a complex selector",
