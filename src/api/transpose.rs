@@ -356,7 +356,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         if source_side.is_none() {
             return Err(StamError::TransposeError(
                     format!(
-                        "No source fragments were found in the complex transposition {}, unable to transpose (1)",
+                        "No source fragments were found in the complex transposition {}, source side could not be identified, unable to transpose",
                         via.id().unwrap_or("(no-id)"),
                     ),
                     "",
@@ -367,20 +367,23 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             0 => 
                 Err(StamError::TransposeError(
                     format!(
-                        "No source fragments were found in the complex transposition {}, unable to transpose (2)",
+                        "No source fragments were found in the complex transposition {}, source side has 0 fragments, unable to transpose",
                         via.id().unwrap_or("(no-id)"),
                     ),
                     "",
                 )),
             1 if config.allow_simple && !config.no_transposition => {
                 //output is a simple transposition
+                let transposition_id = config
+                    .transposition_id
+                    .clone()
+                    .unwrap_or_else(|| generate_id("transposition-", ""));
+                if config.debug {
+                    eprintln!("[stam transpose] outputting simple transposition {}", &transposition_id);
+                }
                 builders.push(
                     AnnotationBuilder::new()
-                        .with_id(
-                            config
-                                .transposition_id
-                                .unwrap_or_else(|| generate_id("transposition-", "")),
-                        )
+                        .with_id(transposition_id)
                         .with_data(
                             "https://w3id.org/stam/extensions/stam-transpose/",
                             "Transposition",
@@ -398,6 +401,9 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                     .transposition_id
                     .clone()
                     .unwrap_or_else(|| generate_id("transposition-", ""));
+                if config.debug {
+                    eprintln!("[stam transpose] outputting complex transposition {}", &transposition_id);
+                }
                 let mut transposition_selectors: Vec<SelectorBuilder<'static>> = Vec::new();
                 let mut target_id_iter = config.target_side_ids.into_iter();
 
@@ -442,6 +448,9 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 .resegmentation_id
                                 .clone()
                                 .unwrap_or_else(|| generate_id("resegmentation-", ""));
+                            if config.debug {
+                                eprintln!("[stam transpose] outputting resegmentated annotation {}", &source_id);
+                            }
 
                             //add the resegmented annotation (will be the source side of the transposition):
                             if selectors.len() == 1 {
@@ -465,6 +474,9 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 // create an extra resegmentation annotation
                                 // linking the resegmented annotation to the real source
                                 let real_source_id = config.source_side_id.clone().unwrap();
+                                if config.debug {
+                                    eprintln!("[stam transpose] outputting resegmentation {} ({} -> {})", &resegmentation_id, &real_source_id, &source_id);
+                                }
                                 builders.push(
                                     AnnotationBuilder::new()
                                         .with_id(resegmentation_id)
@@ -490,6 +502,9 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                 if !config.existing_source_side {
                                     //add a copied source annotation (will be the source side of the transposition):
                                     //this occurs if the original one has no ID to link to
+                                    if config.debug {
+                                        eprintln!("[stam transpose] adding a copy of the source annotation (because original has no ID to link to)");
+                                    }
                                     if selectors.len() == 1 {
                                         builders.push(
                                             AnnotationBuilder::new()
@@ -540,6 +555,9 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                             )
                             .with_target(SelectorBuilder::DirectionalSelector(transposition_selectors)),
                     );
+                }
+                if config.debug {
+                    eprintln!("[stam transpose] returning {} annotations", builders.len());
                 }
                 Ok(builders)
             }
