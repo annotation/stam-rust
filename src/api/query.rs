@@ -1507,9 +1507,10 @@ impl<'store> QueryIter<'store> {
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
-                        "Constraint {} (primary) is not implemented for queries over annotations",
-                        c.keyword()
-                    ),
+                    "Constraint {} (primary) is not implemented for queries over annotations: {:?}",
+                    c.keyword(),
+                    c
+                ),
                     "",
                 ))
             }
@@ -1652,8 +1653,9 @@ impl<'store> QueryIter<'store> {
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
-                        "Constraint {} is not implemented for queries over annotations",
-                        c.keyword()
+                        "Constraint {} (secondary) is not implemented for queries over annotations: {:?}",
+                        c.keyword(),
+                        c
                     ),
                     "",
                 ))
