@@ -43,7 +43,7 @@ pub struct TransposeConfig {
     /// The indices correspond to the various sides of the transposition that is being transposed over (in the same order, minus the source)
     pub target_side_ids: Vec<String>,
 
-    /// Disable sanity check (increases performance)
+    /// Enable debug mode (to stderr)
     pub debug: bool,
 }
 
