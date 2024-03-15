@@ -62,6 +62,14 @@ impl Default for TranspositionSide {
 }
 
 pub trait Transposable<'store> {
+    /// The transpose function maps an annotation, textselection, or textselection set from
+    /// one coordinate system to another. These mappings are defined in annotations called
+    /// **transpositions** and are documented here: https://github.com/annotation/stam/blob/master/extensions/stam-transpose/README.md
+    /// Transpositions link identical textual parts across resources, any annotations within
+    /// the bounds of such a mapping can then be *transposed* using this function to the other coordinate system.
+    ///
+    /// The `via` parameter expresses the transposition that is being used.
+    /// The result of a transpose operation is itself again a transposition.
     fn transpose(
         &self,
         via: &ResultItem<'store, Annotation>,
