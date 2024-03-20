@@ -225,6 +225,7 @@ impl<'store> ResultItem<'store, Annotation> {
 
         let mut body_out = String::with_capacity(512);
         let mut suppress_default_body_type = false;
+        let mut suppress_body_id = false;
         let mut suppress_auto_generated = false;
         let mut suppress_auto_generator = false;
 
@@ -262,6 +263,8 @@ impl<'store> ResultItem<'store, Annotation> {
                         //other predicates -> go into body
                         if key_id == "type" {
                             suppress_default_body_type = true; //no need for the default because we provided one explicitly
+                        } else if key_id == "id" {
+                            suppress_body_id = true;
                         }
                         if !body_out.is_empty() {
                             body_out.push(',');
@@ -292,6 +295,17 @@ impl<'store> ResultItem<'store, Annotation> {
             ann_out += " \"body\": {";
             if !suppress_default_body_type {
                 ann_out += " \"type\": \"Dataset\",";
+            }
+            if !suppress_body_id {
+                if let Some(iri) = self.iri(&config.default_annotation_iri) {
+                    ann_out += &format!(" \"id\": \"{}/body\",", iri);
+                } else if config.generate_annotation_iri {
+                    let id = nanoid!();
+                    ann_out += &format!(
+                        " \"id\": \"{}\",",
+                        into_iri(&id, &config.default_annotation_iri)
+                    )
+                }
             }
             ann_out += &body_out;
             ann_out += "},";
