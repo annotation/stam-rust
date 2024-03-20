@@ -1425,6 +1425,17 @@ impl<'store> QueryIter<'store> {
                 SelectionQualifier::Metadata,
                 AnnotationDepth::One,
             )) => Box::new(store.annotation(annotation).or_fail()?.annotations()),
+            Some(&Constraint::DataSet(set, SelectionQualifier::Normal)) => {
+                let dataset = store.dataset(set).or_fail()?;
+                Box::new(store.annotations().filter_set(&dataset))
+            }
+            Some(&Constraint::DataSet(set, SelectionQualifier::Metadata)) => {
+                Box::new(store.dataset(set).or_fail()?.annotations())
+            }
+            Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
+                let dataset = self.resolve_datasetvar(varname)?;
+                Box::new(store.annotations().filter_set(&dataset))
+            }
             Some(&Constraint::DataKey {
                 set,
                 key,
@@ -1591,6 +1602,10 @@ impl<'store> QueryIter<'store> {
             &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Normal) => {
                 let key = self.resolve_keyvar(varname)?;
                 Box::new(iter.filter_key_value(&key, operator.clone()))
+            }
+            &Constraint::DataSet(set, SelectionQualifier::Normal) => {
+                let dataset = store.dataset(set).or_fail()?;
+                Box::new(iter.filter_set(&dataset))
             }
             &Constraint::Text(text, TextMode::Exact) => {
                 Box::new(iter.filter_text_byref(text, true, " "))
