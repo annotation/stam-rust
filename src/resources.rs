@@ -749,6 +749,11 @@ impl TextResource {
         self.positionindex.0.len()
     }
 
+    /// Returns a low-level iterator over the position index
+    pub fn positionindex_iter(&self) -> btree_map::Iter<usize, PositionIndexItem> {
+        self.positionindex.0.iter()
+    }
+
     /// Returns a text selection by offset.
     /// This is a lower-level method that does not check if the text selection exists, use [`textselection_by_offset()`] or the higher level [`textselection()`] instead (the latter calls back to here).
     // this is deliberately NOT part of the Text trait; if applied to e.g. TextSelection it would yield TextSelections with relative offsets

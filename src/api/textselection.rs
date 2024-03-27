@@ -309,6 +309,12 @@ impl<'store> ResultTextSelection<'store> {
             .positions_in_range(mode, self.begin(), self.end())
     }
 
+    /// Iterator covering the full text of text selection as a sequence of minimum-length non-overlapping TextSelections, in textual order
+    pub fn segmentation(&self) -> SegmentationIter {
+        self.resource()
+            .segmentation_in_range(self.begin(), self.end())
+    }
+
     /// Writes a textselection to a STAM JSON string, with appropriate formatting, note that
     /// this is not used in normal serialisation (Text Selections aren't serialised).
     pub fn to_json(&self) -> Result<String, StamError> {

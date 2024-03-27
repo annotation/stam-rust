@@ -18,9 +18,10 @@ use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::error::*;
-use crate::resources::{TextResource, TextResourceHandle};
+use crate::resources::{PositionMode, TextResource, TextResourceHandle};
 use crate::selector::Offset;
 use crate::store::*;
+use crate::text::Text;
 use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
 use crate::{Filter, FilterMode};
 
@@ -147,6 +148,28 @@ impl<'store> ResultItem<'store, TextResource> {
     /// This method is much more efficient than `test_data_about()`.
     pub fn has_metadata_about(&self, data: ResultItem<'store, AnnotationData>) -> bool {
         self.annotations_by_metadata_about(data).test()
+    }
+
+    /// Iterator covering the full text of the resource as a sequence of minimum-length non-overlapping TextSelections, in textual order
+    pub fn segmentation(&self) -> SegmentationIter<'store> {
+        SegmentationIter {
+            positions: self.as_ref().positions(PositionMode::Both),
+            resource: self.clone(),
+            cursor: 0,
+            end: self.as_ref().textlen(),
+        }
+    }
+
+    /// Iterator covering a range of text of the resource as a sequence of minimum-length non-overlapping TextSelections, in textual order
+    pub fn segmentation_in_range(&self, begin: usize, end: usize) -> SegmentationIter<'store> {
+        SegmentationIter {
+            positions: self
+                .as_ref()
+                .positions_in_range(PositionMode::Both, begin, end),
+            resource: self.clone(),
+            cursor: begin,
+            end,
+        }
     }
 }
 
@@ -754,6 +777,56 @@ where
                 "Filter {:?} not implemented for FilteredResources",
                 self.filter
             ),
+        }
+    }
+}
+
+pub struct SegmentationIter<'a> {
+    positions: Box<dyn Iterator<Item = &'a usize> + 'a>,
+    resource: ResultItem<'a, TextResource>,
+    cursor: usize,
+    end: usize,
+}
+
+impl<'a> Iterator for SegmentationIter<'a> {
+    type Item = ResultTextSelection<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.cursor >= self.end {
+                return None;
+            }
+
+            if let Some(pos) = self.positions.next() {
+                if *pos > self.cursor {
+                    if *pos > self.end {
+                        //clipped segment
+                        let textselection = self
+                            .resource
+                            .textselection(&Offset::simple(self.cursor, self.end))
+                            .expect("textselection must succeed");
+                        self.cursor = self.end;
+                        return Some(textselection);
+                    } else {
+                        //normal segment
+                        let textselection = self
+                            .resource
+                            .textselection(&Offset::simple(self.cursor, *pos))
+                            .expect("textselection must succeed");
+                        self.cursor = *pos;
+                        return Some(textselection);
+                    }
+                } else {
+                    continue;
+                }
+            } else {
+                let textselection = self
+                    .resource
+                    .textselection(&Offset::simple(self.cursor, self.end))
+                    .expect("textselection must succeed");
+                self.cursor = self.end;
+                return Some(textselection);
+            }
         }
     }
 }

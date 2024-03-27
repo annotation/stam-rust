@@ -2444,3 +2444,23 @@ fn transpose_over_complex_transposition_invalid() -> Result<(), StamError> {
     assert!(source.transpose(&transposition, config).is_err());
     Ok(())
 }
+
+#[test]
+fn segmentation() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let segmentation: Vec<_> = store
+        .resource("humanrights")
+        .or_fail()?
+        .segmentation()
+        .collect();
+    assert_eq!(segmentation[0].begin(), 0);
+    assert_eq!(segmentation[0].end(), 17);
+    assert_eq!(segmentation[0].text(), "All human beings ");
+    assert_eq!(segmentation[1].begin(), 17);
+    assert_eq!(segmentation[1].end(), 40);
+    assert_eq!(segmentation[1].text(), "are born free and equal");
+    assert_eq!(segmentation[2].begin(), 40);
+    assert_eq!(segmentation[2].end(), 63);
+    assert_eq!(segmentation[2].text(), " in dignity and rights.");
+    Ok(())
+}
