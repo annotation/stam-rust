@@ -656,6 +656,7 @@ impl Default for TextMode {
 /// This is a low-level data structure that holds filter states for the iterators [`FilteredAnnotations`], [`FilteredData`], [`FilteredResources`],[`FilteredTextSelections`].
 /// You likely do not need this and should use the appropriate `filter_*` methods on the iterators instead.
 /// The only possible use from outside is in programmatically setting direct query constraints via [`Constraint::Filter`].
+#[allow(dead_code)] //some of the Filters have fields that are not used
 pub(crate) enum Filter<'store> {
     AnnotationData(
         AnnotationDataSetHandle,
