@@ -568,6 +568,19 @@ impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
     fn preremove(&mut self, handle: AnnotationDataSetHandle) -> Result<(), StamError> {
+        //find all annotations that use this set (no reverse index for this so not most efficient)
+        let mut annotations: BTreeSet<AnnotationHandle> = BTreeSet::new();
+        for annotation in <AnnotationStore as StoreFor<Annotation>>::iter(self) {
+            if annotation
+                .data()
+                .any(|(set_handle, _)| *set_handle == handle)
+            {
+                annotations.insert(annotation.handle_or_err()?);
+            }
+        }
+        for a_handle in annotations {
+            <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
+        }
         if let Some(annotations) = self.dataset_annotation_metamap.data.get(handle.as_usize()) {
             //remove annotations that point at us (we clone to lose the reference and not break exclusive mutable borrow rules)
             for a_handle in annotations.clone() {
@@ -1721,6 +1734,89 @@ impl AnnotationStore {
                 annotationset.strip_data_ids();
             }
         }
+    }
+
+    /// Remove annotation data
+    /// In strict mode, any annotation that uses this data will be removed entirely, otherwise the annotation will be modified to remove this data
+    pub fn remove_data(
+        &mut self,
+        set: impl Request<AnnotationDataSet>,
+        data: impl Request<AnnotationData>,
+        strict: bool,
+    ) -> Result<(), StamError> {
+        let mut delete: Vec<_> = Vec::new();
+        if let Some(set_handle) = set.to_handle(self) {
+            if let Some(data_handle) = data.to_handle(self.get(set_handle)?) {
+                if let Some(annotations) = self
+                    .dataset_data_annotation_map
+                    .get(set_handle, data_handle)
+                {
+                    for a_handle in annotations.clone() {
+                        delete.push((set_handle, data_handle, a_handle));
+                        if strict {
+                            <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
+                        } else {
+                            let annotation = self.get_mut(a_handle)?;
+                            annotation.remove_data(set_handle, data_handle);
+                        }
+                    }
+                }
+
+                if let Some(annotations) = self.data_annotation_metamap.get(set_handle, data_handle)
+                {
+                    for a_handle in annotations.clone() {
+                        <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
+                    }
+                }
+
+                self.data_annotation_metamap
+                    .remove_second(set_handle, data_handle);
+
+                let set = self.get_mut(set_handle)?;
+                <AnnotationDataSet as StoreFor<AnnotationData>>::remove(set, data_handle)?;
+            }
+        }
+
+        for (set_handle, data_handle, a_handle) in delete {
+            self.dataset_data_annotation_map
+                .remove(set_handle, data_handle, a_handle);
+        }
+
+        Ok(())
+    }
+
+    /// Remove key and all associated data
+    /// In strict mode, any annotation that uses this key will be removed entirely, otherwise the annotation will be modified to remove data that uses this key
+    pub fn remove_key(
+        &mut self,
+        set: impl Request<AnnotationDataSet>,
+        key: impl Request<DataKey>,
+        strict: bool,
+    ) -> Result<(), StamError> {
+        if let Some(set_handle) = set.to_handle(self) {
+            if let Some(key_handle) = key.to_handle(self.get(set_handle)?) {
+                let set = self.get(set_handle)?;
+                if let Some(data) = set.data_by_key(key_handle) {
+                    for data_handle in data.clone() {
+                        self.remove_data(set_handle, data_handle, strict)?;
+                    }
+                }
+
+                let set = self.get_mut(set_handle)?;
+                <AnnotationDataSet as StoreFor<DataKey>>::remove(set, key_handle)?;
+
+                if let Some(annotations) = self.key_annotation_metamap.get(set_handle, key_handle) {
+                    for a_handle in annotations.clone() {
+                        <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
+                    }
+                }
+
+                self.key_annotation_metamap
+                    .remove_second(set_handle, key_handle);
+            }
+        }
+
+        Ok(())
     }
 }
 

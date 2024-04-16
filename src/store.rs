@@ -408,6 +408,13 @@ where
         }
     }
 
+    /// Remove a relation from the map
+    pub fn remove_second(&mut self, x: A, y: B) {
+        if let Some(v) = self.data.get_mut(x.as_usize()) {
+            v.remove_all(y)
+        }
+    }
+
     pub fn totalcount(&self) -> usize {
         let mut total = 0;
         for v in self.data.iter() {
@@ -763,10 +770,10 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
         Err(StamError::HandleError(Self::store_typeinfo()))
     }
 
-    /// Removes an item, along with any annotations that point to it
+    /// Removes an item
     fn remove(&mut self, item: impl Request<T>) -> Result<(), StamError> {
         if let Some(handle) = item.to_handle(self) {
-            //callback to remove the item from relation maps
+            //callback to remove the item from relation maps and to remove all its dependencies
             self.preremove(handle)?;
 
             //remove item from idmap
