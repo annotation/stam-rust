@@ -2464,3 +2464,59 @@ fn segmentation() -> Result<(), StamError> {
     assert_eq!(segmentation[2].text(), " in dignity and rights.");
     Ok(())
 }
+
+#[test]
+fn remove_annotation() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.remove_annotation("A1")?;
+    assert_eq!(store.annotation("A1"), None);
+    Ok(())
+}
+
+#[test]
+fn remove_resource() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.remove_resource("testres")?;
+    assert_eq!(store.resource("testres"), None);
+    assert_eq!(store.annotation("A1"), None); //annotation should be gone too
+    Ok(())
+}
+
+#[test]
+fn remove_dataset() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.remove_dataset("testdataset")?;
+    assert_eq!(store.dataset("testdataset"), None);
+    assert_eq!(store.annotation("A1"), None); //annotation should be gone too
+    Ok(())
+}
+
+#[test]
+fn remove_data_strict() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.remove_data("testdataset", "D1", true)?;
+    let set = store.dataset("testdataset").or_fail()?;
+    assert_eq!(set.annotationdata("D1"), None);
+    assert_eq!(store.annotation("A1"), None); //annotation should be gone too
+    Ok(())
+}
+
+#[test]
+fn remove_data_nonstrict() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.remove_data("testdataset", "D1", true)?;
+    let set = store.dataset("testdataset").or_fail()?;
+    assert_eq!(set.annotationdata("D1"), None);
+    assert_eq!(store.annotation("A1"), None); //annotation should be gone too, despite strict mode, since there was only one data item associated
+    Ok(())
+}
+
+#[test]
+fn remove_key_strict() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.remove_key("testdataset", "pos", true)?;
+    let set = store.dataset("testdataset").or_fail()?;
+    assert_eq!(set.key("pos"), None);
+    assert_eq!(store.annotation("A1"), None); //annotation should be gone too
+    Ok(())
+}

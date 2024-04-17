@@ -587,9 +587,7 @@ impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
                 <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
             }
         }
-        self.dataset_annotation_metamap
-            .data
-            .remove(handle.as_usize());
+        self.dataset_annotation_metamap.remove_all(handle);
         Ok(())
     }
 }
@@ -1736,6 +1734,24 @@ impl AnnotationStore {
         }
     }
 
+    /// Remove an annotation, and all annotations that reference it
+    pub fn remove_annotation(&mut self, item: impl Request<Annotation>) -> Result<(), StamError> {
+        self.remove(item)
+    }
+
+    /// Remove a dataset, and all annotations that reference it
+    pub fn remove_dataset(
+        &mut self,
+        item: impl Request<AnnotationDataSet>,
+    ) -> Result<(), StamError> {
+        self.remove(item)
+    }
+
+    /// Remove a resource, and all annotations that reference it
+    pub fn remove_resource(&mut self, item: impl Request<TextResource>) -> Result<(), StamError> {
+        self.remove(item)
+    }
+
     /// Remove annotation data
     /// In strict mode, any annotation that uses this data will be removed entirely, otherwise the annotation will be modified to remove this data
     pub fn remove_data(
@@ -1757,7 +1773,13 @@ impl AnnotationStore {
                             <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
                         } else {
                             let annotation = self.get_mut(a_handle)?;
+                            let prelen = annotation.raw_data().len();
                             annotation.remove_data(set_handle, data_handle);
+                            let postlen = annotation.raw_data().len();
+                            if postlen == 0 && prelen > 0 {
+                                //we deleted all its data, so just delete the entire annotation
+                                <AnnotationStore as StoreFor<Annotation>>::remove(self, a_handle)?;
+                            }
                         }
                     }
                 }
