@@ -1701,15 +1701,25 @@ impl<'store> QueryIter<'store> {
             Some(&Constraint::Data(ref handles, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store))
             }
-            Some(&Constraint::Annotations(ref handles, _, _)) => {
+            Some(&Constraint::Annotations(ref handles, SelectionQualifier::Normal, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).data())
+            }
+            Some(&Constraint::Annotations(ref handles, SelectionQualifier::Metadata, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store).data_as_metadata())
             }
             Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
                 Box::new(store.annotation(id).or_fail()?.data())
             }
+            Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _)) => {
+                Box::new(store.annotation(id).or_fail()?.data_as_metadata())
+            }
             Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _)) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.data())
+            }
+            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Metadata, _)) => {
+                let annotation = self.resolve_annotationvar(varname)?;
+                Box::new(annotation.data_as_metadata())
             }
             Some(&Constraint::TextVariable(varname)) => {
                 let textselection = self.resolve_textvar(varname)?;
@@ -1848,15 +1858,25 @@ impl<'store> QueryIter<'store> {
             Some(&Constraint::Keys(ref handles, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store))
             }
-            Some(&Constraint::Annotations(ref handles, _, _)) => {
+            Some(&Constraint::Annotations(ref handles, SelectionQualifier::Normal, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).keys())
+            }
+            Some(&Constraint::Annotations(ref handles, SelectionQualifier::Metadata, _)) => {
+                Box::new(FromHandles::new(handles.clone().into_iter(), store).keys_as_metadata())
             }
             Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
                 Box::new(store.annotation(id).or_fail()?.keys())
             }
+            Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _)) => {
+                Box::new(store.annotation(id).or_fail()?.keys_as_metadata())
+            }
             Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _)) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.keys())
+            }
+            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Metadata, _)) => {
+                let annotation = self.resolve_annotationvar(varname)?;
+                Box::new(annotation.keys_as_metadata())
             }
             Some(&Constraint::Union(ref subconstraints)) => {
                 let mut handles: Handles<'store, DataKey> = Handles::new_empty(store);

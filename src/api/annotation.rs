@@ -453,9 +453,35 @@ where
         ))
     }
 
+    /// Get an iterator over all data ([`AnnotationData`]) that are targeted by this annotation via a [`Selector::AnnotationDataSelector`].
+    fn data_as_metadata(
+        self,
+    ) -> ResultIter<<Vec<ResultItem<'store, AnnotationData>> as IntoIterator>::IntoIter> {
+        let mut data: Vec<_> = self
+            .map(|annotation| annotation.data_as_metadata())
+            .flatten()
+            .collect();
+        data.sort_unstable();
+        data.dedup();
+        ResultIter::new_sorted(data.into_iter())
+    }
+
     /// Get an iterator over all keys ([`DataKey`]) used by data of this annotation. Shortcut for `.data().keys()`.
     fn keys(self) -> ResultIter<<Vec<ResultItem<'store, DataKey>> as IntoIterator>::IntoIter> {
         let mut keys: Vec<_> = self.map(|annotation| annotation.keys()).flatten().collect();
+        keys.sort_unstable();
+        keys.dedup();
+        ResultIter::new_sorted(keys.into_iter())
+    }
+
+    /// Get an iterator over all keys ([`DataKey`]) that are targeted by this annotation via a [`Selector::DataKeySelector`].
+    fn keys_as_metadata(
+        self,
+    ) -> ResultIter<<Vec<ResultItem<'store, DataKey>> as IntoIterator>::IntoIter> {
+        let mut keys: Vec<_> = self
+            .map(|annotation| annotation.keys_as_metadata())
+            .flatten()
+            .collect();
         keys.sort_unstable();
         keys.dedup();
         ResultIter::new_sorted(keys.into_iter())
