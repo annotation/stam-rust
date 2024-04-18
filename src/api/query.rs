@@ -8,6 +8,7 @@ use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
 use crate::error::StamError;
 use crate::textselection::TextSelectionOperator;
+use crate::Offset;
 use crate::{api::*, Configurable};
 use crate::{store::*, ResultTextSelection};
 use crate::{types::*, DataOperator};
@@ -217,10 +218,10 @@ pub enum Constraint<'a> {
     Id(&'a str),
 
     /// Constrain by a specific Annotation, referenced by ID (`ANNOTATION` keyword in STAMQL)
-    Annotation(&'a str, SelectionQualifier, AnnotationDepth),
+    Annotation(&'a str, SelectionQualifier, AnnotationDepth, Option<Offset>),
 
     /// Constrain by a specific TextResource, referenced by ID (`RESOURCE` keyword in STAMQL)
-    TextResource(&'a str, SelectionQualifier),
+    TextResource(&'a str, SelectionQualifier, Option<Offset>),
 
     /// Constrain by a specific AnnotationDataSet, referenced by ID (`DATASET` keyword in STAMQL)
     DataSet(&'a str, SelectionQualifier),
@@ -242,7 +243,7 @@ pub enum Constraint<'a> {
     DataSetVariable(&'a str, SelectionQualifier),
 
     /// Constrain by a specific TextResource, referenced by variable (`RESOURCE` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
-    ResourceVariable(&'a str, SelectionQualifier),
+    ResourceVariable(&'a str, SelectionQualifier, Option<Offset>),
 
     /// Constrain by a specific text selection, referenced by variable (`TEXT` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     TextVariable(&'a str),
@@ -277,7 +278,7 @@ pub enum Constraint<'a> {
     Union(Vec<Constraint<'a>>),
 
     /// Constrain by a specific Annotation, referenced by variable (`Annotation` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
-    AnnotationVariable(&'a str, SelectionQualifier, AnnotationDepth),
+    AnnotationVariable(&'a str, SelectionQualifier, AnnotationDepth, Option<Offset>),
 
     /// Constrain by any of multiple annotations
     Annotations(Handles<'a, Annotation>, SelectionQualifier, AnnotationDepth),
@@ -325,6 +326,45 @@ impl<'a> Constraint<'a> {
             || querystring.starts_with("]")
     }
 
+    fn parse_offset<'b>(mut querystring: &'b str) -> Result<(Option<Offset>, &'b str), StamError> {
+        if !Self::closed(querystring) && querystring.starts_with("OFFSET") {
+            querystring = querystring["OFFSET".len()..].trim_start();
+            let (arg, remainder, _) = get_arg(querystring)?;
+            let begin = if arg == "WHOLE" || arg == "ALL" {
+                Cursor::BeginAligned(0)
+            } else {
+                Cursor::try_from(arg).or_else(|_| {
+                    Err(StamError::QuerySyntaxError(
+                        format!(
+                            "Expected integer for begin cursor after OFFSET, got '{}'",
+                            arg
+                        ),
+                        "",
+                    ))
+                })?
+            };
+            querystring = remainder;
+            let end = if Self::closed(querystring) {
+                Cursor::EndAligned(0)
+            } else {
+                let (arg, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                Cursor::try_from(arg).or_else(|_| {
+                    Err(StamError::QuerySyntaxError(
+                        format!(
+                            "Expected integer for end cursor, (optional) second parameter after OFFSET, got '{}'",
+                            arg
+                        ),
+                        "",
+                    ))
+                })?
+            };
+            Ok((Some(Offset { begin, end }), querystring))
+        } else {
+            Ok((None, querystring))
+        }
+    }
+
     pub(crate) fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
         let constraint = match querystring.split(QUERYSPLITCHARS).next() {
             Some("ID") => {
@@ -355,22 +395,24 @@ impl<'a> Constraint<'a> {
                 querystring = querystring["ANNOTATION".len()..].trim_start();
                 let (arg, remainder, _) = get_arg(querystring)?;
                 let (arg, remainder, qualifier, depth) = parse_qualifiers(arg, remainder)?;
+                let (offset, remainder) = Self::parse_offset(remainder)?;
                 querystring = remainder;
                 if arg.starts_with("?") && arg.len() > 1 {
-                    Self::AnnotationVariable(&arg[1..], qualifier, depth)
+                    Self::AnnotationVariable(&arg[1..], qualifier, depth, offset)
                 } else {
-                    Self::Annotation(arg, qualifier, depth)
+                    Self::Annotation(arg, qualifier, depth, offset)
                 }
             }
             Some("RESOURCE") => {
                 querystring = querystring["RESOURCE".len()..].trim_start();
                 let (arg, remainder, _) = get_arg(querystring)?;
                 let (arg, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
+                let (offset, remainder) = Self::parse_offset(remainder)?;
                 querystring = remainder;
                 if arg.starts_with("?") && arg.len() > 1 {
-                    Self::ResourceVariable(&arg[1..], qualifier)
+                    Self::ResourceVariable(&arg[1..], qualifier, offset)
                 } else {
-                    Self::TextResource(arg, qualifier)
+                    Self::TextResource(arg, qualifier, offset)
                 }
             }
             Some("DATASET") => {
@@ -581,9 +623,9 @@ impl<'a> Constraint<'a> {
                     operator.to_string()?
                 );
             }
-            Self::AnnotationVariable(varname, qualifier, depth) => {
+            Self::AnnotationVariable(varname, qualifier, depth, offset) => {
                 s += &format!(
-                    "ANNOTATION{}{} ?{};",
+                    "ANNOTATION{}{} ?{}",
                     qualifier.as_str(),
                     if depth == &AnnotationDepth::Max {
                         " RECURSIVE"
@@ -592,6 +634,10 @@ impl<'a> Constraint<'a> {
                     },
                     varname
                 );
+                if let Some(offset) = offset {
+                    s += &format!(" OFFSET {} {}", offset.begin, offset.end);
+                }
+                s.push(';')
             }
             Self::DataVariable(varname, qualifier) => {
                 s += &format!("DATA{} ?{};", qualifier.as_str(), varname);
@@ -599,15 +645,19 @@ impl<'a> Constraint<'a> {
             Self::DataSetVariable(varname, qualifier) => {
                 s += &format!("DATASET{} ?{};", qualifier.as_str(), varname);
             }
-            Self::ResourceVariable(varname, qualifier) => {
-                s += &format!("RESOURCE{} ?{};", qualifier.as_str(), varname);
+            Self::ResourceVariable(varname, qualifier, offset) => {
+                s += &format!("RESOURCE{} ?{}", qualifier.as_str(), varname);
+                if let Some(offset) = offset {
+                    s += &format!(" OFFSET {} {}", offset.begin, offset.end);
+                }
+                s.push(';')
             }
             Self::TextVariable(varname) => {
                 s += &format!("TEXT{};", varname);
             }
-            Self::Annotation(id, qualifier, depth) => {
+            Self::Annotation(id, qualifier, depth, offset) => {
                 s += &format!(
-                    "ANNOTATION{}{} \"{}\";",
+                    "ANNOTATION{}{} \"{}\"",
                     qualifier.as_str(),
                     if depth == &AnnotationDepth::Max {
                         " RECURSIVE"
@@ -616,9 +666,17 @@ impl<'a> Constraint<'a> {
                     },
                     id
                 );
+                if let Some(offset) = offset {
+                    s += &format!(" OFFSET {} {}", offset.begin, offset.end);
+                }
+                s.push(';')
             }
-            Self::TextResource(id, qualifier) => {
-                s += &format!("RESOURCE{} \"{}\";", qualifier.as_str(), id);
+            Self::TextResource(id, qualifier, offset) => {
+                s += &format!("RESOURCE{} \"{}\"", qualifier.as_str(), id);
+                if let Some(offset) = offset {
+                    s += &format!(" OFFSET {} {}", offset.begin, offset.end);
+                }
+                s.push(';')
             }
             Self::DataSet(id, qualifier) => {
                 s += &format!("DATASET{} \"{}\";", qualifier.as_str(), id);
@@ -1385,7 +1443,7 @@ impl<'store> QueryIter<'store> {
                 SelectionQualifier::Metadata,
                 AnnotationDepth::One,
             )) => Box::new(FromHandles::new(handles.clone().into_iter(), store).annotations()),
-            Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Normal, depth)) => {
+            Some(&Constraint::AnnotationVariable(var, SelectionQualifier::Normal, depth, None)) => {
                 let annotation = self.resolve_annotationvar(var)?;
                 Box::new(annotation.annotations_in_targets(depth))
             }
@@ -1393,26 +1451,27 @@ impl<'store> QueryIter<'store> {
                 var,
                 SelectionQualifier::Metadata,
                 AnnotationDepth::One,
+                None,
             )) => {
                 //TODO LATER: handle Recursive variant?
                 let annotation = self.resolve_annotationvar(var)?;
                 Box::new(annotation.annotations())
             }
-            Some(&Constraint::TextResource(res, SelectionQualifier::Normal)) => {
+            Some(&Constraint::TextResource(res, SelectionQualifier::Normal, None)) => {
                 Box::new(store.resource(res).or_fail()?.annotations())
             }
-            Some(&Constraint::TextResource(res, SelectionQualifier::Metadata)) => {
+            Some(&Constraint::TextResource(res, SelectionQualifier::Metadata, None)) => {
                 Box::new(store.resource(res).or_fail()?.annotations_as_metadata())
             }
-            Some(&Constraint::ResourceVariable(var, SelectionQualifier::Normal)) => {
+            Some(&Constraint::ResourceVariable(var, SelectionQualifier::Normal, None)) => {
                 let resource = self.resolve_resourcevar(var)?;
                 Box::new(resource.annotations())
             }
-            Some(&Constraint::ResourceVariable(var, SelectionQualifier::Metadata)) => {
+            Some(&Constraint::ResourceVariable(var, SelectionQualifier::Metadata, None)) => {
                 let resource = self.resolve_resourcevar(var)?;
                 Box::new(resource.annotations_as_metadata())
             }
-            Some(&Constraint::Annotation(annotation, SelectionQualifier::Normal, depth)) => {
+            Some(&Constraint::Annotation(annotation, SelectionQualifier::Normal, depth, None)) => {
                 Box::new(
                     store
                         .annotation(annotation)
@@ -1424,6 +1483,7 @@ impl<'store> QueryIter<'store> {
                 annotation,
                 SelectionQualifier::Metadata,
                 AnnotationDepth::One,
+                None,
             )) => Box::new(store.annotation(annotation).or_fail()?.annotations()),
             Some(&Constraint::DataSet(set, SelectionQualifier::Normal)) => {
                 let dataset = store.dataset(set).or_fail()?;
@@ -1541,17 +1601,17 @@ impl<'store> QueryIter<'store> {
     ) -> Result<Box<dyn Iterator<Item = ResultItem<'store, Annotation>> + 'store>, StamError> {
         let store = self.store();
         Ok(match constraint {
-            &Constraint::TextResource(res, SelectionQualifier::Normal) => {
+            &Constraint::TextResource(res, SelectionQualifier::Normal,None) => {
                 Box::new(iter.filter_resource(&store.resource(res).or_fail()?))
             }
-            &Constraint::TextResource(res, SelectionQualifier::Metadata) => {
+            &Constraint::TextResource(res, SelectionQualifier::Metadata,None) => {
                 Box::new(iter.filter_resource_as_metadata(&store.resource(res).or_fail()?))
             }
-            &Constraint::ResourceVariable(varname, SelectionQualifier::Normal) => {
+            &Constraint::ResourceVariable(varname, SelectionQualifier::Normal,None) => {
                 let resource = self.resolve_resourcevar(varname)?;
                 Box::new(iter.filter_resource(resource))
             }
-            &Constraint::ResourceVariable(varname, SelectionQualifier::Metadata) => {
+            &Constraint::ResourceVariable(varname, SelectionQualifier::Metadata,None) => {
                 let resource = self.resolve_resourcevar(varname)?;
                 Box::new(iter.filter_resource_as_metadata(resource))
             }
@@ -1559,15 +1619,16 @@ impl<'store> QueryIter<'store> {
                 var,
                 SelectionQualifier::Normal,
                 AnnotationDepth::One,
+                None
             ) => {
                 let annotation = self.resolve_annotationvar(var)?;
                 Box::new(iter.filter_annotation(annotation))
             }
-            &Constraint::AnnotationVariable(var, _, AnnotationDepth::Zero) => {
+            &Constraint::AnnotationVariable(var, _, AnnotationDepth::Zero,None) => {
                 let annotation = self.resolve_annotationvar(var)?;
                 Box::new(iter.filter_one(annotation))
             }
-            &Constraint::AnnotationVariable(var, SelectionQualifier::Metadata, depth) => {
+            &Constraint::AnnotationVariable(var, SelectionQualifier::Metadata, depth,None) => {
                 let annotation = self.resolve_annotationvar(var)?;
                 Box::new(iter.filter_annotation_in_targets(annotation, depth))
             }
@@ -1658,11 +1719,12 @@ impl<'store> QueryIter<'store> {
                 annotation,
                 SelectionQualifier::Normal,
                 AnnotationDepth::One,
+                None
             ) => Box::new(iter.filter_annotation(&store.annotation(annotation).or_fail()?)),
-            &Constraint::Annotation(annotation, _, AnnotationDepth::Zero) => {
+            &Constraint::Annotation(annotation, _, AnnotationDepth::Zero,None) => {
                 Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?))
             }
-            &Constraint::Annotation(annotation, SelectionQualifier::Metadata, depth) => Box::new(
+            &Constraint::Annotation(annotation, SelectionQualifier::Metadata, depth, None) => Box::new(
                 iter.filter_annotation_in_targets(&store.annotation(annotation).or_fail()?, depth),
             ),
             &Constraint::Union(ref subconstraints) => {
@@ -1707,17 +1769,22 @@ impl<'store> QueryIter<'store> {
             Some(&Constraint::Annotations(ref handles, SelectionQualifier::Metadata, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).data_as_metadata())
             }
-            Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
+            Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _, None)) => {
                 Box::new(store.annotation(id).or_fail()?.data())
             }
-            Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _)) => {
+            Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _, None)) => {
                 Box::new(store.annotation(id).or_fail()?.data_as_metadata())
             }
-            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _)) => {
+            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _, None)) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.data())
             }
-            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Metadata, _)) => {
+            Some(&Constraint::AnnotationVariable(
+                varname,
+                SelectionQualifier::Metadata,
+                _,
+                None,
+            )) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.data_as_metadata())
             }
@@ -1816,7 +1883,7 @@ impl<'store> QueryIter<'store> {
                 let key = self.resolve_keyvar(varname)?;
                 Box::new(iter.filter_key(&key).filter_value(operator.clone()))
             }
-            &Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _) => {
+            &Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _, None) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(iter.filter_annotation(annotation))
             }
@@ -1864,17 +1931,22 @@ impl<'store> QueryIter<'store> {
             Some(&Constraint::Annotations(ref handles, SelectionQualifier::Metadata, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).keys_as_metadata())
             }
-            Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _)) => {
+            Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _, None)) => {
                 Box::new(store.annotation(id).or_fail()?.keys())
             }
-            Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _)) => {
+            Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _, None)) => {
                 Box::new(store.annotation(id).or_fail()?.keys_as_metadata())
             }
-            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _)) => {
+            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _, None)) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.keys())
             }
-            Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Metadata, _)) => {
+            Some(&Constraint::AnnotationVariable(
+                varname,
+                SelectionQualifier::Metadata,
+                _,
+                None,
+            )) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.keys_as_metadata())
             }
@@ -2018,19 +2090,58 @@ impl<'store> QueryIter<'store> {
             Some(&Constraint::Annotations(ref handles, _, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).textselections())
             }
-            Some(&Constraint::TextResource(res, _)) => {
+            Some(&Constraint::TextResource(res, _, None)) => {
                 Box::new(store.resource(res).or_fail()?.textselections())
             }
-            Some(&Constraint::ResourceVariable(varname, _)) => {
+            Some(&Constraint::TextResource(res, _, Some(ref offset))) => {
+                if let Ok(textselection) = store.resource(res).or_fail()?.textselection(&offset) {
+                    Box::new(Some(textselection.clone()).into_iter())
+                } else {
+                    Box::new(None.into_iter())
+                }
+            }
+            Some(&Constraint::ResourceVariable(varname, _, None)) => {
                 let resource = self.resolve_resourcevar(varname)?;
                 Box::new(resource.textselections())
             }
-            Some(&Constraint::Annotation(id, _, _)) => {
+            Some(&Constraint::ResourceVariable(varname, _, Some(ref offset))) => {
+                let resource = self.resolve_resourcevar(varname)?;
+                if let Ok(textselection) = resource.textselection(offset) {
+                    Box::new(Some(textselection.clone()).into_iter())
+                } else {
+                    Box::new(None.into_iter())
+                }
+            }
+            Some(&Constraint::Annotation(id, _, _, None)) => {
                 Box::new(store.annotation(id).or_fail()?.textselections())
             }
-            Some(&Constraint::AnnotationVariable(varname, _, _)) => {
+            Some(&Constraint::Annotation(id, _, _, Some(ref offset))) => {
+                if let Some(textselection) = store.annotation(id).or_fail()?.textselections().next()
+                {
+                    if let Ok(textselection) = textselection.textselection(offset) {
+                        Box::new(Some(textselection.clone()).into_iter())
+                    } else {
+                        Box::new(None.into_iter())
+                    }
+                } else {
+                    Box::new(None.into_iter())
+                }
+            }
+            Some(&Constraint::AnnotationVariable(varname, _, _, None)) => {
                 let annotation = self.resolve_annotationvar(varname)?;
                 Box::new(annotation.textselections())
+            }
+            Some(&Constraint::AnnotationVariable(varname, _, _, Some(ref offset))) => {
+                let annotation = self.resolve_annotationvar(varname)?;
+                if let Some(textselection) = annotation.textselections().next() {
+                    if let Ok(textselection) = textselection.textselection(offset) {
+                        Box::new(Some(textselection.clone()).into_iter())
+                    } else {
+                        Box::new(None.into_iter())
+                    }
+                } else {
+                    Box::new(None.into_iter())
+                }
             }
             Some(&Constraint::DataKey {
                 set,
@@ -2118,10 +2229,10 @@ impl<'store> QueryIter<'store> {
     ) -> Result<Box<dyn Iterator<Item = ResultTextSelection<'store>> + 'store>, StamError> {
         let store = self.store();
         Ok(match constraint {
-            &Constraint::TextResource(res, _) => {
+            &Constraint::TextResource(res, _, None) => {
                 Box::new(iter.filter_resource(&store.resource(res).or_fail()?))
             }
-            &Constraint::ResourceVariable(varname, _) => {
+            &Constraint::ResourceVariable(varname, _, None) => {
                 let resource = self.resolve_resourcevar(varname)?;
                 Box::new(iter.filter_resource(&resource))
             }
@@ -2204,7 +2315,7 @@ impl<'store> QueryIter<'store> {
     {
         let store = self.store();
         Ok(match constraint {
-            Some(&Constraint::Id(id)) | Some(&Constraint::TextResource(id, _)) => {
+            Some(&Constraint::Id(id)) | Some(&Constraint::TextResource(id, _, None)) => {
                 Box::new(Some(store.resource(id).or_fail()?).into_iter())
             }
             Some(&Constraint::Resources(ref handles, _)) => {
@@ -2736,8 +2847,10 @@ fn get_arg_type(s: &str) -> ArgType {
     let mut prevc = None;
     for c in s.chars() {
         if !c.is_ascii_digit() {
-            numeric = false;
-            break;
+            if c != '-' || prevc != None {
+                numeric = false;
+                break;
+            }
         }
         if numeric && c == '.' {
             if foundperiod {

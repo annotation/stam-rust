@@ -51,7 +51,7 @@ use crate::datavalue::DataOperator;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::textselection::{TextSelection, TextSelectionOperator};
 
-use crate::{store::*, TextSelectionHandle};
+use crate::{store::*, Offset, TextSelectionHandle};
 
 use regex::Regex;
 use std::borrow::Cow;
@@ -705,6 +705,7 @@ pub(crate) enum Filter<'store> {
     Regex(Regex, &'store str),           //the last string represents the delimiter for joining text
     TextSelection(TextResourceHandle, TextSelectionHandle),
     TextSelections(Handles<'store, TextSelection>, FilterMode),
+    Offset(Offset),
 
     //these have the advantage the collections are external references
     BorrowedAnnotations(
