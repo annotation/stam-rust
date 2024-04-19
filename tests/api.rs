@@ -2062,6 +2062,33 @@ fn query_parse_union2() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_add() -> Result<(), StamError> {
+    let querystring = "ADD ANNOTATION ?a WITH DATA \"set\" \"key\" \"value\"; TARGET ?x; { SELECT ANNOTATION ?x WHERE ID \"A1\"; }";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Add);
+    assert_eq!(query.querytype().readonly(), false);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for _assignment in query.assignments() {
+        count += 1;
+    }
+    assert_eq!(count, 2, "Number of assignments");
+    Ok(())
+}
+
+#[test]
+fn query_parse_delete() -> Result<(), StamError> {
+    let querystring = "DELETE ANNOTATION ?a { SELECT ANNOTATION ?a WHERE ID \"A1\"; }";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Delete);
+    assert_eq!(query.querytype().readonly(), false);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    Ok(())
+}
+
+#[test]
 fn query() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
@@ -2070,7 +2097,7 @@ fn query() -> Result<(), StamError> {
         .find_data("myset", "type", DataOperator::Equals("phrase"))
         .next()
         .expect("reference data must exist");
-    for results in store.query(query) {
+    for results in store.query(query)? {
         for result in results.iter() {
             match result {
                 QueryResultItem::Annotation(annotation) => {
@@ -2094,7 +2121,7 @@ fn query_by_name() -> Result<(), StamError> {
         .find_data("myset", "type", DataOperator::Equals("phrase"))
         .next()
         .expect("reference data must exist");
-    let iter = store.query(query);
+    let iter = store.query(query)?;
     let names = iter.names();
     for results in iter {
         if let Ok(result) = results.get_by_name(&names, "a") {
@@ -2124,7 +2151,7 @@ fn query_subquery() -> Result<(), StamError> {
         .find_data("myset", "type", DataOperator::Equals("sentence"))
         .next()
         .expect("reference data must exist");
-    let queryresults = store.query(query);
+    let queryresults = store.query(query)?;
     let names = queryresults.names();
     for results in queryresults {
         count += 1;
@@ -2159,7 +2186,7 @@ fn query_union() -> Result<(), StamError> {
         .find_data("myset", "type", DataOperator::Equals("sentence"))
         .next()
         .expect("reference data must exist");
-    let iter = store.query(query);
+    let iter = store.query(query)?;
     let names = iter.names();
     for results in iter {
         if let Ok(result) = results.get_by_name(&names, "a") {

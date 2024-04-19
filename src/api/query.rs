@@ -6,13 +6,14 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
+use crate::datavalue::DataValue;
 use crate::error::StamError;
 use crate::textselection::TextSelectionOperator;
 use crate::Offset;
 use crate::{api::*, Configurable};
 use crate::{store::*, ResultTextSelection};
 use crate::{types::*, DataOperator};
-use crate::{TextResource, TextResourceHandle};
+use crate::{SelectorKind, TextResource, TextResourceHandle};
 
 use chrono::{DateTime, FixedOffset};
 use regex::Regex;
@@ -28,13 +29,26 @@ const QUERYSPLITCHARS: &[char] = &[' ', '\n', '\r', '\t'];
 pub enum QueryType {
     /// A query that selects and returns data (STAMQL `SELECT` keyword).
     Select,
+
+    Delete,
+    Add,
 }
 
 impl QueryType {
     /// Returns the STAMQL keyword for this query type
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             QueryType::Select => "SELECT",
+            QueryType::Delete => "DELETE",
+            QueryType::Add => "ADD",
+        }
+    }
+
+    /// Is this query one that requires a mutable store or not?
+    pub fn readonly(&self) -> bool {
+        match self {
+            QueryType::Add | QueryType::Delete => false,
+            QueryType::Select => true,
         }
     }
 }
@@ -157,6 +171,7 @@ pub struct Query<'a> {
 
     querytype: QueryType,
     resulttype: Option<Type>,
+    assignments: Vec<Assignment<'a>>, //only for ADD
     constraints: Vec<Constraint<'a>>,
     subquery: Option<Box<Query<'a>>>,
 
@@ -729,6 +744,7 @@ impl<'a> Query<'a> {
             constraints: Vec::new(),
             subquery: None,
             contextvars: HashMap::new(),
+            assignments: Vec::new(),
         }
     }
 
@@ -775,6 +791,11 @@ impl<'a> Query<'a> {
         self.constraints.iter()
     }
 
+    /// Iterates over all assignments in the Query
+    pub fn assignments(&self) -> std::slice::Iter<Assignment<'a>> {
+        self.assignments.iter()
+    }
+
     /// Returns the variable name of the Query, the ? prefix STAMQL uses is never included.
     pub fn name(&self) -> Option<&'a str> {
         self.name
@@ -810,11 +831,15 @@ impl<'a> Query<'a> {
         let mut end: usize;
         querystring = querystring.trim();
         if let Some("SELECT") = querystring.split(QUERYSPLITCHARS).next() {
-            end = 7;
+            Self::parse_select(querystring)
+        } else if let Some("ADD") = querystring.split(QUERYSPLITCHARS).next() {
+            Self::parse_add(querystring)
+        } else if let Some("DELETE") = querystring.split(QUERYSPLITCHARS).next() {
+            Self::parse_delete(querystring)
         } else {
             return Err(StamError::QuerySyntaxError(
                 format!(
-                    "Expected SELECT, got '{}'",
+                    "Expected SELECT, ADD or  DELETE, got '{}'",
                     querystring
                         .split(QUERYSPLITCHARS)
                         .next()
@@ -823,6 +848,10 @@ impl<'a> Query<'a> {
                 "",
             ));
         }
+    }
+
+    fn parse_select(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+        let mut end = 7;
         querystring = querystring[end..].trim_start();
         let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
             Some("ANNOTATION") | Some("annotation") => {
@@ -863,20 +892,9 @@ impl<'a> Query<'a> {
             }
         };
         querystring = querystring[end..].trim_start();
-        let name = if let Some('?') = querystring.chars().next() {
-            Some(
-                querystring[1..]
-                    .split(QUERYSPLITCHARS)
-                    .next()
-                    .unwrap()
-                    .trim_end_matches(';'),
-            )
-        } else {
-            None
-        };
-        if let Some(name) = name {
-            querystring = querystring[1 + name.len()..].trim_start();
-        }
+        let (name, remainder) = Self::parse_name(querystring)?;
+        querystring = remainder;
+
         let mut constraints = Vec::new();
         match querystring.split(QUERYSPLITCHARS).next() {
             Some("WHERE") => querystring = querystring["WHERE".len()..].trim_start(),
@@ -906,10 +924,169 @@ impl<'a> Query<'a> {
         }
 
         //parse subquery
+        let (mut subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        querystring = remainder;
+        Ok((
+            Self {
+                name,
+                querytype: QueryType::Select,
+                resulttype,
+                constraints,
+                subquery,
+                contextvars: HashMap::new(),
+                assignments: Vec::new(),
+            },
+            querystring,
+        ))
+    }
+
+    fn parse_add(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+        let mut end = 4;
+        querystring = querystring[end..].trim_start();
+        let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
+            Some("ANNOTATION") | Some("annotation") => {
+                end = "ANNOTATION".len();
+                Some(Type::Annotation)
+            }
+            Some(x) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!("Expected result type ANNOTATION for ADD query, got '{}'", x),
+                    "",
+                ))
+            }
+            None => {
+                return Err(StamError::QuerySyntaxError(
+                    format!("Expected result type ANNOTATION for ADD query got end of string"),
+                    "",
+                ))
+            }
+        };
+        querystring = querystring[end..].trim_start();
+        let (name, remainder) = Self::parse_name(querystring)?;
+        querystring = remainder;
+
+        let mut assignments = Vec::new();
+        match querystring.split(QUERYSPLITCHARS).next() {
+            Some("WITH") => querystring = querystring["WITH".len()..].trim_start(),
+            Some("{") | Some("") | None => {} //no-op (select all, end of query, no where clause)
+            _ => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Expected WITH, got '{}'",
+                        querystring
+                            .split(QUERYSPLITCHARS)
+                            .next()
+                            .unwrap_or("(empty string)"),
+                    ),
+                    "",
+                ));
+            }
+        }
+
+        //parse assignments
+        while !querystring.is_empty()
+            && querystring.trim_start().chars().nth(0) != Some('{')
+            && querystring.trim_start().chars().nth(0) != Some('}')
+        {
+            let (assignment, remainder) = Assignment::parse(querystring)?;
+            querystring = remainder;
+            assignments.push(assignment);
+        }
+
+        //parse subquery
+        let (mut subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        querystring = remainder;
+        Ok((
+            Self {
+                name,
+                querytype: QueryType::Add,
+                resulttype,
+                constraints: Vec::new(),
+                subquery,
+                contextvars: HashMap::new(),
+                assignments,
+            },
+            querystring,
+        ))
+    }
+
+    fn parse_delete(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+        let mut end = 7;
+        querystring = querystring[end..].trim_start();
+        let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
+            Some("ANNOTATION") | Some("annotation") => {
+                end = "ANNOTATION".len();
+                Some(Type::Annotation)
+            }
+            Some(x) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Expected result type ANNOTATION for DELETE query, got '{}'",
+                        x
+                    ),
+                    "",
+                ))
+            }
+            None => {
+                return Err(StamError::QuerySyntaxError(
+                    format!("Expected result type ANNOTATION for DELETE query got end of string"),
+                    "",
+                ))
+            }
+        };
+        querystring = querystring[end..].trim_start();
+        let (name, remainder) = Self::parse_name(querystring)?;
+        querystring = remainder;
+
+        //parse subquery
+        let (subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        querystring = remainder;
+        Ok((
+            Self {
+                name,
+                querytype: QueryType::Delete,
+                resulttype,
+                constraints: Vec::new(),
+                subquery,
+                contextvars: HashMap::new(),
+                assignments: Vec::new(),
+            },
+            querystring,
+        ))
+    }
+
+    fn parse_name(mut querystring: &'a str) -> Result<(Option<&'a str>, &'a str), StamError> {
+        let name = if let Some('?') = querystring.chars().next() {
+            Some(
+                querystring[1..]
+                    .split(QUERYSPLITCHARS)
+                    .next()
+                    .unwrap()
+                    .trim_end_matches(';'),
+            )
+        } else {
+            None
+        };
+        if let Some(name) = name {
+            querystring = querystring[1 + name.len()..].trim_start();
+        }
+        Ok((name, querystring))
+    }
+
+    fn parse_subquery(
+        mut querystring: &'a str,
+        mutable: bool,
+    ) -> Result<(Option<Box<Self>>, &'a str), StamError> {
         let mut subquery = None;
         if querystring.trim_start().chars().nth(0) == Some('{') {
             querystring = &querystring[1..].trim_start();
             if querystring.starts_with("SELECT") {
+                let (sq, remainder) = Self::parse_select(querystring)?;
+                subquery = Some(Box::new(sq));
+                querystring = remainder.trim_start();
+            } else if mutable
+                && (querystring.starts_with("ADD") || querystring.starts_with("DELETE"))
+            {
                 let (sq, remainder) = Self::parse(querystring)?;
                 subquery = Some(Box::new(sq));
                 querystring = remainder.trim_start();
@@ -923,17 +1100,7 @@ impl<'a> Query<'a> {
                 ));
             }
         }
-        Ok((
-            Self {
-                name,
-                querytype: QueryType::Select,
-                resulttype,
-                constraints,
-                subquery,
-                contextvars: HashMap::new(),
-            },
-            querystring,
-        ))
+        Ok((subquery, querystring))
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
@@ -1208,9 +1375,10 @@ pub struct QueryResultItems<'store> {
 }
 
 impl<'store> AnnotationStore {
-    /// Initializes a [`Query`] and returns an iterator ([`QueryIter`]) to loop over the results.
+    /// Initializes a SELECT [`Query`] and returns an iterator ([`QueryIter`]) to loop over the results.
     /// Note that no actual querying is done yet until you use the iterator, the [`Query`] is lazy-evaluated.
-
+    /// This method can only process immutable queries (SELECT), use [`query_mut()`] for queries that modify the store.
+    ///
     /// ## Examples
     ///
     /// ```ignore
@@ -1238,13 +1406,19 @@ impl<'store> AnnotationStore {
     ///     }
     /// }
     /// ```
-    pub fn query(&'store self, query: Query<'store>) -> QueryIter<'store> {
+    pub fn query(&'store self, query: Query<'store>) -> Result<QueryIter<'store>, StamError> {
         let mut iter = QueryIter {
             store: self,
             queries: Vec::new(),
             statestack: Vec::new(),
             done: false,
         };
+        if !query.querytype().readonly() {
+            return Err(StamError::QuerySyntaxError(
+                format!("AnnotationStore.query() cant not handle mutable queries (ADD/DELETE), expected an immutable one (SELECT)"),
+                "",
+            ));
+        }
         //flatten nested subqueries into an array
         let mut query = Some(query);
         while let Some(mut q) = query.take() {
@@ -1252,7 +1426,33 @@ impl<'store> AnnotationStore {
             iter.queries.push(q);
             query = subquery.map(|x| *x);
         }
-        iter
+        Ok(iter)
+    }
+
+    /// This method processes mutable queries (ADD/DELETE) and modifies the store accordingly.
+    pub fn query_mut(
+        &'store mut self,
+        mut query: Query<'store>,
+    ) -> Result<QueryIter<'store>, StamError> {
+        if query.querytype().readonly() {
+            //no need for mutability, just fall back:
+            self.query(query)
+        } else {
+            if let Some(subquery) = query.subquery.take() {
+                //run the subquery
+                let iter = if !subquery.querytype().readonly() {
+                    self.query_mut(*subquery)?
+                } else {
+                    self.query(*subquery)?
+                };
+                //run the mutating part of the query given the subquery results
+
+                //construct a new query that returns the results
+                todo!("query_mut to be implemented still")
+            } else {
+                unreachable!("mutable queries must have a subquery");
+            }
+        }
     }
 }
 
@@ -3078,4 +3278,175 @@ fn parse_dataoperator<'a>(
         }
     };
     Ok(operator)
+}
+
+#[derive(Debug, Clone)]
+/// An assignemnt is a part of an ADD [`Query`] that assigns data to a new annotation
+pub enum Assignment<'a> {
+    /// Constrain the selection (type is determined by the query result type) to one instance with a specific identifier (`ID` keyword in STAMQL).
+    Id(&'a str),
+    Target {
+        name: &'a str,
+        offset: Option<Offset>,
+    },
+    ComplexTarget(SelectorKind),
+    Data {
+        set: &'a str,
+        key: &'a str,
+        value: DataValue,
+    },
+    Text(&'a str),
+    Filename(&'a str),
+}
+
+impl<'a> Assignment<'a> {
+    pub(crate) fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+        let assignment = match querystring.split(QUERYSPLITCHARS).next() {
+            Some("ID") => {
+                querystring = querystring["ID".len()..].trim_start();
+                let (arg, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                Self::Id(arg)
+            }
+            Some("DATA") => {
+                querystring = querystring["DATA".len()..].trim_start();
+                let (set, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                let (key, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                let value = if Self::closed(querystring) {
+                    DataValue::Null
+                } else {
+                    let (value, remainder, valuetype) = get_arg(querystring)?;
+                    querystring = remainder;
+                    match valuetype {
+                        ArgType::Bool => match value.to_lowercase().as_str() {
+                            "1" | "yes" | "true" | "enabled" | "on" => DataValue::Bool(true),
+                            _ => DataValue::Bool(false),
+                        },
+                        ArgType::Integer => DataValue::try_from(value).or_else(|_| {
+                            Err(StamError::QuerySyntaxError(
+                                format!("Expected integer in assignment, got '{}'", value),
+                                "",
+                            ))
+                        })?,
+                        ArgType::Float => DataValue::try_from(value).or_else(|_| {
+                            Err(StamError::QuerySyntaxError(
+                                format!("Expected integer in assignment, got '{}'", value),
+                                "",
+                            ))
+                        })?,
+                        ArgType::String => DataValue::String(value.to_string()),
+                        _ => unreachable!("argtype should not occur"),
+                    }
+                };
+                Self::Data { set, key, value }
+            }
+            Some("TARGET") => {
+                querystring = querystring["TARGET".len()..].trim_start();
+                if let (Some(name), remainder) = Self::parse_name(querystring)? {
+                    let (offset, remainder) = Self::parse_offset(remainder)?;
+                    querystring = remainder;
+                    Self::Target { name, offset }
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Expected name for TARGET"),
+                        "",
+                    ));
+                }
+            }
+            Some("COMPOSITE") => {
+                querystring = querystring["COMPOSITE".len()..].trim_start();
+                Self::ComplexTarget(SelectorKind::CompositeSelector)
+            }
+            Some("MULTI") => {
+                querystring = querystring["MULTI".len()..].trim_start();
+                Self::ComplexTarget(SelectorKind::MultiSelector)
+            }
+            Some("DIRECTIONAL") => {
+                querystring = querystring["DIRECTIONAL".len()..].trim_start();
+                Self::ComplexTarget(SelectorKind::DirectionalSelector)
+            }
+            Some(x) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!("Expected assignment type (DATA, ID, TARGET), got '{}'", x),
+                    "",
+                ))
+            }
+            None => {
+                return Err(StamError::QuerySyntaxError(
+                    format!("Expected assignment type (DATA, ID, TARGET), got end of string"),
+                    "",
+                ))
+            }
+        };
+        if querystring.starts_with(";") {
+            querystring = &querystring[1..].trim_start();
+        }
+        Ok((assignment, querystring))
+    }
+
+    fn closed(querystring: &str) -> bool {
+        querystring.is_empty()
+            || querystring.starts_with(";")
+            || querystring.starts_with("OR ")
+            || querystring.starts_with("]")
+    }
+
+    fn parse_name(mut querystring: &'a str) -> Result<(Option<&'a str>, &'a str), StamError> {
+        let name = if let Some('?') = querystring.chars().next() {
+            Some(
+                querystring[1..]
+                    .split(QUERYSPLITCHARS)
+                    .next()
+                    .unwrap()
+                    .trim_end_matches(';'),
+            )
+        } else {
+            None
+        };
+        if let Some(name) = name {
+            querystring = querystring[1 + name.len()..].trim_start();
+        }
+        Ok((name, querystring))
+    }
+
+    fn parse_offset<'b>(mut querystring: &'b str) -> Result<(Option<Offset>, &'b str), StamError> {
+        if !Self::closed(querystring) && querystring.starts_with("OFFSET") {
+            querystring = querystring["OFFSET".len()..].trim_start();
+            let (arg, remainder, _) = get_arg(querystring)?;
+            let begin = if arg == "WHOLE" || arg == "ALL" {
+                Cursor::BeginAligned(0)
+            } else {
+                Cursor::try_from(arg).or_else(|_| {
+                    Err(StamError::QuerySyntaxError(
+                        format!(
+                            "Expected integer for begin cursor after OFFSET, got '{}'",
+                            arg
+                        ),
+                        "",
+                    ))
+                })?
+            };
+            querystring = remainder;
+            let end = if Self::closed(querystring) {
+                Cursor::EndAligned(0)
+            } else {
+                let (arg, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                Cursor::try_from(arg).or_else(|_| {
+                    Err(StamError::QuerySyntaxError(
+                        format!(
+                            "Expected integer for end cursor, (optional) second parameter after OFFSET, got '{}'",
+                            arg
+                        ),
+                        "",
+                    ))
+                })?
+            };
+            Ok((Some(Offset { begin, end }), querystring))
+        } else {
+            Ok((None, querystring))
+        }
+    }
 }
