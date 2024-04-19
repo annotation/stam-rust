@@ -2204,6 +2204,30 @@ fn query_union() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_add_annotation_textselector() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    let query: Query =
+        "ADD ANNOTATION ?a WITH DATA \"testdataset\" \"type\" \"phrase\"; TARGET ?target; 
+            { SELECT TEXT ?target WHERE RESOURCE \"testres\" OFFSET 0 11; }"
+            .try_into()?;
+    let iter = store.query_mut(query)?;
+    let names = iter.names();
+    let mut count = 0;
+    for results in iter {
+        if let Ok(result) = results.get_by_name(&names, "a") {
+            match result {
+                QueryResultItem::Annotation(_annotation) => {
+                    count += 1;
+                }
+                _ => assert!(false, "wrong return type"),
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 #[cfg(feature = "transpose")]
 fn transposition_simple() -> Result<(), StamError> {
     let store = setup_example_8()?;

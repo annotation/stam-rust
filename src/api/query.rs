@@ -13,7 +13,10 @@ use crate::Offset;
 use crate::{api::*, Configurable};
 use crate::{store::*, ResultTextSelection};
 use crate::{types::*, DataOperator};
-use crate::{SelectorKind, TextResource, TextResourceHandle};
+use crate::{
+    AnnotationBuilder, AnnotationDataBuilder, SelectorBuilder, SelectorKind, TextResource,
+    TextResourceHandle,
+};
 
 use chrono::{DateTime, FixedOffset};
 use regex::Regex;
@@ -828,7 +831,6 @@ impl<'a> Query<'a> {
     /// Returns the [`Query`] if successful, it can subsequently by passed to [`AnnotationStore.query()`] or a [`StamError::QuerySyntaxError`]
     /// if the query is not valid. See the documentation on [`Query`] itself for examples.
     pub fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
-        let mut end: usize;
         querystring = querystring.trim();
         if let Some("SELECT") = querystring.split(QUERYSPLITCHARS).next() {
             Self::parse_select(querystring)
@@ -924,7 +926,7 @@ impl<'a> Query<'a> {
         }
 
         //parse subquery
-        let (mut subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        let (subquery, remainder) = Self::parse_subquery(querystring, false)?;
         querystring = remainder;
         Ok((
             Self {
@@ -994,7 +996,7 @@ impl<'a> Query<'a> {
         }
 
         //parse subquery
-        let (mut subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        let (subquery, remainder) = Self::parse_subquery(querystring, false)?;
         querystring = remainder;
         Ok((
             Self {
@@ -1430,6 +1432,7 @@ impl<'store> AnnotationStore {
     }
 
     /// This method processes mutable queries (ADD/DELETE) and modifies the store accordingly.
+    /// Note that the modifying queries are evaluated eagerly, so they will run even if the resulting iterator is not consumed.
     pub fn query_mut(
         &'store mut self,
         mut query: Query<'store>,
@@ -1438,17 +1441,150 @@ impl<'store> AnnotationStore {
             //no need for mutability, just fall back:
             self.query(query)
         } else {
-            if let Some(subquery) = query.subquery.take() {
+            if let Some(mut subquery) = query.subquery.take() {
+                subquery.contextvars = query.contextvars.clone();
+
                 //run the subquery
                 let iter = if !subquery.querytype().readonly() {
                     self.query_mut(*subquery)?
                 } else {
                     self.query(*subquery)?
                 };
-                //run the mutating part of the query given the subquery results
+
+                //prepare the builders, following the assignments in the the mutating part of the query, and  given the subquery results
+                let mut builders: Vec<AnnotationBuilder> = Vec::new();
+                let names = iter.names();
+                for resultrow in iter {
+                    if query.querytype() == QueryType::Add {
+                        let mut selectors = Vec::new();
+                        let mut databuilders = Vec::new();
+                        let mut id: Option<String> = None;
+                        let mut complextarget = None;
+                        for assignment in query.assignments() {
+                            match assignment {
+                                Assignment::Id(s) => id = Some(s.to_string()),
+                                Assignment::Data { set, key, value } => {
+                                    let mut databuilder = AnnotationDataBuilder::new();
+                                    databuilder.dataset = set.to_string().into();
+                                    databuilder.key = key.to_string().into();
+                                    databuilder.value = value.clone();
+                                    databuilders.push(databuilder);
+                                }
+                                Assignment::Target { name, offset } => {
+                                    match resultrow.get_by_name(&names, name)? {
+                                        QueryResultItem::Annotation(annotation) => {
+                                            selectors.push(SelectorBuilder::AnnotationSelector(
+                                                BuildItem::Handle(annotation.handle()),
+                                                offset.clone(),
+                                            ))
+                                        }
+                                        QueryResultItem::TextSelection(textselection) => {
+                                            if let Some(offset) = offset {
+                                                let textselection =
+                                                    textselection.textselection(offset)?;
+                                                selectors.push(SelectorBuilder::TextSelector(
+                                                    BuildItem::Handle(
+                                                        textselection.resource().handle(),
+                                                    ),
+                                                    (&textselection).into(),
+                                                ))
+                                            } else {
+                                                selectors.push(SelectorBuilder::TextSelector(
+                                                    BuildItem::Handle(
+                                                        textselection.resource().handle(),
+                                                    ),
+                                                    textselection.into(),
+                                                ))
+                                            }
+                                        }
+                                        QueryResultItem::TextResource(resource) => {
+                                            selectors.push(SelectorBuilder::ResourceSelector(
+                                                BuildItem::Handle(resource.handle()),
+                                            ))
+                                        }
+                                        QueryResultItem::AnnotationDataSet(dataset) => selectors
+                                            .push(SelectorBuilder::DataSetSelector(
+                                                BuildItem::Handle(dataset.handle()),
+                                            )),
+                                        QueryResultItem::AnnotationData(data) => {
+                                            selectors.push(SelectorBuilder::AnnotationDataSelector(
+                                                BuildItem::Handle(data.set().handle()),
+                                                BuildItem::Handle(data.handle()),
+                                            ))
+                                        }
+                                        QueryResultItem::DataKey(key) => {
+                                            selectors.push(SelectorBuilder::DataKeySelector(
+                                                BuildItem::Handle(key.set().handle()),
+                                                BuildItem::Handle(key.handle()),
+                                            ))
+                                        }
+                                        QueryResultItem::None => {}
+                                    }
+                                }
+                                Assignment::ComplexTarget(kind) => {
+                                    complextarget = Some(kind.clone())
+                                }
+                                x => {
+                                    return Err(StamError::QuerySyntaxError(
+                                        format!("Invalid assignment for ANNOTATION: {:?}", x),
+                                        "",
+                                    ));
+                                }
+                            }
+                        }
+                        let mut builder = AnnotationBuilder::new();
+                        for databuilder in databuilders {
+                            builder = builder.with_data_builder(databuilder);
+                        }
+                        if let Some(id) = id {
+                            builder = builder.with_id(id);
+                        }
+                        match selectors.len() {
+                            0 => {
+                                return Err(StamError::QuerySyntaxError(
+                                    format!("ADD query has no TARGET"),
+                                    "",
+                                ));
+                            }
+                            1 if complextarget == None => {
+                                builder = builder.with_target(
+                                    selectors.into_iter().next().expect("must have one"),
+                                );
+                            }
+                            _ => match complextarget {
+                                Some(SelectorKind::CompositeSelector) | None => {
+                                    builder = builder
+                                        .with_target(SelectorBuilder::CompositeSelector(selectors));
+                                }
+                                Some(SelectorKind::MultiSelector) => {
+                                    builder = builder
+                                        .with_target(SelectorBuilder::MultiSelector(selectors));
+                                }
+                                Some(SelectorKind::DirectionalSelector) => {
+                                    builder = builder.with_target(
+                                        SelectorBuilder::DirectionalSelector(selectors),
+                                    );
+                                }
+                                _ => {
+                                    unreachable!("Invalid value for complextarget");
+                                }
+                            },
+                        }
+                        builders.push(builder);
+                    }
+                }
+
+                // Annotate and capture result
+                let annotations = self.annotate_from_iter(builders)?;
 
                 //construct a new query that returns the results
-                todo!("query_mut to be implemented still")
+                let query = Query::new(QueryType::Select, query.resulttype(), query.name())
+                    .with_constraint(Constraint::Annotations(
+                        Handles::new(Cow::Owned(annotations), false, self),
+                        SelectionQualifier::Normal,
+                        AnnotationDepth::Zero,
+                    ));
+                self.query(query)
             } else {
                 unreachable!("mutable queries must have a subquery");
             }
