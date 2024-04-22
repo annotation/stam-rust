@@ -1451,11 +1451,11 @@ impl<'store> AnnotationStore {
                     self.query(*subquery)?
                 };
 
-                //prepare the builders, following the assignments in the the mutating part of the query, and  given the subquery results
-                let mut builders: Vec<AnnotationBuilder> = Vec::new();
-                let names = iter.names();
-                for resultrow in iter {
-                    if query.querytype() == QueryType::Add {
+                if query.querytype() == QueryType::Add {
+                    //prepare the builders, following the assignments in the the mutating part of the query, and  given the subquery results
+                    let mut builders: Vec<AnnotationBuilder> = Vec::new();
+                    let names = iter.names();
+                    for resultrow in iter {
                         let mut selectors = Vec::new();
                         let mut databuilders = Vec::new();
                         let mut id: Option<String> = None;
@@ -1572,19 +1572,88 @@ impl<'store> AnnotationStore {
                         }
                         builders.push(builder);
                     }
+
+                    // Annotate and capture result
+                    let annotations = self.annotate_from_iter(builders)?;
+
+                    //construct a new query that returns the results
+                    let query = Query::new(QueryType::Select, query.resulttype(), query.name())
+                        .with_constraint(Constraint::Annotations(
+                            Handles::new(Cow::Owned(annotations), false, self),
+                            SelectionQualifier::Normal,
+                            AnnotationDepth::Zero,
+                        ));
+                    self.query(query)
+                } else if query.querytype() == QueryType::Delete {
+                    let mut remove_annotations: Vec<AnnotationHandle> = Vec::new();
+                    let mut remove_resources: Vec<TextResourceHandle> = Vec::new();
+                    let mut remove_datasets: Vec<AnnotationDataSetHandle> = Vec::new();
+                    let mut remove_data: Vec<(AnnotationDataSetHandle, AnnotationDataHandle)> =
+                        Vec::new();
+                    let mut remove_keys: Vec<(AnnotationDataSetHandle, DataKeyHandle)> = Vec::new();
+                    let names = iter.names();
+                    for resultrow in iter {
+                        match resultrow.get_by_name_or_first(&names, query.name())? {
+                            QueryResultItem::Annotation(annotation)
+                                if query.resulttype() == Some(Type::Annotation) =>
+                            {
+                                remove_annotations.push(annotation.handle());
+                            }
+                            QueryResultItem::TextResource(resource)
+                                if query.resulttype() == Some(Type::TextResource) =>
+                            {
+                                remove_resources.push(resource.handle())
+                            }
+                            QueryResultItem::AnnotationDataSet(dataset)
+                                if query.resulttype() == Some(Type::AnnotationDataSet) =>
+                            {
+                                remove_datasets.push(dataset.handle())
+                            }
+                            QueryResultItem::AnnotationData(data)
+                                if query.resulttype() == Some(Type::AnnotationData) =>
+                            {
+                                remove_data.push((data.set().handle(), data.handle()));
+                            }
+                            QueryResultItem::DataKey(key)
+                                if query.resulttype() == Some(Type::DataKey) =>
+                            {
+                                remove_keys.push((key.set().handle(), key.handle()));
+                            }
+                            QueryResultItem::None => {
+                                //nothing to do
+                            }
+                            x => {
+                                return Err(StamError::QuerySyntaxError(
+                                    format!("Return type in DELETE query and subquery must match, got unexpected {:?}", x),
+                                    "",
+                                ));
+                            }
+                        }
+                    }
+
+                    for resource in remove_resources {
+                        self.remove(resource)?;
+                    }
+                    for annotation in remove_annotations {
+                        self.remove(annotation)?;
+                    }
+                    for (set, key) in remove_keys {
+                        self.remove_key(set, key, true)?;
+                    }
+                    for (set, data) in remove_data {
+                        self.remove_data(set, data, true)?;
+                    }
+
+                    //just return an empty iterator
+                    Ok(QueryIter {
+                        store: self,
+                        queries: Vec::new(),
+                        statestack: Vec::new(),
+                        done: true,
+                    })
+                } else {
+                    unreachable!("unknown query type");
                 }
-
-                // Annotate and capture result
-                let annotations = self.annotate_from_iter(builders)?;
-
-                //construct a new query that returns the results
-                let query = Query::new(QueryType::Select, query.resulttype(), query.name())
-                    .with_constraint(Constraint::Annotations(
-                        Handles::new(Cow::Owned(annotations), false, self),
-                        SelectionQualifier::Normal,
-                        AnnotationDepth::Zero,
-                    ));
-                self.query(query)
             } else {
                 unreachable!("mutable queries must have a subquery");
             }

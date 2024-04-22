@@ -2228,6 +2228,16 @@ fn query_add_annotation_textselector() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_delete_annotation() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    let query: Query =
+        "DELETE ANNOTATION ?a { SELECT ANNOTATION ?a WHERE ID \"A1\"; }".try_into()?;
+    store.query_mut(query)?;
+    assert_eq!(store.annotation("A1"), None);
+    Ok(())
+}
+
+#[test]
 #[cfg(feature = "transpose")]
 fn transposition_simple() -> Result<(), StamError> {
     let store = setup_example_8()?;
