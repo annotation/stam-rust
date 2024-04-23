@@ -180,7 +180,7 @@ pub struct Query<'a> {
 
     /// Context variables (external), if there are subqueries, they do NOT hold contextvars, only the root query does
     /// This allows binding variables programmatically, using the bind_*var() methods
-    contextvars: HashMap<String, QueryResultItem<'a>>,
+    contextvars: HashMap<String, ContextItem>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -1110,10 +1110,10 @@ impl<'a> Query<'a> {
     pub fn with_annotationvar(
         mut self,
         name: impl Into<String>,
-        annotation: ResultItem<'a, Annotation>,
+        annotation: &ResultItem<Annotation>,
     ) -> Self {
         self.contextvars
-            .insert(name.into(), QueryResultItem::Annotation(annotation));
+            .insert(name.into(), ContextItem::Annotation(annotation.handle()));
         self
     }
 
@@ -1122,10 +1122,10 @@ impl<'a> Query<'a> {
     pub fn bind_annotationvar(
         &mut self,
         name: impl Into<String>,
-        annotation: ResultItem<'a, Annotation>,
+        annotation: &ResultItem<Annotation>,
     ) {
         self.contextvars
-            .insert(name.into(), QueryResultItem::Annotation(annotation));
+            .insert(name.into(), ContextItem::Annotation(annotation.handle()));
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
@@ -1133,32 +1133,40 @@ impl<'a> Query<'a> {
     pub fn with_datavar(
         mut self,
         name: impl Into<String>,
-        data: ResultItem<'a, AnnotationData>,
+        data: &ResultItem<AnnotationData>,
     ) -> Self {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::AnnotationData(data));
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::AnnotationData(data.set().handle(), data.handle()),
+        );
         self
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
     /// This is a context variable that will be available to the query, but will not be propagated to the results.
-    pub fn bind_datavar(&mut self, name: impl Into<String>, data: ResultItem<'a, AnnotationData>) {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::AnnotationData(data));
+    pub fn bind_datavar(&mut self, name: impl Into<String>, data: &ResultItem<AnnotationData>) {
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::AnnotationData(data.set().handle(), data.handle()),
+        );
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
     /// This is a context variable that will be available to the query, but will not be propagated to the results.
-    pub fn with_keyvar(mut self, name: impl Into<String>, key: ResultItem<'a, DataKey>) -> Self {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::DataKey(key));
+    pub fn with_keyvar(mut self, name: impl Into<String>, key: &ResultItem<DataKey>) -> Self {
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::DataKey(key.set().handle(), key.handle()),
+        );
         self
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
-    pub fn bind_keyvar(&mut self, name: impl Into<String>, key: ResultItem<'a, DataKey>) {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::DataKey(key));
+    pub fn bind_keyvar(&mut self, name: impl Into<String>, key: &ResultItem<DataKey>) {
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::DataKey(key.set().handle(), key.handle()),
+        );
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
@@ -1166,22 +1174,28 @@ impl<'a> Query<'a> {
     pub fn with_textvar(
         mut self,
         name: impl Into<String>,
-        textselection: ResultTextSelection<'a>,
+        textselection: &ResultTextSelection,
     ) -> Self {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::TextSelection(textselection));
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::TextSelection(
+                textselection.resource().handle(),
+                textselection.inner().clone(),
+            ),
+        );
         self
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
     /// This is a context variable that will be available to the query, but will not be propagated to the results.
-    pub fn bind_textvar(
-        &mut self,
-        name: impl Into<String>,
-        textselection: ResultTextSelection<'a>,
-    ) {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::TextSelection(textselection));
+    pub fn bind_textvar(&mut self, name: impl Into<String>, textselection: &ResultTextSelection) {
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::TextSelection(
+                textselection.resource().handle(),
+                textselection.inner().clone(),
+            ),
+        );
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
@@ -1189,10 +1203,10 @@ impl<'a> Query<'a> {
     pub fn with_resourcevar(
         mut self,
         name: impl Into<String>,
-        resource: ResultItem<'a, TextResource>,
+        resource: &ResultItem<TextResource>,
     ) -> Self {
         self.contextvars
-            .insert(name.into(), QueryResultItem::TextResource(resource));
+            .insert(name.into(), ContextItem::TextResource(resource.handle()));
         self
     }
 
@@ -1201,10 +1215,10 @@ impl<'a> Query<'a> {
     pub fn bind_resourcevar(
         &mut self,
         name: impl Into<String>,
-        resource: ResultItem<'a, TextResource>,
+        resource: &ResultItem<TextResource>,
     ) {
         self.contextvars
-            .insert(name.into(), QueryResultItem::TextResource(resource));
+            .insert(name.into(), ContextItem::TextResource(resource.handle()));
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
@@ -1212,10 +1226,12 @@ impl<'a> Query<'a> {
     pub fn with_datasetvar(
         mut self,
         name: impl Into<String>,
-        dataset: ResultItem<'a, AnnotationDataSet>,
+        dataset: &ResultItem<AnnotationDataSet>,
     ) -> Self {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::AnnotationDataSet(dataset));
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::AnnotationDataSet(dataset.handle()),
+        );
         self
     }
 
@@ -1224,10 +1240,57 @@ impl<'a> Query<'a> {
     pub fn bind_datasetvar(
         &mut self,
         name: impl Into<String>,
-        dataset: ResultItem<'a, AnnotationDataSet>,
+        dataset: &ResultItem<AnnotationDataSet>,
     ) {
-        self.contextvars
-            .insert(name.into(), QueryResultItem::AnnotationDataSet(dataset));
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::AnnotationDataSet(dataset.handle()),
+        );
+    }
+
+    fn resolve_contextvars<'b>(
+        &self,
+        store: &'b AnnotationStore,
+    ) -> Result<HashMap<String, QueryResultItem<'b>>, StamError> {
+        let mut contextvars = HashMap::new();
+        for (name, item) in self.contextvars.iter() {
+            match item {
+                ContextItem::Annotation(handle) => contextvars.insert(
+                    name.clone(),
+                    QueryResultItem::Annotation(store.annotation(*handle).or_fail()?),
+                ),
+                ContextItem::TextResource(handle) => contextvars.insert(
+                    name.clone(),
+                    QueryResultItem::TextResource(store.resource(*handle).or_fail()?),
+                ),
+                ContextItem::AnnotationDataSet(handle) => contextvars.insert(
+                    name.clone(),
+                    QueryResultItem::AnnotationDataSet(store.dataset(*handle).or_fail()?),
+                ),
+                ContextItem::AnnotationData(set, handle) => contextvars.insert(
+                    name.clone(),
+                    QueryResultItem::AnnotationData(store.annotationdata(*set, *handle).or_fail()?),
+                ),
+                ContextItem::DataKey(set, handle) => contextvars.insert(
+                    name.clone(),
+                    QueryResultItem::DataKey(store.key(*set, *handle).or_fail()?),
+                ),
+                ContextItem::TextSelection(resource, textselection) => contextvars.insert(
+                    name.clone(),
+                    if let Some(handle) = textselection.handle() {
+                        QueryResultItem::TextSelection(
+                            store.textselection(*resource, handle).or_fail()?,
+                        )
+                    } else {
+                        QueryResultItem::TextSelection({
+                            let resource = store.resource(*resource).or_fail()?;
+                            resource.textselection(&textselection.into())?
+                        })
+                    },
+                ),
+            };
+        }
+        Ok(contextvars)
     }
 
     /// Serialize the query to a STAMQL String
@@ -1320,6 +1383,16 @@ pub enum QueryResultItem<'store> {
     AnnotationDataSet(ResultItem<'store, AnnotationDataSet>),
 }
 
+#[derive(Clone, Debug)]
+pub(crate) enum ContextItem {
+    Annotation(AnnotationHandle),
+    TextResource(TextResourceHandle),
+    DataKey(AnnotationDataSetHandle, DataKeyHandle),
+    AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
+    AnnotationDataSet(AnnotationDataSetHandle),
+    TextSelection(TextResourceHandle, TextSelection),
+}
+
 pub(crate) struct QueryState<'store> {
     /// The iterator for the current query
     iterator: QueryResultIter<'store>,
@@ -1342,6 +1415,9 @@ pub struct QueryIter<'store> {
 
     /// Signals that we're done with the entire stack
     done: bool,
+
+    /// Context variables
+    contextvars: HashMap<String, QueryResultItem<'store>>,
 }
 
 /// This is a simple hashmap that can resolve all variable names used in the query to the internally used index numbers
@@ -1413,6 +1489,7 @@ impl<'store> AnnotationStore {
             store: self,
             queries: Vec::new(),
             statestack: Vec::new(),
+            contextvars: query.resolve_contextvars(self)?,
             done: false,
         };
         if !query.querytype().readonly() {
@@ -1649,6 +1726,7 @@ impl<'store> AnnotationStore {
                         store: self,
                         queries: Vec::new(),
                         statestack: Vec::new(),
+                        contextvars: HashMap::new(),
                         done: true,
                     })
                 } else {
@@ -2935,20 +3013,18 @@ impl<'store> QueryIter<'store> {
                 }
             }
         }
-        for query in self.queries.iter() {
-            match query.contextvars.get(name) {
-                Some(QueryResultItem::AnnotationData(data)) => return Ok(data),
-                Some(_) => {
-                    return Err(StamError::QuerySyntaxError(
-                        format!(
+        match self.contextvars.get(name) {
+            Some(QueryResultItem::AnnotationData(data)) => return Ok(data),
+            Some(_) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
                         "Variable ?{} was found in context but does not have expected type DATA",
                         name
                     ),
-                        "",
-                    ))
-                }
-                None => {}
+                    "",
+                ))
             }
+            None => {}
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type DATA not found", name),
@@ -2965,20 +3041,18 @@ impl<'store> QueryIter<'store> {
                 }
             }
         }
-        for query in self.queries.iter() {
-            match query.contextvars.get(name) {
-                Some(QueryResultItem::DataKey(key)) => return Ok(key),
-                Some(_) => {
-                    return Err(StamError::QuerySyntaxError(
-                        format!(
-                            "Variable ?{} was found in context but does not have expected type KEY",
-                            name
-                        ),
-                        "",
-                    ))
-                }
-                None => {}
+        match self.contextvars.get(name) {
+            Some(QueryResultItem::DataKey(key)) => return Ok(key),
+            Some(_) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Variable ?{} was found in context but does not have expected type KEY",
+                        name
+                    ),
+                    "",
+                ))
             }
+            None => {}
         }
         return Err(StamError::QuerySyntaxError(
             format!(
@@ -3001,20 +3075,18 @@ impl<'store> QueryIter<'store> {
                 }
             }
         }
-        for query in self.queries.iter() {
-            match query.contextvars.get(name) {
-                Some(QueryResultItem::AnnotationDataSet(dataset)) => return Ok(dataset),
-                Some(_) => {
-                    return Err(StamError::QuerySyntaxError(
-                        format!(
+        match self.contextvars.get(name) {
+            Some(QueryResultItem::AnnotationDataSet(dataset)) => return Ok(dataset),
+            Some(_) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
                         "Variable ?{} was found in context but does not have expected type DATASET",
                         name
                     ),
-                        "",
-                    ))
-                }
-                None => {}
+                    "",
+                ))
             }
+            None => {}
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type DATASET not found", name),
@@ -3034,20 +3106,18 @@ impl<'store> QueryIter<'store> {
                 }
             }
         }
-        for query in self.queries.iter() {
-            match query.contextvars.get(name) {
-                    Some(QueryResultItem::Annotation(annotation)) => return Ok(annotation),
-                    Some(_) => {
-                        return Err(StamError::QuerySyntaxError(
-                            format!(
-                            "Variable ?{} was found in context but does not have expected type ANNOTATION",
-                            name
-                        ),
-                            "",
-                        ))
-                    }
-                    None => {}
-                }
+        match self.contextvars.get(name) {
+            Some(QueryResultItem::Annotation(annotation)) => return Ok(annotation),
+            Some(_) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                    "Variable ?{} was found in context but does not have expected type ANNOTATION",
+                    name
+                ),
+                    "",
+                ))
+            }
+            None => {}
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type ANNOTATION not found", name),
@@ -3064,20 +3134,18 @@ impl<'store> QueryIter<'store> {
                 }
             }
         }
-        for query in self.queries.iter() {
-            match query.contextvars.get(name) {
-                Some(QueryResultItem::TextSelection(textselection)) => return Ok(textselection),
-                Some(_) => {
-                    return Err(StamError::QuerySyntaxError(
-                        format!(
+        match self.contextvars.get(name) {
+            Some(QueryResultItem::TextSelection(textselection)) => return Ok(textselection),
+            Some(_) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
                         "Variable ?{} was found in context but does not have expected type TEXT",
                         name
                     ),
-                        "",
-                    ))
-                }
-                None => {}
+                    "",
+                ))
             }
+            None => {}
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type TEXT not found", name),
@@ -3097,8 +3165,7 @@ impl<'store> QueryIter<'store> {
                 }
             }
         }
-        for query in self.queries.iter() {
-            match query.contextvars.get(name) {
+            match self.contextvars.get(name) {
                 Some(QueryResultItem::TextResource(resource)) => return Ok(resource),
                 Some(_) => {
                     return Err(StamError::QuerySyntaxError(
@@ -3111,7 +3178,6 @@ impl<'store> QueryIter<'store> {
                 }
                 None => {}
             }
-        }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type RESOURCE not found", name),
             "",

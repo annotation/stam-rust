@@ -546,6 +546,13 @@ impl TypeInfo for Option<ResultTextSelection<'_>> {
     }
 }
 
+#[sealed]
+impl TypeInfo for ResultTextSelection<'_> {
+    fn typeinfo() -> Type {
+        Type::TextSelection
+    }
+}
+
 /// Holds a collection of [`TextSelection`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
 /// [`ToHandles::to_handles()`], which is available on all iterators over texts selections.
 pub type TextSelections<'store> = Handles<'store, TextSelection>;
