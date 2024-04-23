@@ -22,6 +22,7 @@ use smallvec::{smallvec, SmallVec};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 use crate::annotation::{Annotation, AnnotationBuilder, AnnotationHandle, AnnotationsJson};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
@@ -136,6 +137,10 @@ pub struct AnnotationStore {
     /// Links to datasets by ID.
     #[n(52)]
     pub(crate) dataset_idmap: IdMap<AnnotationDataSetHandle>,
+
+    /// Flags if the store has changed
+    #[cbor(skip)]
+    changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
     // reverse indices:
     // ---------------------------------------------------------------------------------
@@ -759,6 +764,7 @@ impl AnnotationStore {
             key_annotation_metamap: TripleRelationMap::new(), //MAYBE TODO: sparse arrays, maybe better with BTreeMap variant?
             data_annotation_metamap: TripleRelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
+            changed: Arc::new(RwLock::new(false)),
             config,
             filename: None,
             annotations_filename: None,
@@ -2351,5 +2357,12 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetsVisitor<'_> {
             }
         }
         Ok(())
+    }
+}
+
+#[sealed]
+impl ChangeMarker for AnnotationStore {
+    fn change_marker(&self) -> &Arc<RwLock<bool>> {
+        &self.changed
     }
 }

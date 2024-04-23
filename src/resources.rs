@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
 use crate::annotationstore::AnnotationStore;
-use crate::cbor::*;
 use crate::config::{Config, Configurable, SerializeMode};
 use crate::error::StamError;
 use crate::file::*;
@@ -67,11 +66,7 @@ pub struct TextResource {
     textlen: usize,
 
     /// Flags if the text contents have changed, if so, they need to be reserialised if stored via the include mechanism
-    #[n(5)]
-    #[cbor(
-        encode_with = "cbor_encode_changed",
-        decode_with = "cbor_decode_changed"
-    )]
+    #[cbor(skip)] // this used to be n(5)
     changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
     /// A store of text selections (not in textual order)
@@ -152,6 +147,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
         } else {
             0
         };
+        let changed = builder.text.is_some() && builder.filename.is_some(); //we supplied text but also have a filename, that means the file will be new
         Ok(Self {
             intid: None,
             id: if let Some(id) = builder.id {
@@ -179,7 +175,7 @@ impl TryFrom<TextResourceBuilder> for TextResource {
             textselections: Store::default(),
             config: builder.config,
             filename: builder.filename,
-            changed: Arc::new(RwLock::new(false)),
+            changed: Arc::new(RwLock::new(changed)),
         })
     }
 }
@@ -968,7 +964,13 @@ impl AssociatedFile for TextResource {
 
     /// Get the filename for stand-off file specified using @include (if any)
     fn set_filename(&mut self, filename: &str) -> &mut Self {
-        self.filename = Some(filename.into());
+        if self.filename.as_ref().map(|s| s.as_str()) != Some(filename) {
+            self.filename = Some(filename.into());
+            if !self.text.is_empty() {
+                //text is already loaded (not empty) and the filename changed
+                self.mark_changed();
+            }
+        }
         self
     }
 }

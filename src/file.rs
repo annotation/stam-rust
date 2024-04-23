@@ -166,7 +166,8 @@ pub(crate) fn filename_without_workdir<'a>(filename: &'a str, config: &Config) -
 }
 
 #[sealed(pub(crate))] //<-- this ensures nobody outside this crate can implement the trait
-pub trait AssociatedFile: Configurable {
+#[allow(private_bounds)]
+pub trait AssociatedFile: Configurable + ChangeMarker {
     fn filename(&self) -> Option<&str>;
 
     //Set the associated filename for this structure.

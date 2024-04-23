@@ -22,7 +22,6 @@ use serde::Serialize;
 
 use crate::annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::cbor::*;
 use crate::config::{Config, Configurable, SerializeMode};
 #[cfg(feature = "csv")]
 use crate::csv::FromCsv;
@@ -66,11 +65,7 @@ pub struct AnnotationDataSet {
     filename: Option<String>,
 
     /// Flags if set has changed, if so, they need to be reserialised if stored via the include mechanism
-    #[n(5)]
-    #[cbor(
-        encode_with = "cbor_encode_changed",
-        decode_with = "cbor_decode_changed"
-    )]
+    #[cbor(skip)] // this used to be n(5)
     changed: Arc<RwLock<bool>>, //this is modified via internal mutability
 
     /// Maps public IDs to internal IDs for

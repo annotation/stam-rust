@@ -68,23 +68,6 @@ pub(crate) fn cbor_len_positionitem_smallvec<Ctx, W: minicbor::encode::Write>(
 }
 */
 
-// minicbor has no skip property unfortunately, we have to fake it for the 'changed' fields on AnnotationDataSet and TextResource:
-
-pub(crate) fn cbor_decode_changed<'b, Ctx>(
-    _d: &mut minicbor::decode::Decoder<'b>,
-    _ctx: &mut Ctx,
-) -> Result<Arc<RwLock<bool>>, minicbor::decode::Error> {
-    Ok(Arc::new(RwLock::new(false)))
-}
-
-pub(crate) fn cbor_encode_changed<Ctx, W: minicbor::encode::Write>(
-    _v: &Arc<RwLock<bool>>,
-    _e: &mut minicbor::encode::Encoder<W>,
-    _ctx: &mut Ctx,
-) -> Result<(), minicbor::encode::Error<W::Error>> {
-    Ok(())
-}
-
 pub(crate) fn cbor_decode_serialize_mode<'b, Ctx>(
     _d: &mut minicbor::decode::Decoder<'b>,
     _ctx: &mut Ctx,
