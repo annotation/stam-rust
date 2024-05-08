@@ -57,6 +57,28 @@ impl TryFrom<isize> for Cursor {
     }
 }
 
+impl TryFrom<Cursor> for usize {
+    type Error = StamError;
+    fn try_from(cursor: Cursor) -> Result<Self, Self::Error> {
+        match cursor {
+            Cursor::BeginAligned(x) => Ok(x),
+            _ => Err(StamError::InvalidCursor(
+                format!("{}", cursor),
+                "Cursor is EndAligned and can't convert to usize",
+            )),
+        }
+    }
+}
+
+impl From<Cursor> for isize {
+    fn from(cursor: Cursor) -> Self {
+        match cursor {
+            Cursor::BeginAligned(x) => x as isize,
+            Cursor::EndAligned(x) => x,
+        }
+    }
+}
+
 impl TryFrom<&str> for Cursor {
     type Error = StamError;
     fn try_from(cursor: &str) -> Result<Self, Self::Error> {
