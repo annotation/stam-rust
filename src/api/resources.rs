@@ -798,7 +798,15 @@ impl<'a> Iterator for SegmentationIter<'a> {
             }
 
             if let Some(pos) = self.positions.next() {
-                if *pos > self.cursor {
+                // get the positionitem to filter out textselections that have no annotations associated (e.g. the milestones)
+                let positionitem = self
+                    .resource
+                    .as_ref()
+                    .position(*pos)
+                    .expect("positionitem must exist");
+                if *pos > self.cursor
+                    && (positionitem.len_begin2end() > 0 || positionitem.len_end2begin() > 0)
+                {
                     if *pos > self.end {
                         //clipped segment
                         let textselection = self
