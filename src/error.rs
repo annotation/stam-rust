@@ -266,3 +266,9 @@ impl serde::de::Error for StamError {
         StamError::DeserializationError(format!("{}", msg))
     }
 }
+
+impl From<std::io::Error> for StamError {
+    fn from(value: std::io::Error) -> Self {
+        StamError::IOError(value, String::new(), "")
+    }
+}

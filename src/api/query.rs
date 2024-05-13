@@ -1769,7 +1769,7 @@ impl<'store> QueryIter<'store> {
                 while let Some(constraint) = constraintsiter.next() {
                     iter = self.update_state_resources(constraint, iter)?;
                 }
-                Ok(QueryResultIter::Resources(iter))
+                Ok::<_, StamError>(QueryResultIter::Resources(iter))
             }
             ///////////////////////////// target= ANNOTATION ////////////////////////////////////////////
             Some(Type::Annotation) => {
@@ -3165,19 +3165,19 @@ impl<'store> QueryIter<'store> {
                 }
             }
         }
-            match self.contextvars.get(name) {
-                Some(QueryResultItem::TextResource(resource)) => return Ok(resource),
-                Some(_) => {
-                    return Err(StamError::QuerySyntaxError(
-                        format!(
-                        "Variable ?{} was found in context but does not have expected type RESOURCE",
-                        name
-                    ),
-                        "",
-                    ))
-                }
-                None => {}
+        match self.contextvars.get(name) {
+            Some(QueryResultItem::TextResource(resource)) => return Ok(resource),
+            Some(_) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                    "Variable ?{} was found in context but does not have expected type RESOURCE",
+                    name
+                ),
+                    "",
+                ))
             }
+            None => {}
+        }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type RESOURCE not found", name),
             "",
