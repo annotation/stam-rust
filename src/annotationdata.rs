@@ -181,6 +181,7 @@ impl<'a> Serialize for ResultItem<'a, AnnotationData> {
 }
 
 // This is just a newtype wrapping the one above, and used if one explicitly wants to serialize a set (needed if serialized from Annotation context)
+#[allow(dead_code)] //this is currently unused
 pub(crate) struct AnnotationDataRefImpliedSet<'a>(pub(crate) ResultItem<'a, AnnotationData>);
 
 impl<'a> Serialize for AnnotationDataRefImpliedSet<'a> {
