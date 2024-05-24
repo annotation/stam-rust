@@ -103,6 +103,9 @@ mod types;
 #[cfg(feature = "csv")]
 mod csv;
 
+#[cfg(feature = "textvalidation")]
+mod textvalidation;
+
 // Our internal crate structure is not very relevant to the outside world,
 // expose all structs and traits in the root namespace, and be explicit about it:
 

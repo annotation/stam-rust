@@ -2581,3 +2581,39 @@ fn remove_key_strict() -> Result<(), StamError> {
     assert_eq!(store.annotation("A1"), None); //annotation should be gone too
     Ok(())
 }
+
+#[test]
+#[cfg(feature = "textvalidation")]
+fn textvalidation_none() -> Result<(), StamError> {
+    let store = setup_example_1()?;
+    let annotation = store.annotation("A1").or_fail()?;
+    assert_eq!(annotation.validate_text(), false);
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "textvalidation")]
+fn textvalidation_checksum() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.make_validation_checksums()?;
+    let annotation = store.annotation("A1").or_fail()?;
+    assert_eq!(
+        annotation.validation_checksum(),
+        Some("7c211433f02071597741e6ff5a8ea34789abbf43")
+    );
+    assert_eq!(annotation.validate_text(), true);
+    assert!(store.validate_text(true).is_ok());
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "textvalidation")]
+fn textvalidation_texts() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    store.make_validation_texts()?;
+    let annotation = store.annotation("A1").or_fail()?;
+    assert_eq!(annotation.validation_text(), Some("world"));
+    assert_eq!(annotation.validate_text(), true);
+    assert!(store.validate_text(true).is_ok());
+    Ok(())
+}

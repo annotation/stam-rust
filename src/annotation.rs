@@ -588,6 +588,12 @@ impl Annotation {
         self.data.contains(&(set, handle))
     }
 
+    // Low-level method, to add data, it's generally **discouraged** to use this once an annotation is published,
+    // because they should be immutable. Note that this does not check for duplicates NOR update reverse indices!
+    pub(crate) fn add_data(&mut self, set: AnnotationDataSetHandle, handle: AnnotationDataHandle) {
+        self.data.push((set, handle));
+    }
+
     /// Returns the number of annotation data items
     pub fn len(&self) -> usize {
         self.data.len()

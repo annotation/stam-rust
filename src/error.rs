@@ -112,6 +112,8 @@ pub enum StamError {
     #[cfg(feature = "transpose")]
     TransposeError(String, &'static str),
 
+    ValidationError(String, &'static str),
+
     /// Category for other errors, try to use this sparingly
     OtherError(&'static str),
 }
@@ -223,6 +225,12 @@ impl From<&StamError> for String {
             StamError::TransposeError(msg, contextmsg) => {
                 format!(
                     "TransposeError: Unable to transpose: {} - ({})",
+                    msg, contextmsg
+                )
+            }
+            StamError::ValidationError(msg, contextmsg) => {
+                format!(
+                    "ValidationError: Failed to validate: {} - ({})",
                     msg, contextmsg
                 )
             }
