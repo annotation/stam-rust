@@ -47,7 +47,7 @@ use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::datakey::{DataKey, DataKeyHandle};
-use crate::datavalue::DataOperator;
+use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::textselection::{TextSelection, TextSelectionOperator};
 
@@ -495,6 +495,15 @@ pub trait MaybeSortedIterator: Iterator {
     fn returns_sorted(&self) -> bool;
 }
 
+/// An iterator that grabs the first available data value
+pub trait IteratorToValue<'a>: Iterator {
+    /// Grab the first available data value
+    fn value(&mut self) -> Option<&'a DataValue>;
+
+    /// Grab the first available data value as string, only works if it is actually a string. Does not work for numerals!
+    fn value_as_str(&mut self) -> Option<&'a str>;
+}
+
 /// An iterator that may be sorted or not and knows a-priori whether it is or not, it may also be a completely empty iterator.
 pub struct ResultIter<I>
 where
@@ -507,6 +516,26 @@ where
 impl<I: Iterator> MaybeSortedIterator for ResultIter<I> {
     fn returns_sorted(&self) -> bool {
         self.sorted
+    }
+}
+
+impl<'a, I> IteratorToValue<'a> for I
+where
+    I: Iterator<Item = ResultItem<'a, AnnotationData>>,
+{
+    fn value(&mut self) -> Option<&'a DataValue> {
+        self.next().map(|x| x.value())
+    }
+
+    fn value_as_str(&mut self) -> Option<&'a str> {
+        self.filter_map(|x| {
+            if let DataValue::String(s) = x.value() {
+                Some(s.as_str())
+            } else {
+                None
+            }
+        })
+        .next()
     }
 }
 
