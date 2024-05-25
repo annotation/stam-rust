@@ -58,6 +58,7 @@ use crate::{store::*, Offset, TextSelectionHandle};
 
 use regex::Regex;
 use std::borrow::Cow;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -646,6 +647,110 @@ where
             self.get_item(handle)
         } else {
             None
+        }
+    }
+}
+
+/// An iterator that can extract an arbitrary subrange, even
+/// with relative coordinates (at which point it will allocate a buffer)
+pub trait LimitIterator<I>
+where
+    I: Iterator,
+{
+    fn limit(self, begin: isize, end: isize) -> LimitIter<I>;
+}
+
+impl<I> LimitIterator<I> for I
+where
+    I: Iterator,
+{
+    fn limit(self, begin: isize, end: isize) -> LimitIter<I> {
+        LimitIter {
+            begin,
+            end,
+            cursor: 0,
+            buffer: VecDeque::new(),
+            emptybuffer: false,
+            inner: self,
+        }
+    }
+}
+
+pub struct LimitIter<I>
+where
+    I: Iterator,
+{
+    inner: I,
+    cursor: isize,
+    begin: isize,
+    /// end=0 means until the end, negative numbers are relative to the end. End is non-inclusive.
+    end: isize,
+    emptybuffer: bool,
+    buffer: VecDeque<I::Item>,
+}
+
+impl<I> Iterator for LimitIter<I>
+where
+    I: Iterator,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.emptybuffer {
+                return self.buffer.pop_front();
+            } else if let Some(item) = self.inner.next() {
+                if self.begin >= 0 && self.cursor >= self.begin {
+                    if self.end == 0 || self.cursor < self.end {
+                        //this is the simple case
+                        self.cursor += 1;
+                        return Some(item);
+                    } else if self.end > 0 && self.cursor >= self.end {
+                        self.cursor += 1;
+                        return None;
+                    }
+                    //else fall back to buffer..
+                }
+
+                //else, if all absolute/positive constraints (if any) are respected, add to buffer
+                if ((self.begin < 0) || (self.begin >= 0 && self.cursor >= self.begin))
+                    && ((self.end <= 0) || (self.cursor < self.end))
+                {
+                    self.buffer.push_back(item);
+                    if self.end == 0 && self.begin < 0 {
+                        // we only need to keep part of the buffer in this case
+                        if self.buffer.len() > self.begin.abs() as usize {
+                            let excess = self.buffer.len() - self.begin.abs() as usize;
+                            for _ in 0..excess {
+                                self.buffer.pop_front();
+                            }
+                        }
+                    }
+                }
+                self.cursor += 1;
+            } else {
+                //we reached the end, no item left in inner iterator
+                if self.begin >= 0 && self.end >= 0 {
+                    //all done
+                    return None;
+                } else {
+                    //now we can empty the buffer (on next iteration of the main loop)
+                    self.emptybuffer = true;
+                    // but first we prune unneeded items:
+                    if self.end < 0 && self.begin < 0 {
+                        //discard items from the begin which we do not want
+                        for _ in 0..self.begin.abs() {
+                            self.buffer.pop_front();
+                        }
+                    }
+                    if self.end < 0 {
+                        //discard some items at the end which we do not want
+                        for _ in 0..self.end.abs() {
+                            self.buffer.pop_back();
+                        }
+                    }
+                }
+            }
         }
     }
 }

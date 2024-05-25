@@ -2139,6 +2139,72 @@ fn query_by_name() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_limit_first() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let query: Query = "SELECT ANNOTATION ?a WHERE LIMIT 1;".try_into()?;
+    let mut count = 0;
+    let iter = store.query(query)?;
+    let names = iter.names();
+    for results in iter {
+        if let Ok(result) = results.get_by_name(&names, "a") {
+            match result {
+                QueryResultItem::Annotation(annotation) => {
+                    count += 1;
+                    assert_eq!(annotation.id(), Some("Sentence1"));
+                }
+                _ => assert!(false, "wrong return type"),
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn query_limit_last() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let query: Query = "SELECT ANNOTATION ?a WHERE LIMIT -1;".try_into()?;
+    let mut count = 0;
+    let iter = store.query(query)?;
+    let names = iter.names();
+    for results in iter {
+        if let Ok(result) = results.get_by_name(&names, "a") {
+            match result {
+                QueryResultItem::Annotation(annotation) => {
+                    count += 1;
+                    assert_eq!(annotation.id(), Some("Phrase1"));
+                }
+                _ => assert!(false, "wrong return type"),
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn query_limit_range() -> Result<(), StamError> {
+    let store = setup_example_6()?;
+    let query: Query = "SELECT ANNOTATION ?a WHERE LIMIT 0 1;".try_into()?;
+    let mut count = 0;
+    let iter = store.query(query)?;
+    let names = iter.names();
+    for results in iter {
+        if let Ok(result) = results.get_by_name(&names, "a") {
+            match result {
+                QueryResultItem::Annotation(annotation) => {
+                    count += 1;
+                    assert_eq!(annotation.id(), Some("Sentence1"));
+                }
+                _ => assert!(false, "wrong return type"),
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn query_subquery() -> Result<(), StamError> {
     let store = setup_example_6()?;
     let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; }".try_into()?;

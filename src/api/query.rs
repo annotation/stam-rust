@@ -308,6 +308,9 @@ pub enum Constraint<'a> {
     Resources(Handles<'a, TextResource>, SelectionQualifier),
     /// Constrain by any of multiple text selections
     TextSelections(Handles<'a, TextSelection>, SelectionQualifier),
+
+    ///Constrain to a certain range
+    Limit { begin: isize, end: isize },
 }
 
 impl<'a> Constraint<'a> {
@@ -327,6 +330,7 @@ impl<'a> Constraint<'a> {
             Self::Text { .. } | Self::TextVariable(..) | Self::Regex(..) => "TEXT",
             Self::AnnotationVariable(..) | Self::Annotation(..) => "ANNOTATION",
             Self::Union { .. } => "UNION",
+            Self::Limit { .. } => "LIMIT",
 
             //not real keywords that can be parsed, only for debug printing purposes:
             Self::Annotations(..) => "ANNOTATIONS",
@@ -576,6 +580,38 @@ impl<'a> Constraint<'a> {
                 }
                 Self::Union(subconstraints)
             }
+            Some("LIMIT") => {
+                querystring = querystring["LIMIT".len()..].trim_start();
+                let (arg, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                let arg = arg.parse::<isize>().map_err(|_| {
+                    StamError::QuerySyntaxError(
+                        format!("expected integer after LIMIT, got '{}'", arg),
+                        "Parsing LIMIT constraint failed",
+                    )
+                })?;
+                if Self::closed(querystring) {
+                    //only one argument
+                    if arg >= 0 {
+                        Self::Limit { begin: 0, end: arg }
+                    } else {
+                        Self::Limit { begin: arg, end: 0 }
+                    }
+                } else {
+                    let (end, remainder, _) = get_arg(querystring)?;
+                    querystring = remainder;
+                    let end = end.parse::<isize>().map_err(|_| {
+                        StamError::QuerySyntaxError(
+                            format!(
+                                "expected integer as 2nd parameter after LIMIT, got '{}'",
+                                arg
+                            ),
+                            "Parsing LIMIT constraint failed",
+                        )
+                    })?;
+                    Self::Limit { begin: arg, end }
+                }
+            }
             Some(x) => {
                 return Err(StamError::QuerySyntaxError(
                     format!("Expected constraint type (DATA, TEXT), got '{}'", x),
@@ -720,6 +756,9 @@ impl<'a> Constraint<'a> {
                     }
                 }
                 s += " ];";
+            }
+            Self::Limit { begin, end } => {
+                s += &format!(" LIMIT {} {};", begin, end);
             }
             Self::Annotations(..)
             | Self::Data(..)
@@ -2062,6 +2101,9 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(handles.into_items())
             }
+            Some(&Constraint::Limit { begin, end }) => {
+                Box::new(store.annotations().limit(begin, end))
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2218,6 +2260,9 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(iter.filter_any(handles))
             }
+            &Constraint::Limit { begin, end } => {
+                Box::new(iter.limit(begin, end))
+            }
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2321,6 +2366,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(handles.into_items())
             }
+            Some(&Constraint::Limit { begin, end }) => Box::new(store.data().limit(begin, end)),
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2378,6 +2424,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(iter.filter_any(handles))
             }
+            &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2441,6 +2488,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(handles.into_items())
             }
+            Some(&Constraint::Limit { begin, end }) => Box::new(store.keys().limit(begin, end)),
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2471,6 +2519,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(iter.filter_any(handles))
             }
+            &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2514,6 +2563,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(handles.into_items())
             }
+            Some(&Constraint::Limit { begin, end }) => Box::new(store.datasets().limit(begin, end)),
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2544,6 +2594,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(iter.filter_any(handles))
             }
+            &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2691,6 +2742,9 @@ impl<'store> QueryIter<'store> {
                 }
             }
             Some(&Constraint::Union(..)) => todo!("UNION not implemented yet"),
+            Some(&Constraint::Limit { begin, end }) => {
+                Box::new(store.annotations().textselections().limit(begin, end))
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2778,6 +2832,7 @@ impl<'store> QueryIter<'store> {
                     ));
                 }
             }
+            &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2902,6 +2957,9 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(handles.into_items())
             }
+            Some(&Constraint::Limit { begin, end }) => {
+                Box::new(store.resources().limit(begin, end))
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2981,6 +3039,7 @@ impl<'store> QueryIter<'store> {
                 }
                 Box::new(iter.filter_any(handles))
             }
+            &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
