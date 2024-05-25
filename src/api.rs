@@ -42,6 +42,9 @@ pub use webanno::*;
 #[cfg(feature = "transpose")]
 pub use transpose::*;
 
+#[cfg(feature = "textvalidation")]
+pub use crate::textvalidation::*;
+
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};

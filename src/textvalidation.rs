@@ -26,16 +26,86 @@ use sha1::{Digest, Sha1};
 
 const TEXTVALIDATION_SET: &str = "https://w3id.org/stam/extensions/stam-textvalidation/";
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum TextValidationMode {
+    /// Use checksums
+    Checksum,
+    /// Use text
+    Text,
+    /// Use both
+    Both,
+    /// Automatically choose based on text length
+    Auto,
+}
+
+impl Default for TextValidationMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+pub struct TextValidationResult {
+    valid: usize,
+    invalid: usize,
+    missing: usize,
+}
+
+impl TextValidationResult {
+    /// Returns the number of annotations that do not have validation information
+    pub fn missing(&self) -> usize {
+        self.missing
+    }
+    /// Returns the number of annotations that are valid
+    pub fn valid(&self) -> usize {
+        self.valid
+    }
+    /// Returns the number of annotations that are invalid
+    pub fn invalid(&self) -> usize {
+        self.invalid
+    }
+    /// Returns a boolean representing the validation result
+    pub fn is_ok(&self) -> bool {
+        self.invalid == 0 && self.missing == 0
+    }
+    pub fn is_ok_maybe_incomplete(&self) -> bool {
+        self.invalid == 0
+    }
+}
+
 impl AnnotationStore {
     /// Mark all annotations in this store as valid, enabling text validation checks in the future.
-    pub fn make_validation_checksums(&mut self) -> Result<(), StamError> {
-        let mut queue = Vec::new();
+    pub fn make_validation(&mut self, mode: TextValidationMode) -> Result<(), StamError> {
+        let mut queue_checksums = Vec::new();
+        let mut queue_texts = Vec::new();
         for annotation in self.annotations() {
-            if annotation.validation_checksum().is_none() {
+            let (do_checksum, do_text) = match mode {
+                TextValidationMode::Checksum => (true, false),
+                TextValidationMode::Text => (false, true),
+                TextValidationMode::Both => (true, true),
+                TextValidationMode::Auto => {
+                    let textlen = annotation
+                        .textselections()
+                        .fold(0 as usize, |a, x| a + (x.end() - x.begin()));
+                    if textlen < 40 {
+                        (false, true)
+                    } else {
+                        (true, false)
+                    }
+                }
+            };
+
+            if do_checksum && annotation.validation_checksum().is_none() {
                 if let Some(checksum) =
                     annotation.text_checksum(annotation.text_validation_delimiter().unwrap_or(""))
                 {
-                    queue.push((annotation.handle(), checksum));
+                    queue_checksums.push((annotation.handle(), checksum));
+                }
+            }
+            if do_text && annotation.validation_text().is_none() {
+                let text =
+                    annotation.text_join(annotation.text_validation_delimiter().unwrap_or(""));
+                if !text.is_empty() {
+                    queue_texts.push((annotation.handle(), text));
                 }
             }
         }
@@ -50,7 +120,7 @@ impl AnnotationStore {
 
         // add validation information to existing annotations
         if let Some(set_handle) = set_handle {
-            for (handle, checksum) in queue {
+            for (handle, checksum) in queue_checksums {
                 let set: &mut AnnotationDataSet = self.get_mut(set_handle)?;
                 let data_handle = set.insert_data(BuildItem::None, "checksum", checksum, true)?;
                 let annotation: &mut Annotation = self.get_mut(handle)?;
@@ -59,37 +129,7 @@ impl AnnotationStore {
                 self.dataset_data_annotation_map
                     .insert(set_handle, data_handle, handle);
             }
-        } else {
-            panic!("Set must exist");
-        }
-        Ok(())
-    }
-
-    /// Mark all annotations in this store as valid, enabling text validation checks in the future.
-    /// Note, this may have considerable space overhead, [`make_validation_checksums()`] is preferred!
-    pub fn make_validation_texts(&mut self) -> Result<(), StamError> {
-        let mut queue = Vec::new();
-        for annotation in self.annotations() {
-            if annotation.validation_text().is_none() {
-                let text =
-                    annotation.text_join(annotation.text_validation_delimiter().unwrap_or(""));
-                if !text.is_empty() {
-                    queue.push((annotation.handle(), text));
-                }
-            }
-        }
-
-        // get or add the dataset
-        let mut set_handle = self.dataset(TEXTVALIDATION_SET).map(|set| set.handle());
-        if set_handle.is_none() {
-            set_handle = self
-                .insert(AnnotationDataSet::new(self.config.clone()).with_id(TEXTVALIDATION_SET))
-                .ok();
-        }
-
-        // add validation information to existing annotations
-        if let Some(set_handle) = set_handle {
-            for (handle, text) in queue {
+            for (handle, text) in queue_texts {
                 let set: &mut AnnotationDataSet = self.get_mut(set_handle)?;
                 let data_handle = set.insert_data(BuildItem::None, "text", text, true)?;
                 let annotation: &mut Annotation = self.get_mut(handle)?;
@@ -112,32 +152,34 @@ impl AnnotationStore {
     }
 
     /// Validate the text of all annotations
-    pub fn validate_text(&self, warn_for_all: bool) -> Result<(), StamError> {
-        let mut failures = 0;
+    /// If quiet is not set, it will output validation failures to stderr
+    pub fn validate_text(&self, quiet: bool) -> TextValidationResult {
+        let mut total = TextValidationResult {
+            invalid: 0,
+            valid: 0,
+            missing: 0,
+        };
         for annotation in self.annotations() {
-            if !annotation.validate_text() {
-                let msg = format!(
-                    "Failed on {}",
-                    annotation
-                        .id()
-                        .unwrap_or(annotation.as_ref().temp_id().as_deref().unwrap())
-                );
-                failures += 1;
-                if warn_for_all {
-                    eprintln!("[STAM VALIDATION] {}", msg);
+            let result = annotation.validate_text();
+            if result == Some(true) {
+                total.valid += 1;
+            } else {
+                if result.is_none() {
+                    total.missing += 1;
                 } else {
-                    return Err(StamError::ValidationError(msg, ""));
+                    total.invalid += 1;
+                }
+                if !quiet {
+                    eprintln!(
+                        "[STAM VALIDATION] Failed on {}",
+                        annotation
+                            .id()
+                            .unwrap_or(annotation.as_ref().temp_id().as_deref().unwrap())
+                    );
                 }
             }
         }
-        if failures == 0 {
-            Ok(())
-        } else {
-            return Err(StamError::ValidationError(
-                format!("{} annotations failed to validate their text!", failures),
-                "",
-            ));
-        }
+        return total;
     }
 }
 
@@ -184,24 +226,28 @@ impl<'store> ResultItem<'store, Annotation> {
     }
 
     /// Tests if the annotation's target text is still valid
-    /// Returns false if there is no validation information in the annotation at all!
-    pub fn validate_text(&self) -> bool {
+    /// Returns None if there is no validation information in the annotation at all!
+    pub fn validate_text(&self) -> Option<bool> {
         let delimiter = self.text_validation_delimiter();
         let mut found = false;
         if let Some(refchecksum) = self.validation_checksum() {
             let checksum = self.text_checksum(delimiter.unwrap_or(""));
             found = true;
             if checksum.as_deref() != Some(refchecksum) {
-                return false;
+                return Some(false);
             }
         }
         if let Some(reftext) = self.validation_text() {
             let text = self.text_join(delimiter.unwrap_or(""));
             found = true;
             if reftext != text {
-                return false;
+                return Some(false);
             }
         }
-        found
+        if found {
+            Some(true)
+        } else {
+            None
+        }
     }
 }
