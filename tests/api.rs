@@ -2595,7 +2595,7 @@ fn textvalidation_none() -> Result<(), StamError> {
 #[cfg(feature = "textvalidation")]
 fn textvalidation_checksum() -> Result<(), StamError> {
     let mut store = setup_example_1()?;
-    store.make_validation(TextValidationMode::Checksum)?;
+    store.protect_text(TextValidationMode::Checksum)?;
     let annotation = store.annotation("A1").or_fail()?;
     assert_eq!(
         annotation.validation_checksum(),
@@ -2610,7 +2610,7 @@ fn textvalidation_checksum() -> Result<(), StamError> {
 #[cfg(feature = "textvalidation")]
 fn textvalidation_texts() -> Result<(), StamError> {
     let mut store = setup_example_1()?;
-    store.make_validation(TextValidationMode::Text)?;
+    store.protect_text(TextValidationMode::Text)?;
     let annotation = store.annotation("A1").or_fail()?;
     assert_eq!(annotation.validation_text(), Some("world"));
     assert_eq!(annotation.validate_text(), Some(true));

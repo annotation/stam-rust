@@ -73,8 +73,9 @@ impl TextValidationResult {
 }
 
 impl AnnotationStore {
-    /// Mark all annotations in this store as valid, enabling text validation checks in the future.
-    pub fn make_validation(&mut self, mode: TextValidationMode) -> Result<(), StamError> {
+    /// Add text validation information to all annotations in this store, allowing for text validation checks in the future.
+    /// That protects the annotations against any changes in the text.
+    pub fn protect_text(&mut self, mode: TextValidationMode) -> Result<(), StamError> {
         let mut queue_checksums = Vec::new();
         let mut queue_texts = Vec::new();
         for annotation in self.annotations() {
