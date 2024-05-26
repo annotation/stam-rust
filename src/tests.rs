@@ -186,14 +186,16 @@ fn textselectionoperator_equals_1vs1() {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(a.test(
         &TextSelectionOperator::Overlaps {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -215,7 +217,8 @@ fn textselectionoperator_equals_false_1vs1() {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -237,14 +240,16 @@ fn textselectionoperator_overlaps1_1vs1() {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::Overlaps {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -265,14 +270,16 @@ fn textselectionoperator_overlaps2_1vs1() {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::Overlaps {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -293,14 +300,16 @@ fn textselectionoperator_overlaps_false_1vs1() {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Overlaps {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -322,7 +331,8 @@ fn textselectionoperator_embed_1vs1() {
             negate: false,
             limit: None
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Embedded {
@@ -330,14 +340,16 @@ fn textselectionoperator_embed_1vs1() {
             negate: false,
             limit: None
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::Embeds {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 #[test]
@@ -359,6 +371,7 @@ fn textselectionoperator_embed_test_limit() {
             limit: Some(4),
         },
         &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Embedded {
@@ -366,7 +379,8 @@ fn textselectionoperator_embed_test_limit() {
             negate: false,
             limit: Some(1)
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -389,7 +403,8 @@ fn textselectionoperator_embed_false_1vs1() {
             negate: false,
             limit: None
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Embedded {
@@ -397,7 +412,8 @@ fn textselectionoperator_embed_false_1vs1() {
             negate: false,
             limit: None
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -419,7 +435,8 @@ fn textselectionoperator_precedes_1vs1() {
             negate: false,
             limit: None
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Before {
@@ -427,7 +444,8 @@ fn textselectionoperator_precedes_1vs1() {
             negate: false,
             limit: None
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::After {
@@ -436,7 +454,8 @@ fn textselectionoperator_precedes_1vs1() {
             negate: false,
             limit: None
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!a.test(
         &TextSelectionOperator::After {
@@ -444,7 +463,8 @@ fn textselectionoperator_precedes_1vs1() {
             negate: false,
             limit: None
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -466,7 +486,8 @@ fn textselectionoperator_precedes2_1vs1() {
             negate: false,
             limit: None
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Before {
@@ -474,7 +495,8 @@ fn textselectionoperator_precedes2_1vs1() {
             negate: false,
             limit: None
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::After {
@@ -482,7 +504,8 @@ fn textselectionoperator_precedes2_1vs1() {
             negate: false,
             limit: None
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!a.test(
         &TextSelectionOperator::After {
@@ -490,12 +513,13 @@ fn textselectionoperator_precedes2_1vs1() {
             negate: false,
             limit: None
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
 #[test]
-fn textselectionoperator_adjacent_1vs1() {
+fn textselectionoperator_adjacent_1vs1_nowhitespace() {
     let a = TextSelection {
         intid: None,
         begin: 12,
@@ -509,35 +533,94 @@ fn textselectionoperator_adjacent_1vs1() {
     assert!(a.test(
         &TextSelectionOperator::Precedes {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Precedes {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::Succeeds {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!a.test(
         &TextSelectionOperator::Succeeds {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
 #[test]
-fn textselectionoperator_adjacent_false_1vs1() {
+fn textselectionoperator_adjacent_1vs1_whitespace() {
+    let a = TextSelection {
+        intid: None,
+        begin: 0,
+        end: 5,
+    };
+    let b = TextSelection {
+        intid: None,
+        begin: 6,
+        end: 11,
+    };
+    let resource = TextResource::new("", Config::default()).with_string("hello world");
+    assert!(a.test(
+        &TextSelectionOperator::Precedes {
+            all: false,
+            negate: false,
+            allow_whitespace: true,
+        },
+        &b,
+        &resource //dummy
+    ));
+    assert!(!b.test(
+        &TextSelectionOperator::Precedes {
+            all: false,
+            negate: false,
+            allow_whitespace: true,
+        },
+        &a,
+        &resource
+    ));
+    assert!(b.test(
+        &TextSelectionOperator::Succeeds {
+            all: false,
+            negate: false,
+            allow_whitespace: true,
+        },
+        &a,
+        &resource
+    ));
+    assert!(!a.test(
+        &TextSelectionOperator::Succeeds {
+            all: false,
+            negate: false,
+            allow_whitespace: true,
+        },
+        &b,
+        &resource
+    ));
+}
+
+#[test]
+fn textselectionoperator_adjacent_false_1vs1_nowhitespace() {
     let a = TextSelection {
         intid: None,
         begin: 0,
@@ -552,30 +635,38 @@ fn textselectionoperator_adjacent_false_1vs1() {
     assert!(!a.test(
         &TextSelectionOperator::Precedes {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Precedes {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::Succeeds {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!a.test(
         &TextSelectionOperator::Succeeds {
             all: false,
-            negate: false
+            negate: false,
+            allow_whitespace: false,
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -596,28 +687,32 @@ fn textselectionoperator_samebegin_1vs1() {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::SameBegin {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!a.test(
         &TextSelectionOperator::SameEnd {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::SameEnd {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 
@@ -638,28 +733,32 @@ fn textselectionoperator_sameend_1vs1() {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(b.test(
         &TextSelectionOperator::SameEnd {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!a.test(
         &TextSelectionOperator::SameBegin {
             all: false,
             negate: false
         },
-        &b
+        &b,
+        &TextResource::new("", Config::default()) //dummy
     ));
     assert!(!b.test(
         &TextSelectionOperator::SameBegin {
             all: false,
             negate: false
         },
-        &a
+        &a,
+        &TextResource::new("", Config::default()) //dummy
     ));
 }
 

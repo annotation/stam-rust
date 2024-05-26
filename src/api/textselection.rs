@@ -328,7 +328,8 @@ impl<'store> ResultTextSelection<'store> {
         if self.resource() != other.resource() {
             false
         } else {
-            self.inner().test(operator, other.inner())
+            self.inner()
+                .test(operator, other.inner(), self.resource().as_ref())
         }
     }
 
@@ -341,7 +342,8 @@ impl<'store> ResultTextSelection<'store> {
         if self.resource() != other.resource() {
             false
         } else {
-            self.inner().test_set(operator, other.inner())
+            self.inner()
+                .test_set(operator, other.inner(), self.resource().as_ref())
         }
     }
 }
@@ -384,7 +386,8 @@ impl<'store> ResultTextSelectionSet<'store> {
         if self.resource() != other.resource() {
             false
         } else {
-            self.inner().test(operator, other.inner())
+            self.inner()
+                .test(operator, other.inner(), self.resource().as_ref())
         }
     }
 
@@ -397,7 +400,8 @@ impl<'store> ResultTextSelectionSet<'store> {
         if self.resource() != other.resource() {
             false
         } else {
-            self.inner().test_set(operator, other.inner())
+            self.inner()
+                .test_set(operator, other.inner(), self.resource().as_ref())
         }
     }
 }

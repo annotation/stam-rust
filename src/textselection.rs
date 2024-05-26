@@ -799,6 +799,9 @@ impl<'a> Iterator for TextSelectionSetIter<'a> {
     }
 */
 
+/// Maximum whitespace distance for TextSelectionOperator::Precedes and Succeeds with allow_whitespace.
+const WHITESPACE_LIMIT: usize = 10;
+
 /// The TextSelectionOperator, simply put, allows comparison of two [`TextSelection`] instances. It
 /// allows testing for all kinds of spatial relations (as embodied by this enum) in which two
 /// [`TextSelection`] instances can be, such as overlap, embedding, adjacency, etc...
@@ -853,11 +856,21 @@ pub enum TextSelectionOperator {
 
     /// Each TextSelection in A ends where at least one TextSelection in B begins.
     /// If modifier `all` is set: The rightmost TextSelections in A end where the leftmost TextSelection in B begins  (cf. textfabric's `<:`)
-    Precedes { all: bool, negate: bool },
+    /// If modifier `allow_whitespace` is set, a limited amount of whitespace is allowed between the two text selections
+    Precedes {
+        all: bool,
+        negate: bool,
+        allow_whitespace: bool,
+    },
 
     /// Each TextSelection in A begis where at least one TextSelection in A ends.
     /// If modifier `all` is set: The leftmost TextSelection in A starts where the rightmost TextSelection in B ends  (cf. textfabric's `:>`)
-    Succeeds { all: bool, negate: bool },
+    /// If modifier `allow_whitespace` is set, a limited amount of whitespace is allowed between the two text selections
+    Succeeds {
+        all: bool,
+        negate: bool,
+        allow_whitespace: bool,
+    },
 
     /// Each TextSelection in A starts where a TextSelection in B starts
     /// If modifier `all` is set: The leftmost TextSelection in A starts where the leftmost TextSelection in B start  (cf. textfabric's `=:`)
@@ -957,17 +970,39 @@ impl TextSelectionOperator {
         }
     }
 
+    /// This operator allows whitespace between the two text selections
     pub fn precedes() -> Self {
         Self::Precedes {
             all: false,
             negate: false,
+            allow_whitespace: true,
         }
     }
 
+    /// This operator does not allow whitespace between the two text selections
+    pub fn precedes_exact() -> Self {
+        Self::Precedes {
+            all: false,
+            negate: false,
+            allow_whitespace: false,
+        }
+    }
+
+    /// This operator allows whitespace between the two text selections
     pub fn succeeds() -> Self {
         Self::Succeeds {
             all: false,
             negate: false,
+            allow_whitespace: true,
+        }
+    }
+
+    /// This operator does not allow whitespace between the two text selections
+    pub fn succeeds_exact() -> Self {
+        Self::Succeeds {
+            all: false,
+            negate: false,
+            allow_whitespace: false,
         }
     }
 
@@ -1050,13 +1085,23 @@ impl TextSelectionOperator {
                 negate: !negate,
                 limit: *limit,
             },
-            Self::Precedes { all, negate } => Self::Precedes {
+            Self::Precedes {
+                all,
+                negate,
+                allow_whitespace,
+            } => Self::Precedes {
                 all: *all,
                 negate: !negate,
+                allow_whitespace: *allow_whitespace,
             },
-            Self::Succeeds { all, negate } => Self::Succeeds {
+            Self::Succeeds {
+                all,
+                negate,
+                allow_whitespace,
+            } => Self::Succeeds {
                 all: *all,
                 negate: !negate,
+                allow_whitespace: *allow_whitespace,
             },
             Self::SameBegin { all, negate } => Self::SameBegin {
                 all: *all,
@@ -1106,13 +1151,23 @@ impl TextSelectionOperator {
                 negate: *negate,
                 limit: *limit,
             },
-            Self::Precedes { all, negate } => Self::Precedes {
+            Self::Precedes {
+                all,
+                negate,
+                allow_whitespace,
+            } => Self::Precedes {
                 all: !all,
                 negate: *negate,
+                allow_whitespace: *allow_whitespace,
             },
-            Self::Succeeds { all, negate } => Self::Succeeds {
+            Self::Succeeds {
+                all,
+                negate,
+                allow_whitespace,
+            } => Self::Succeeds {
                 all: !all,
                 negate: *negate,
+                allow_whitespace: *allow_whitespace,
             },
             Self::SameBegin { all, negate } => Self::SameBegin {
                 all: !all,
@@ -1138,11 +1193,21 @@ impl TextSelectionOperator {
 pub trait TestTextSelection {
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two TextSelections.
     /// A boolean is returned with the test result.
-    fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool;
+    fn test(
+        &self,
+        operator: &TextSelectionOperator,
+        reftextsel: &TextSelection,
+        resource: &TextResource,
+    ) -> bool;
 
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two TextSelections .
     /// A boolean is returned with the test result.
-    fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool;
+    fn test_set(
+        &self,
+        operator: &TextSelectionOperator,
+        refset: &TextSelectionSet,
+        resource: &TextResource,
+    ) -> bool;
 }
 
 impl TextSelectionSet {
@@ -1294,7 +1359,12 @@ impl TextSelectionSet {
 impl TestTextSelection for TextSelectionSet {
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
     /// A boolean is returned with the test result.
-    fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
+    fn test(
+        &self,
+        operator: &TextSelectionOperator,
+        reftextsel: &TextSelection,
+        resource: &TextResource,
+    ) -> bool {
         if self.is_empty() {
             return false;
         }
@@ -1305,7 +1375,7 @@ impl TestTextSelection for TextSelectionSet {
             } => {
                 //ALL of the items in this set must match with ANY item in the otherset
                 for item in self.iter() {
-                    if !item.test(operator, reftextsel) {
+                    if !item.test(operator, reftextsel, resource) {
                         return false;
                     }
                 }
@@ -1337,10 +1407,12 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Precedes {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Succeeds {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::SameBegin {
                 all: false,
@@ -1357,7 +1429,7 @@ impl TestTextSelection for TextSelectionSet {
                 // ALL of the items in this set must match with ANY item in the otherset
                 // This is a weaker form of Equals (could have also been called SameRange)
                 for item in self.iter() {
-                    if !item.test(operator, reftextsel) {
+                    if !item.test(operator, reftextsel, resource) {
                         return false;
                     }
                 }
@@ -1378,7 +1450,7 @@ impl TestTextSelection for TextSelectionSet {
             } => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
                 for item in self.iter() {
-                    if !item.test(operator, reftextsel) {
+                    if !item.test(operator, reftextsel, resource) {
                         return false;
                     }
                 }
@@ -1388,6 +1460,7 @@ impl TestTextSelection for TextSelectionSet {
             TextSelectionOperator::Precedes {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Before {
                 all: true,
@@ -1397,10 +1470,14 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::SameEnd {
                 all: true,
                 negate: false,
-            } => self.rightmost().unwrap().test(operator, reftextsel),
+            } => self
+                .rightmost()
+                .unwrap()
+                .test(operator, reftextsel, resource),
             TextSelectionOperator::Succeeds {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::After {
                 all: true,
@@ -1410,13 +1487,21 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::SameBegin {
                 all: true,
                 negate: false,
-            } => self.leftmost().unwrap().test(operator, reftextsel),
+            } => self
+                .leftmost()
+                .unwrap()
+                .test(operator, reftextsel, resource),
             TextSelectionOperator::SameRange {
                 all: true,
                 negate: false,
             } => {
-                self.leftmost().unwrap().test(operator, reftextsel)
-                    && self.rightmost().unwrap().test(operator, reftextsel)
+                self.leftmost()
+                    .unwrap()
+                    .test(operator, reftextsel, resource)
+                    && self
+                        .rightmost()
+                        .unwrap()
+                        .test(operator, reftextsel, resource)
             }
 
             //negations
@@ -1431,7 +1516,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
-                !self.test(&operator.toggle_negate(), reftextsel)
+                !self.test(&operator.toggle_negate(), reftextsel, resource)
             }
             _ => unreachable!("unknown operator+modifier combination"),
         }
@@ -1439,7 +1524,12 @@ impl TestTextSelection for TextSelectionSet {
 
     /// This method is called to test whether a specific spatial relation (as expressed by the passed operator) holds between two [`TextSelectionSet`]s.
     /// A boolean is returned with the test result.
-    fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
+    fn test_set(
+        &self,
+        operator: &TextSelectionOperator,
+        refset: &TextSelectionSet,
+        resource: &TextResource,
+    ) -> bool {
         if self.is_empty() {
             return false;
         }
@@ -1454,7 +1544,7 @@ impl TestTextSelection for TextSelectionSet {
                 }
                 //ALL of the items in this set must match with ANY item in the otherset
                 for item in self.iter() {
-                    if !item.test_set(operator, refset) {
+                    if !item.test_set(operator, refset, resource) {
                         return false;
                     }
                 }
@@ -1486,10 +1576,12 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::Precedes {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Succeeds {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::SameBegin {
                 all: false,
@@ -1506,7 +1598,7 @@ impl TestTextSelection for TextSelectionSet {
                 // ALL of the items in this set must match with ANY item in the otherset
                 // This is a weaker form of Equals (could have also been called SameRange)
                 for item in self.iter() {
-                    if !item.test_set(operator, refset) {
+                    if !item.test_set(operator, refset, resource) {
                         return false;
                     }
                 }
@@ -1527,7 +1619,7 @@ impl TestTextSelection for TextSelectionSet {
             } => {
                 //all of the items in this set must match with all item in the otherset (this code isn't different from the previous one, the different code happens in the delegated test() method
                 for item in self.iter() {
-                    if !item.test_set(operator, refset) {
+                    if !item.test_set(operator, refset, resource) {
                         return false;
                     }
                 }
@@ -1537,6 +1629,7 @@ impl TestTextSelection for TextSelectionSet {
             TextSelectionOperator::Precedes {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Before {
                 all: true,
@@ -1546,10 +1639,14 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::SameEnd {
                 all: true,
                 negate: false,
-            } => self.rightmost().unwrap().test_set(operator, refset),
+            } => self
+                .rightmost()
+                .unwrap()
+                .test_set(operator, refset, resource),
             TextSelectionOperator::Succeeds {
                 all: true,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::After {
                 all: true,
@@ -1559,13 +1656,21 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::SameBegin {
                 all: true,
                 negate: false,
-            } => self.leftmost().unwrap().test_set(operator, refset),
+            } => self
+                .leftmost()
+                .unwrap()
+                .test_set(operator, refset, resource),
             TextSelectionOperator::SameRange {
                 all: true,
                 negate: false,
             } => {
-                self.leftmost().unwrap().test_set(operator, refset)
-                    && self.rightmost().unwrap().test_set(operator, refset)
+                self.leftmost()
+                    .unwrap()
+                    .test_set(operator, refset, resource)
+                    && self
+                        .rightmost()
+                        .unwrap()
+                        .test_set(operator, refset, resource)
             }
 
             //negations
@@ -1580,7 +1685,7 @@ impl TestTextSelection for TextSelectionSet {
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
-                !self.test_set(&operator.toggle_negate(), refset)
+                !self.test_set(&operator.toggle_negate(), refset, resource)
             }
             _ => unreachable!("unknown operator+modifier combination"),
         }
@@ -1591,7 +1696,12 @@ impl TestTextSelection for TextSelection {
     /// This method is called to test whether a specific spatial relation (as expressed by the
     /// passed operator) holds between a [`TextSelection`] and another.
     /// A boolean is returned with the test result.
-    fn test(&self, operator: &TextSelectionOperator, reftextsel: &TextSelection) -> bool {
+    fn test(
+        &self,
+        operator: &TextSelectionOperator,
+        reftextsel: &TextSelection,
+        resource: &TextResource,
+    ) -> bool {
         //note: at this level we deal with two singletons and there is no different between the *All variants
         match operator {
             TextSelectionOperator::Equals { negate: false, .. }
@@ -1634,8 +1744,54 @@ impl TestTextSelection for TextSelection {
                 ..
             } => self.begin >= reftextsel.end && self.begin - reftextsel.end <= *limit,
             TextSelectionOperator::After { negate: false, .. } => self.begin >= reftextsel.end,
-            TextSelectionOperator::Precedes { negate: false, .. } => self.end == reftextsel.begin,
-            TextSelectionOperator::Succeeds { negate: false, .. } => reftextsel.end == self.begin,
+            TextSelectionOperator::Precedes {
+                negate: false,
+                allow_whitespace,
+                ..
+            } => {
+                if !allow_whitespace {
+                    self.end == reftextsel.begin
+                } else if reftextsel.begin >= self.end {
+                    let l = reftextsel.begin - self.end;
+                    if l == 0 {
+                        true
+                    } else {
+                        if let Ok(gap) =
+                            resource.text_by_offset(&Offset::simple(self.end, reftextsel.begin))
+                        {
+                            gap.chars().all(|c| c.is_whitespace())
+                        } else {
+                            false
+                        }
+                    }
+                } else {
+                    false
+                }
+            }
+            TextSelectionOperator::Succeeds {
+                negate: false,
+                allow_whitespace,
+                ..
+            } => {
+                if !allow_whitespace {
+                    reftextsel.end == self.begin
+                } else if self.begin >= reftextsel.end {
+                    let l = self.begin - reftextsel.end;
+                    if l == 0 {
+                        true
+                    } else {
+                        if let Ok(gap) =
+                            resource.text_by_offset(&Offset::simple(reftextsel.end, self.begin))
+                        {
+                            gap.chars().all(|c| c.is_whitespace())
+                        } else {
+                            false
+                        }
+                    }
+                } else {
+                    false
+                }
+            }
             TextSelectionOperator::SameBegin { negate: false, .. } => {
                 self.begin == reftextsel.begin
             }
@@ -1656,7 +1812,7 @@ impl TestTextSelection for TextSelection {
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
-                !self.test(&operator.toggle_negate(), reftextsel)
+                !self.test(&operator.toggle_negate(), reftextsel, resource)
             }
             _ => unreachable!("unknown operator+modifier combination"),
         }
@@ -1665,7 +1821,12 @@ impl TestTextSelection for TextSelection {
     /// passed operator) holds between a [`TextSelection`] and another (or multiple)
     /// ([`TextSelectionSet`]). The operator contains the other part of the equation that is tested
     /// against. A boolean is returned with the test result.
-    fn test_set(&self, operator: &TextSelectionOperator, refset: &TextSelectionSet) -> bool {
+    fn test_set(
+        &self,
+        operator: &TextSelectionOperator,
+        refset: &TextSelectionSet,
+        resource: &TextResource,
+    ) -> bool {
         match operator {
             TextSelectionOperator::Equals {
                 all: false,
@@ -1697,10 +1858,12 @@ impl TestTextSelection for TextSelection {
             | TextSelectionOperator::Precedes {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::Succeeds {
                 all: false,
                 negate: false,
+                ..
             }
             | TextSelectionOperator::SameBegin {
                 all: false,
@@ -1715,7 +1878,7 @@ impl TestTextSelection for TextSelection {
                 negate: false,
             } => {
                 for reftextsel in refset.iter() {
-                    if self.test(operator, reftextsel) {
+                    if self.test(operator, reftextsel, resource) {
                         return true;
                     }
                 }
@@ -1748,7 +1911,7 @@ impl TestTextSelection for TextSelection {
                     return false;
                 }
                 for reftextsel in refset.iter() {
-                    if !self.test(operator, reftextsel) {
+                    if !self.test(operator, reftextsel, resource) {
                         return false;
                     }
                 }
@@ -1757,6 +1920,7 @@ impl TestTextSelection for TextSelection {
             TextSelectionOperator::Precedes {
                 all: true,
                 negate: false,
+                allow_whitespace,
             } => {
                 if refset.is_empty() {
                     return false;
@@ -1767,11 +1931,29 @@ impl TestTextSelection for TextSelection {
                         leftmost = Some(other.begin);
                     }
                 }
-                Some(self.end) == leftmost
+                if !allow_whitespace {
+                    Some(self.end) == leftmost
+                } else if let Some(leftmost) = leftmost {
+                    let l = self.end - leftmost;
+                    if l == 0 {
+                        true
+                    } else {
+                        if let Ok(gap) =
+                            resource.text_by_offset(&Offset::simple(self.end, leftmost))
+                        {
+                            gap.chars().all(|c| c.is_whitespace())
+                        } else {
+                            false
+                        }
+                    }
+                } else {
+                    false
+                }
             }
             TextSelectionOperator::Succeeds {
                 all: true,
                 negate: false,
+                allow_whitespace,
             } => {
                 if refset.is_empty() {
                     return false;
@@ -1782,7 +1964,24 @@ impl TestTextSelection for TextSelection {
                         rightmost = Some(other.end);
                     }
                 }
-                Some(self.begin) == rightmost
+                if !allow_whitespace {
+                    Some(self.begin) == rightmost
+                } else if let Some(rightmost) = rightmost {
+                    let l = rightmost - self.begin;
+                    if l == 0 {
+                        true
+                    } else {
+                        if let Ok(gap) =
+                            resource.text_by_offset(&Offset::simple(rightmost, self.begin))
+                        {
+                            gap.chars().all(|c| c.is_whitespace())
+                        } else {
+                            false
+                        }
+                    }
+                } else {
+                    false
+                }
             }
             TextSelectionOperator::SameBegin {
                 all: true,
@@ -1825,7 +2024,7 @@ impl TestTextSelection for TextSelection {
             | TextSelectionOperator::SameBegin { negate: true, .. }
             | TextSelectionOperator::SameEnd { negate: true, .. }
             | TextSelectionOperator::InSet { negate: true, .. } => {
-                !self.test_set(&operator.toggle_negate(), refset)
+                !self.test_set(&operator.toggle_negate(), refset, resource)
             }
             _ => unreachable!("unknown operator+modifier combination"),
         }
@@ -1945,11 +2144,18 @@ impl<'store> FindTextSelectionsIter<'store> {
                     true,
                 ));
             }
-            TextSelectionOperator::Succeeds { .. } => {
+            TextSelectionOperator::Succeeds {
+                allow_whitespace, ..
+            } => {
                 self.textseliters.push((
                     self.resource.range(
                         self.refset.begin().unwrap(),
-                        self.refset.begin().unwrap() + 1,
+                        self.refset.begin().unwrap()
+                            + if allow_whitespace {
+                                WHITESPACE_LIMIT + 1
+                            } else {
+                                1
+                            },
                     ),
                     false, //search backwards!! end must be in range above
                 ));
@@ -1964,10 +2170,19 @@ impl<'store> FindTextSelectionsIter<'store> {
                 self.textseliters
                     .push((self.resource.range(self.refset.end().unwrap(), end), true));
             }
-            TextSelectionOperator::Precedes { .. } => {
+            TextSelectionOperator::Precedes {
+                allow_whitespace, ..
+            } => {
                 self.textseliters.push((
-                    self.resource
-                        .range(self.refset.end().unwrap(), self.refset.end().unwrap() + 1),
+                    self.resource.range(
+                        self.refset.end().unwrap(),
+                        self.refset.end().unwrap()
+                            + if allow_whitespace {
+                                WHITESPACE_LIMIT + 1
+                            } else {
+                                1
+                            },
+                    ),
                     true,
                 ));
             }
@@ -2068,7 +2283,9 @@ impl<'store> FindTextSelectionsIter<'store> {
                     .0
                     .next()
                 {
-                    if self.refset.test(&self.operator, textselection)
+                    if self
+                        .refset
+                        .test(&self.operator, textselection, self.resource)
                         && !self.refset.has_handle(textselection.handle().unwrap())
                     //       ^------ do not include the item itself
                     {
@@ -2092,7 +2309,9 @@ impl<'store> FindTextSelectionsIter<'store> {
                     .0
                     .next_back()
                 {
-                    if self.refset.test(&self.operator, textselection)
+                    if self
+                        .refset
+                        .test(&self.operator, textselection, self.resource)
                         && !self.refset.has_handle(textselection.handle().unwrap())
                     //       ^------ do not include the item itself
                     {
