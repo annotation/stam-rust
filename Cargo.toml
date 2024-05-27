@@ -1,6 +1,6 @@
 [package]
 name = "stam"
-version = "0.14.0"
+version = "0.14.1"
 edition = "2021"
 authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
 description = "STAM is a powerful library for dealing with stand-off annotations on text"

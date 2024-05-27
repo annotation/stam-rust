@@ -604,7 +604,7 @@ impl<'a> Constraint<'a> {
                         StamError::QuerySyntaxError(
                             format!(
                                 "expected integer as 2nd parameter after LIMIT, got '{}'",
-                                arg
+                                end
                             ),
                             "Parsing LIMIT constraint failed",
                         )
@@ -3439,7 +3439,7 @@ fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), Stam
             return Ok((arg, &querystring[i + 1..].trim_start(), get_arg_type(arg)));
         } else if !quote && (c == ';' || c == ' ' || c == ']' || c == '\n' || c == '\t') {
             let arg = &querystring[0..i];
-            return Ok((arg, &querystring[i + 1..].trim_start(), get_arg_type(arg)));
+            return Ok((arg, &querystring[i..].trim_start(), get_arg_type(arg)));
         }
         escaped = c == '\\';
     }
