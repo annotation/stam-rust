@@ -257,7 +257,7 @@ impl AssociatedFile for AnnotationDataSet {
         self.filename.as_ref().map(|x| x.as_str())
     }
 
-    /// Get the filename for stand-off file specified using @include (if any)
+    /// Set the filename for stand-off file specified using @include (if any)
     fn set_filename(&mut self, filename: &str) -> &mut Self {
         self.filename = Some(filename.into());
         self
