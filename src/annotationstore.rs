@@ -598,6 +598,8 @@ impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
 }
 
 impl WrappableStore<Annotation> for AnnotationStore {}
+impl WrappableStore<TextResource> for AnnotationStore {}
+impl WrappableStore<AnnotationDataSet> for AnnotationStore {}
 
 impl Serialize for AnnotationStore {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -609,8 +611,10 @@ impl Serialize for AnnotationStore {
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
-        state.serialize_field("resources", &self.resources)?;
-        state.serialize_field("annotationsets", &self.annotationsets)?;
+        let wrappedstore: WrappedStore<TextResource, Self> = self.wrap_store();
+        state.serialize_field("resources", &wrappedstore)?;
+        let wrappedstore: WrappedStore<AnnotationDataSet, Self> = self.wrap_store();
+        state.serialize_field("annotationsets", &wrappedstore)?;
         let wrappedstore: WrappedStore<Annotation, Self> = self.wrap_store();
         state.serialize_field("annotations", &wrappedstore)?;
         state.end()
@@ -626,6 +630,36 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
         for data in self.store.iter() {
             if let Some(data) = data {
                 seq.serialize_element(&data.as_resultitem(self.parent, self.parent))?;
+            }
+        }
+        seq.end()
+    }
+}
+
+impl<'a> Serialize for WrappedStore<'a, TextResource, AnnotationStore> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
+        for item in self.store.iter() {
+            if let Some(item) = item {
+                seq.serialize_element(item)?;
+            }
+        }
+        seq.end()
+    }
+}
+
+impl<'a> Serialize for WrappedStore<'a, AnnotationDataSet, AnnotationStore> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
+        for item in self.store.iter() {
+            if let Some(item) = item {
+                seq.serialize_element(item)?;
             }
         }
         seq.end()
