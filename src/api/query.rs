@@ -2452,6 +2452,13 @@ impl<'store> QueryIter<'store> {
                 let data = self.resolve_datavar(varname)?;
                 Box::new(Some(data.key().clone()).into_iter())
             }
+            Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
+                let dataset = self.resolve_datasetvar(varname)?;
+                Box::new(dataset.keys())
+            }
+            Some(&Constraint::DataSet(id, SelectionQualifier::Normal)) => {
+                Box::new(store.dataset(id).or_fail()?.keys())
+            }
             Some(&Constraint::Keys(ref handles, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store))
             }
