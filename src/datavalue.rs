@@ -159,22 +159,51 @@ impl<'a> DataValue {
             (Self::Null, DataOperator::Null) => true,
             (Self::Bool(true), DataOperator::True) => true,
             (Self::Bool(false), DataOperator::False) => true,
+            (Self::Bool(true), DataOperator::Equals(s2)) => match s2.to_lowercase().as_str() {
+                "yes" | "1" | "enable" | "enabled" | "on" | "true" => true,
+                _ => false,
+            },
+            (Self::Bool(false), DataOperator::Equals(s2)) => match s2.to_lowercase().as_str() {
+                "yes" | "1" | "enable" | "enabled" | "on" | "true" => false,
+                _ => true,
+            },
             (Self::String(s), DataOperator::Equals(s2)) => &s.as_str() == s2,
             (Self::Int(n), DataOperator::EqualsInt(n2)) => *n == *n2,
             (Self::Int(n), DataOperator::GreaterThan(n2)) => *n > *n2,
             (Self::Int(n), DataOperator::GreaterThanOrEqual(n2)) => *n >= *n2,
             (Self::Int(n), DataOperator::LessThan(n2)) => *n < *n2,
             (Self::Int(n), DataOperator::LessThanOrEqual(n2)) => *n <= *n2,
+            (Self::Int(n), DataOperator::Equals(s2)) => {
+                if let Ok(n2) = s2.parse::<isize>() {
+                    *n == n2
+                } else {
+                    false
+                }
+            }
             (Self::Float(n), DataOperator::EqualsFloat(n2)) => *n == *n2,
             (Self::Float(n), DataOperator::GreaterThanFloat(n2)) => *n > *n2,
             (Self::Float(n), DataOperator::GreaterThanOrEqualFloat(n2)) => *n >= *n2,
             (Self::Float(n), DataOperator::LessThanFloat(n2)) => *n < *n2,
             (Self::Float(n), DataOperator::LessThanOrEqualFloat(n2)) => *n <= *n2,
+            (Self::Float(n), DataOperator::Equals(s2)) => {
+                if let Ok(n2) = s2.parse::<f64>() {
+                    *n == n2
+                } else {
+                    false
+                }
+            }
             (Self::Datetime(v), DataOperator::ExactDatetime(v2)) => v == v2,
             (Self::Datetime(v), DataOperator::AfterDatetime(v2)) => v > v2,
             (Self::Datetime(v), DataOperator::BeforeDatetime(v2)) => v < v2,
             (Self::Datetime(v), DataOperator::AtOrAfterDatetime(v2)) => v >= v2,
             (Self::Datetime(v), DataOperator::AtOrBeforeDatetime(v2)) => v <= v2,
+            (Self::Datetime(v), DataOperator::Equals(s2)) => {
+                if let Ok(v2) = DateTime::parse_from_rfc3339(s2) {
+                    *v == v2
+                } else {
+                    false
+                }
+            }
             (Self::List(v), DataOperator::HasElement(s)) => {
                 v.iter().any(|e| e.test(&DataOperator::Equals(s)))
             }
