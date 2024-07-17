@@ -3368,6 +3368,7 @@ enum ArgType {
     String,
     Integer,
     Float,
+    UnquotedList,
     List,
     Null,
     Bool,
@@ -3375,29 +3376,31 @@ enum ArgType {
     Any,
 }
 
-fn get_arg_type(s: &str) -> ArgType {
+fn get_arg_type(s: &str, quoted: bool) -> ArgType {
     if s.is_empty() {
         return ArgType::String;
     }
-    let mut numeric = true;
+    let mut numeric = !quoted;
     let mut foundperiod = false;
     let mut prevc = None;
     for c in s.chars() {
+        if c == '|' && prevc != Some('\\') {
+            if !quoted {
+                return ArgType::UnquotedList;
+            } else {
+                return ArgType::List;
+            }
+        }
         if !c.is_ascii_digit() {
             if c != '-' || prevc != None {
                 numeric = false;
-                break;
             }
         }
         if numeric && c == '.' {
             if foundperiod {
                 numeric = false;
-                break;
             }
             foundperiod = true
-        }
-        if c == '|' && prevc != Some('\\') {
-            return ArgType::List;
         }
         prevc = Some(c)
     }
@@ -3434,19 +3437,25 @@ fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), Stam
             if quote {
                 begin = i + 1;
             } else {
-                return Ok((
-                    &querystring[begin..i],
-                    &querystring[i + 1..].trim_start(),
-                    ArgType::String,
-                ));
+                let s = &querystring[begin..i];
+                eprintln!("DEBUG: {} -> {:?}", s, get_arg_type(s, true));
+                return Ok((s, &querystring[i + 1..].trim_start(), get_arg_type(s, true)));
             }
         }
         if !quote && querystring[i..].starts_with(" OR ") {
             let arg = &querystring[0..i];
-            return Ok((arg, &querystring[i + 1..].trim_start(), get_arg_type(arg)));
+            return Ok((
+                arg,
+                &querystring[i + 1..].trim_start(),
+                get_arg_type(arg, false),
+            ));
         } else if !quote && (c == ';' || c == ' ' || c == ']' || c == '\n' || c == '\t') {
             let arg = &querystring[0..i];
-            return Ok((arg, &querystring[i..].trim_start(), get_arg_type(arg)));
+            return Ok((
+                arg,
+                &querystring[i..].trim_start(),
+                get_arg_type(arg, false),
+            ));
         }
         escaped = c == '\\';
     }
@@ -3561,6 +3570,10 @@ fn parse_dataoperator<'a>(
             "false" => DataOperator::Not(Box::new(DataOperator::False)),
             _ => unreachable!("boolean should be true or false"),
         },
+        ("!=", ArgType::List) => {
+            let values: Vec<_> = value.split("|").map(|x| DataOperator::Equals(x)).collect();
+            DataOperator::Not(Box::new(DataOperator::Or(values)))
+        }
         (">", ArgType::Integer) => {
             DataOperator::GreaterThan(value.parse().expect("str->int conversion should work"))
         }
@@ -3587,6 +3600,21 @@ fn parse_dataoperator<'a>(
         ),
         ("=", ArgType::List) => {
             let values: Vec<_> = value.split("|").map(|x| DataOperator::Equals(x)).collect();
+            DataOperator::Or(values)
+        }
+        ("=", ArgType::UnquotedList) => {
+            let values: Vec<_> = value
+                .split("|")
+                .map(|x| {
+                    if let Ok(x) = x.parse::<isize>() {
+                        DataOperator::EqualsInt(x)
+                    } else if let Ok(x) = x.parse::<f64>() {
+                        DataOperator::EqualsFloat(x)
+                    } else {
+                        DataOperator::Equals(x)
+                    }
+                })
+                .collect();
             DataOperator::Or(values)
         }
         ("=", ArgType::Datetime) => DataOperator::ExactDatetime(

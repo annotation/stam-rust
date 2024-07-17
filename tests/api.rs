@@ -1941,6 +1941,111 @@ fn query_parse_data_short() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_nonquoted_disjunction() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\" = value|value2|value3;";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::KeyValue {
+            set,
+            key,
+            operator,
+            qualifier: _,
+        } = constraint
+        {
+            assert_eq!(*set, "set");
+            assert_eq!(*key, "key");
+            if let DataOperator::Or(v) = operator {
+                assert_eq!(v.len(), 3);
+                assert_eq!(v.get(0), Some(&DataOperator::Equals("value")));
+                assert_eq!(v.get(1), Some(&DataOperator::Equals("value2")));
+                assert_eq!(v.get(2), Some(&DataOperator::Equals("value3")));
+            } else {
+                assert!(false, "Expected OR constraint");
+            }
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn query_parse_nonquoted_disjunction_numeric() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\" = 3|4|5;";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::KeyValue {
+            set,
+            key,
+            operator,
+            qualifier: _,
+        } = constraint
+        {
+            assert_eq!(*set, "set");
+            assert_eq!(*key, "key");
+            if let DataOperator::Or(v) = operator {
+                assert_eq!(v.len(), 3);
+                assert_eq!(v.get(0), Some(&DataOperator::EqualsInt(3)));
+                assert_eq!(v.get(1), Some(&DataOperator::EqualsInt(4)));
+                assert_eq!(v.get(2), Some(&DataOperator::EqualsInt(5)));
+            } else {
+                assert!(false, "Expected OR constraint");
+            }
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn query_parse_quoted_disjunction() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\" = \"value|value2|value3\";";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    for constraint in query.iter() {
+        count += 1;
+        if let Constraint::KeyValue {
+            set,
+            key,
+            operator,
+            qualifier: _,
+        } = constraint
+        {
+            assert_eq!(*set, "set");
+            assert_eq!(*key, "key");
+            if let DataOperator::Or(v) = operator {
+                assert_eq!(v.len(), 3);
+                assert_eq!(v.get(0), Some(&DataOperator::Equals("value")));
+                assert_eq!(v.get(1), Some(&DataOperator::Equals("value2")));
+                assert_eq!(v.get(2), Some(&DataOperator::Equals("value3")));
+            } else {
+                assert!(false, "Expected OR constraint");
+            }
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn query_parse2() -> Result<(), StamError> {
     let querystring = "SELECT ANNOTATION ?a WHERE TEXT blah;";
     let query: Query = querystring.try_into()?;
