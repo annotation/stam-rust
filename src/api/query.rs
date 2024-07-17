@@ -3574,6 +3574,21 @@ fn parse_dataoperator<'a>(
             let values: Vec<_> = value.split("|").map(|x| DataOperator::Equals(x)).collect();
             DataOperator::Not(Box::new(DataOperator::Or(values)))
         }
+        ("!=", ArgType::UnquotedList) => {
+            let values: Vec<_> = value
+                .split("|")
+                .map(|x| {
+                    if let Ok(x) = x.parse::<isize>() {
+                        DataOperator::EqualsInt(x)
+                    } else if let Ok(x) = x.parse::<f64>() {
+                        DataOperator::EqualsFloat(x)
+                    } else {
+                        DataOperator::Equals(x)
+                    }
+                })
+                .collect();
+            DataOperator::Not(Box::new(DataOperator::Or(values)))
+        }
         (">", ArgType::Integer) => {
             DataOperator::GreaterThan(value.parse().expect("str->int conversion should work"))
         }
