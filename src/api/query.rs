@@ -3438,7 +3438,6 @@ fn get_arg<'a>(querystring: &'a str) -> Result<(&'a str, &'a str, ArgType), Stam
                 begin = i + 1;
             } else {
                 let s = &querystring[begin..i];
-                eprintln!("DEBUG: {} -> {:?}", s, get_arg_type(s, true));
                 return Ok((s, &querystring[i + 1..].trim_start(), get_arg_type(s, true)));
             }
         }
