@@ -1287,6 +1287,31 @@ impl<'a> Query<'a> {
         );
     }
 
+    /// Bind any variable from a [`QueryResultItem`] as a context variable in this query
+    pub fn bind_from_result(&mut self, varname: impl Into<String>, resultitem: &QueryResultItem) {
+        match resultitem {
+            QueryResultItem::None => {}
+            QueryResultItem::Annotation(x) => {
+                self.bind_annotationvar(varname, x);
+            }
+            QueryResultItem::TextSelection(x) => {
+                self.bind_textvar(varname, x);
+            }
+            QueryResultItem::AnnotationData(x) => {
+                self.bind_datavar(varname, x);
+            }
+            QueryResultItem::TextResource(x) => {
+                self.bind_resourcevar(varname, x);
+            }
+            QueryResultItem::AnnotationDataSet(x) => {
+                self.bind_datasetvar(varname, x);
+            }
+            QueryResultItem::DataKey(x) => {
+                self.bind_keyvar(varname, x);
+            }
+        }
+    }
+
     fn resolve_contextvars<'b>(
         &self,
         store: &'b AnnotationStore,
