@@ -176,7 +176,7 @@ pub struct Query<'a> {
     resulttype: Option<Type>,
     assignments: Vec<Assignment<'a>>, //only for ADD
     constraints: Vec<Constraint<'a>>,
-    subquery: Option<Box<Query<'a>>>,
+    subqueries: Vec<Query<'a>>,
 
     /// Context variables (external), if there are subqueries, they do NOT hold contextvars, only the root query does
     /// This allows binding variables programmatically, using the bind_*var() methods
@@ -784,7 +784,7 @@ impl<'a> Query<'a> {
             querytype,
             resulttype,
             constraints: Vec::new(),
-            subquery: None,
+            subqueries: Vec::new(),
             contextvars: HashMap::new(),
             assignments: Vec::new(),
         }
@@ -804,7 +804,7 @@ impl<'a> Query<'a> {
 
     /// Set the subquery for this query
     pub fn with_subquery(mut self, query: Query<'a>) -> Self {
-        self.subquery = Some(Box::new(query));
+        self.subqueries.push(query);
         self
     }
 
@@ -814,18 +814,19 @@ impl<'a> Query<'a> {
         self
     }
 
-    /// REturns the subquery (if any)
-    pub fn subquery(&self) -> Option<&Query<'a>> {
-        self.subquery.as_deref()
+    /// Does this query have subqueries?
+    pub fn has_subqueries(&self) -> bool {
+        !self.subqueries.is_empty()
     }
 
-    /// Returns the last subquery (if any), otherwise returns this query itself
-    pub fn last_subquery(&self) -> &Query<'a> {
-        let mut q = self;
-        while q.subquery.is_some() {
-            q = q.subquery.as_ref().unwrap();
-        }
-        q
+    /// Returns the number of subqueries
+    pub fn subqueries_len(&self) -> usize {
+        !self.subqueries.len()
+    }
+
+    /// Returns an iterator over the subqueries
+    pub fn subqueries(&self) -> impl Iterator<Item = &Query<'a>> {
+        self.subqueries.iter()
     }
 
     /// Iterates over all constraints in the Query
@@ -965,7 +966,8 @@ impl<'a> Query<'a> {
         }
 
         //parse subquery
-        let (subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        let (subqueries, remainder) = Self::parse_subqueries(querystring, false)?;
+
         querystring = remainder;
         Ok((
             Self {
@@ -973,7 +975,7 @@ impl<'a> Query<'a> {
                 querytype: QueryType::Select,
                 resulttype,
                 constraints,
-                subquery,
+                subqueries,
                 contextvars: HashMap::new(),
                 assignments: Vec::new(),
             },
@@ -1035,7 +1037,7 @@ impl<'a> Query<'a> {
         }
 
         //parse subquery
-        let (subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        let (subquery, remainder) = Self::parse_subqueries(querystring, false)?;
         querystring = remainder;
         Ok((
             Self {
@@ -1043,7 +1045,7 @@ impl<'a> Query<'a> {
                 querytype: QueryType::Add,
                 resulttype,
                 constraints: Vec::new(),
-                subquery,
+                subqueries: subquery,
                 contextvars: HashMap::new(),
                 assignments,
             },
@@ -1080,7 +1082,7 @@ impl<'a> Query<'a> {
         querystring = remainder;
 
         //parse subquery
-        let (subquery, remainder) = Self::parse_subquery(querystring, false)?;
+        let (subquery, remainder) = Self::parse_subqueries(querystring, false)?;
         querystring = remainder;
         Ok((
             Self {
@@ -1088,7 +1090,7 @@ impl<'a> Query<'a> {
                 querytype: QueryType::Delete,
                 resulttype,
                 constraints: Vec::new(),
-                subquery,
+                subqueries: subquery,
                 contextvars: HashMap::new(),
                 assignments: Vec::new(),
             },
@@ -1114,34 +1116,37 @@ impl<'a> Query<'a> {
         Ok((name, querystring))
     }
 
-    fn parse_subquery(
+    fn parse_subqueries(
         mut querystring: &'a str,
         mutable: bool,
-    ) -> Result<(Option<Box<Self>>, &'a str), StamError> {
-        let mut subquery = None;
+    ) -> Result<(Vec<Self>, &'a str), StamError> {
+        let mut subqueries = Vec::new();
         if querystring.trim_start().chars().nth(0) == Some('{') {
-            querystring = &querystring[1..].trim_start();
-            if querystring.starts_with("SELECT") {
-                let (sq, remainder) = Self::parse_select(querystring)?;
-                subquery = Some(Box::new(sq));
-                querystring = remainder.trim_start();
-            } else if mutable
-                && (querystring.starts_with("ADD") || querystring.starts_with("DELETE"))
-            {
-                let (sq, remainder) = Self::parse(querystring)?;
-                subquery = Some(Box::new(sq));
-                querystring = remainder.trim_start();
-            }
-            if querystring.trim_start().chars().nth(0) == Some('}') {
+            loop {
                 querystring = &querystring[1..].trim_start();
-            } else {
-                return Err(StamError::QuerySyntaxError(
-                    "Missing '}' to close subquery block".to_string(),
-                    "",
-                ));
+                if querystring.starts_with("SELECT") {
+                    let (subquery, remainder) = Self::parse_select(querystring)?;
+                    subqueries.push(subquery);
+                    querystring = remainder.trim_start();
+                } else if mutable
+                    && (querystring.starts_with("ADD") || querystring.starts_with("DELETE"))
+                {
+                    let (subquery, remainder) = Self::parse(querystring)?;
+                    subqueries.push(subquery);
+                    querystring = remainder.trim_start();
+                }
+                if querystring.trim_start().chars().nth(0) == Some('}') {
+                    querystring = &querystring[1..].trim_start();
+                    break;
+                } else {
+                    return Err(StamError::QuerySyntaxError(
+                        "Missing '}' to close subquery block".to_string(),
+                        "",
+                    ));
+                }
             }
         }
-        Ok((subquery, querystring))
+        Ok((subqueries, querystring))
     }
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
@@ -1376,9 +1381,12 @@ impl<'a> Query<'a> {
                 s.push('\n');
             }
         }
-        if let Some(subquery) = self.subquery() {
+
+        if self.has_subqueries() {
             s += "{\n";
-            s += &subquery.to_string()?;
+            for subquery in self.subqueries() {
+                s += &subquery.to_string()?;
+            }
             s += "\n}";
         }
         Ok(s)
@@ -1565,7 +1573,7 @@ impl<'store> AnnotationStore {
         //flatten nested subqueries into an array
         let mut query = Some(query);
         while let Some(mut q) = query.take() {
-            let subquery = q.subquery.take();
+            let subquery = q.subqueries.take();
             iter.queries.push(q);
             query = subquery.map(|x| *x);
         }
@@ -1582,7 +1590,7 @@ impl<'store> AnnotationStore {
             //no need for mutability, just fall back:
             self.query(query)
         } else {
-            if let Some(mut subquery) = query.subquery.take() {
+            if let Some(mut subquery) = query.subqueries.take() {
                 subquery.contextvars = query.contextvars.clone();
 
                 //run the subquery
