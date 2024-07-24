@@ -878,33 +878,9 @@ impl<'a> Query<'a> {
         })
     }
 
-    /// Gives the name of the item described by `index` in  a [`QueryPath`].
-    /// You usually don't need to query this directly.
-    pub(crate) fn querypath_to_name(
-        &self,
-        querypath: QueryPathRef,
-        index: usize,
-    ) -> Option<&'a str> {
-        let mut q = self;
-        if index == 0 {
-            return q.name;
-        }
-        for i in querypath.iter() {
-            if let Some(sq) = q.subqueries.iter().nth(*i) {
-                if index == *i + 1 {
-                    return sq.name;
-                }
-                q = sq;
-            } else {
-                //invalid querypath
-                return None;
-            }
-        }
-        None
-    }
-
     /// Returns all names (may contain duplicates if multiple subqueries in different branches have the same name)
-    /// Returns an empty vector if the query path is not valid
+    /// Returns an empty vector if the query path is not valid.
+    /// This is not called directly, use [`QueryResultItems.names()`] instead.
     pub(crate) fn querypath_to_names<'b>(
         &self,
         querypath: QueryPathRef<'b>,
