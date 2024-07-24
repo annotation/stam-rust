@@ -790,6 +790,21 @@ impl<'a> Query<'a> {
         }
     }
 
+    /// Selects this query or a specific subquery anywhere in its tree based on a given query path.
+    /// A querypath is a list of indices selecting subqueries, e.g. [0,1] for first subquery, then second subquery or [] for the main query).
+    /// Return None when the path does not resolve.
+    pub fn select_by_path(&self, querypath: QueryPathRef) -> Option<&Query<'a>> {
+        let mut q = self;
+        for i in querypath.iter() {
+            if let Some(sq) = q.subqueries().nth(*i) {
+                q = sq;
+            } else {
+                return None;
+            }
+        }
+        return Some(q);
+    }
+
     /// Add a constraint to the query
     pub fn with_constraint(mut self, constraint: Constraint<'a>) -> Self {
         self.constraints.push(constraint);
@@ -824,12 +839,57 @@ impl<'a> Query<'a> {
         !self.subqueries.len()
     }
 
-    /// Returns an iterator over the subqueries
+    /// Returns an iterator over the direct subqueries (i.e. non-recursively)
+    /// Use queries() for recursion.
     pub fn subqueries(&self) -> impl Iterator<Item = &Query<'a>> {
         self.subqueries.iter()
     }
 
+    /// Return all querypaths (relative to the current query as root!), including the one referencing self
+    pub fn querypaths(&self) -> Vec<QueryPath> {
+        let mut paths = vec![QueryPath::new()];
+        self.compute_querypaths(&mut paths);
+        paths
+    }
+
+    /// Recursive helper function for paths()
+    pub(crate) fn compute_querypaths(&self, paths: &mut Vec<QueryPath>) {
+        for (i, q) in self.subqueries().enumerate() {
+            let mut newpath = if let Some(path) = paths.iter().last() {
+                path.clone()
+            } else {
+                QueryPath::new()
+            };
+            newpath.push(i);
+            paths.push(newpath);
+            q.compute_querypaths(paths);
+        }
+    }
+
+    /// Return a names structure containing the query names
+    pub fn names(&self) -> QueryNames<'a> {
+        self.into()
+    }
+
+    /// Returns an iterator over self and all subqueries (i.e. recursively)
+    /// Note: this always returns self as first element
+    pub fn queries(&self) -> impl Iterator<Item = (QueryPath, &Query<'a>)> {
+        self.querypaths().into_iter().filter_map(|querypath| {
+            if let Some(query) = self.select_by_path(&querypath) {
+                Some((querypath, query))
+            } else {
+                None
+            }
+        })
+    }
+
     /// Iterates over all constraints in the Query
+    pub fn constraints(&self) -> std::slice::Iter<Constraint<'a>> {
+        self.constraints.iter()
+    }
+
+    /// Iterates over all constraints in the Query
+    /// Alias for `constraints()`,
     pub fn iter(&self) -> std::slice::Iter<Constraint<'a>> {
         self.constraints.iter()
     }
@@ -1485,6 +1545,9 @@ pub struct QueryIter<'store> {
 
     query: Option<Query<'store>>,
 
+    /// Holds variable names needed for resolving indices in results
+    names: Option<QueryNames<'store>>,
+
     /// States in the stack hold iterators, each stack item corresponds to one further level of nesting
     statestack: Vec<QueryState<'store>>,
 
@@ -1499,29 +1562,89 @@ pub struct QueryIter<'store> {
     contextvars: HashMap<String, QueryResultItem<'store>>,
 }
 
-/// This is a simple hashmap that can resolve all variable names used in the query to the internally used index numbers
+/// This is a tree that can resolve all variable names used in the query to the internally used index numbers
 /// See [`AnnotationStore::query()`] for an example.
-pub struct QueryNames(HashMap<String, QueryPath>);
+pub struct QueryNames<'a> {
+    name: Option<&'a str>,
+    subqueries: Vec<QueryNames<'a>>,
+}
 
-impl QueryNames {
-    /// Get the index for a given variable name, do not include the `?` prefix STAMQL uses.
-    pub fn get(&self, mut name: &str) -> Result<&QueryPath, StamError> {
-        if name.starts_with("?") {
-            name = &name[1..];
-        }
-        self.0
-            .get(name)
-            .ok_or_else(|| StamError::QuerySyntaxError(format!("Variable ?{} not found", name), ""))
+impl<'a> QueryNames<'a> {
+    /// Iterate over the subqueries
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &QueryNames> {
+        self.subqueries.iter()
     }
 
-    /// Iterate over all the variable names and returns them in order. The `?` prefix STAMQL uses will never be included.
-    pub fn enumerate(&self) -> Vec<(&QueryPath, &str)> {
-        let mut names = Vec::new();
-        for (name, index) in self.0.iter() {
-            names.push((*index, name.as_str()));
+    /// Gives the name of the item described by `index` in `querypath`.
+    /// You usually don't need to query this directly.
+    pub fn name(&self, querypath: QueryPathRef, index: usize) -> Option<&'a str> {
+        let mut q = self;
+        if index == 0 {
+            return q.name;
         }
-        names.sort_unstable();
+        for i in querypath.iter() {
+            if let Some(sq) = q.subqueries.iter().nth(*i) {
+                if index == *i + 1 {
+                    return sq.name;
+                }
+                q = sq;
+            } else {
+                //invalid querypath
+                return None;
+            }
+        }
+        None
+    }
+
+    /// Returns all names (may contain duplicates if multiple subqueries in different branches have the same name)
+    /// Returns an empty vector if the query path is not valid
+    pub fn names<'b>(&'b self, querypath: QueryPathRef<'a>) -> Vec<Option<&'a str>> {
+        let mut q = self;
+        let mut names = Vec::with_capacity(querypath.len() + 1);
+        for i in querypath.iter() {
+            if let Some(sq) = q.subqueries.iter().nth(*i) {
+                names.push(sq.name);
+                q = sq;
+            } else {
+                //invalid querypath
+                return Vec::new();
+            }
+        }
         names
+    }
+
+    /// Get the index corresponding to a variable name, given a querypath
+    /// You usually don't need to invoke this directly.
+    pub fn index(&self, mut name: &str, querypath: QueryPathRef) -> Option<usize> {
+        if name.starts_with("?") {
+            //strip leading ? from variable name
+            name = &name[1..];
+        }
+        let mut q = self;
+        if q.name == Some(name) {
+            return Some(0);
+        }
+        for i in querypath.iter() {
+            if let Some(sq) = q.subqueries.iter().nth(*i) {
+                if sq.name == Some(name) {
+                    return Some(i + 1);
+                }
+                q = sq;
+            } else {
+                //invalid querypath
+                return None;
+            }
+        }
+        None
+    }
+}
+
+impl<'a> From<&Query<'a>> for QueryNames<'a> {
+    fn from(query: &Query<'a>) -> Self {
+        Self {
+            name: query.name().clone(),
+            subqueries: query.subqueries().map(|q| q.into()).collect(),
+        }
     }
 }
 
@@ -1570,9 +1693,11 @@ impl<'store> AnnotationStore {
                 "",
             ));
         }
+        let names: QueryNames<'store> = query.names();
         Ok(QueryIter {
             store: self,
             contextvars: query.resolve_contextvars(self)?,
+            names: Some(names),
             query: Some(query),
             statestack: Vec::new(),
             querypath: QueryPath::new(),
@@ -1800,6 +1925,7 @@ impl<'store> AnnotationStore {
                         store: self,
                         query: None,
                         statestack: Vec::new(),
+                        names: None,
                         querypath: QueryPath::new(),
                         contextvars: HashMap::new(),
                         done: true,
@@ -1820,33 +1946,27 @@ impl<'store> QueryIter<'store> {
         self.store
     }
 
-    /// Return the query given a querypath
-    /// (a list of indices selecting subqueries, e.g. [0,1] for first subquery, then second subquery or [] for the main query).
+    /// Return the query/subquery given a querypath
+    /// A querypath is a list of indices selecting subqueries, e.g. [0,1] for first subquery, then second subquery or [] for the main query).
     /// Returns `None` on any invalid index
     pub fn get_query(&self, querypath: QueryPathRef) -> Option<&Query<'store>> {
-        if self.query.is_none() {
-            return None;
+        if let Some(query) = self.query.as_ref() {
+            query.select_by_path(&querypath)
+        } else {
+            None
         }
-        let mut q = self.query.as_ref().unwrap();
-        for i in querypath.iter() {
-            if let Some(sq) = q.subqueries().nth(*i) {
-                q = sq;
-            } else {
-                return None;
-            }
-        }
-        return Some(q);
     }
 
     /// Returns a structure that can resolve all variable names used in the query
-    pub fn names(&self) -> QueryNames {
-        let mut map = HashMap::new();
-        for (i, query) in self.query.iter().enumerate() {
-            if let Some(name) = query.name {
-                map.insert(name.to_string(), i);
+    pub fn names(&self) -> QueryNames<'store> {
+        if let Some(query) = self.query.as_ref() {
+            query.names()
+        } else {
+            QueryNames {
+                name: None,
+                subqueries: Vec::new(),
             }
         }
-        QueryNames(map)
     }
 
     /// Initializes a new state
@@ -3454,12 +3574,30 @@ impl<'store> QueryResultItems<'store> {
         names: &QueryNames,
         var: &str,
     ) -> Result<&QueryResultItem<'store>, StamError> {
-        self.items.get(names.get(var)?).ok_or_else(|| {
-            StamError::QuerySyntaxError(
+        if let Some(index) = names.index(var, &self.querypath) {
+            self.items.get(index).ok_or_else(|| {
+                StamError::QuerySyntaxError(
+                    format!("Variable ?{} not found in the result set", var),
+                    "",
+                )
+            })
+        } else {
+            Err(StamError::QuerySyntaxError(
                 format!("Variable ?{} not found in the result set", var),
                 "",
-            )
-        })
+            ))
+        }
+    }
+
+    /// Iterator over all the variable names in this result row (without leading '?')
+    pub fn names<'b>(
+        &'b self,
+        names: &'b QueryNames<'store>,
+    ) -> impl Iterator<Item = Option<&'store str>> + 'b {
+        self.querypath
+            .iter()
+            .enumerate()
+            .map(|(i, index)| names.name(&self.querypath, *index))
     }
 }
 
