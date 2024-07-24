@@ -2227,9 +2227,8 @@ fn query_by_name() -> Result<(), StamError> {
         .next()
         .expect("reference data must exist");
     let iter = store.query(query)?;
-    let names = iter.names();
     for results in iter {
-        if let Ok(result) = results.get_by_name(&names, "a") {
+        if let Ok(result) = results.get_by_name("a") {
             match result {
                 QueryResultItem::Annotation(annotation) => {
                     count += 1;
@@ -2249,9 +2248,8 @@ fn query_limit_first() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?a WHERE LIMIT 1;".try_into()?;
     let mut count = 0;
     let iter = store.query(query)?;
-    let names = iter.names();
     for results in iter {
-        if let Ok(result) = results.get_by_name(&names, "a") {
+        if let Ok(result) = results.get_by_name("a") {
             match result {
                 QueryResultItem::Annotation(annotation) => {
                     count += 1;
@@ -2271,9 +2269,8 @@ fn query_limit_last() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?a WHERE LIMIT -1;".try_into()?;
     let mut count = 0;
     let iter = store.query(query)?;
-    let names = iter.names();
     for results in iter {
-        if let Ok(result) = results.get_by_name(&names, "a") {
+        if let Ok(result) = results.get_by_name("a") {
             match result {
                 QueryResultItem::Annotation(annotation) => {
                     count += 1;
@@ -2293,9 +2290,8 @@ fn query_limit_range() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?a WHERE LIMIT 0 1;".try_into()?;
     let mut count = 0;
     let iter = store.query(query)?;
-    let names = iter.names();
     for results in iter {
-        if let Ok(result) = results.get_by_name(&names, "a") {
+        if let Ok(result) = results.get_by_name("a") {
             match result {
                 QueryResultItem::Annotation(annotation) => {
                     count += 1;
@@ -2323,15 +2319,14 @@ fn query_subquery() -> Result<(), StamError> {
         .next()
         .expect("reference data must exist");
     let queryresults = store.query(query)?;
-    let names = queryresults.names();
     for results in queryresults {
         count += 1;
-        if let QueryResultItem::Annotation(annotation) = results.get_by_name(&names, "phrase")? {
+        if let QueryResultItem::Annotation(annotation) = results.get_by_name("phrase")? {
             assert!(annotation.has_data(&refdata));
         } else {
             assert!(false, "did not get phrase");
         }
-        if let QueryResultItem::Annotation(annotation) = results.get_by_name(&names, "sentence")? {
+        if let QueryResultItem::Annotation(annotation) = results.get_by_name("sentence")? {
             assert!(annotation.has_data(&refdata2));
         } else {
             assert!(false, "did not get sentence");
@@ -2358,9 +2353,8 @@ fn query_union() -> Result<(), StamError> {
         .next()
         .expect("reference data must exist");
     let iter = store.query(query)?;
-    let names = iter.names();
     for results in iter {
-        if let Ok(result) = results.get_by_name(&names, "a") {
+        if let Ok(result) = results.get_by_name("a") {
             match result {
                 QueryResultItem::Annotation(annotation) => {
                     count += 1;
@@ -2382,10 +2376,9 @@ fn query_add_annotation_textselector() -> Result<(), StamError> {
             { SELECT TEXT ?target WHERE RESOURCE \"testres\" OFFSET 0 11; }"
             .try_into()?;
     let iter = store.query_mut(query)?;
-    let names = iter.names();
     let mut count = 0;
     for results in iter {
-        if let Ok(result) = results.get_by_name(&names, "a") {
+        if let Ok(result) = results.get_by_name("a") {
             match result {
                 QueryResultItem::Annotation(_annotation) => {
                     count += 1;
