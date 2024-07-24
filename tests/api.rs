@@ -2073,7 +2073,7 @@ fn query_parse_subquery() -> Result<(), StamError> {
     assert_eq!(query.querytype(), QueryType::Select);
     assert_eq!(query.resulttype(), Some(Type::Annotation));
     let mut count = 0;
-    let subquery = query.subquery().expect("expected subquery");
+    let subquery = query.subqueries().next().expect("expected subquery");
     for constraint in subquery.iter() {
         count += 1;
         if let Constraint::TextRelation { var, operator } = constraint {
