@@ -2088,6 +2088,37 @@ fn query_parse_subquery() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_multiple_subqueries() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\" = \"value\"; { SELECT ANNOTATION WHERE RELATION ?a SUCCEEDS; SELECT ANNOTATION WHERE ?a PRECEEDS; }";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    let subquery = query.subqueries().next().expect("expected subquery");
+    for constraint in subquery.iter() {
+        count += 2;
+        if count == 1 {
+            if let Constraint::TextRelation { var, operator } = constraint {
+                assert_eq!(*var, "a");
+                assert_eq!(*operator, TextSelectionOperator::succeeds());
+            } else {
+                assert!(false, "Constraint not as expected");
+            }
+        } else if count == 2 {
+            if let Constraint::TextRelation { var, operator } = constraint {
+                assert_eq!(*var, "a");
+                assert_eq!(*operator, TextSelectionOperator::precedes());
+            } else {
+                assert!(false, "Constraint not as expected");
+            }
+        }
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
 fn query_parse_union() -> Result<(), StamError> {
     let querystring = "SELECT ANNOTATION ?a WHERE [ DATA \"set\" \"key\" = \"value\" OR DATA \"set\" \"key\" = \"value\" ];";
     let query: Query = querystring.try_into()?;
