@@ -1061,6 +1061,7 @@ impl<'a> Query<'a> {
         while !querystring.is_empty()
             && querystring.trim_start().chars().nth(0) != Some('{')
             && querystring.trim_start().chars().nth(0) != Some('}')
+            && querystring.trim_start().chars().nth(0) != Some('|')
         {
             let (constraint, remainder) = Constraint::parse(querystring)?;
             querystring = remainder;
@@ -1225,7 +1226,7 @@ impl<'a> Query<'a> {
         let mut subqueries = Vec::new();
         if querystring.trim_start().chars().nth(0) == Some('{') {
             loop {
-                querystring = &querystring[1..].trim_start();
+                querystring = &querystring[1..].trim_start(); //strips the { or | and any spaces
                 if querystring.starts_with("SELECT") {
                     let (subquery, remainder) = Self::parse_select(querystring)?;
                     subqueries.push(subquery);
@@ -1240,6 +1241,9 @@ impl<'a> Query<'a> {
                 if querystring.trim_start().chars().nth(0) == Some('}') {
                     querystring = &querystring[1..].trim_start();
                     break;
+                } else if querystring.trim_start().chars().nth(0) == Some('|') {
+                    //next subquery!
+                    continue;
                 } else {
                     return Err(StamError::QuerySyntaxError(
                         "Missing '}' to close subquery block".to_string(),
@@ -3439,10 +3443,6 @@ impl<'store> Iterator for QueryIter<'store> {
 
         //populate the entire stack, producing a result at each level
         //while self.statestack.len() < self.query.len() {
-        let mut has_subqueries = self
-            .get_query(&self.querypath)
-            .expect("query must exist")
-            .has_subqueries();
         let mut statestack_maxlen = self.querypath.len() + 1;
         while self.statestack.len() < statestack_maxlen {
             /*
@@ -3463,7 +3463,7 @@ impl<'store> Iterator for QueryIter<'store> {
                     return None;
                 }
                 Ok(true) => {
-                    has_subqueries = self
+                    let has_subqueries = self
                         .get_query(&self.querypath)
                         .expect("query must exist")
                         .has_subqueries();
