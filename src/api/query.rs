@@ -836,7 +836,7 @@ impl<'a> Query<'a> {
 
     /// Returns the number of subqueries
     pub fn subqueries_len(&self) -> usize {
-        !self.subqueries.len()
+        self.subqueries.len()
     }
 
     /// Returns an iterator over the direct subqueries (i.e. non-recursively)
@@ -1908,7 +1908,6 @@ impl<'store> QueryIter<'store> {
 
     /// Initializes a new state
     pub(crate) fn init_state(&mut self) -> Result<bool, StamError> {
-        //let queryindex = self.statestack.len();
         let query = self.get_query(&self.querypath).expect("query must exist");
         let mut constraintsiter = query.constraints.iter();
 
@@ -1993,6 +1992,7 @@ impl<'store> QueryIter<'store> {
                         QueryResultIter::TextSelections(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::TextSelection(result);
+                                //push back
                                 self.statestack.push(state);
                                 if let Some(subquery_index) = subquery_index {
                                     self.querypath.push(subquery_index);
@@ -2005,6 +2005,7 @@ impl<'store> QueryIter<'store> {
                         QueryResultIter::Annotations(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::Annotation(result);
+                                //push back
                                 self.statestack.push(state);
                                 if let Some(subquery_index) = subquery_index {
                                     self.querypath.push(subquery_index);
@@ -2017,6 +2018,7 @@ impl<'store> QueryIter<'store> {
                         QueryResultIter::Data(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::AnnotationData(result);
+                                //push back
                                 self.statestack.push(state);
                                 if let Some(subquery_index) = subquery_index {
                                     self.querypath.push(subquery_index);
@@ -2029,6 +2031,7 @@ impl<'store> QueryIter<'store> {
                         QueryResultIter::Resources(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::TextResource(result);
+                                //push back
                                 self.statestack.push(state);
                                 if let Some(subquery_index) = subquery_index {
                                     self.querypath.push(subquery_index);
@@ -2041,6 +2044,7 @@ impl<'store> QueryIter<'store> {
                         QueryResultIter::Keys(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::DataKey(result);
+                                //push back
                                 self.statestack.push(state);
                                 if let Some(subquery_index) = subquery_index {
                                     self.querypath.push(subquery_index);
@@ -2053,6 +2057,7 @@ impl<'store> QueryIter<'store> {
                         QueryResultIter::DataSets(iter) => {
                             if let Some(result) = iter.next() {
                                 state.result = QueryResultItem::AnnotationDataSet(result);
+                                //push back
                                 self.statestack.push(state);
                                 if let Some(subquery_index) = subquery_index {
                                     self.querypath.push(subquery_index);
@@ -2065,11 +2070,12 @@ impl<'store> QueryIter<'store> {
                     }
                 }
                 //iterator depleted, advance to next subquery if there is one
+                //this allows for multiple subqueries to work
                 let query = self
                     .get_query(&current_querypath)
                     .expect("query must exist");
                 if let Some(subquery_index) = subquery_index {
-                    if subquery_index < query.subqueries_len() - 1 {
+                    if query.subqueries.len() > subquery_index + 1 {
                         self.querypath.push(subquery_index + 1);
                     }
                 }
@@ -3433,12 +3439,20 @@ impl<'store> Iterator for QueryIter<'store> {
 
         //populate the entire stack, producing a result at each level
         //while self.statestack.len() < self.query.len() {
-        let mut statestack_full = false;
-        while !statestack_full {
-            let has_subqueries = self
-                .get_query(&self.querypath)
-                .expect("query must exist")
-                .has_subqueries();
+        let mut has_subqueries = self
+            .get_query(&self.querypath)
+            .expect("query must exist")
+            .has_subqueries();
+        let mut statestack_maxlen = self.querypath.len() + 1;
+        while self.statestack.len() < statestack_maxlen {
+            /*
+            eprintln!(
+                "DEBUG: {} - {:?} - {}",
+                self.statestack.len(),
+                self.querypath,
+                has_subqueries
+            );
+            */
             match self.init_state() {
                 Ok(false) => {
                     //if we didn't succeed in preparing the next iteration, it means the entire stack is depleted and we're done
@@ -3449,7 +3463,17 @@ impl<'store> Iterator for QueryIter<'store> {
                     return None;
                 }
                 Ok(true) => {
-                    statestack_full = !has_subqueries;
+                    has_subqueries = self
+                        .get_query(&self.querypath)
+                        .expect("query must exist")
+                        .has_subqueries();
+                    if has_subqueries {
+                        //descend into subquery on next iteration
+                        self.querypath.push(0);
+                        statestack_maxlen = self.querypath.len() + 1;
+                    } else {
+                        statestack_maxlen = self.querypath.len();
+                    }
                     continue;
                 }
             }
