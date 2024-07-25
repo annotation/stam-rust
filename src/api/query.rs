@@ -887,6 +887,7 @@ impl<'a> Query<'a> {
     ) -> Result<SmallVec<[Option<&'a str>; 4]>, StamError> {
         let mut q = self;
         let mut names = SmallVec::with_capacity(querypath.len() + 1);
+        names.push(q.name);
         for i in querypath.iter() {
             if let Some(sq) = q.subqueries.iter().nth(*i) {
                 names.push(sq.name);
@@ -1601,6 +1602,7 @@ pub struct QueryIter<'store> {
 }
 
 /// Represents an entire result row, each result stems from a query
+#[derive(Debug, Clone)]
 pub struct QueryResultItems<'store> {
     querypath: QueryPath,
     names: SmallVec<[Option<&'store str>; 4]>,
@@ -1630,9 +1632,8 @@ impl<'store> AnnotationStore {
     /// ```ignore
     /// let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
     /// let iter = store.query(query);
-    /// let names = iter.names();
     /// for results in iter {
-    ///     if let Ok(result) = results.get_by_name(&names, "a") {
+    ///     if let Ok(result) = results.get_by_name("a") {
     ///        if let QueryResultItem::Annotation(annotation) = result {
     ///           unimplemented!("do something with the result...");
     ///         }
@@ -1970,7 +1971,6 @@ impl<'store> QueryIter<'store> {
             iterator: iter,
             result: QueryResultItem::None,
         });
-        self.querypath.push(0);
         // Do the first iteration (may remove this and other elements from the stack again if it fails)
         Ok(self.next_state())
     }
@@ -3207,9 +3207,15 @@ impl<'store> QueryIter<'store> {
             items.push(stackitem.result.clone());
         }
         let names = if let Some(query) = self.query.as_ref() {
-            query
-                .querypath_to_names(&self.querypath)
-                .expect("name extraction from querypath must succeed")
+            match query.querypath_to_names(&self.querypath) {
+                Ok(names) => names,
+                Err(e) => {
+                    panic!(
+                        "name extraction from querypath ({:?}) must succeed: {}",
+                        self.querypath, e
+                    )
+                }
+            }
         } else {
             SmallVec::new()
         };
