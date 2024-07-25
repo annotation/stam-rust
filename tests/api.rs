@@ -2153,6 +2153,17 @@ fn query_parse_multiple_subqueries() -> Result<(), StamError> {
     assert_eq!(count, 2);
     Ok(())
 }
+#[test]
+
+fn query_parse_names() -> Result<(), StamError> {
+    let querystring = "SELECT ANNOTATION ?a WHERE DATA \"set\" \"key\" = \"value\"; { SELECT ANNOTATION ?b WHERE RELATION ?a SUCCEEDS; | SELECT ANNOTATION ?c WHERE RELATION ?a PRECEDES; }";
+    let query: Query = querystring.try_into()?;
+    let names = query.names();
+    assert_eq!(names.get(0), Some("a").as_ref());
+    assert_eq!(names.get(1), Some("b").as_ref());
+    assert_eq!(names.get(2), Some("c").as_ref());
+    Ok(())
+}
 
 #[test]
 fn query_parse_union() -> Result<(), StamError> {
