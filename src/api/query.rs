@@ -889,6 +889,24 @@ impl<'a> Query<'a> {
         })
     }
 
+    /// Returns all variable names occur that occur in this query, including in all possible subqueries.
+    pub fn names(&self) -> Vec<&'a str> {
+        let mut names = Vec::new();
+        self.names_helper(&mut names);
+        names
+    }
+
+    fn names_helper(&self, names: &mut Vec<&'a str>) {
+        if let Some(name) = self.name() {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        for subquery in self.subqueries() {
+            subquery.names_helper(names);
+        }
+    }
+
     /// Returns all names (may contain duplicates if multiple subqueries in different branches have the same name)
     /// Returns an empty vector if the query path is not valid.
     /// This is not called directly, use [`QueryResultItems.names()`] instead.
