@@ -1989,7 +1989,6 @@ impl<'store> QueryIter<'store> {
                 //which would get in the way as we also need to inspect prior results from the stack (immutably)
                 //
                 // keep track of the current subquery_index (pop it and push it back)
-                let current_querypath = self.querypath.clone();
                 let subquery_index = self.querypath.pop();
                 loop {
                     match &mut state.iterator {
@@ -2075,12 +2074,19 @@ impl<'store> QueryIter<'store> {
                 }
                 //iterator depleted, advance to next subquery if there is one
                 //this allows for multiple subqueries to work
-                let query = self
-                    .get_query(&current_querypath)
-                    .expect("query must exist");
                 if let Some(subquery_index) = subquery_index {
+                    let query = self.get_query(&self.querypath).expect("query must exist");
+                    /*
+                    eprintln!(
+                        "DEBUG: current {}/{} - {:?}",
+                        subquery_index + 1,
+                        query.subqueries.len(),
+                        self.querypath
+                    );
+                    */
                     if query.subqueries.len() > subquery_index + 1 {
                         self.querypath.push(subquery_index + 1);
+                        return true;
                     }
                 }
             }
