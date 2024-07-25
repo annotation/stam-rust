@@ -2046,6 +2046,41 @@ fn query_parse_quoted_disjunction() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_parse_attributes() -> Result<(), StamError> {
+    let querystring =
+        "@a @b SELECT ANNOTATION ?a WHERE @blah @blieh=bloeh DATA \"set\" \"key\" = \"value\";";
+    let query: Query = querystring.try_into()?;
+    assert_eq!(query.name(), Some("a"));
+    assert_eq!(query.querytype(), QueryType::Select);
+    assert_eq!(query.resulttype(), Some(Type::Annotation));
+    let mut count = 0;
+    assert_eq!(query.attributes().len(), 2);
+    assert_eq!(query.attributes().nth(0), Some("@a").as_ref());
+    assert_eq!(query.attributes().nth(1), Some("@b").as_ref());
+    for (constraint, attributes) in query.constraints_with_attributes() {
+        count += 1;
+        assert_eq!(attributes.len(), 2);
+        assert_eq!(attributes.get(0), Some("@blah").as_ref());
+        assert_eq!(attributes.get(1), Some("@blieh=bloeh").as_ref());
+        if let Constraint::KeyValue {
+            set,
+            key,
+            operator,
+            qualifier: _,
+        } = constraint
+        {
+            assert_eq!(*set, "set");
+            assert_eq!(*key, "key");
+            assert_eq!(*operator, DataOperator::Equals("value"));
+        } else {
+            assert!(false, "Constraint not as expected");
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn query_parse2() -> Result<(), StamError> {
     let querystring = "SELECT ANNOTATION ?a WHERE TEXT blah;";
     let query: Query = querystring.try_into()?;

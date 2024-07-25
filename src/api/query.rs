@@ -178,6 +178,11 @@ pub struct Query<'a> {
     constraints: Vec<Constraint<'a>>,
     subqueries: Vec<Query<'a>>,
 
+    /// Custom attributes that precede the query (@ syntax), they are interpreted outside of STAMQL
+    attributes: Vec<&'a str>,
+    /// Attributes per constraint
+    constraint_attributes: Vec<Vec<&'a str>>,
+
     /// Context variables (external), if there are subqueries, they do NOT hold contextvars, only the root query does
     /// This allows binding variables programmatically, using the bind_*var() methods
     contextvars: HashMap<String, ContextItem>,
@@ -387,7 +392,11 @@ impl<'a> Constraint<'a> {
         }
     }
 
-    pub(crate) fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+    pub(crate) fn parse(
+        mut querystring: &'a str,
+    ) -> Result<(Self, Vec<&'a str>, &'a str), StamError> {
+        let (attributes, remainder) = Query::parse_attributes(querystring)?;
+        querystring = remainder;
         let constraint = match querystring.split(QUERYSPLITCHARS).next() {
             Some("ID") => {
                 querystring = querystring["ID".len()..].trim_start();
@@ -553,7 +562,7 @@ impl<'a> Constraint<'a> {
                 let mut subconstraints: Vec<Constraint<'a>> = Vec::new();
                 querystring = querystring[1..].trim_start();
                 while !querystring.is_empty() {
-                    let (subconstraint, remainder) = Self::parse(querystring)?;
+                    let (subconstraint, _, remainder) = Self::parse(querystring)?; //MAYBE TODO: attributes inside a union are discarded
                     subconstraints.push(subconstraint);
                     let remainder = remainder.trim_start();
                     if remainder.starts_with("OR ") {
@@ -628,7 +637,7 @@ impl<'a> Constraint<'a> {
         if querystring.starts_with(";") {
             querystring = &querystring[1..].trim_start();
         }
-        Ok((constraint, querystring))
+        Ok((constraint, attributes, querystring))
     }
 
     /// Serialize the constraint to a (partial) STAMQL String
@@ -784,9 +793,11 @@ impl<'a> Query<'a> {
             querytype,
             resulttype,
             constraints: Vec::new(),
+            constraint_attributes: Vec::new(),
             subqueries: Vec::new(),
             contextvars: HashMap::new(),
             assignments: Vec::new(),
+            attributes: Vec::new(),
         }
     }
 
@@ -930,6 +941,20 @@ impl<'a> Query<'a> {
         self.constraints.iter()
     }
 
+    /// Returns all attributes for this query
+    pub fn attributes(&self) -> std::slice::Iter<&'a str> {
+        self.attributes.iter()
+    }
+
+    /// Iterates over all constraints and their attributes in the Query
+    pub fn constraints_with_attributes(
+        &self,
+    ) -> impl Iterator<Item = (&Constraint<'a>, &Vec<&'a str>)> {
+        self.constraints
+            .iter()
+            .zip(self.constraint_attributes.iter())
+    }
+
     /// Iterates over all constraints in the Query
     /// Alias for `constraints()`,
     pub fn iter(&self) -> std::slice::Iter<Constraint<'a>> {
@@ -974,16 +999,26 @@ impl<'a> Query<'a> {
     /// if the query is not valid. See the documentation on [`Query`] itself for examples.
     pub fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
         querystring = querystring.trim();
+        let (attributes, querystring) = Self::parse_attributes(querystring)?;
+        Self::parse_with_attributes(querystring, attributes)
+    }
+
+    /// Like parse(), but pass already precomputed attributes (no new attributes will be allowed)
+    fn parse_with_attributes(
+        mut querystring: &'a str,
+        attributes: Vec<&'a str>,
+    ) -> Result<(Self, &'a str), StamError> {
+        querystring = querystring.trim();
         if let Some("SELECT") = querystring.split(QUERYSPLITCHARS).next() {
-            Self::parse_select(querystring)
+            Self::parse_select(querystring, attributes)
         } else if let Some("ADD") = querystring.split(QUERYSPLITCHARS).next() {
-            Self::parse_add(querystring)
+            Self::parse_add(querystring, attributes)
         } else if let Some("DELETE") = querystring.split(QUERYSPLITCHARS).next() {
-            Self::parse_delete(querystring)
+            Self::parse_delete(querystring, attributes)
         } else {
             return Err(StamError::QuerySyntaxError(
                 format!(
-                    "Expected SELECT, ADD or  DELETE, got '{}'",
+                    "Expected SELECT, ADD or DELETE, got '{}'",
                     querystring
                         .split(QUERYSPLITCHARS)
                         .next()
@@ -994,7 +1029,32 @@ impl<'a> Query<'a> {
         }
     }
 
-    fn parse_select(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+    /// Attributes are a custom string in front of a query/constraint and start with @, they contain no spaces
+    /// Their interpretation is up to applications
+    fn parse_attributes(mut querystring: &'a str) -> Result<(Vec<&'a str>, &'a str), StamError> {
+        let mut attributes = Vec::new();
+        querystring = querystring.trim();
+        while querystring.chars().next() == Some('@') {
+            if let Some(end) = querystring.find(QUERYSPLITCHARS) {
+                attributes.push(&querystring[..end]);
+                querystring = querystring[end..].trim();
+            } else {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                        "Unexpected end of querystring while parsing an attribute: {}",
+                        querystring
+                    ),
+                    "",
+                ));
+            }
+        }
+        Ok((attributes, querystring))
+    }
+
+    fn parse_select(
+        mut querystring: &'a str,
+        attributes: Vec<&'a str>,
+    ) -> Result<(Self, &'a str), StamError> {
         let mut end = 7;
         querystring = querystring[end..].trim_start();
         let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
@@ -1040,6 +1100,7 @@ impl<'a> Query<'a> {
         querystring = remainder;
 
         let mut constraints = Vec::new();
+        let mut constraint_attributes = Vec::new();
         match querystring.split(QUERYSPLITCHARS).next() {
             Some("WHERE") => querystring = querystring["WHERE".len()..].trim_start(),
             Some("{") | Some("") | None => {} //no-op (select all, end of query, no where clause)
@@ -1063,9 +1124,11 @@ impl<'a> Query<'a> {
             && querystring.trim_start().chars().nth(0) != Some('}')
             && querystring.trim_start().chars().nth(0) != Some('|')
         {
-            let (constraint, remainder) = Constraint::parse(querystring)?;
+            let (constraint, new_constraint_attributes, remainder) =
+                Constraint::parse(querystring)?;
             querystring = remainder;
             constraints.push(constraint);
+            constraint_attributes.push(new_constraint_attributes);
         }
 
         //parse subquery
@@ -1078,6 +1141,8 @@ impl<'a> Query<'a> {
                 querytype: QueryType::Select,
                 resulttype,
                 constraints,
+                constraint_attributes,
+                attributes,
                 subqueries,
                 contextvars: HashMap::new(),
                 assignments: Vec::new(),
@@ -1086,7 +1151,10 @@ impl<'a> Query<'a> {
         ))
     }
 
-    fn parse_add(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+    fn parse_add(
+        mut querystring: &'a str,
+        attributes: Vec<&'a str>,
+    ) -> Result<(Self, &'a str), StamError> {
         let mut end = 4;
         querystring = querystring[end..].trim_start();
         let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
@@ -1148,7 +1216,9 @@ impl<'a> Query<'a> {
                 querytype: QueryType::Add,
                 resulttype,
                 constraints: Vec::new(),
+                constraint_attributes: Vec::new(),
                 subqueries: subquery,
+                attributes,
                 contextvars: HashMap::new(),
                 assignments,
             },
@@ -1156,7 +1226,10 @@ impl<'a> Query<'a> {
         ))
     }
 
-    fn parse_delete(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {
+    fn parse_delete(
+        mut querystring: &'a str,
+        attributes: Vec<&'a str>,
+    ) -> Result<(Self, &'a str), StamError> {
         let mut end = 7;
         querystring = querystring[end..].trim_start();
         let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
@@ -1185,7 +1258,7 @@ impl<'a> Query<'a> {
         querystring = remainder;
 
         //parse subquery
-        let (subquery, remainder) = Self::parse_subqueries(querystring, false)?;
+        let (subqueries, remainder) = Self::parse_subqueries(querystring, false)?;
         querystring = remainder;
         Ok((
             Self {
@@ -1193,7 +1266,9 @@ impl<'a> Query<'a> {
                 querytype: QueryType::Delete,
                 resulttype,
                 constraints: Vec::new(),
-                subqueries: subquery,
+                constraint_attributes: Vec::new(),
+                subqueries,
+                attributes,
                 contextvars: HashMap::new(),
                 assignments: Vec::new(),
             },
@@ -1227,14 +1302,17 @@ impl<'a> Query<'a> {
         if querystring.trim_start().chars().nth(0) == Some('{') {
             loop {
                 querystring = &querystring[1..].trim_start(); //strips the { or | and any spaces
+                let (attributes, remainder) = Self::parse_attributes(querystring)?;
+                querystring = remainder;
                 if querystring.starts_with("SELECT") {
-                    let (subquery, remainder) = Self::parse_select(querystring)?;
+                    let (subquery, remainder) = Self::parse_select(querystring, attributes)?;
                     subqueries.push(subquery);
                     querystring = remainder.trim_start();
                 } else if mutable
                     && (querystring.starts_with("ADD") || querystring.starts_with("DELETE"))
                 {
-                    let (subquery, remainder) = Self::parse(querystring)?;
+                    let (subquery, remainder) =
+                        Self::parse_with_attributes(querystring, attributes)?;
                     subqueries.push(subquery);
                     querystring = remainder.trim_start();
                 }
