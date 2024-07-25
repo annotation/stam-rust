@@ -1583,6 +1583,7 @@ impl<'a> Query<'a> {
         if !self.constraints.is_empty() {
             s += " WHERE\n";
             for (constraint, attributes) in self.constraints_with_attributes() {
+                s.push('\t');
                 for attrib in attributes {
                     s += attrib;
                     s.push(' ');
@@ -1593,11 +1594,12 @@ impl<'a> Query<'a> {
         }
 
         if self.has_subqueries() {
-            s += " {\n";
+            s += "\n{\n";
             for subquery in self.subqueries() {
+                s.push(' ');
                 s += &subquery.to_string()?;
             }
-            s += "\n}";
+            s += "}";
         }
         Ok(s)
     }
