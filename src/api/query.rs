@@ -1567,6 +1567,10 @@ impl<'a> Query<'a> {
     /// Serialize the query to a STAMQL String
     pub fn to_string(&self) -> Result<String, StamError> {
         let mut s = String::new();
+        for attrib in self.attributes() {
+            s += attrib;
+            s.push(' ');
+        }
         s += self.querytype().as_str();
         s += " ";
         if let Some(resulttype) = self.resulttype_as_str() {
@@ -1578,14 +1582,18 @@ impl<'a> Query<'a> {
         }
         if !self.constraints.is_empty() {
             s += " WHERE\n";
-            for constraint in self.iter() {
+            for (constraint, attributes) in self.constraints_with_attributes() {
+                for attrib in attributes {
+                    s += attrib;
+                    s.push(' ');
+                }
                 s += &constraint.to_string()?;
                 s.push('\n');
             }
         }
 
         if self.has_subqueries() {
-            s += "{\n";
+            s += " {\n";
             for subquery in self.subqueries() {
                 s += &subquery.to_string()?;
             }
