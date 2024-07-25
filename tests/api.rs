@@ -2369,6 +2369,57 @@ fn query_subquery() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_multiple_subqueries() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_target(SelectorBuilder::textselector(
+                "humanrights",
+                Offset::simple(21, 25), //"born"
+            ))
+            .with_data("myset", "type", "word"),
+    )?;
+    let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; | SELECT ANNOTATION ?word WHERE RELATION ?sentence EMBEDS; DATA myset type = word;}".try_into()?;
+    let mut count = 0;
+    let refdata = store
+        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .next()
+        .expect("reference data must exist");
+    let refdata2 = store
+        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .next()
+        .expect("reference data must exist");
+    let refdata3 = store
+        .find_data("myset", "type", DataOperator::Equals("word"))
+        .next()
+        .expect("reference data must exist");
+    let queryresults = store.query(query)?;
+    for results in queryresults {
+        count += 1;
+        if let QueryResultItem::Annotation(annotation) = results.get_by_name("sentence")? {
+            assert!(annotation.has_data(&refdata2));
+        } else {
+            assert!(false, "did not get sentence");
+        }
+        if count == 1 {
+            if let QueryResultItem::Annotation(annotation) = results.get_by_name("phrase")? {
+                assert!(annotation.has_data(&refdata));
+            } else {
+                assert!(false, "did not get phrase");
+            }
+        } else if count == 2 {
+            if let QueryResultItem::Annotation(annotation) = results.get_by_name("word")? {
+                assert!(annotation.has_data(&refdata3));
+            } else {
+                assert!(false, "did not get phrase");
+            }
+        }
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
 fn query_union() -> Result<(), StamError> {
     let store = setup_example_6()?;
     //this example could have been just a DataOperator::And but we want to test the UNION construction:
