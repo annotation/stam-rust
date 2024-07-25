@@ -21,6 +21,7 @@ use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::slice::Iter;
 
@@ -2333,7 +2334,7 @@ impl<'store> FindTextSelectionsIter<'store> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 /// This structure holds a [`TextSelection`], along with references to its [`TextResource`] and the
 /// [`AnnotationStore`] and provides a high-level API on it.
 ///
@@ -2342,6 +2343,22 @@ impl<'store> FindTextSelectionsIter<'store> {
 pub enum ResultTextSelection<'store> {
     Bound(ResultItem<'store, TextSelection>),
     Unbound(&'store AnnotationStore, &'store TextResource, TextSelection),
+}
+
+impl<'store> Debug for ResultTextSelection<'store> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResultTextSelection::Bound(item) => f
+                .debug_struct("ResultTextSelection::Bound")
+                .field("item", item)
+                .finish(),
+            ResultTextSelection::Unbound(_, resource, textselection) => f
+                .debug_struct("ResultTextSelection::Bound")
+                .field("resource", &resource.handle())
+                .field("item", textselection)
+                .finish(),
+        }
+    }
 }
 
 impl<'store> PartialEq for ResultTextSelection<'store> {
