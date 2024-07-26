@@ -690,3 +690,94 @@ pub fn setup_example_8c() -> Result<AnnotationStore, StamError> {
         )?;
     Ok(store)
 }
+
+pub fn setup_example_9() -> Result<AnnotationStore, StamError> {
+    let store = AnnotationStore::default()
+        .with_id("example9")
+        .add(TextResource::from_string(
+            "example9",
+            "the big dog licks the tiny cat",
+            Config::default(),
+        ))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("np1")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(0, 11)), //"the big dog",
+                )
+                .with_data("testdataset", "pos", "np"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("np2")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(18, 30)), //"the tiny cat",
+                )
+                .with_data("testdataset", "pos", "np"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("det1")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(0, 3)), //"the",
+                )
+                .with_data("testdataset", "pos", "det"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("det2")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(18, 21)), //"the",
+                )
+                .with_data("testdataset", "pos", "det"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("adj1")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(4, 7)), //"big",
+                )
+                .with_data("testdataset", "pos", "adj"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("adj2")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(22, 26)), //"tiny",
+                )
+                .with_data("testdataset", "pos", "adj"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("n1")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(8, 11)), //"dog",
+                )
+                .with_data("testdataset", "pos", "n"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("n2")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(27, 30)), //"cat",
+                )
+                .with_data("testdataset", "pos", "n"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("v1")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(12, 17)), //"licks",
+                )
+                .with_data("testdataset", "pos", "v"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("vp1")
+                .with_target(
+                    SelectorBuilder::textselector("example9", Offset::simple(12, 30)), //"licks the tiny cat",
+                )
+                .with_data("testdataset", "pos", "vp"),
+        )?;
+    Ok(store)
+}

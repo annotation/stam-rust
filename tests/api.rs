@@ -2466,6 +2466,48 @@ fn query_multiple_subqueries() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_subquery_deep() -> Result<(), StamError> {
+    let store = setup_example_9()?;
+    let querystring = r#" 
+    SELECT ANNOTATION ?det WHERE
+        DATA testdataset pos = det;
+    {
+        SELECT ANNOTATION ?adj WHERE
+            RELATION ?det PRECEDES;
+            DATA testdataset pos = adj;
+        {
+            SELECT ANNOTATION ?n WHERE
+                RELATION ?adj PRECEDES;
+                DATA testdataset pos = n;
+        }
+    }
+    "#;
+    let query: Query = querystring.try_into()?;
+    let iter = store.query(query)?;
+    let mut count = 0;
+    for results in iter {
+        count += 1;
+        assert!(
+            results.get_by_name("det").is_ok(),
+            "checking det in round {} of 2",
+            count
+        );
+        assert!(
+            results.get_by_name("adj").is_ok(),
+            "checking adj in round {} of 2",
+            count
+        );
+        assert!(
+            results.get_by_name("n").is_ok(),
+            "checking n in round {} of 2",
+            count
+        );
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
 fn query_union() -> Result<(), StamError> {
     let store = setup_example_6()?;
     //this example could have been just a DataOperator::And but we want to test the UNION construction:
