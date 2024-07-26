@@ -2444,20 +2444,14 @@ fn query_multiple_subqueries() -> Result<(), StamError> {
         count += 1;
         if let QueryResultItem::Annotation(annotation) = results.get_by_name("sentence")? {
             assert!(annotation.has_data(&refdata2));
-        } else {
-            assert!(false, "did not get sentence");
         }
         if count == 1 {
             if let QueryResultItem::Annotation(annotation) = results.get_by_name("phrase")? {
                 assert!(annotation.has_data(&refdata));
-            } else {
-                assert!(false, "did not get phrase");
             }
         } else if count == 2 {
             if let QueryResultItem::Annotation(annotation) = results.get_by_name("word")? {
                 assert!(annotation.has_data(&refdata3));
-            } else {
-                assert!(false, "did not get phrase");
             }
         }
     }

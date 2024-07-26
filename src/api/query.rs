@@ -20,7 +20,7 @@ use crate::{
 
 use chrono::{DateTime, FixedOffset};
 use regex::Regex;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::collections::HashMap;
 
 use std::borrow::Cow;
@@ -802,11 +802,15 @@ impl<'a> Query<'a> {
     }
 
     /// Selects this query or a specific subquery anywhere in its tree based on a given query path.
-    /// A querypath is a list of indices selecting subqueries, e.g. [0,1] for first subquery, then second subquery or [] for the main query).
+    /// A querypath is a list of indices selecting subqueries, e.g. [0,0,1] for main query, first subquery, then second subquery). The first item (main query) is always 0
     /// Return None when the path does not resolve.
     pub fn select_by_path(&self, querypath: QueryPathRef) -> Option<&Query<'a>> {
         let mut q = self;
-        for i in querypath.iter() {
+        let mut iter = querypath.iter();
+        if iter.next().is_none() {
+            return None;
+        }
+        for i in iter {
             if let Some(sq) = q.subqueries().nth(*i) {
                 q = sq;
             } else {
@@ -857,8 +861,9 @@ impl<'a> Query<'a> {
     }
 
     /// Return all querypaths (relative to the current query as root!), including the one referencing self
+    /// This should only be run on a root query
     pub fn querypaths(&self) -> Vec<QueryPath> {
-        let mut paths = vec![QueryPath::new()];
+        let mut paths = vec![smallvec!(0)];
         self.compute_querypaths(&mut paths);
         paths
     }
@@ -866,11 +871,11 @@ impl<'a> Query<'a> {
     /// Recursive helper function for paths()
     pub(crate) fn compute_querypaths(&self, paths: &mut Vec<QueryPath>) {
         for (i, q) in self.subqueries().enumerate() {
-            let mut newpath = if let Some(path) = paths.iter().last() {
-                path.clone()
-            } else {
-                QueryPath::new()
-            };
+            let mut newpath = paths
+                .iter()
+                .last()
+                .expect("querypath must have a first item")
+                .clone();
             newpath.push(i);
             paths.push(newpath);
             q.compute_querypaths(paths);
@@ -917,7 +922,7 @@ impl<'a> Query<'a> {
         let mut q = self;
         let mut names = SmallVec::with_capacity(querypath.len() + 1);
         names.push(q.name);
-        for i in querypath.iter() {
+        for i in querypath.iter().skip(1) {
             if let Some(sq) = q.subqueries.iter().nth(*i) {
                 names.push(sq.name);
                 q = sq;
@@ -927,31 +932,6 @@ impl<'a> Query<'a> {
             }
         }
         Ok(names)
-    }
-
-    /// Get the index corresponding to a variable name, given a querypath
-    /// You usually don't need to invoke this directly.
-    pub fn index(&self, mut name: &str, querypath: QueryPathRef) -> Option<usize> {
-        if name.starts_with("?") {
-            //strip leading ? from variable name
-            name = &name[1..];
-        }
-        let mut q = self;
-        if q.name == Some(name) {
-            return Some(0);
-        }
-        for i in querypath.iter() {
-            if let Some(sq) = q.subqueries.iter().nth(*i) {
-                if sq.name == Some(name) {
-                    return Some(i + 1);
-                }
-                q = sq;
-            } else {
-                //invalid querypath
-                return None;
-            }
-        }
-        None
     }
 
     /// Iterates over all constraints in the Query
@@ -2181,18 +2161,20 @@ impl<'store> QueryIter<'store> {
                 //iterator depleted, advance to next subquery if there is one
                 //this allows for multiple subqueries to work
                 if let Some(subquery_index) = subquery_index {
-                    let query = self.get_query(&self.querypath).expect("query must exist");
-                    /*
-                    eprintln!(
-                        "DEBUG: current {}/{} - {:?}",
-                        subquery_index + 1,
-                        query.subqueries.len(),
-                        self.querypath
-                    );
-                    */
-                    if query.subqueries.len() > subquery_index + 1 {
-                        self.querypath.push(subquery_index + 1);
-                        return true;
+                    if !self.querypath.is_empty() {
+                        //check if we're not the main query
+                        let query = self.get_query(&self.querypath).expect("query must exist");
+                        /*
+                        eprintln!(
+                            "DEBUG: current {}/{} - {:?}",
+                            subquery_index + 1,
+                            query.subqueries.len(),
+                            self.querypath
+                        );
+                        */
+                        if query.subqueries.len() > subquery_index + 1 {
+                            return self.init_all_states(subquery_index + 1);
+                        }
                     }
                 }
             }
@@ -3354,7 +3336,7 @@ impl<'store> QueryIter<'store> {
     ) -> Result<&ResultItem<'store, AnnotationData>, StamError> {
         for (i, state) in self.statestack.iter().enumerate() {
             let query = self
-                .get_query(&self.querypath[..i])
+                .get_query(&self.querypath[..i + 1])
                 .expect("query must exist");
             if query.name() == Some(name) {
                 if let QueryResultItem::AnnotationData(data) = &state.result {
@@ -3384,7 +3366,7 @@ impl<'store> QueryIter<'store> {
     fn resolve_keyvar(&self, name: &str) -> Result<&ResultItem<'store, DataKey>, StamError> {
         for (i, state) in self.statestack.iter().enumerate() {
             let query = self
-                .get_query(&self.querypath[..i])
+                .get_query(&self.querypath[..i + 1])
                 .expect("query must exist");
             if query.name() == Some(name) {
                 if let QueryResultItem::DataKey(key) = &state.result {
@@ -3420,7 +3402,7 @@ impl<'store> QueryIter<'store> {
     ) -> Result<&ResultItem<'store, AnnotationDataSet>, StamError> {
         for (i, state) in self.statestack.iter().enumerate() {
             let query = self
-                .get_query(&self.querypath[..i])
+                .get_query(&self.querypath[..i + 1])
                 .expect("query must exist");
             if query.name() == Some(name) {
                 if let QueryResultItem::AnnotationDataSet(dataset) = &state.result {
@@ -3453,7 +3435,7 @@ impl<'store> QueryIter<'store> {
     ) -> Result<&ResultItem<'store, Annotation>, StamError> {
         for (i, state) in self.statestack.iter().enumerate() {
             let query = self
-                .get_query(&self.querypath[..i])
+                .get_query(&self.querypath[..i + 1])
                 .expect("query must exist");
             if query.name() == Some(name) {
                 if let QueryResultItem::Annotation(annotation) = &state.result {
@@ -3483,7 +3465,7 @@ impl<'store> QueryIter<'store> {
     fn resolve_textvar(&self, name: &str) -> Result<&ResultTextSelection<'store>, StamError> {
         for (i, state) in self.statestack.iter().enumerate() {
             let query = self
-                .get_query(&self.querypath[..i])
+                .get_query(&self.querypath[..i + 1])
                 .expect("query must exist");
             if query.name() == Some(name) {
                 if let QueryResultItem::TextSelection(textsel) = &state.result {
@@ -3516,7 +3498,7 @@ impl<'store> QueryIter<'store> {
     ) -> Result<&ResultItem<'store, TextResource>, StamError> {
         for (i, state) in self.statestack.iter().enumerate() {
             let query = self
-                .get_query(&self.querypath[..i])
+                .get_query(&self.querypath[..i + 1])
                 .expect("query must exist");
             if query.name() == Some(name) {
                 if let QueryResultItem::TextResource(resource) = &state.result {
@@ -3542,6 +3524,61 @@ impl<'store> QueryIter<'store> {
             "",
         ));
     }
+
+    //estimate the stacksize
+    fn estimate_stacksize(&self) -> usize {
+        //populate the entire stack, producing a result at each level
+        let has_subqueries = if self.querypath.is_empty() {
+            true
+        } else {
+            self.get_query(&self.querypath)
+                .expect("query must exist")
+                .has_subqueries()
+        };
+        //lower bound estimate on stacksize;
+        if has_subqueries {
+            self.querypath.len() + 1 //at least one more
+        } else {
+            1
+        }
+    }
+
+    #[inline]
+    fn init_all_states(&mut self, next_index: usize) -> bool {
+        let mut min_stacksize = self.estimate_stacksize();
+        /*
+        eprintln!(
+            "DEBUG: next (len={}, min_stacksize={})",
+            self.statestack.len(),
+            min_stacksize
+        );*/
+
+        while self.statestack.len() < min_stacksize {
+            self.querypath.push(next_index);
+            /*eprintln!(
+                "DEBUG: statestack_len={} < {} , {:?}, calling init_state",
+                self.statestack.len(),
+                min_stacksize,
+                self.querypath,
+            );*/
+            match self.init_state() {
+                Ok(false) => {
+                    //if we didn't succeed in preparing the next iteration, it means the entire stack is depleted and we're done
+                    return false;
+                }
+                Err(e) => {
+                    eprintln!("STAM Query error: {}", e);
+                    return false;
+                }
+                Ok(true) => {
+                    //a state was added succesfully
+                    min_stacksize = self.estimate_stacksize();
+                    continue;
+                }
+            }
+        }
+        true
+    }
 }
 
 impl<'store> Iterator for QueryIter<'store> {
@@ -3553,46 +3590,25 @@ impl<'store> Iterator for QueryIter<'store> {
             return None;
         }
 
-        //populate the entire stack, producing a result at each level
-        //while self.statestack.len() < self.query.len() {
-        let mut statestack_maxlen = self.querypath.len() + 1;
-        while self.statestack.len() < statestack_maxlen {
-            /*
-            eprintln!(
-                "DEBUG: {} - {:?} - {}",
-                self.statestack.len(),
-                self.querypath,
-                has_subqueries
-            );
-            */
-            match self.init_state() {
-                Ok(false) => {
-                    //if we didn't succeed in preparing the next iteration, it means the entire stack is depleted and we're done
-                    return None;
-                }
-                Err(e) => {
-                    eprintln!("STAM Query error: {}", e);
-                    return None;
-                }
-                Ok(true) => {
-                    let has_subqueries = self
-                        .get_query(&self.querypath)
-                        .expect("query must exist")
-                        .has_subqueries();
-                    if has_subqueries {
-                        //descend into subquery on next iteration
-                        self.querypath.push(0);
-                        statestack_maxlen = self.querypath.len() + 1;
-                    } else {
-                        statestack_maxlen = self.querypath.len();
-                    }
-                    continue;
-                }
-            }
+        // Initialize all states
+        if !self.init_all_states(0) {
+            return None;
         }
 
-        //read the result in the stack's result buffer
+        /*
+        eprintln!(
+            "DEBUG: full, statestack_len={}, {:?}",
+            self.statestack.len(),
+            self.querypath
+        );
+        */
+
+        // We have have a full stack of states
+        // read the result in the stack's result buffer
         let result = self.build_result();
+
+        //eprintln!("DEBUG: result={:?}", result);
+        //eprintln!("DEBUG: next state");
 
         // prepare the result buffer for next iteration
         self.next_state();
