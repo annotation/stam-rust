@@ -246,7 +246,11 @@ where
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
+            filter: Filter::DataKey(
+                key.set().handle(),
+                key.handle(),
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -283,7 +287,12 @@ where
     ) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
+            filter: Filter::DataKeyAndOperator(
+                set,
+                key,
+                value,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -304,7 +313,11 @@ where
     fn filter_any_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::BorrowedData(data, FilterMode::Any, SelectionQualifier::Normal),
+            filter: Filter::BorrowedData(
+                data,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -417,14 +430,21 @@ where
                     && data.set().handle() == *set_handle
                     && data.test(false, &operator)
             }
-            Filter::Annotations(annotations, FilterMode::Any, SelectionQualifier::Normal, _) => {
-                data.annotations().filter_any_byref(annotations).test()
-            }
-            Filter::Annotations(annotations, FilterMode::All, SelectionQualifier::Normal, _) => {
-                data.annotations()
-                    .filter_all(annotations.clone(), data.rootstore())
-                    .test()
-            }
+            Filter::Annotations(
+                annotations,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                _,
+            ) => data.annotations().filter_any_byref(annotations).test(),
+            Filter::Annotations(
+                annotations,
+                FilterMode::All,
+                SelectionQualifier::Normal,
+                _,
+            ) => data
+                .annotations()
+                .filter_all(annotations.clone(), data.rootstore())
+                .test(),
             Filter::BorrowedAnnotations(
                 annotations,
                 FilterMode::Any,

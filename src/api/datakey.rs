@@ -218,7 +218,11 @@ where
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredKeys<'store, Self> {
         FilteredKeys {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
+            filter: Filter::DataKey(
+                key.set().handle(),
+                key.handle(),
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -246,7 +250,11 @@ where
     fn filter_any_byref(self, keys: &'store Keys<'store>) -> FilteredKeys<'store, Self> {
         FilteredKeys {
             inner: self,
-            filter: Filter::BorrowedKeys(keys, FilterMode::Any, SelectionQualifier::Normal),
+            filter: Filter::BorrowedKeys(
+                keys,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -337,10 +345,18 @@ where
                 key.handle() == *key_handle && key.set().handle() == *set_handle
             }
             Filter::AnnotationDataSet(set_handle, _) => key.set().handle() == *set_handle,
-            Filter::Annotations(annotations, FilterMode::Any, SelectionQualifier::Normal, _) => {
-                key.annotations().filter_any_byref(annotations).test()
-            }
-            Filter::Annotations(annotations, FilterMode::All, SelectionQualifier::Normal, _) => key
+            Filter::Annotations(
+                annotations,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+                _,
+            ) => key.annotations().filter_any_byref(annotations).test(),
+            Filter::Annotations(
+                annotations,
+                FilterMode::All,
+                SelectionQualifier::Normal,
+                _,
+            ) => key
                 .annotations()
                 .filter_all(annotations.clone(), key.rootstore())
                 .test(),

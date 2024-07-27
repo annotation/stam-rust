@@ -278,7 +278,11 @@ where
     fn filter_any(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Resources(resources, FilterMode::Any, SelectionQualifier::Normal),
+            filter: Filter::Resources(
+                resources,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -496,7 +500,11 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
+            filter: Filter::DataKey(
+                key.set().handle(),
+                key.handle(),
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -567,7 +575,12 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata),
+            filter: Filter::DataKeyAndOperator(
+                set,
+                key,
+                value,
+                SelectionQualifier::Metadata,
+            ),
         }
     }
 
@@ -580,7 +593,12 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
+            filter: Filter::DataKeyAndOperator(
+                set,
+                key,
+                value,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -704,20 +722,27 @@ where
             Filter::BorrowedData(data, mode, SelectionQualifier::Metadata) => {
                 resource.annotations().filter_data_byref(data, *mode).test()
             }
-            Filter::Annotations(annotations, mode, SelectionQualifier::Normal, _) => resource
-                .annotations()
-                .filter_annotations_byref(annotations, *mode)
-                .test(),
-            Filter::Annotations(annotations, mode, SelectionQualifier::Metadata, _) => resource
-                .annotations_as_metadata()
-                .filter_annotations_byref(annotations, *mode)
-                .test(),
-            Filter::BorrowedAnnotations(annotations, mode, SelectionQualifier::Normal, _) => {
+            Filter::Annotations(annotations, mode, SelectionQualifier::Normal, _) => {
                 resource
                     .annotations()
                     .filter_annotations_byref(annotations, *mode)
                     .test()
             }
+            Filter::Annotations(annotations, mode, SelectionQualifier::Metadata, _) => {
+                resource
+                    .annotations_as_metadata()
+                    .filter_annotations_byref(annotations, *mode)
+                    .test()
+            }
+            Filter::BorrowedAnnotations(
+                annotations,
+                mode,
+                SelectionQualifier::Normal,
+                _,
+            ) => resource
+                .annotations()
+                .filter_annotations_byref(annotations, *mode)
+                .test(),
             Filter::Annotation(annotation, SelectionQualifier::Normal, _) => {
                 resource.annotations().filter_handle(*annotation).test()
             }
@@ -735,16 +760,20 @@ where
                 .data()
                 .filter_key_handle(*set, *key)
                 .test(),
-            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal) => resource
-                .annotations()
-                .data()
-                .filter_key_handle_value(*set, *key, value.clone())
-                .test(),
-            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata) => resource
-                .annotations_as_metadata()
-                .data()
-                .filter_key_handle_value(*set, *key, value.clone())
-                .test(),
+            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal) => {
+                resource
+                    .annotations()
+                    .data()
+                    .filter_key_handle_value(*set, *key, value.clone())
+                    .test()
+            }
+            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata) => {
+                resource
+                    .annotations_as_metadata()
+                    .data()
+                    .filter_key_handle_value(*set, *key, value.clone())
+                    .test()
+            }
             Filter::DataOperator(value, SelectionQualifier::Normal) => resource
                 .annotations()
                 .data()

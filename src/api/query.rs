@@ -173,6 +173,7 @@ pub struct Query<'a> {
     name: Option<&'a str>,
 
     querytype: QueryType,
+    qualifier: QueryQualifier,
     resulttype: Option<Type>,
     assignments: Vec<Assignment<'a>>, //only for ADD
     constraints: Vec<Constraint<'a>>,
@@ -186,6 +187,32 @@ pub struct Query<'a> {
     /// Context variables (external), if there are subqueries, they do NOT hold contextvars, only the root query does
     /// This allows binding variables programmatically, using the bind_*var() methods
     contextvars: HashMap<String, ContextItem>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// This is determines whether a query is applied normally or with a particular altered meaning.
+pub enum QueryQualifier {
+    /// Normal behaviour, no changes
+    Normal,
+
+    /// This query is optional
+    Optional,
+    //This query is silent, it is run but results are never propagated
+    //Silent,
+}
+
+impl QueryQualifier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Normal => "",
+            Self::Optional => "OPTIONAL",
+        }
+    }
+}
+impl Default for QueryQualifier {
+    fn default() -> Self {
+        Self::Normal
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -791,6 +818,7 @@ impl<'a> Query<'a> {
         Self {
             name,
             querytype,
+            qualifier: QueryQualifier::Normal,
             resulttype,
             constraints: Vec::new(),
             constraint_attributes: Vec::new(),
@@ -818,6 +846,12 @@ impl<'a> Query<'a> {
             }
         }
         return Some(q);
+    }
+
+    /// Set a qualifier for the query
+    pub fn with_qualifier(mut self, qualifier: QueryQualifier) -> Self {
+        self.qualifier = qualifier;
+        self
     }
 
     /// Add a constraint to the query
@@ -858,6 +892,11 @@ impl<'a> Query<'a> {
     /// Use queries() for recursion.
     pub fn subqueries(&self) -> impl Iterator<Item = &Query<'a>> {
         self.subqueries.iter()
+    }
+
+    /// Return the qualifier for the query
+    pub fn qualifier(&self) -> QueryQualifier {
+        self.qualifier
     }
 
     /// Return all querypaths (relative to the current query as root!), including the one referencing self
@@ -1049,12 +1088,24 @@ impl<'a> Query<'a> {
         Ok((attributes, querystring))
     }
 
+    fn parse_qualifier(querystring: &'a str) -> Result<(QueryQualifier, &'a str), StamError> {
+        match &querystring.split(QUERYSPLITCHARS).next() {
+            Some("OPTIONAL") => {
+                let end = "OPTIONAL".len();
+                Ok((QueryQualifier::Optional, querystring[end..].trim_start()))
+            }
+            _ => Ok((QueryQualifier::Normal, querystring)),
+        }
+    }
+
     fn parse_select(
         mut querystring: &'a str,
         attributes: Vec<&'a str>,
     ) -> Result<(Self, &'a str), StamError> {
         let mut end = 7;
         querystring = querystring[end..].trim_start();
+        let (qualifier, remainder) = Self::parse_qualifier(querystring)?;
+        querystring = remainder;
         let resulttype = match &querystring.split(QUERYSPLITCHARS).next() {
             Some("ANNOTATION") | Some("annotation") => {
                 end = "ANNOTATION".len();
@@ -1137,6 +1188,7 @@ impl<'a> Query<'a> {
             Self {
                 name,
                 querytype: QueryType::Select,
+                qualifier,
                 resulttype,
                 constraints,
                 constraint_attributes,
@@ -1211,6 +1263,7 @@ impl<'a> Query<'a> {
         Ok((
             Self {
                 name,
+                qualifier: QueryQualifier::Normal,
                 querytype: QueryType::Add,
                 resulttype,
                 constraints: Vec::new(),
@@ -1261,6 +1314,7 @@ impl<'a> Query<'a> {
         Ok((
             Self {
                 name,
+                qualifier: QueryQualifier::Normal,
                 querytype: QueryType::Delete,
                 resulttype,
                 constraints: Vec::new(),
@@ -1621,7 +1675,7 @@ pub enum QueryResultIter<'store> {
     Resources(Box<dyn Iterator<Item = ResultItem<'store, TextResource>> + 'store>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 /// This structure encapsulates the different kind of result items that can be returned from queries.
 /// See [`AnnotationStore::query()`] for an example of it in use.
 pub enum QueryResultItem<'store> {
@@ -1680,12 +1734,13 @@ pub struct QueryIter<'store> {
     /// States in the stack hold iterators, each stack item corresponds to one further level of nesting
     statestack: Vec<QueryState<'store>>,
 
+    /// Holds the status of the state stack after the last next_state() call
+    /// mostly needed to determine if we're AllDone or not
+    statestack_status: StateStackStatus,
+
     /// This indicates which subquery is currently being processed (index number, zero based), because there may be multiple siblings
     /// this has |statestack| - 1 elements
     querypath: QueryPath,
-
-    /// Signals that we're done with the entire stack
-    done: bool,
 
     /// Context variables
     contextvars: HashMap<String, QueryResultItem<'store>>,
@@ -1742,8 +1797,8 @@ impl<'store> AnnotationStore {
             contextvars: query.resolve_contextvars(self)?,
             query: Some(query),
             statestack: Vec::new(),
+            statestack_status: StateStackStatus::Empty,
             querypath: QueryPath::new(),
-            done: false,
         })
     }
 
@@ -1965,9 +2020,9 @@ impl<'store> AnnotationStore {
                         store: self,
                         query: None,
                         statestack: Vec::new(),
+                        statestack_status: StateStackStatus::Empty,
                         querypath: QueryPath::new(),
                         contextvars: HashMap::new(),
-                        done: true,
                     })
                 } else {
                     unreachable!("unknown query type");
@@ -1977,6 +2032,25 @@ impl<'store> AnnotationStore {
             }
         }
     }
+}
+
+#[derive(Clone, Eq, Copy, PartialEq, Debug)]
+pub(crate) enum StateStackStatus {
+    /// This is the initial state
+    Empty,
+
+    /// A new state was produced
+    NewState,
+
+    /// No new state was produced
+    NoNewState,
+
+    /// No new state was produced, but that's ok, consider the stack full and return what's there
+    /// This happens if remaining states are optional
+    NoNewStateButIgnore,
+
+    /// Iterator is completely done
+    AllDone,
 }
 
 impl<'store> QueryIter<'store> {
@@ -1997,7 +2071,8 @@ impl<'store> QueryIter<'store> {
     }
 
     /// Initializes a new state
-    pub(crate) fn init_state(&mut self) -> Result<bool, StamError> {
+    /// Returns whether or not a state was added and what the status of the stack is
+    pub(crate) fn init_state(&mut self) -> Result<StateStackStatus, StamError> {
         let query = self.get_query(&self.querypath).expect("query must exist");
         let mut constraintsiter = query.constraints.iter();
 
@@ -2060,104 +2135,89 @@ impl<'store> QueryIter<'store> {
             iterator: iter,
             result: QueryResultItem::None,
         });
+
         // Do the first iteration (may remove this and other elements from the stack again if it fails)
         Ok(self.next_state())
     }
 
-    /// Advances the query state on the stack, return true if a new result was obtained (stored in the state's result buffer),
-    /// Pops items off the stack if they no longer yield result.
-    /// If no result at all can be obtained anymore, false is returned.
-    pub(crate) fn next_state(&mut self) -> bool {
+    /// Advances the query state on the stack.
+    /// Returns what the status of the stack is: whether or not a state was added to the stack and a result was obtained (stored in the state's result buffer),
+    /// Pops items off the stack if they no longer yield results.
+    pub(crate) fn next_state(&mut self) -> StateStackStatus {
         while !self.statestack.is_empty() {
             if let Some(mut state) = self.statestack.pop() {
                 //we pop the state off the stack (we put it back again in cases where it's an undepleted iterator)
                 //but this allows us to take full ownership and not have a mutable borrow,
                 //which would get in the way as we also need to inspect prior results from the stack (immutably)
                 //
+                // keep track of the qualifier for the current query (is it Normal vs Optional?)
+                let qualifier = self
+                    .get_query(&self.querypath)
+                    .expect("query must exist")
+                    .qualifier();
                 // keep track of the current subquery_index (pop it and push it back)
                 let subquery_index = self.querypath.pop();
-                loop {
-                    match &mut state.iterator {
-                        QueryResultIter::TextSelections(iter) => {
-                            if let Some(result) = iter.next() {
-                                state.result = QueryResultItem::TextSelection(result);
-                                //push back
-                                self.statestack.push(state);
-                                if let Some(subquery_index) = subquery_index {
-                                    self.querypath.push(subquery_index);
-                                }
-                                return true;
-                            } else {
-                                break; //iterator depleted
-                            }
-                        }
-                        QueryResultIter::Annotations(iter) => {
-                            if let Some(result) = iter.next() {
-                                state.result = QueryResultItem::Annotation(result);
-                                //push back
-                                self.statestack.push(state);
-                                if let Some(subquery_index) = subquery_index {
-                                    self.querypath.push(subquery_index);
-                                }
-                                return true;
-                            } else {
-                                break; //iterator depleted
-                            }
-                        }
-                        QueryResultIter::Data(iter) => {
-                            if let Some(result) = iter.next() {
-                                state.result = QueryResultItem::AnnotationData(result);
-                                //push back
-                                self.statestack.push(state);
-                                if let Some(subquery_index) = subquery_index {
-                                    self.querypath.push(subquery_index);
-                                }
-                                return true;
-                            } else {
-                                break; //iterator depleted
-                            }
-                        }
-                        QueryResultIter::Resources(iter) => {
-                            if let Some(result) = iter.next() {
-                                state.result = QueryResultItem::TextResource(result);
-                                //push back
-                                self.statestack.push(state);
-                                if let Some(subquery_index) = subquery_index {
-                                    self.querypath.push(subquery_index);
-                                }
-                                return true;
-                            } else {
-                                break; //iterator depleted
-                            }
-                        }
-                        QueryResultIter::Keys(iter) => {
-                            if let Some(result) = iter.next() {
-                                state.result = QueryResultItem::DataKey(result);
-                                //push back
-                                self.statestack.push(state);
-                                if let Some(subquery_index) = subquery_index {
-                                    self.querypath.push(subquery_index);
-                                }
-                                return true;
-                            } else {
-                                break; //iterator depleted
-                            }
-                        }
-                        QueryResultIter::DataSets(iter) => {
-                            if let Some(result) = iter.next() {
-                                state.result = QueryResultItem::AnnotationDataSet(result);
-                                //push back
-                                self.statestack.push(state);
-                                if let Some(subquery_index) = subquery_index {
-                                    self.querypath.push(subquery_index);
-                                }
-                                return true;
-                            } else {
-                                break; //iterator depleted
-                            }
+
+                let got_result = match &mut state.iterator {
+                    QueryResultIter::TextSelections(iter) => {
+                        if let Some(result) = iter.next() {
+                            state.result = QueryResultItem::TextSelection(result);
+                            true
+                        } else {
+                            false //iterator depleted
                         }
                     }
+                    QueryResultIter::Annotations(iter) => {
+                        if let Some(result) = iter.next() {
+                            state.result = QueryResultItem::Annotation(result);
+                            true
+                        } else {
+                            false //iterator depleted
+                        }
+                    }
+                    QueryResultIter::Data(iter) => {
+                        if let Some(result) = iter.next() {
+                            state.result = QueryResultItem::AnnotationData(result);
+                            true
+                        } else {
+                            false //iterator depleted
+                        }
+                    }
+                    QueryResultIter::Resources(iter) => {
+                        if let Some(result) = iter.next() {
+                            state.result = QueryResultItem::TextResource(result);
+                            true
+                        } else {
+                            false //iterator depleted
+                        }
+                    }
+                    QueryResultIter::Keys(iter) => {
+                        if let Some(result) = iter.next() {
+                            state.result = QueryResultItem::DataKey(result);
+                            true
+                        } else {
+                            false //iterator depleted
+                        }
+                    }
+                    QueryResultIter::DataSets(iter) => {
+                        if let Some(result) = iter.next() {
+                            state.result = QueryResultItem::AnnotationDataSet(result);
+                            true
+                        } else {
+                            false //iterator depleted
+                        }
+                    }
+                };
+                if got_result {
+                    //we got a result, push the state back so we do the next iteration over it next time
+                    self.statestack.push(state);
+                    if let Some(subquery_index) = subquery_index {
+                        self.querypath.push(subquery_index);
+                    }
+                    // and return control to the iterator so the result can be returned
+                    return StateStackStatus::NewState;
                 }
+
                 //iterator depleted, advance to next subquery if there is one
                 //this allows for multiple subqueries to work
                 if let Some(subquery_index) = subquery_index {
@@ -2173,15 +2233,23 @@ impl<'store> QueryIter<'store> {
                         );
                         */
                         if query.subqueries.len() > subquery_index + 1 {
-                            return self.init_all_states(subquery_index + 1);
+                            if self.init_all_states(subquery_index + 1) {
+                                return StateStackStatus::NewState;
+                            } else {
+                                return StateStackStatus::NoNewState;
+                            }
                         }
                     }
                 }
+
+                if qualifier == QueryQualifier::Optional && state.result == QueryResultItem::None {
+                    // this was optional and did not produce any results
+                    // so we consider the stack as full and returnable despite not having a new state
+                    return StateStackStatus::NoNewStateButIgnore;
+                }
             }
         }
-        //mark as done (otherwise the iterator would restart from scratch again)
-        self.done = true;
-        false
+        StateStackStatus::AllDone
     }
 
     /// Apply primary constraint for ANNOTATION result type
@@ -3544,6 +3612,8 @@ impl<'store> QueryIter<'store> {
     }
 
     #[inline]
+    /// Initializes the full statestack (what 'full' means differs regarding the query subquery branch we're in)
+    /// Return true if a full stack was filled (and thus results can be returned from it)
     fn init_all_states(&mut self, next_index: usize) -> bool {
         let mut min_stacksize = self.estimate_stacksize();
         /*
@@ -3562,18 +3632,28 @@ impl<'store> QueryIter<'store> {
                 self.querypath,
             );*/
             match self.init_state() {
-                Ok(false) => {
+                Ok(StateStackStatus::AllDone) => {
+                    return false;
+                }
+                Ok(StateStackStatus::NoNewState) => {
                     //if we didn't succeed in preparing the next iteration, it means the entire stack is depleted and we're done
                     return false;
+                }
+                Ok(StateStackStatus::NoNewStateButIgnore) => {
+                    //no new state but we can ignore it and return the results we do have (consider the stack full)
+                    return true;
                 }
                 Err(e) => {
                     eprintln!("STAM Query error: {}", e);
                     return false;
                 }
-                Ok(true) => {
+                Ok(StateStackStatus::NewState) => {
                     //a state was added succesfully
                     min_stacksize = self.estimate_stacksize();
                     continue;
+                }
+                Ok(StateStackStatus::Empty) => {
+                    unreachable!("Empty can never be returned");
                 }
             }
         }
@@ -3585,7 +3665,7 @@ impl<'store> Iterator for QueryIter<'store> {
     type Item = QueryResultItems<'store>;
 
     fn next<'q>(&'q mut self) -> Option<Self::Item> {
-        if self.done || self.query.is_none() {
+        if self.statestack_status == StateStackStatus::AllDone || self.query.is_none() {
             //iterator has been marked as done, do nothing else
             return None;
         }
@@ -3611,7 +3691,7 @@ impl<'store> Iterator for QueryIter<'store> {
         //eprintln!("DEBUG: next state");
 
         // prepare the result buffer for next iteration
-        self.next_state();
+        self.statestack_status = self.next_state();
 
         return Some(result);
     }

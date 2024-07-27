@@ -867,7 +867,11 @@ where
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
+            filter: Filter::DataKey(
+                key.set().handle(),
+                key.handle(),
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -897,7 +901,12 @@ where
     ) -> FilteredTextSelections<'store, Self> {
         FilteredTextSelections {
             inner: self,
-            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
+            filter: Filter::DataKeyAndOperator(
+                set,
+                key,
+                value,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -1049,12 +1058,14 @@ where
                     .filter_annotations_byref(annotations, *mode)
                     .test()
             }
-            Filter::Annotation(annotation, SelectionQualifier::Normal, AnnotationDepth::One) => {
-                textselection
-                    .annotations()
-                    .filter_handle(*annotation)
-                    .test()
-            }
+            Filter::Annotation(
+                annotation,
+                SelectionQualifier::Normal,
+                AnnotationDepth::One,
+            ) => textselection
+                .annotations()
+                .filter_handle(*annotation)
+                .test(),
             Filter::TextResource(res_handle, _) => textselection.resource().handle() == *res_handle,
             Filter::Text(reftext, textmode, _) => {
                 let text = textselection.text();

@@ -214,7 +214,11 @@ where
     fn filter_any(self, datasets: AnnotationDataSets<'store>) -> FilteredDataSets<'store, Self> {
         FilteredDataSets {
             inner: self,
-            filter: Filter::DataSets(datasets, FilterMode::Any, SelectionQualifier::Normal),
+            filter: Filter::DataSets(
+                datasets,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
@@ -224,7 +228,11 @@ where
     ) -> FilteredDataSets<'store, Self> {
         FilteredDataSets {
             inner: self,
-            filter: Filter::BorrowedDataSets(datasets, FilterMode::Any, SelectionQualifier::Normal),
+            filter: Filter::BorrowedDataSets(
+                datasets,
+                FilterMode::Any,
+                SelectionQualifier::Normal,
+            ),
         }
     }
 
