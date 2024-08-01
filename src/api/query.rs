@@ -2263,7 +2263,7 @@ impl<'store> QueryIter<'store> {
                         {
                             // this subquery was optional and did not produce any results
                             // so we consider the stack as full and returnable despite not having a new state
-                            eprintln!("DEBUG: Returning NoNewStateButIgnore");
+                            //eprintln!("DEBUG: Returning NoNewStateButIgnore");
                             if let Some(parentstate) = self.statestack.iter_mut().last() {
                                 parentstate.done = true;
                             }
@@ -3692,34 +3692,43 @@ impl<'store> Iterator for QueryIter<'store> {
     type Item = QueryResultItems<'store>;
 
     fn next<'q>(&'q mut self) -> Option<Self::Item> {
-        eprintln!("DEBUG: next ({:?})", self.querypath);
+        /*
+        eprintln!(
+            "DEBUG: next, querypath={:?}, statestack_len={}",
+            self.querypath,
+            self.statestack.len()
+        );
+        */
         if self.statestack_status == StateStackStatus::AllDone || self.query.is_none() {
             //iterator has been marked as done, do nothing else
             return None;
         }
 
         // Initialize all states
-        if let StateStackStatus::AllDone
-        | StateStackStatus::NoNewState
-        | StateStackStatus::Invalid = self.init_all_states(0)
-        {
-            return None;
-        }
-
+        let stack_status = self.init_all_states(0);
         /*
         eprintln!(
-            "DEBUG: full, statestack_len={}, {:?}",
+            "DEBUG: full, querypath={:?}, statestack_len={}, stack_status={:?}",
+            self.querypath,
             self.statestack.len(),
-            self.querypath
-        );
-        */
+            self.statestack_status
+        );*/
+        if let StateStackStatus::AllDone
+        | StateStackStatus::NoNewState
+        | StateStackStatus::Invalid = stack_status
+        {
+            self.statestack_status = stack_status;
+            return None;
+        }
 
         // We have have a full stack of states
         // read the result in the stack's result buffer
         let result = self.build_result();
 
+        /*
         eprintln!("DEBUG: result={:?}", result);
         eprintln!("DEBUG: next state");
+        */
 
         // prepare the result buffer for next iteration
         self.statestack_status = self.next_state();

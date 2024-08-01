@@ -2633,7 +2633,6 @@ fn query_subquery_optional_nonexistant() -> Result<(), StamError> {
     let iter = store.query(query)?;
     let mut count = 0;
     for results in iter {
-        eprintln!("DEBUG: {:?}", results);
         count += 1;
         assert!(
             results.get_by_name("n").is_ok(),
