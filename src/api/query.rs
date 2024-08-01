@@ -1715,8 +1715,11 @@ pub(crate) struct QueryState<'store> {
     /// The iterator for the current query
     iterator: QueryResultIter<'store>,
 
-    // note: this captures the result of the current state, in order to make it available for subsequent deeper iterators
+    /// This captures the result of the current state, in order to make it available for subsequent deeper iterators
     result: QueryResultItem<'store>,
+
+    /// Set when this state has had all its deeper iterators processed
+    done: bool,
 }
 
 /// This points to a particular subquery inside a query
@@ -2051,6 +2054,9 @@ pub(crate) enum StateStackStatus {
 
     /// Iterator is completely done
     AllDone,
+
+    /// After an error occurred
+    Invalid,
 }
 
 impl<'store> QueryIter<'store> {
@@ -2134,6 +2140,7 @@ impl<'store> QueryIter<'store> {
         self.statestack.push(QueryState {
             iterator: iter,
             result: QueryResultItem::None,
+            done: false,
         });
 
         // Do the first iteration (may remove this and other elements from the stack again if it fails)
@@ -2146,6 +2153,9 @@ impl<'store> QueryIter<'store> {
     pub(crate) fn next_state(&mut self) -> StateStackStatus {
         while !self.statestack.is_empty() {
             if let Some(mut state) = self.statestack.pop() {
+                if state.done {
+                    continue;
+                }
                 //we pop the state off the stack (we put it back again in cases where it's an undepleted iterator)
                 //but this allows us to take full ownership and not have a mutable borrow,
                 //which would get in the way as we also need to inspect prior results from the stack (immutably)
@@ -2233,19 +2243,33 @@ impl<'store> QueryIter<'store> {
                         );
                         */
                         if query.subqueries.len() > subquery_index + 1 {
-                            if self.init_all_states(subquery_index + 1) {
+                            /*
+                            eprintln!(
+                                "DEBUG: Recursing into init_all_states for subquery {}",
+                                subquery_index + 1
+                            );
+                            */
+                            return self.init_all_states(subquery_index + 1);
+                            /*
+                                eprintln!("DEBUG: Returning NewState {}", subquery_index + 1);
                                 return StateStackStatus::NewState;
                             } else {
+                                eprintln!("DEBUG: Returning NoNewState");
                                 return StateStackStatus::NoNewState;
                             }
+                            */
+                        } else if qualifier == QueryQualifier::Optional
+                            && state.result == QueryResultItem::None
+                        {
+                            // this subquery was optional and did not produce any results
+                            // so we consider the stack as full and returnable despite not having a new state
+                            eprintln!("DEBUG: Returning NoNewStateButIgnore");
+                            if let Some(parentstate) = self.statestack.iter_mut().last() {
+                                parentstate.done = true;
+                            }
+                            return StateStackStatus::NoNewStateButIgnore;
                         }
                     }
-                }
-
-                if qualifier == QueryQualifier::Optional && state.result == QueryResultItem::None {
-                    // this was optional and did not produce any results
-                    // so we consider the stack as full and returnable despite not having a new state
-                    return StateStackStatus::NoNewStateButIgnore;
                 }
             }
         }
@@ -3613,39 +3637,38 @@ impl<'store> QueryIter<'store> {
 
     #[inline]
     /// Initializes the full statestack (what 'full' means differs regarding the query subquery branch we're in)
-    /// Return true if a full stack was filled (and thus results can be returned from it)
-    fn init_all_states(&mut self, next_index: usize) -> bool {
+    /// Returns the stack status
+    fn init_all_states(&mut self, next_index: usize) -> StateStackStatus {
         let mut min_stacksize = self.estimate_stacksize();
+
         /*
         eprintln!(
-            "DEBUG: next (len={}, min_stacksize={})",
+            "DEBUG: init_all_states (len={}, min_stacksize={})",
             self.statestack.len(),
             min_stacksize
-        );*/
+        );
+        */
 
         while self.statestack.len() < min_stacksize {
+            if let Some(state) = self.statestack.iter().last() {
+                //this check is needed for propagating results if we have multiple OPTIONAL subqueries
+                if state.done {
+                    return StateStackStatus::NoNewStateButIgnore;
+                }
+            }
             self.querypath.push(next_index);
-            /*eprintln!(
+            /*
+            eprintln!(
                 "DEBUG: statestack_len={} < {} , {:?}, calling init_state",
                 self.statestack.len(),
                 min_stacksize,
                 self.querypath,
-            );*/
+            );
+            */
             match self.init_state() {
-                Ok(StateStackStatus::AllDone) => {
-                    return false;
-                }
-                Ok(StateStackStatus::NoNewState) => {
-                    //if we didn't succeed in preparing the next iteration, it means the entire stack is depleted and we're done
-                    return false;
-                }
-                Ok(StateStackStatus::NoNewStateButIgnore) => {
-                    //no new state but we can ignore it and return the results we do have (consider the stack full)
-                    return true;
-                }
                 Err(e) => {
                     eprintln!("STAM Query error: {}", e);
-                    return false;
+                    return StateStackStatus::Invalid;
                 }
                 Ok(StateStackStatus::NewState) => {
                     //a state was added succesfully
@@ -3655,9 +3678,13 @@ impl<'store> QueryIter<'store> {
                 Ok(StateStackStatus::Empty) => {
                     unreachable!("Empty can never be returned");
                 }
+                Ok(state) => {
+                    //AllDone/NoNewState/NoNewStateButIgnore
+                    return state;
+                }
             }
         }
-        true
+        StateStackStatus::NewState
     }
 }
 
@@ -3665,13 +3692,17 @@ impl<'store> Iterator for QueryIter<'store> {
     type Item = QueryResultItems<'store>;
 
     fn next<'q>(&'q mut self) -> Option<Self::Item> {
+        eprintln!("DEBUG: next ({:?})", self.querypath);
         if self.statestack_status == StateStackStatus::AllDone || self.query.is_none() {
             //iterator has been marked as done, do nothing else
             return None;
         }
 
         // Initialize all states
-        if !self.init_all_states(0) {
+        if let StateStackStatus::AllDone
+        | StateStackStatus::NoNewState
+        | StateStackStatus::Invalid = self.init_all_states(0)
+        {
             return None;
         }
 
@@ -3687,8 +3718,8 @@ impl<'store> Iterator for QueryIter<'store> {
         // read the result in the stack's result buffer
         let result = self.build_result();
 
-        //eprintln!("DEBUG: result={:?}", result);
-        //eprintln!("DEBUG: next state");
+        eprintln!("DEBUG: result={:?}", result);
+        eprintln!("DEBUG: next state");
 
         // prepare the result buffer for next iteration
         self.statestack_status = self.next_state();

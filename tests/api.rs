@@ -2483,6 +2483,54 @@ fn query_multiple_subqueries() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_multiple_optional_subqueries() -> Result<(), StamError> {
+    let mut store = setup_example_6()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_target(SelectorBuilder::textselector(
+                "humanrights",
+                Offset::simple(21, 25), //"born"
+            ))
+            .with_data("myset", "type", "word"),
+    )?;
+    let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT OPTIONAL ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; | SELECT OPTIONAL ANNOTATION ?word WHERE RELATION ?sentence EMBEDS; DATA myset type = word; | SELECT OPTIONAL ANNOTATION ?nonexistant WHERE RELATION ?sentence EMBEDS; DATA myset type = nonexistant; }".try_into()?;
+    let mut count = 0;
+    let refdata = store
+        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .next()
+        .expect("reference data must exist");
+    let refdata2 = store
+        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .next()
+        .expect("reference data must exist");
+    let refdata3 = store
+        .find_data("myset", "type", DataOperator::Equals("word"))
+        .next()
+        .expect("reference data must exist");
+    let queryresults = store.query(query)?;
+    for results in queryresults {
+        count += 1;
+        if let QueryResultItem::Annotation(annotation) = results.get_by_name("sentence")? {
+            assert!(annotation.has_data(&refdata2));
+        }
+        if count == 1 {
+            if let QueryResultItem::Annotation(annotation) = results.get_by_name("phrase")? {
+                assert!(annotation.has_data(&refdata));
+            }
+        } else if count == 2 {
+            if let QueryResultItem::Annotation(annotation) = results.get_by_name("word")? {
+                assert!(annotation.has_data(&refdata3));
+            }
+        } else if count == 3 {
+            assert!(results.get_by_name("word").is_err());
+            assert!(results.get_by_name("phrase").is_err());
+        }
+    }
+    assert_eq!(count, 3);
+    Ok(())
+}
+
+#[test]
 fn query_subquery_deep() -> Result<(), StamError> {
     let store = setup_example_9()?;
     let querystring = r#" 
