@@ -2588,7 +2588,6 @@ fn query_subquery_optional() -> Result<(), StamError> {
     let iter = store.query(query)?;
     let mut count = 0;
     for results in iter {
-        eprintln!("DEBUG: {:?}", results);
         count += 1;
         if count == 1 {
             assert!(
@@ -2615,6 +2614,39 @@ fn query_subquery_optional() -> Result<(), StamError> {
         }
     }
     assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
+fn query_subquery_optional_nonexistant() -> Result<(), StamError> {
+    let store = setup_example_9()?;
+    let querystring = r#" 
+    SELECT ANNOTATION ?n WHERE
+        DATA testdataset pos = n;
+    {
+        SELECT OPTIONAL ANNOTATION ?v WHERE
+            RELATION ?n PRECEDES;
+            DATA testdataset pos = nonexistant;
+    }
+    "#;
+    let query: Query = querystring.try_into()?;
+    let iter = store.query(query)?;
+    let mut count = 0;
+    for results in iter {
+        eprintln!("DEBUG: {:?}", results);
+        count += 1;
+        assert!(
+            results.get_by_name("n").is_ok(),
+            "checking n in round {} of 2",
+            count
+        );
+        assert!(
+            results.get_by_name("v").is_err(),
+            "checking no v in round {} of 2",
+            count
+        );
+    }
+    assert_eq!(count, 1);
     Ok(())
 }
 
