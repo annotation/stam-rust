@@ -212,18 +212,19 @@ pub struct AnnotationStore {
 /// A substore is a sub-collection of annotations that is serialised as an independent AnnotationStore,
 /// The actual contents are still defined and kept by the parent AnnotationStore.
 /// This structure only holds references used for serialisation purposes.
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Default)]
 pub(crate) struct AnnotationSubStore {
     //these macros are field index numbers for cbor binary (de)serialisation, which itself does not allow stand-off files!
     #[n(0)]
-    pub(crate) id: String,
+    pub(crate) id: Option<String>,
 
     /// path associated with this substore
     #[n(1)]
-    pub(crate) filename: PathBuf,
+    pub(crate) filename: Option<PathBuf>,
 
     #[n(2)]
-    pub(crate) substores: Vec<AnnotationSubStore>,
+    /// Refers to an index in substores which is the parent of the curent substore. This allows for deeper nesting, it is set to None if this is a first level substore
+    pub(crate) parent: Option<usize>,
 
     #[n(3)]
     pub(crate) annotations: Vec<AnnotationHandle>,
@@ -231,6 +232,13 @@ pub(crate) struct AnnotationSubStore {
     pub(crate) annotationsets: Vec<AnnotationDataSetHandle>,
     #[n(5)]
     pub(crate) resources: Vec<TextResourceHandle>,
+}
+
+impl AnnotationSubStore {
+    fn with_parent(mut self, index: Option<usize>) -> Self {
+        self.parent = index;
+        self
+    }
 }
 
 #[sealed]
@@ -781,12 +789,12 @@ impl AnnotationStore {
         }
     }
 
-    fn push_current_include(&mut self, index: usize) {
-        self.config.current_include.push(index);
+    fn push_current_substore(&mut self, index: usize) {
+        self.config.current_substore_path.push(index);
     }
 
-    fn pop_current_include(&mut self) -> bool {
-        self.config.current_include.pop().is_some()
+    fn pop_current_substore(&mut self) -> bool {
+        self.config.current_substore_path.pop().is_some()
     }
 }
 
@@ -838,6 +846,7 @@ impl AnnotationStore {
             data_annotation_metamap: TripleRelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
             changed: Arc::new(RwLock::new(false)),
+            substores: Vec::new(),
             config,
             filename: None,
             annotations_filename: None,
@@ -913,50 +922,20 @@ impl AnnotationStore {
         Ok(self)
     }
 
-    /// Adds another AnnotationStore as a dependency (using the @include mechanism in STAM JSON)
-    pub(crate) fn add_substore(&mut self, filename: &str) -> Result<(), StamError> {
-        self.push_current_include(self.substores_count(&self.config.current_include)?);
+    /// Adds another AnnotationStore as a stand-off dependency (uses the @include mechanism in STAM JSON)
+    pub fn add_substore(&mut self, filename: &str) -> Result<(), StamError> {
+        let new_index = self.substores.len();
+        let parent_index = if new_index == 0 {
+            None
+        } else {
+            Some(new_index - 1)
+        };
+        self.substores
+            .push(AnnotationSubStore::default().with_parent(parent_index)); //this data will be modified whilst parsing
+        self.push_current_substore(new_index);
         self.merge_json_file(filename)?;
-        self.pop_current_include();
+        self.pop_current_substore();
         Ok(())
-    }
-
-    /// Get a substore given its indexpath
-    fn get_substore<'a>(
-        &'a self,
-        mut indexpath: &[usize],
-    ) -> Result<&'a AnnotationSubStore, StamError> {
-        let mut substore: Option<&AnnotationSubStore> = None;
-        while !indexpath.is_empty() {
-            let index = indexpath[0];
-            indexpath = &indexpath[1..];
-            if substore.is_none() {
-                substore = self.substores.get(index);
-            } else {
-                substore = substore.unwrap().substores.get(index);
-            }
-            if substore.is_none() {
-                return Err(StamError::OtherError(
-                    "Invalid substore indexpath (should not happen)",
-                ));
-            }
-        }
-        if let Some(s) = substore {
-            Ok(s)
-        } else {
-            Err(StamError::OtherError(
-                "Invalid substore indexpath (should not happen)",
-            ))
-        }
-    }
-
-    /// get the amount of substores under the defined path level
-    fn substores_count(&self, indexpath: &[usize]) -> Result<usize, StamError> {
-        if indexpath.is_empty() {
-            Ok(self.substores.len())
-        } else {
-            Ok(self.get_substore(indexpath)?.substores.len())
-        }
     }
 
     /// Returns the filename associated with this annotation store for storage of annotations
@@ -2269,8 +2248,20 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
             match key.as_str() {
                 "@id" => {
                     let id: String = map.next_value()?;
-                    if self.store.id.is_none() {
-                        self.store.id = Some(id);
+                    if let Some(substore_index) =
+                        self.store.config.current_substore_path.iter().last()
+                    {
+                        let substore = self
+                            .store
+                            .substores
+                            .get_mut(*substore_index)
+                            .expect("substore index must be valid");
+                        substore.id = Some(id);
+                    } else {
+                        //normal situation (do not override the ID if this is a merge, first ID counts)
+                        if self.store.id.is_none() {
+                            self.store.id = Some(id);
+                        }
                     }
                 }
                 "@type" => {
@@ -2293,7 +2284,7 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                         }
                     };
                     for include in includes {
-                        self.store.add_substore(include);
+                        self.store.add_substore(&include);
                     }
                 }
                 "annotations" => {

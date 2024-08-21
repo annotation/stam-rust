@@ -96,7 +96,7 @@ pub struct Config {
     #[n(10)]
     /// Index number of the include that is being processed, if any. Multiple indices represent nesting (0-indexed)
     /// You usually don't need to set this yourself, it is used internally when merging annotation stores.
-    pub(crate) current_include: Vec<usize>,
+    pub(crate) current_substore_path: Vec<usize>,
 
     /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
     #[n(100)]
