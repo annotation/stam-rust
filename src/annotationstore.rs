@@ -748,8 +748,17 @@ impl FromJson for AnnotationStore {
             format!("AnnotationStore::from_json_file: filename={:?}", filename)
         });
         let reader = open_file_reader(filename, self.config())?;
-        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
 
+        if let Some(substore_index) = self.config.current_substore_path.iter().last() {
+            //if we are processing substores, associate the filename with the substore
+            let substore = self
+                .substores
+                .get_mut(*substore_index)
+                .expect("substore index must be valid");
+            substore.filename = Some(get_filepath(filename, self.config.workdir())?);
+        }
+
+        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         self.set_merge_mode(true);
 
         DeserializeAnnotationStore::new(self)
@@ -782,6 +791,7 @@ impl FromJson for AnnotationStore {
 }
 
 impl AnnotationStore {
+    /// Merge mode is set during parsing when merging multiple annotation stores, allowing them to reference the same AnnotationDataSets without creating conflicts
     fn set_merge_mode(&mut self, value: bool) {
         self.config.merge = value;
         for dataset in <AnnotationStore as StoreFor<AnnotationDataSet>>::iter_mut(self) {
@@ -789,10 +799,12 @@ impl AnnotationStore {
         }
     }
 
+    /// used to add a substore to the path, indicating which substore is currently being parsed
     fn push_current_substore(&mut self, index: usize) {
         self.config.current_substore_path.push(index);
     }
 
+    /// used to add a substore to the path, indicating which substore is currently being parsed
     fn pop_current_substore(&mut self) -> bool {
         self.config.current_substore_path.pop().is_some()
     }
@@ -2377,9 +2389,20 @@ impl<'de> serde::de::Visitor<'de> for AnnotationsVisitor<'_> {
                         self.store.annotations.resize_with(handle, Default::default);
                     }
                 }
-                self.store
+                let handle = self
+                    .store
                     .annotate(annotationbuilder)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+
+                if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
+                {
+                    let substore = self
+                        .store
+                        .substores
+                        .get_mut(*substore_index)
+                        .expect("substore index must be valid");
+                    substore.annotations.push(handle)
+                }
             } else {
                 break;
             }
@@ -2424,9 +2447,20 @@ impl<'de> serde::de::Visitor<'de> for ResourcesVisitor<'_> {
             if let Some(resource) =
                 seq.next_element_seed(DeserializeTextResource::new(&self.store.config))?
             {
-                self.store
+                let handle = self
+                    .store
                     .insert(resource)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+
+                if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
+                {
+                    let substore = self
+                        .store
+                        .substores
+                        .get_mut(*substore_index)
+                        .expect("substore index must be valid");
+                    substore.resources.push(handle)
+                }
             } else {
                 break;
             }
@@ -2474,9 +2508,20 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetsVisitor<'_> {
                 .next_element_seed(DeserializeAnnotationDataSet::new(&mut annotationset))?
                 .is_some()
             {
-                self.store
+                let handle = self
+                    .store
                     .insert(annotationset)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
+
+                if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
+                {
+                    let substore = self
+                        .store
+                        .substores
+                        .get_mut(*substore_index)
+                        .expect("substore index must be valid");
+                    substore.annotationsets.push(handle)
+                }
             } else {
                 break;
             }
