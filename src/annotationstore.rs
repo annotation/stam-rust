@@ -936,6 +936,16 @@ impl AnnotationStore {
 
     /// Adds another AnnotationStore as a stand-off dependency (uses the @include mechanism in STAM JSON)
     pub fn add_substore(&mut self, filename: &str) -> Result<(), StamError> {
+        if !self.substores.is_empty() {
+            // check if the substore is already loaded (it may be referenced from multiple places)
+            // in that case we don't need to process it again
+            let foundpath = Some(get_filepath(filename, self.config.workdir())?);
+            for substore in self.substores.iter() {
+                if substore.filename == foundpath {
+                    return Ok(());
+                }
+            }
+        }
         let new_index = self.substores.len();
         let parent_index = if new_index == 0 {
             None
