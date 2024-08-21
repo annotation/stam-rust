@@ -198,8 +198,39 @@ pub struct AnnotationStore {
 
     #[cfg(feature = "csv")]
     /// path associated with the stand-off files holding annotations (only used for STAM CSV)
+    // TODO: merge into subfilenames
     #[n(201)]
     pub(crate) annotations_filename: Option<PathBuf>,
+
+    /// Paths associated with a subset of the annotations
+    /// In STAM JSON this translates to the @include mechanism to include other annotation stores
+    /// This depends on `use_include` in the configuration being set to true and all annotation datasets and text resources should be stand-off
+    #[n(202)]
+    pub(crate) substores: Vec<AnnotationSubStore>,
+}
+
+/// A substore is a sub-collection of annotations that is serialised as an independent AnnotationStore,
+/// The actual contents are still defined and kept by the parent AnnotationStore.
+/// This structure only holds references used for serialisation purposes.
+#[derive(Debug, Encode, Decode)]
+pub(crate) struct AnnotationSubStore {
+    //these macros are field index numbers for cbor binary (de)serialisation, which itself does not allow stand-off files!
+    #[n(0)]
+    pub(crate) id: String,
+
+    /// path associated with this substore
+    #[n(1)]
+    pub(crate) filename: PathBuf,
+
+    #[n(2)]
+    pub(crate) substores: Vec<AnnotationSubStore>,
+
+    #[n(3)]
+    pub(crate) annotations: Vec<AnnotationHandle>,
+    #[n(4)]
+    pub(crate) annotationsets: Vec<AnnotationDataSetHandle>,
+    #[n(5)]
+    pub(crate) resources: Vec<TextResourceHandle>,
 }
 
 #[sealed]
@@ -749,6 +780,14 @@ impl AnnotationStore {
             dataset.config.merge = value;
         }
     }
+
+    fn push_current_include(&mut self, index: usize) {
+        self.config.current_include.push(index);
+    }
+
+    fn pop_current_include(&mut self) -> bool {
+        self.config.current_include.pop().is_some()
+    }
 }
 
 impl Configurable for AnnotationStore {
@@ -872,6 +911,52 @@ impl AnnotationStore {
         self.merge_json_file(filename)?;
 
         Ok(self)
+    }
+
+    /// Adds another AnnotationStore as a dependency (using the @include mechanism in STAM JSON)
+    pub(crate) fn add_substore(&mut self, filename: &str) -> Result<(), StamError> {
+        self.push_current_include(self.substores_count(&self.config.current_include)?);
+        self.merge_json_file(filename)?;
+        self.pop_current_include();
+        Ok(())
+    }
+
+    /// Get a substore given its indexpath
+    fn get_substore<'a>(
+        &'a self,
+        mut indexpath: &[usize],
+    ) -> Result<&'a AnnotationSubStore, StamError> {
+        let mut substore: Option<&AnnotationSubStore> = None;
+        while !indexpath.is_empty() {
+            let index = indexpath[0];
+            indexpath = &indexpath[1..];
+            if substore.is_none() {
+                substore = self.substores.get(index);
+            } else {
+                substore = substore.unwrap().substores.get(index);
+            }
+            if substore.is_none() {
+                return Err(StamError::OtherError(
+                    "Invalid substore indexpath (should not happen)",
+                ));
+            }
+        }
+        if let Some(s) = substore {
+            Ok(s)
+        } else {
+            Err(StamError::OtherError(
+                "Invalid substore indexpath (should not happen)",
+            ))
+        }
+    }
+
+    /// get the amount of substores under the defined path level
+    fn substores_count(&self, indexpath: &[usize]) -> Result<usize, StamError> {
+        if indexpath.is_empty() {
+            Ok(self.substores.len())
+        } else {
+            Ok(self.get_substore(indexpath)?.substores.len())
+        }
     }
 
     /// Returns the filename associated with this annotation store for storage of annotations
@@ -2194,6 +2279,21 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                         return Err(<A::Error as serde::de::Error>::custom(format!(
                             "Expected type AnnotationStore, got {tp}"
                         )));
+                    }
+                }
+                "@include" => {
+                    let includes: Vec<String> = match map.next_value()? {
+                        serde_json::value::Value::String(include) => {
+                            vec![include]
+                        }
+                        _ => {
+                            return Err(<A::Error as serde::de::Error>::custom(format!(
+                                "Expected string or array for @include in AnnotationStore, got something else"
+                            )));
+                        }
+                    };
+                    for include in includes {
+                        self.store.add_substore(include);
                     }
                 }
                 "annotations" => {
