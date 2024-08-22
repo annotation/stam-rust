@@ -188,6 +188,7 @@ pub trait TypeInfo {
             Type::TextResource => "!R",
             Type::TextSelection => "!T",
             Type::TextSelectionSet => "!X",
+            Type::AnnotationSubStore => "!I",
             Type::Config => "!C",
         }
     }
@@ -206,6 +207,7 @@ pub enum Type {
     TextSelection,
     TextSelectionSet,
     Config,
+    AnnotationSubStore,
 }
 
 impl TryFrom<&str> for Type {
@@ -224,6 +226,7 @@ impl TryFrom<&str> for Type {
             "textselection" | "textselections" => Ok(Self::TextSelection),
             "textselectionset" => Ok(Self::TextSelectionSet),
             "config" | "configuration" => Ok(Self::Config),
+            "annotationsubstore" | "substore" => Ok(Self::AnnotationSubStore),
             _ => Err(StamError::OtherError("Unknown type supplied")),
         }
     }
@@ -241,6 +244,7 @@ impl Type {
             Self::TextResource => "TextResource",
             Self::TextSelection => "TextSelection",
             Self::TextSelectionSet => "TextSelectionSet",
+            Self::AnnotationSubStore => "AnnotationSubStore",
             Self::Config => "Config",
         }
     }

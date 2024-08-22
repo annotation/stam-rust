@@ -96,6 +96,7 @@ mod json;
 mod resources;
 mod selector;
 mod store;
+mod substore;
 mod text;
 mod textselection;
 mod types;

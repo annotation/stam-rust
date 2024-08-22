@@ -1,0 +1,169 @@
+use datasize::{data_size, DataSize};
+use minicbor::{Decode, Encode};
+use sealed::sealed;
+use serde::de::DeserializeSeed;
+use serde::ser::{SerializeStruct, Serializer};
+use serde::Serialize;
+use std::path::PathBuf;
+
+use crate::annotation::AnnotationHandle;
+use crate::annotationdataset::AnnotationDataSetHandle;
+use crate::annotationstore::AnnotationStore;
+use crate::error::StamError;
+use crate::file::*;
+use crate::json::{FromJson, ToJson};
+use crate::resources::TextResourceHandle;
+use crate::store::*;
+use crate::types::*;
+
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, DataSize, Encode, Decode)]
+#[cbor(transparent)]
+pub struct AnnotationSubStoreHandle(#[n(0)] u16);
+
+#[sealed]
+impl Handle for AnnotationSubStoreHandle {
+    fn new(intid: usize) -> Self {
+        Self(intid as u16)
+    }
+    fn as_usize(&self) -> usize {
+        self.0 as usize
+    }
+}
+
+/// A substore is a sub-collection of annotations that is serialised as an independent AnnotationStore,
+/// The actual contents are still defined and kept by the parent AnnotationStore.
+/// This structure only holds references used for serialisation purposes.
+#[derive(Debug, Encode, Decode, Default, PartialEq, Clone)]
+pub(crate) struct AnnotationSubStore {
+    ///Internal numeric ID, corresponds with the index in the AnnotationStore::substores that has the ownership
+    #[n(0)]
+    intid: Option<AnnotationSubStoreHandle>,
+
+    //these macros are field index numbers for cbor binary (de)serialisation, which itself does not allow stand-off files!
+    #[n(1)]
+    pub(crate) id: Option<String>,
+
+    /// path associated with this substore
+    #[n(2)]
+    pub(crate) filename: Option<PathBuf>,
+
+    #[n(3)]
+    /// Refers to an index in substores which is the parent of the curent substore. This allows for deeper nesting, it is set to None if this is a first level substore
+    pub(crate) parent: Option<AnnotationSubStoreHandle>,
+
+    #[n(4)]
+    pub(crate) annotations: Vec<AnnotationHandle>,
+    #[n(5)]
+    pub(crate) annotationsets: Vec<AnnotationDataSetHandle>,
+    #[n(6)]
+    pub(crate) resources: Vec<TextResourceHandle>,
+}
+
+#[sealed]
+impl TypeInfo for AnnotationSubStore {
+    fn typeinfo() -> Type {
+        Type::AnnotationSubStore
+    }
+}
+
+impl AnnotationSubStore {
+    fn with_parent(mut self, index: Option<AnnotationSubStoreHandle>) -> Self {
+        self.parent = index;
+        self
+    }
+}
+
+//these I couldn't solve nicely using generics:
+
+impl<'a> Request<AnnotationSubStore> for AnnotationSubStoreHandle {
+    fn to_handle<'store, S>(&self, _store: &'store S) -> Option<AnnotationSubStoreHandle>
+    where
+        S: StoreFor<AnnotationSubStore>,
+    {
+        Some(*self)
+    }
+}
+
+#[sealed]
+impl Storable for AnnotationSubStore {
+    type HandleType = AnnotationSubStoreHandle;
+    type StoreHandleType = ();
+    type FullHandleType = Self::HandleType;
+    type StoreType = AnnotationStore;
+
+    fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+    fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    fn handle(&self) -> Option<Self::HandleType> {
+        self.intid
+    }
+
+    fn with_handle(mut self, handle: AnnotationSubStoreHandle) -> Self {
+        self.intid = Some(handle);
+        self
+    }
+    fn carries_id() -> bool {
+        true
+    }
+
+    fn fullhandle(
+        _storehandle: Self::StoreHandleType,
+        handle: Self::HandleType,
+    ) -> Self::FullHandleType {
+        handle
+    }
+
+    fn merge(&mut self, _other: Self) -> Result<(), StamError> {
+        Ok(())
+    }
+
+    fn unbind(mut self) -> Self {
+        self.intid = None;
+        self
+    }
+}
+
+impl AnnotationStore {
+    /// Adds another AnnotationStore as a stand-off dependency (uses the @include mechanism in STAM JSON)
+    pub fn add_substore(&mut self, filename: &str) -> Result<(), StamError> {
+        if !self.substores.is_empty() {
+            // check if the substore is already loaded (it may be referenced from multiple places)
+            // in that case we don't need to process it again
+            let foundpath = Some(get_filepath(filename, self.config.workdir())?);
+            for substore in <Self as StoreFor<AnnotationSubStore>>::iter(self) {
+                if substore.filename == foundpath {
+                    return Ok(());
+                }
+            }
+        }
+        let new_index = self.substores.len();
+        let parent_index = if new_index == 0 {
+            None
+        } else {
+            Some(new_index - 1)
+        };
+        let handle = self.insert(
+            AnnotationSubStore::default()
+                .with_parent(parent_index.map(|x| AnnotationSubStoreHandle::new(x))),
+        )?; //this data will be modified whilst parsing
+        self.push_current_substore(handle);
+        self.merge_json_file(filename)?;
+        self.pop_current_substore();
+        Ok(())
+    }
+
+    /// used to add a substore to the path, indicating which substore is currently being parsed
+    fn push_current_substore(&mut self, index: AnnotationSubStoreHandle) {
+        self.config.current_substore_path.push(index);
+    }
+
+    /// used to add a substore to the path, indicating which substore is currently being parsed
+    fn pop_current_substore(&mut self) -> bool {
+        self.config.current_substore_path.pop().is_some()
+    }
+}
