@@ -40,6 +40,7 @@ use crate::json::{FromJson, ToJson};
 use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
 use crate::selector::{Offset, OffsetMode, Selector, SelectorBuilder};
 use crate::store::*;
+use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
 use crate::textselection::{TextSelection, TextSelectionHandle};
 use crate::types::*;
 
@@ -137,6 +138,9 @@ pub struct AnnotationStore {
     /// Links to datasets by ID.
     #[n(52)]
     pub(crate) dataset_idmap: IdMap<AnnotationDataSetHandle>,
+    /// Links to substores by ID.
+    #[n(53)]
+    pub(crate) substore_idmap: IdMap<AnnotationSubStoreHandle>,
 
     /// Flags if the store has changed
     #[cbor(skip)]
@@ -154,7 +158,7 @@ pub struct AnnotationStore {
     // can be rsolved by the AnnotationDataSet::key_data_map in combination with the above dataset_data_annotation_map
     //
     /// This is the reverse index for text, it maps TextResource => TextSelection => Annotation
-    /// The map is always sorted due to how it is constructed, no explicit sorting needed
+    /// The map is always sorted due to how it is constructed, no explicit sorting neededannotationso
     #[n(101)]
     pub(crate) textrelationmap:
         TripleRelationMap<TextResourceHandle, TextSelectionHandle, AnnotationHandle>,
@@ -192,6 +196,24 @@ pub struct AnnotationStore {
     pub(crate) data_annotation_metamap:
         TripleRelationMap<AnnotationDataSetHandle, AnnotationDataHandle, AnnotationHandle>,
 
+    /// Reverse index for annotations to indicate what substore they are a part of, if they're not found in this structure
+    /// they are part of the main store
+    #[n(108)]
+    pub(crate) annotation_substore_map:
+        RelationBTreeMap<AnnotationHandle, AnnotationSubStoreHandle>,
+
+    /// Reverse index for resources to indicate what substore they are a part of, if they're not found in this structure
+    /// they are part of the main store
+    #[n(109)]
+    pub(crate) resource_substore_map:
+        RelationBTreeMap<TextResourceHandle, AnnotationSubStoreHandle>,
+
+    /// Reverse index for datasets to indicate what substore they are a part of, if they're not found in this structure
+    /// they are part of the main store
+    #[n(110)]
+    pub(crate) dataset_substore_map:
+        RelationBTreeMap<AnnotationDataSetHandle, AnnotationSubStoreHandle>,
+
     /// path associated with this store
     #[n(200)]
     pub(crate) filename: Option<PathBuf>,
@@ -206,39 +228,7 @@ pub struct AnnotationStore {
     /// In STAM JSON this translates to the @include mechanism to include other annotation stores
     /// This depends on `use_include` in the configuration being set to true and all annotation datasets and text resources should be stand-off
     #[n(202)]
-    pub(crate) substores: Vec<AnnotationSubStore>,
-}
-
-/// A substore is a sub-collection of annotations that is serialised as an independent AnnotationStore,
-/// The actual contents are still defined and kept by the parent AnnotationStore.
-/// This structure only holds references used for serialisation purposes.
-#[derive(Debug, Encode, Decode, Default)]
-pub(crate) struct AnnotationSubStore {
-    //these macros are field index numbers for cbor binary (de)serialisation, which itself does not allow stand-off files!
-    #[n(0)]
-    pub(crate) id: Option<String>,
-
-    /// path associated with this substore
-    #[n(1)]
-    pub(crate) filename: Option<PathBuf>,
-
-    #[n(2)]
-    /// Refers to an index in substores which is the parent of the curent substore. This allows for deeper nesting, it is set to None if this is a first level substore
-    pub(crate) parent: Option<usize>,
-
-    #[n(3)]
-    pub(crate) annotations: Vec<AnnotationHandle>,
-    #[n(4)]
-    pub(crate) annotationsets: Vec<AnnotationDataSetHandle>,
-    #[n(5)]
-    pub(crate) resources: Vec<TextResourceHandle>,
-}
-
-impl AnnotationSubStore {
-    fn with_parent(mut self, index: Option<usize>) -> Self {
-        self.parent = index;
-        self
-    }
+    pub(crate) substores: Store<AnnotationSubStore>,
 }
 
 #[sealed]
@@ -636,6 +626,48 @@ impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
     }
 }
 
+//An AnnotationStore is a StoreFor substores
+#[sealed]
+impl StoreFor<AnnotationSubStore> for AnnotationStore {
+    /// Get a reference to the entire store for the associated type
+    fn store(&self) -> &Store<AnnotationSubStore> {
+        &self.substores
+    }
+    /// Get a mutable reference to the entire store for the associated type
+    fn store_mut(&mut self) -> &mut Store<AnnotationSubStore> {
+        &mut self.substores
+    }
+    /// Get a reference to the id map for the associated type, mapping global ids to internal ids
+    fn idmap(&self) -> Option<&IdMap<AnnotationSubStoreHandle>> {
+        Some(&self.substore_idmap)
+    }
+    /// Get a mutable reference to the id map for the associated type, mapping global ids to internal ids
+    fn idmap_mut(&mut self) -> Option<&mut IdMap<AnnotationSubStoreHandle>> {
+        Some(&mut self.substore_idmap)
+    }
+    fn store_typeinfo() -> &'static str {
+        "SubStore in AnnotationStore"
+    }
+}
+
+impl private::StoreCallbacks<AnnotationSubStore> for AnnotationStore {
+    /// Called prior to inserting an item into to the store
+    /// If it returns an error, the insert will be cancelled.
+    /// Allows for bookkeeping such as inheriting configuration
+    /// parameters from parent to the item
+    #[allow(unused_variables)]
+    fn preinsert(&self, item: &mut AnnotationSubStore) -> Result<(), StamError> {
+        Ok(())
+    }
+
+    /// called before the item is removed from the store
+    /// updates the relation maps, no need to call manually
+    fn preremove(&mut self, handle: AnnotationSubStoreHandle) -> Result<(), StamError> {
+        //TODO
+        Ok(())
+    }
+}
+
 impl WrappableStore<Annotation> for AnnotationStore {}
 impl WrappableStore<TextResource> for AnnotationStore {}
 impl WrappableStore<AnnotationDataSet> for AnnotationStore {}
@@ -751,11 +783,10 @@ impl FromJson for AnnotationStore {
 
         if let Some(substore_index) = self.config.current_substore_path.iter().last() {
             //if we are processing substores, associate the filename with the substore
-            let substore = self
-                .substores
-                .get_mut(*substore_index)
-                .expect("substore index must be valid");
-            substore.filename = Some(get_filepath(filename, self.config.workdir())?);
+            let filename_found = get_filepath(filename, self.config.workdir())?;
+            if let Ok(substore) = self.get_mut(*substore_index) {
+                substore.filename = Some(filename_found);
+            }
         }
 
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
@@ -798,16 +829,6 @@ impl AnnotationStore {
             dataset.config.merge = value;
         }
     }
-
-    /// used to add a substore to the path, indicating which substore is currently being parsed
-    fn push_current_substore(&mut self, index: usize) {
-        self.config.current_substore_path.push(index);
-    }
-
-    /// used to add a substore to the path, indicating which substore is currently being parsed
-    fn pop_current_substore(&mut self) -> bool {
-        self.config.current_substore_path.pop().is_some()
-    }
 }
 
 impl Configurable for AnnotationStore {
@@ -849,6 +870,8 @@ impl AnnotationStore {
                 .with_resolve_temp_ids(config.strip_temp_ids()),
             dataset_idmap: IdMap::new("S".to_string())
                 .with_resolve_temp_ids(config.strip_temp_ids()),
+            substore_idmap: IdMap::new("I".to_string())
+                .with_resolve_temp_ids(config.strip_temp_ids()),
             dataset_data_annotation_map: TripleRelationMap::new(),
             dataset_annotation_metamap: RelationMap::new(),
             resource_annotation_metamap: RelationMap::new(),
@@ -857,6 +880,9 @@ impl AnnotationStore {
             key_annotation_metamap: TripleRelationMap::new(), //MAYBE TODO: sparse arrays, maybe better with BTreeMap variant?
             data_annotation_metamap: TripleRelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
+            annotation_substore_map: RelationBTreeMap::new(),
+            resource_substore_map: RelationBTreeMap::new(),
+            dataset_substore_map: RelationBTreeMap::new(),
             changed: Arc::new(RwLock::new(false)),
             substores: Vec::new(),
             config,
@@ -932,32 +958,6 @@ impl AnnotationStore {
         self.merge_json_file(filename)?;
 
         Ok(self)
-    }
-
-    /// Adds another AnnotationStore as a stand-off dependency (uses the @include mechanism in STAM JSON)
-    pub fn add_substore(&mut self, filename: &str) -> Result<(), StamError> {
-        if !self.substores.is_empty() {
-            // check if the substore is already loaded (it may be referenced from multiple places)
-            // in that case we don't need to process it again
-            let foundpath = Some(get_filepath(filename, self.config.workdir())?);
-            for substore in self.substores.iter() {
-                if substore.filename == foundpath {
-                    return Ok(());
-                }
-            }
-        }
-        let new_index = self.substores.len();
-        let parent_index = if new_index == 0 {
-            None
-        } else {
-            Some(new_index - 1)
-        };
-        self.substores
-            .push(AnnotationSubStore::default().with_parent(parent_index)); //this data will be modified whilst parsing
-        self.push_current_substore(new_index);
-        self.merge_json_file(filename)?;
-        self.pop_current_substore();
-        Ok(())
     }
 
     /// Returns the filename associated with this annotation store for storage of annotations
@@ -2273,12 +2273,9 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                     if let Some(substore_index) =
                         self.store.config.current_substore_path.iter().last()
                     {
-                        let substore = self
-                            .store
-                            .substores
-                            .get_mut(*substore_index)
-                            .expect("substore index must be valid");
-                        substore.id = Some(id);
+                        if let Ok(substore) = self.store.get_mut(*substore_index) {
+                            substore.id = Some(id);
+                        }
                     } else {
                         //normal situation (do not override the ID if this is a merge, first ID counts)
                         if self.store.id.is_none() {
@@ -2406,12 +2403,9 @@ impl<'de> serde::de::Visitor<'de> for AnnotationsVisitor<'_> {
 
                 if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
                 {
-                    let substore = self
-                        .store
-                        .substores
-                        .get_mut(*substore_index)
-                        .expect("substore index must be valid");
-                    substore.annotations.push(handle)
+                    if let Ok(substore) = self.store.get_mut(*substore_index) {
+                        substore.annotations.push(handle)
+                    }
                 }
             } else {
                 break;
@@ -2464,12 +2458,9 @@ impl<'de> serde::de::Visitor<'de> for ResourcesVisitor<'_> {
 
                 if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
                 {
-                    let substore = self
-                        .store
-                        .substores
-                        .get_mut(*substore_index)
-                        .expect("substore index must be valid");
-                    substore.resources.push(handle)
+                    if let Ok(substore) = self.store.get_mut(*substore_index) {
+                        substore.resources.push(handle)
+                    }
                 }
             } else {
                 break;
@@ -2525,12 +2516,9 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetsVisitor<'_> {
 
                 if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
                 {
-                    let substore = self
-                        .store
-                        .substores
-                        .get_mut(*substore_index)
-                        .expect("substore index must be valid");
-                    substore.annotationsets.push(handle)
+                    if let Ok(substore) = self.store.get_mut(*substore_index) {
+                        substore.annotationsets.push(handle)
+                    }
                 }
             } else {
                 break;

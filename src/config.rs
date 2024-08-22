@@ -8,6 +8,7 @@ use crate::cbor::{cbor_decode_serialize_mode, cbor_encode_serialize_mode};
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::*;
+use crate::substore::AnnotationSubStoreHandle;
 use crate::types::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -93,10 +94,11 @@ pub struct Config {
     /// You usually don't need to set this yourself, it is used internally when merging annotation stores.
     pub(crate) merge: bool,
 
+    #[serde(skip)]
     #[n(10)]
     /// Index number of the include that is being processed, if any. Multiple indices represent nesting (0-indexed)
     /// You usually don't need to set this yourself, it is used internally when merging annotation stores.
-    pub(crate) current_substore_path: Vec<usize>,
+    pub(crate) current_substore_path: Vec<AnnotationSubStoreHandle>,
 
     /// Enable/disable the reverse index for text, it maps TextResource => TextSelection => Annotation
     #[n(100)]
@@ -147,6 +149,7 @@ impl Default for Config {
             debug: false,
             merge: false,
             serialize_mode: Arc::new(RwLock::new(SerializeMode::AllowInclude)),
+            current_substore_path: Vec::new(),
         }
     }
 }
