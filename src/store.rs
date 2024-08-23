@@ -15,7 +15,7 @@
 //! Do not confuse this more abstract notion of [`Store`] with [`AnnotationStore`].
 //!
 //! This module also implements a structure [`IdMap`] to map public identifiers (strings) to these internal handles.
-//! Moreover, it implements relations maps ([`RelationMap`],[`TripleRelationMap`]) that are used to build the various
+//! Moreover, it implements relations maps ([`RelationMap`],[`TripleRelationMap`],[`SingleRelationMap`]) that are used to build the various
 //! reverse indices. These map one type of handle to another and effectively define the edges of the graph model.
 
 use sealed::sealed;
@@ -485,6 +485,83 @@ where
         for (x, y, z) in iter {
             self.insert(x, y, z);
         }
+    }
+}
+
+#[derive(Clone, Debug, DataSize, Encode, Decode)]
+/// A simple wrapper around a key value map, storing exclusive one on one relations
+pub struct ExclusiveRelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    #[n(0)]
+    data: BTreeMap<A, B>,
+}
+
+impl<A, B> Default for ExclusiveRelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<A, B> Extend<(A, B)> for ExclusiveRelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    fn extend<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<Item = (A, B)>,
+    {
+        for (x, y) in iter {
+            self.insert(x, y);
+        }
+    }
+}
+
+impl<A, B> ExclusiveRelationMap<A, B>
+where
+    A: Handle,
+    B: Handle,
+{
+    pub fn new() -> Self {
+        Self {
+            data: BTreeMap::new(),
+        }
+    }
+
+    /// Insert a relation into the map
+    pub fn insert(&mut self, x: A, y: B) {
+        if self.data.contains_key(&x) {
+            if let Some(entry) = self.data.get_mut(&x) {
+                *entry = y;
+            }
+        } else {
+            self.data.insert(x, y);
+        }
+    }
+
+    /// Remove a relation from the map
+    pub fn remove_all(&mut self, x: A) {
+        self.data.remove(&x);
+    }
+
+    pub fn get(&self, x: A) -> Option<B> {
+        self.data.get(&x).copied()
+    }
+
+    /// Like countinfo(), but returns an extra value at the end of the tuple with the lower-bound estimated memory consumption in bytes.
+    pub fn meminfo(&self) -> usize {
+        data_size(self)
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
 }
 

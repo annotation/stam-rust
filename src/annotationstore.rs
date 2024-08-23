@@ -20,6 +20,7 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
 use std::cmp::Ordering;
+use std::collections::btree_map::BTreeMap;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -200,19 +201,17 @@ pub struct AnnotationStore {
     /// they are part of the main store
     #[n(108)]
     pub(crate) annotation_substore_map:
-        RelationBTreeMap<AnnotationHandle, AnnotationSubStoreHandle>,
+        ExclusiveRelationMap<AnnotationHandle, AnnotationSubStoreHandle>,
 
     /// Reverse index for resources to indicate what substore they are a part of, if they're not found in this structure
     /// they are part of the main store
     #[n(109)]
-    pub(crate) resource_substore_map:
-        RelationBTreeMap<TextResourceHandle, AnnotationSubStoreHandle>,
+    pub(crate) resource_substore_map: RelationMap<TextResourceHandle, AnnotationSubStoreHandle>,
 
     /// Reverse index for datasets to indicate what substore they are a part of, if they're not found in this structure
     /// they are part of the main store
     #[n(110)]
-    pub(crate) dataset_substore_map:
-        RelationBTreeMap<AnnotationDataSetHandle, AnnotationSubStoreHandle>,
+    pub(crate) dataset_substore_map: RelationMap<AnnotationDataSetHandle, AnnotationSubStoreHandle>,
 
     /// path associated with this store
     #[n(200)]
@@ -880,9 +879,9 @@ impl AnnotationStore {
             key_annotation_metamap: TripleRelationMap::new(), //MAYBE TODO: sparse arrays, maybe better with BTreeMap variant?
             data_annotation_metamap: TripleRelationMap::new(),
             textrelationmap: TripleRelationMap::new(),
-            annotation_substore_map: RelationBTreeMap::new(),
-            resource_substore_map: RelationBTreeMap::new(),
-            dataset_substore_map: RelationBTreeMap::new(),
+            annotation_substore_map: ExclusiveRelationMap::new(),
+            resource_substore_map: RelationMap::new(),
+            dataset_substore_map: RelationMap::new(),
             changed: Arc::new(RwLock::new(false)),
             substores: Vec::new(),
             config,
@@ -1717,9 +1716,15 @@ impl AnnotationStore {
     ///  - key_annotation_map (not used yet)
     ///  - key_annotation_metamap
     ///  - data_annotation_metamap
+    ///  - annotation_substore_map
+    ///  - resource_substore_map
+    ///  - dataset_substore_map
     pub fn index_meminfo(
         &self,
     ) -> (
+        usize,
+        usize,
+        usize,
         usize,
         usize,
         usize,
@@ -1744,6 +1749,9 @@ impl AnnotationStore {
             self.key_annotation_map.meminfo(),
             self.key_annotation_metamap.meminfo(),
             self.data_annotation_metamap.meminfo(),
+            self.annotation_substore_map.meminfo(),
+            self.resource_substore_map.meminfo(),
+            self.dataset_substore_map.meminfo(),
         )
     }
 
@@ -2303,7 +2311,12 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                         }
                     };
                     for include in includes {
-                        self.store.add_substore(&include);
+                        self.store.add_substore(&include).map_err(|e| {
+                            <A::Error as serde::de::Error>::custom(format!(
+                                "Failed to add substore: {}",
+                                e
+                            ))
+                        })?;
                     }
                 }
                 "annotations" => {
@@ -2401,11 +2414,20 @@ impl<'de> serde::de::Visitor<'de> for AnnotationsVisitor<'_> {
                     .annotate(annotationbuilder)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
 
-                if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
+                if let Some(substore_handle) = self
+                    .store
+                    .config
+                    .current_substore_path
+                    .iter()
+                    .last()
+                    .copied()
                 {
-                    if let Ok(substore) = self.store.get_mut(*substore_index) {
+                    if let Ok(substore) = self.store.get_mut(substore_handle) {
                         substore.annotations.push(handle)
                     }
+                    self.store
+                        .annotation_substore_map
+                        .insert(handle, substore_handle);
                 }
             } else {
                 break;
@@ -2456,11 +2478,20 @@ impl<'de> serde::de::Visitor<'de> for ResourcesVisitor<'_> {
                     .insert(resource)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
 
-                if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
+                if let Some(substore_handle) = self
+                    .store
+                    .config
+                    .current_substore_path
+                    .iter()
+                    .copied()
+                    .last()
                 {
-                    if let Ok(substore) = self.store.get_mut(*substore_index) {
+                    if let Ok(substore) = self.store.get_mut(substore_handle) {
                         substore.resources.push(handle)
                     }
+                    self.store
+                        .resource_substore_map
+                        .insert(handle, substore_handle);
                 }
             } else {
                 break;
@@ -2514,11 +2545,20 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetsVisitor<'_> {
                     .insert(annotationset)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
 
-                if let Some(substore_index) = self.store.config.current_substore_path.iter().last()
+                if let Some(substore_handle) = self
+                    .store
+                    .config
+                    .current_substore_path
+                    .iter()
+                    .last()
+                    .copied()
                 {
-                    if let Ok(substore) = self.store.get_mut(*substore_index) {
+                    if let Ok(substore) = self.store.get_mut(substore_handle) {
                         substore.annotationsets.push(handle)
                     }
+                    self.store
+                        .dataset_substore_map
+                        .insert(handle, substore_handle);
                 }
             } else {
                 break;

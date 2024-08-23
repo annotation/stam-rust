@@ -134,6 +134,7 @@ pub use store::{
     generate_id, regenerate_id, BuildItem, IdStrategy, Request, ResultItem, StamResult, Storable,
     Store, StoreFor,
 };
+pub use substore::AssignToSubStore;
 pub use text::Text;
 pub use textselection::{
     ResultTextSelection, ResultTextSelectionSet, TestTextSelection, TextSelection,

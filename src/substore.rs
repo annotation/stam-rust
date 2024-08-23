@@ -6,12 +6,13 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::path::PathBuf;
 
-use crate::annotation::AnnotationHandle;
-use crate::annotationdataset::AnnotationDataSetHandle;
+use crate::annotation::{Annotation, AnnotationHandle};
+use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
+use crate::resources::TextResource;
 use crate::resources::TextResourceHandle;
 use crate::store::*;
 use crate::types::*;
@@ -34,7 +35,7 @@ impl Handle for AnnotationSubStoreHandle {
 /// The actual contents are still defined and kept by the parent AnnotationStore.
 /// This structure only holds references used for serialisation purposes.
 #[derive(Debug, Encode, Decode, Default, PartialEq, Clone)]
-pub(crate) struct AnnotationSubStore {
+pub struct AnnotationSubStore {
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::substores that has the ownership
     #[n(0)]
     intid: Option<AnnotationSubStoreHandle>,
@@ -165,5 +166,126 @@ impl AnnotationStore {
     /// used to add a substore to the path, indicating which substore is currently being parsed
     fn pop_current_substore(&mut self) -> bool {
         self.config.current_substore_path.pop().is_some()
+    }
+}
+
+pub trait AssignToSubStore<T>
+where
+    T: Storable,
+{
+    /// Assigns an item to a substore.
+    /// Depending on the type of item, this can be either an exclusive assignment (one-to-one) or allow multiple (one-to-many)
+    /// Annotations are always exclusive (one-to-one), Resources and datasets can be one-to-many if
+    /// and only if they are stand-off (i.e. they have an associated filename and use the @include
+    /// mechanism).
+    /// If this is called on exclusive items, they old substore will be unassigned before the new one is assigned.
+    fn assign_substore(
+        &mut self,
+        item: impl Request<T>,
+        substore: impl Request<AnnotationSubStore>,
+    ) -> Result<(), StamError>;
+}
+
+impl AssignToSubStore<Annotation> for AnnotationStore {
+    fn assign_substore(
+        &mut self,
+        item: impl Request<Annotation>,
+        substore: impl Request<AnnotationSubStore>,
+    ) -> Result<(), StamError> {
+        if let Some(handle) = item.to_handle(self) {
+            //check if the item is already assigned to a substore
+            //as this is an exclusive relation (unlike resources/datasets that use @include)
+            if let Some(substore_handle) = self.annotation_substore_map.get(handle) {
+                //then first remove it from the substore
+                let substore = self.get_mut(substore_handle)?;
+                if let Some(pos) = substore.annotations.iter().position(|x| *x == handle) {
+                    substore.annotations.remove(pos);
+                }
+                self.annotation_substore_map.remove_all(handle);
+            }
+
+            let substore = self.get_mut(substore)?;
+            let substore_handle = substore.handle().expect("substore must have handle");
+            substore.annotations.push(handle);
+            self.annotation_substore_map.insert(handle, substore_handle);
+            Ok(())
+        } else {
+            Err(StamError::NotFoundError(Type::Annotation, "Not found"))
+        }
+    }
+}
+
+impl AssignToSubStore<TextResource> for AnnotationStore {
+    fn assign_substore(
+        &mut self,
+        item: impl Request<TextResource>,
+        substore: impl Request<AnnotationSubStore>,
+    ) -> Result<(), StamError> {
+        if let Some(handle) = item.to_handle(self) {
+            let resource = self.get(handle)?;
+            if resource.filename().is_some() {
+                //the resource is not stand-off, so the relation is exclusive
+                //check if the item is already assigned to a substore
+                if let Some(substore_handles) = self.resource_substore_map.get(handle) {
+                    let substore_handles: Vec<_> = substore_handles.clone();
+                    for substore_handle in substore_handles {
+                        //then first remove it from the substore
+                        let substore = self.get_mut(substore_handle)?;
+                        if let Some(pos) = substore.resources.iter().position(|x| *x == handle) {
+                            substore.resources.remove(pos);
+                        }
+                    }
+                    self.resource_substore_map.remove_all(handle);
+                }
+            }
+
+            let substore = self.get_mut(substore)?;
+            let substore_handle = substore.handle().expect("substore must have handle");
+            if !substore.resources.contains(&handle) {
+                substore.resources.push(handle);
+            }
+            self.resource_substore_map.insert(handle, substore_handle);
+            Ok(())
+        } else {
+            Err(StamError::NotFoundError(Type::Annotation, "Not found"))
+        }
+    }
+}
+
+impl AssignToSubStore<AnnotationDataSet> for AnnotationStore {
+    fn assign_substore(
+        &mut self,
+        item: impl Request<AnnotationDataSet>,
+        substore: impl Request<AnnotationSubStore>,
+    ) -> Result<(), StamError> {
+        if let Some(handle) = item.to_handle(self) {
+            let dataset = self.get(handle)?;
+            if dataset.filename().is_some() {
+                //the dataset is not stand-off, so the relation is exclusive
+                //check if the item is already assigned to a substore
+                if let Some(substore_handles) = self.dataset_substore_map.get(handle) {
+                    let substore_handles: Vec<_> = substore_handles.clone();
+                    for substore_handle in substore_handles {
+                        //then first remove it from the substore
+                        let substore = self.get_mut(substore_handle)?;
+                        if let Some(pos) = substore.annotationsets.iter().position(|x| *x == handle)
+                        {
+                            substore.annotationsets.remove(pos);
+                        }
+                    }
+                    self.dataset_substore_map.remove_all(handle);
+                }
+            }
+
+            let substore = self.get_mut(substore)?;
+            let substore_handle = substore.handle().expect("substore must have handle");
+            if !substore.annotationsets.contains(&handle) {
+                substore.annotationsets.push(handle);
+            }
+            self.dataset_substore_map.insert(handle, substore_handle);
+            Ok(())
+        } else {
+            Err(StamError::NotFoundError(Type::Annotation, "Not found"))
+        }
     }
 }
