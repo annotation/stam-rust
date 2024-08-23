@@ -18,6 +18,7 @@ mod annotationstore;
 mod datakey;
 mod query;
 mod resources;
+mod substore;
 mod text;
 mod textselection;
 
@@ -33,6 +34,7 @@ pub use annotationdataset::*;
 pub use datakey::*;
 pub use query::*;
 pub use resources::*;
+pub use substore::*;
 pub use text::*;
 pub use textselection::*;
 
@@ -801,11 +803,7 @@ pub(crate) enum Filter<'store> {
         SelectionQualifier,
     ),
     AnnotationDataSet(AnnotationDataSetHandle, SelectionQualifier),
-    DataKey(
-        AnnotationDataSetHandle,
-        DataKeyHandle,
-        SelectionQualifier,
-    ),
+    DataKey(AnnotationDataSetHandle, DataKeyHandle, SelectionQualifier),
     DataKeyAndOperator(
         AnnotationDataSetHandle,
         DataKeyHandle,
@@ -813,11 +811,7 @@ pub(crate) enum Filter<'store> {
         SelectionQualifier,
     ),
 
-    Annotation(
-        AnnotationHandle,
-        SelectionQualifier,
-        AnnotationDepth,
-    ),
+    Annotation(AnnotationHandle, SelectionQualifier, AnnotationDepth),
 
     TextResource(TextResourceHandle, SelectionQualifier),
 
@@ -840,11 +834,7 @@ pub(crate) enum Filter<'store> {
         FilterMode,
         SelectionQualifier,
     ),
-    Keys(
-        Handles<'store, DataKey>,
-        FilterMode,
-        SelectionQualifier,
-    ),
+    Keys(Handles<'store, DataKey>, FilterMode, SelectionQualifier),
     DataSets(
         Handles<'store, AnnotationDataSet>,
         FilterMode,

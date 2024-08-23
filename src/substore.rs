@@ -60,6 +60,18 @@ pub struct AnnotationSubStore {
     pub(crate) resources: Vec<TextResourceHandle>,
 }
 
+impl AnnotationSubStore {
+    /// Returns the ID of the annotation store (if any)
+    pub fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+
+    /// Returns the filename of the annotation store (if any)
+    pub fn filename(&self) -> Option<&PathBuf> {
+        self.filename.as_ref()
+    }
+}
+
 #[sealed]
 impl TypeInfo for AnnotationSubStore {
     fn typeinfo() -> Type {
