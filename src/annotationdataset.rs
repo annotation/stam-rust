@@ -341,7 +341,7 @@ impl Serialize for AnnotationDataSet {
                 state.serialize_field("@id", id.as_str())?;
             }
             state.serialize_field("keys", &self.keys)?;
-            let wrappedstore: WrappedStore<AnnotationData, Self> = self.wrap_store();
+            let wrappedstore: WrappedStore<AnnotationData, Self> = self.wrap_store(None);
             state.serialize_field("data", &wrappedstore)?;
         }
         state.end()

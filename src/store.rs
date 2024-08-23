@@ -35,6 +35,7 @@ use nanoid::nanoid;
 use crate::annotationstore::AnnotationStore;
 use crate::config::Configurable;
 use crate::error::StamError;
+use crate::substore::AnnotationSubStoreHandle;
 use crate::types::*;
 
 /// Type for Store elements. The struct that owns a field of this type should implement the trait [`StoreFor<T>`]
@@ -979,13 +980,14 @@ pub(crate) mod private {
 pub(crate) trait WrappableStore<T: Storable>: StoreFor<T> {
     /// Wraps the entire store along with a reference to self
     /// Low-level method that you won't need
-    fn wrap_store(&self) -> WrappedStore<T, Self>
+    fn wrap_store(&self, substore: Option<AnnotationSubStoreHandle>) -> WrappedStore<T, Self>
     where
         Self: Sized,
     {
         WrappedStore {
             store: self.store(),
             parent: self,
+            substore,
         }
     }
 }
@@ -1324,6 +1326,7 @@ where
 {
     pub(crate) store: &'a Store<T>,
     pub(crate) parent: &'a S,
+    pub(crate) substore: Option<AnnotationSubStoreHandle>,
 }
 
 impl<'a, T, S> Deref for WrappedStore<'a, T, S>

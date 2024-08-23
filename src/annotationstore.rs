@@ -676,16 +676,50 @@ impl Serialize for AnnotationStore {
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("AnnotationStore", 2)?;
+        let mut state = serializer.serialize_struct("AnnotationStore", 3)?;
         state.serialize_field("@type", "AnnotationStore")?;
         if let Some(id) = self.id() {
             state.serialize_field("@id", id)?;
         }
-        let wrappedstore: WrappedStore<TextResource, Self> = self.wrap_store();
+        if !self.substores.is_empty() {
+            if self.substores.len() == 1 {
+                if let Some(substore) =
+                    <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self)
+                        .filter(|substore| substore.parent.is_none())
+                        .next()
+                {
+                    state.serialize_field(
+                        "@include",
+                        substore.filename().ok_or(serde::ser::Error::custom(
+                            "substore must have filename or can not be serialised",
+                        ))?,
+                    )?;
+                }
+            } else {
+                let substores_filenames: Vec<_> =
+                    <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self)
+                        .filter(|substore| substore.parent.is_none())
+                        .filter_map(|substore| substore.filename())
+                        .collect();
+                state.serialize_field("@include", &substores_filenames)?;
+            }
+            //serialise the substores to independent stand-off files
+            //this is mediated by a higher-level API concept (ResultItem)
+            for substore in self.substores() {
+                substore.save().map_err(|e| {
+                    serde::ser::Error::custom(format!(
+                        "Failure serialising substore {:?}: {}",
+                        substore.as_ref().filename(),
+                        e
+                    ))
+                })?;
+            }
+        }
+        let wrappedstore: WrappedStore<TextResource, Self> = self.wrap_store(None);
         state.serialize_field("resources", &wrappedstore)?;
-        let wrappedstore: WrappedStore<AnnotationDataSet, Self> = self.wrap_store();
+        let wrappedstore: WrappedStore<AnnotationDataSet, Self> = self.wrap_store(None);
         state.serialize_field("annotationsets", &wrappedstore)?;
-        let wrappedstore: WrappedStore<Annotation, Self> = self.wrap_store();
+        let wrappedstore: WrappedStore<Annotation, Self> = self.wrap_store(None);
         state.serialize_field("annotations", &wrappedstore)?;
         state.end()
     }
@@ -697,9 +731,17 @@ impl<'a> Serialize for WrappedStore<'a, Annotation, AnnotationStore> {
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
-        for data in self.store.iter() {
-            if let Some(data) = data {
-                seq.serialize_element(&data.as_resultitem(self.parent, self.parent))?;
+        for annotation in self.store.iter() {
+            if let Some(annotation) = annotation {
+                if self
+                    .parent
+                    .annotation_substore_map
+                    .get(annotation.handle().expect("annotation must have handle"))
+                    == self.substore
+                //output the selected substore (or main store) only
+                {
+                    seq.serialize_element(&annotation.as_resultitem(self.parent, self.parent))?;
+                }
             }
         }
         seq.end()
@@ -712,9 +754,20 @@ impl<'a> Serialize for WrappedStore<'a, TextResource, AnnotationStore> {
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
-        for item in self.store.iter() {
-            if let Some(item) = item {
-                seq.serialize_element(item)?;
+        for resource in self.store.iter() {
+            if let Some(resource) = resource {
+                let found_substores = self
+                    .parent
+                    .resource_substore_map
+                    .get(resource.handle().expect("resource must have handle"));
+                if (found_substores.is_none() && self.substore.is_none())
+                    || (found_substores.is_some()
+                        && self.substore.is_some()
+                        && found_substores.unwrap().contains(&self.substore.unwrap()))
+                //output the selected substore (or main store) only
+                {
+                    seq.serialize_element(resource)?;
+                }
             }
         }
         seq.end()
@@ -727,9 +780,20 @@ impl<'a> Serialize for WrappedStore<'a, AnnotationDataSet, AnnotationStore> {
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(Some(self.store.len()))?;
-        for item in self.store.iter() {
-            if let Some(item) = item {
-                seq.serialize_element(item)?;
+        for dataset in self.store.iter() {
+            if let Some(dataset) = dataset {
+                let found_substores = self
+                    .parent
+                    .dataset_substore_map
+                    .get(dataset.handle().expect("dataset must have handle"));
+                if (found_substores.is_none() && self.substore.is_none())
+                    || (found_substores.is_some()
+                        && self.substore.is_some()
+                        && found_substores.unwrap().contains(&self.substore.unwrap()))
+                //output the selected substore (or main store) only
+                {
+                    seq.serialize_element(dataset)?;
+                }
             }
         }
         seq.end()
@@ -1115,6 +1179,7 @@ impl AnnotationStore {
     /// Use [`AnnotationStore::to_file()`] instead if you want to write elsewhere.
     ///
     /// Note: If multiple stores were loaded and merged, this will write all merged results in place of the first loaded store!
+    ///       Only if substores are used (via the @include mechanism in STAM JSON), then everything is written to separate substores
     pub fn save(&self) -> Result<(), StamError> {
         debug(self.config(), || format!("AnnotationStore.save"));
         if self.filename.is_some() {

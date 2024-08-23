@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
+use crate::config::Configurable;
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
@@ -301,3 +302,78 @@ impl AssignToSubStore<AnnotationDataSet> for AnnotationStore {
         }
     }
 }
+
+// v-- these use some higher level API concepts (since we need a reference to the whole store for serialisation)
+
+impl<'store> Serialize for ResultItem<'store, AnnotationSubStore> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("AnnotationStore", 3)?;
+        state.serialize_field("@type", "AnnotationStore")?;
+        if let Some(id) = self.id() {
+            state.serialize_field("@id", id)?;
+        }
+        let substores: Vec<_> = self.substores().collect();
+        let substore_handle = Some(self.handle());
+        if !substores.is_empty() {
+            if substores.len() == 1 {
+                if let Some(substore) =
+                    <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self.store())
+                        .filter(|substore| substore.parent == substore_handle)
+                        .next()
+                {
+                    state.serialize_field(
+                        "@include",
+                        substore.filename().ok_or(serde::ser::Error::custom(
+                            "substore must have filename or can not be serialised",
+                        ))?,
+                    )?;
+                }
+            } else {
+                let substores_filenames: Vec<_> =
+                    <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self.store())
+                        .filter(|substore| substore.parent == substore_handle)
+                        .filter_map(|substore| substore.filename())
+                        .collect();
+                state.serialize_field("@include", &substores_filenames)?;
+            }
+        }
+        let wrappedstore: WrappedStore<TextResource, AnnotationStore> =
+            self.store().wrap_store(substore_handle);
+        state.serialize_field("resources", &wrappedstore)?;
+        let wrappedstore: WrappedStore<AnnotationDataSet, AnnotationStore> =
+            self.store().wrap_store(substore_handle);
+        state.serialize_field("annotationsets", &wrappedstore)?;
+        let wrappedstore: WrappedStore<Annotation, AnnotationStore> =
+            self.store().wrap_store(substore_handle);
+        state.serialize_field("annotations", &wrappedstore)?;
+        state.end()
+    }
+}
+
+impl<'store> ResultItem<'store, AnnotationSubStore> {
+    pub fn save(&self) -> Result<(), StamError> {
+        debug(self.store().config(), || format!("AnnotationStore.save"));
+        if let Some(filename) = self.as_ref().filename.as_ref() {
+            match self.store().config().dataformat {
+                DataFormat::Json { .. } => {
+                    self.to_json_file(
+                        filename.to_str().expect("filename must be valid UTF-8"),
+                        self.store().config(),
+                    ) //may produce 1 or multiple files
+                }
+                _ => Err(StamError::SerializationError(
+                    "Only JSON serialisation is supported for substores".to_owned(),
+                )),
+            }
+        } else {
+            Err(StamError::SerializationError(
+                "No filename associated with the store".to_owned(),
+            ))
+        }
+    }
+}
+
+impl<'store> ToJson for ResultItem<'store, AnnotationSubStore> {}
