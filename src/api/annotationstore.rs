@@ -16,12 +16,12 @@ use crate::annotation::Annotation;
 use crate::annotationdata::AnnotationData;
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::api::*;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::DataOperator;
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::ResultTextSelection;
+use crate::{api::*, AnnotationSubStore};
 
 use std::collections::BTreeSet;
 
@@ -96,6 +96,15 @@ impl AnnotationStore {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
+    /// Requests a specific [`AnnotationSubStore`] from the store to be returned by reference.
+    /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, [`String`] or [`AnnotationSubStoreHandle`].
+    pub fn substore(
+        &self,
+        request: impl Request<AnnotationSubStore>,
+    ) -> Option<ResultItem<AnnotationSubStore>> {
+        self.get(request).map(|x| x.as_resultitem(self, self)).ok()
+    }
+
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<TextResource>`]),
     /// which exposes the high-level API.
@@ -127,6 +136,34 @@ impl AnnotationStore {
         ResultIter::new_sorted(
             self.iter()
                 .map(|a: &'a Annotation| a.as_resultitem(self, self)),
+        )
+    }
+
+    /// Returns an iterator over all substores ([`AnnotationSubStore`] instances) in the store.
+    /// The resulting iterator yields items as a fat pointer [`ResultItem<AnnotationSubStore>`]),
+    /// which exposes the high-level API. Note that each substore may itself consist of substores!
+    /// If you want a flattened representation, use `substores_flatten()` instead
+    pub fn substores<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, AnnotationSubStore>>> {
+        ResultIter::new_sorted(self.iter().filter_map(|a: &'a AnnotationSubStore| {
+            if a.parent.is_none() {
+                Some(a.as_resultitem(self, self))
+            } else {
+                None
+            }
+        }))
+    }
+
+    /// Returns an iterator over all substores ([`AnnotationSubStore`] instances) in the store, including substores that are nested in others.
+    /// The resulting iterator yields items as a fat pointer [`ResultItem<AnnotationSubStore>`]),
+    /// which exposes the high-level API.
+    pub fn substores_flatten<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, AnnotationSubStore>>> {
+        ResultIter::new_sorted(
+            self.iter()
+                .map(|a: &'a AnnotationSubStore| a.as_resultitem(self, self)),
         )
     }
 
