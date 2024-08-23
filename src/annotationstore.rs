@@ -2311,7 +2311,12 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                         }
                     };
                     for include in includes {
-                        self.store.add_substore(&include);
+                        self.store.add_substore(&include).map_err(|e| {
+                            <A::Error as serde::de::Error>::custom(format!(
+                                "Failed to add substore: {}",
+                                e
+                            ))
+                        })?;
                     }
                 }
                 "annotations" => {

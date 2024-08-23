@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
-use crate::config::Configurable;
 use crate::error::StamError;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
@@ -176,7 +175,10 @@ where
 {
     /// Assigns an item to a substore.
     /// Depending on the type of item, this can be either an exclusive assignment (one-to-one) or allow multiple (one-to-many)
-    /// Annotations are always one-to-one, Resources and datasets can be one-to-many if and only if they are stand-off (using the @include mechanism).
+    /// Annotations are always exclusive (one-to-one), Resources and datasets can be one-to-many if
+    /// and only if they are stand-off (i.e. they have an associated filename and use the @include
+    /// mechanism).
+    /// If this is called on exclusive items, they old substore will be unassigned before the new one is assigned.
     fn assign_substore(
         &mut self,
         item: impl Request<T>,
@@ -221,7 +223,7 @@ impl AssignToSubStore<TextResource> for AnnotationStore {
     ) -> Result<(), StamError> {
         if let Some(handle) = item.to_handle(self) {
             let resource = self.get(handle)?;
-            if !resource.config().use_include() {
+            if resource.filename().is_some() {
                 //the resource is not stand-off, so the relation is exclusive
                 //check if the item is already assigned to a substore
                 if let Some(substore_handles) = self.resource_substore_map.get(handle) {
@@ -258,7 +260,7 @@ impl AssignToSubStore<AnnotationDataSet> for AnnotationStore {
     ) -> Result<(), StamError> {
         if let Some(handle) = item.to_handle(self) {
             let dataset = self.get(handle)?;
-            if !dataset.config().use_include() {
+            if dataset.filename().is_some() {
                 //the dataset is not stand-off, so the relation is exclusive
                 //check if the item is already assigned to a substore
                 if let Some(substore_handles) = self.dataset_substore_map.get(handle) {
