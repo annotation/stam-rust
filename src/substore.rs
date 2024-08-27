@@ -143,15 +143,16 @@ impl Storable for AnnotationSubStore {
 }
 
 impl AnnotationStore {
-    /// Adds another AnnotationStore as a stand-off dependency (uses the @include mechanism in STAM JSON)
-    pub fn add_substore(&mut self, filename: &str) -> Result<(), StamError> {
+    /// Adds another existing AnnotationStore as a stand-off dependency (uses the @include mechanism in STAM JSON)
+    /// If you want to start a new substore that does not exist yet, use [`add_new_substore`] instead.
+    pub fn add_substore(&mut self, filename: &str) -> Result<AnnotationSubStoreHandle, StamError> {
         if !self.substores.is_empty() {
             // check if the substore is already loaded (it may be referenced from multiple places)
             // in that case we don't need to process it again
             let foundpath = Some(get_filepath(filename, self.config.workdir())?);
             for substore in <Self as StoreFor<AnnotationSubStore>>::iter(self) {
                 if substore.filename == foundpath {
-                    return Ok(());
+                    return Ok(substore.handle().expect("substore must have handle"));
                 }
             }
         }
@@ -168,7 +169,37 @@ impl AnnotationStore {
         self.push_current_substore(handle);
         self.merge_json_file(filename)?;
         self.pop_current_substore();
-        Ok(())
+        Ok(handle)
+    }
+
+    /// Adds a new AnnotationStore as a stand-off dependency (uses the @include mechanism in STAM JSON)
+    /// It will be created from scratch (or overwritten!)
+    /// If you want to add an already existing AnnotationStore as a substore, use [`add_substore`] instead.
+    pub fn add_new_substore(
+        &mut self,
+        filename: &str,
+    ) -> Result<AnnotationSubStoreHandle, StamError> {
+        if !self.substores.is_empty() {
+            // check if the substore is already loaded (it may be referenced from multiple places)
+            // in that case we don't need to process it again
+            let foundpath = Some(get_filepath(filename, self.config.workdir())?);
+            for substore in <Self as StoreFor<AnnotationSubStore>>::iter(self) {
+                if substore.filename == foundpath {
+                    return Ok(substore.handle().expect("substore must have handle"));
+                }
+            }
+        }
+        let new_index = self.substores.len();
+        let parent_index = if new_index == 0 {
+            None
+        } else {
+            Some(new_index - 1)
+        };
+        let handle = self.insert(
+            AnnotationSubStore::default()
+                .with_parent(parent_index.map(|x| AnnotationSubStoreHandle::new(x))),
+        )?; //this data will be modified whilst parsing
+        Ok(handle)
     }
 
     /// used to add a substore to the path, indicating which substore is currently being parsed

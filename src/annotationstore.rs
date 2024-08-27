@@ -840,7 +840,7 @@ impl FromJson for AnnotationStore {
     /// The file must contain a single object which has "@type": "AnnotationStore"
     fn merge_json_file(&mut self, filename: &str) -> Result<(), StamError> {
         debug(self.config(), || {
-            format!("AnnotationStore::from_json_file: filename={:?}", filename)
+            format!("AnnotationStore::merge_json_file: filename={:?}", filename)
         });
         let reader = open_file_reader(filename, self.config())?;
 
@@ -852,6 +852,19 @@ impl FromJson for AnnotationStore {
             }
         }
 
+        let previous_workdir = self.config.workdir.clone();
+        let mut workdir: PathBuf = filename.into();
+        workdir.pop();
+        if !workdir.to_str().expect("path to string").is_empty() {
+            debug(&self.config, || {
+                format!(
+                    "AnnotationStore::merge_json_file: temporarily setting workdir to {:?}",
+                    workdir
+                )
+            });
+            self.config.workdir = Some(workdir);
+        }
+
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
         self.set_merge_mode(true);
 
@@ -861,6 +874,9 @@ impl FromJson for AnnotationStore {
 
         self.set_merge_mode(false);
 
+        //reset
+        self.config.workdir = previous_workdir;
+
         Ok(())
     }
 
@@ -868,7 +884,7 @@ impl FromJson for AnnotationStore {
     /// The string must contain a single object which has "@type": "AnnotationStore"
     fn merge_json_str(&mut self, string: &str) -> Result<(), StamError> {
         debug(self.config(), || {
-            format!("AnnotationStore::from_json_str: string={:?}", string)
+            format!("AnnotationStore::merge_json_str: string={:?}", string)
         });
         let deserializer = &mut serde_json::Deserializer::from_str(string);
 

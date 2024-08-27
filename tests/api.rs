@@ -3191,3 +3191,33 @@ fn textvalidation_texts() -> Result<(), StamError> {
     assert!(store.validate_text(true).is_ok());
     Ok(())
 }
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn add_substore() -> Result<(), StamError> {
+    let mut store = AnnotationStore::new(Config::default())
+        .with_id("superstore")
+        .with_filename("/tmp/superstore.stam.json");
+
+    //add substore
+    store.add_substore(&format!(
+        "{}/tests/test.store.stam.json",
+        CARGO_MANIFEST_DIR
+    ))?;
+
+    // Create a dataset with one key and insert it into the main store
+    let dataset = AnnotationDataSet::new(Config::default())
+        .with_id("metadataset")
+        .with_filename("/tmp/metadata.dataset.stam.json");
+    let dataset_handle = store.insert(dataset)?;
+
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_data(dataset_handle, "author", "proycon")
+            .with_target(SelectorBuilder::ResourceSelector("hello.txt".into())),
+    )?;
+
+    store.save()?;
+
+    Ok(())
+}
