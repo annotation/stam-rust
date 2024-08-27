@@ -1,0 +1,35 @@
+{
+    "@type": "AnnotationStore",
+    "@id": "includetest",
+    "@include": "test.store.stam.json",
+    "resources": [],
+    "annotationsets": [],
+    "annotations": [
+        {
+          "@type": "Annotation",
+          "@id": "A3",
+          "target": {
+            "@type": "TextSelector",
+            "resource": "hello.txt",
+            "offset": {
+              "@type": "Offset",
+              "begin": {
+                "@type": "BeginAlignedCursor",
+                "value": 0
+              },
+              "end": {
+                "@type": "BeginAlignedCursor",
+                "value": 5
+              }
+            }
+          },
+          "data": [
+            {
+              "@type": "AnnotationData",
+              "@id": "PosInterjection",
+              "set": "https://example.org/test/"
+            }
+          ]
+        }
+    ]
+}

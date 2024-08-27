@@ -760,6 +760,39 @@ fn test_read_include() -> Result<(), StamError> {
 }
 
 #[test]
+fn test_read_include_annotationstore() -> Result<(), StamError> {
+    let store = AnnotationStore::from_file(
+        "tests/includetest.store.stam.json",
+        Config::default().with_debug(true),
+    )?;
+    test_example_a_sanity(&store)?;
+
+    //annotation in main store
+    let annotation = store.annotation("A3").or_fail()?;
+    assert_eq!(annotation.text().next().unwrap(), "Hallå");
+    for data in annotation.data() {
+        assert_eq!(data.key().id(), Some("pos"));
+        assert_eq!(data.id(), Some("PosInterjection"));
+        assert_eq!(data.set().id(), Some("https://example.org/test/"));
+        assert_eq!(data.value(), "interjection");
+    }
+
+    let mut count = 0;
+    for substore in store.substores() {
+        count += 1;
+        assert_eq!(substore.id(), Some("Example A"));
+        assert_eq!(
+            substore.annotations().count(),
+            2,
+            "Two annotations in substore"
+        )
+    }
+    assert_eq!(count, 1);
+
+    Ok(())
+}
+
+#[test]
 fn find_text() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
     store.insert(
