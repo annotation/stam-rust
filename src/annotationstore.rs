@@ -1343,6 +1343,11 @@ impl AnnotationStore {
         self.annotationsets.len()
     }
 
+    /// Returns the number of substores in the store (deletions are not substracted)
+    pub fn substores_len(&self) -> usize {
+        self.substores.len()
+    }
+
     /// Builds a [`Selector`] based on its [`SelectorBuilder`], this will produce an error if the selected resource does not exist.
     /// This is a low-level method that you shouldn't need to call yourself.
     pub fn selector(&mut self, item: SelectorBuilder) -> Result<Selector, StamError> {
@@ -1750,6 +1755,9 @@ impl AnnotationStore {
         usize,
         usize,
         usize,
+        usize,
+        usize,
+        usize,
     ) {
         (
             self.dataset_data_annotation_map.len(),
@@ -1763,6 +1771,9 @@ impl AnnotationStore {
             self.key_annotation_map.len(),
             self.key_annotation_metamap.len(),
             self.data_annotation_metamap.len(),
+            self.annotation_substore_map.len(),
+            self.resource_substore_map.len(),
+            self.dataset_substore_map.len(),
         )
     }
 

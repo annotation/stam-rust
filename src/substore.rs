@@ -35,7 +35,7 @@ impl Handle for AnnotationSubStoreHandle {
 /// A substore is a sub-collection of annotations that is serialised as an independent AnnotationStore,
 /// The actual contents are still defined and kept by the parent AnnotationStore.
 /// This structure only holds references used for serialisation purposes.
-#[derive(Debug, Encode, Decode, Default, PartialEq, Clone)]
+#[derive(Debug, Encode, Decode, Default, PartialEq, Clone, DataSize)]
 pub struct AnnotationSubStore {
     ///Internal numeric ID, corresponds with the index in the AnnotationStore::substores that has the ownership
     #[n(0)]
@@ -70,6 +70,30 @@ impl AnnotationSubStore {
     /// Returns the filename of the annotation store (if any)
     pub fn filename(&self) -> Option<&PathBuf> {
         self.filename.as_ref()
+    }
+
+    /// Returns a lower-bound estimate of memory usage in bytes
+    pub fn meminfo(&self) -> usize {
+        return data_size(self);
+    }
+
+    /// Returns the number of annotations in the store (deletions are not substracted)
+    pub fn annotations_len(&self) -> usize {
+        self.annotations.len()
+    }
+
+    /// Returns the number of resources  in the store (deletions are not substracted)
+    pub fn resources_len(&self) -> usize {
+        self.resources.len()
+    }
+
+    /// Returns the number of datasets in the store (deletions are not substracted)
+    pub fn datasets_len(&self) -> usize {
+        self.annotationsets.len()
+    }
+
+    pub fn parent(&self) -> Option<AnnotationSubStoreHandle> {
+        self.parent
     }
 }
 

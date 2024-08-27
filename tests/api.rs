@@ -3205,7 +3205,7 @@ fn add_substore() -> Result<(), StamError> {
         CARGO_MANIFEST_DIR
     ))?;
 
-    // Create a dataset with one key and insert it into the main store
+    // Create a new dataset and insert it into the main store
     let dataset = AnnotationDataSet::new(Config::default())
         .with_id("metadataset")
         .with_filename("/tmp/metadata.dataset.stam.json");
