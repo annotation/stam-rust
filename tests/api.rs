@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
+use std::process::Command;
 
 mod common;
 use crate::common::*;
@@ -749,6 +750,28 @@ fn read_single() -> Result<(), StamError> {
     Ok(())
 }
 
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn write_single() -> Result<(), StamError> {
+    let mut store = AnnotationStore::from_file(
+        &format!("{}/tests/singletest.store.stam.json", CARGO_MANIFEST_DIR),
+        Config::default(),
+    )?;
+    store.set_filename("/tmp/singletest.store.stam.json");
+    store.save()?;
+    let output = Command::new("diff")
+        .arg("-w")
+        .arg(format!(
+            "{}/tests/singletest.store.stam.json",
+            CARGO_MANIFEST_DIR
+        ))
+        .arg("/tmp/singletest.store.stam.json")
+        .output()
+        .expect("failed to run diff");
+    assert!(output.status.success());
+    Ok(())
+}
+
 #[test]
 fn test_read_include() -> Result<(), StamError> {
     let store = AnnotationStore::from_file(
@@ -756,6 +779,25 @@ fn test_read_include() -> Result<(), StamError> {
         Config::default().with_debug(true),
     )?;
     test_example_a_sanity(&store)?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn test_write_include() -> Result<(), StamError> {
+    let mut store = AnnotationStore::from_file(
+        &format!("{}/tests/test.store.stam.json", CARGO_MANIFEST_DIR),
+        Config::default().with_debug(true),
+    )?;
+    store.set_filename("/tmp/test.store.stam.json");
+    store.save()?;
+    let output = Command::new("diff")
+        .arg("-w")
+        .arg(format!("{}/tests/test.store.stam.json", CARGO_MANIFEST_DIR))
+        .arg("/tmp/test.store.stam.json")
+        .output()
+        .expect("failed to run diff");
+    assert!(output.status.success());
     Ok(())
 }
 
@@ -789,6 +831,28 @@ fn test_read_include_annotationstore() -> Result<(), StamError> {
     }
     assert_eq!(count, 1);
 
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn test_write_include_annotationstore() -> Result<(), StamError> {
+    let mut store = AnnotationStore::from_file(
+        "tests/includetest.store.stam.json",
+        Config::default().with_debug(true),
+    )?;
+    store.set_filename("/tmp/includetest.store.stam.json");
+    store.save()?;
+    let output = Command::new("diff")
+        .arg("-w")
+        .arg(format!(
+            "{}/tests/includetest.store.stam.json",
+            CARGO_MANIFEST_DIR
+        ))
+        .arg("/tmp/includetest.store.stam.json")
+        .output()
+        .expect("failed to run diff");
+    assert!(output.status.success());
     Ok(())
 }
 

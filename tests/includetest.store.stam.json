@@ -1,7 +1,7 @@
 {
     "@type": "AnnotationStore",
     "@id": "includetest",
-    "@include": "test.store.stam.json",
+    "@include": "tests/test.store.stam.json",
     "resources": [],
     "annotationsets": [],
     "annotations": [

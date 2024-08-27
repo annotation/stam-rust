@@ -1,51 +1,61 @@
 { 
     "@type": "AnnotationStore",
-    "annotationsets": [{
-        "@type": "AnnotationDataSet",
-        "@id": "testdataset",
-        "keys": [
-            {
-              "@type": "DataKey",
-              "@id": "pos"
-            }
-        ],
-        "data": [
-            {
+    "resources": [
+        {
+            "@type": "TextResource",
+            "@id": "testres",
+            "text": "Hello world"
+        }
+    ],
+    "annotationsets": [
+        {
+            "@type": "AnnotationDataSet",
+            "@id": "testdataset",
+            "keys": [
+                {
+                  "@type": "DataKey",
+                  "@id": "pos"
+                }
+            ],
+            "data": [
+                {
+                    "@type": "AnnotationData",
+                    "@id": "D1",
+                    "key": "pos",
+                    "value": {
+                        "@type": "String",
+                        "value": "noun"
+                    }
+                }
+            ]
+        }
+    ],
+    "annotations": [
+        {
+            "@type": "Annotation",
+            "@id": "A1",
+            "target": {
+                "@type": "TextSelector",
+                "resource": "testres",
+                "offset": {
+                    "@type": "Offset",
+                    "begin": {
+                        "@type": "BeginAlignedCursor",
+                        "value": 6
+                    },
+                    "end": {
+                        "@type": "BeginAlignedCursor",
+                        "value": 11
+                    }
+                }
+            },
+            "data": [
+                {
                 "@type": "AnnotationData",
                 "@id": "D1",
-                "key": "pos",
-                "value": {
-                    "@type": "String",
-                    "value": "noun"
+                "set": "testdataset"
                 }
-            }
-        ]
-    }],
-    "resources": [{
-        "@id": "testres",
-        "text": "Hello world"
-    }],
-    "annotations": [{
-        "@type": "Annotation",
-        "@id": "A1",
-        "target": {
-            "@type": "TextSelector",
-            "resource": "testres",
-            "offset": {
-                "begin": {
-                    "@type": "BeginAlignedCursor",
-                    "value": 6
-                },
-                "end": {
-                    "@type": "BeginAlignedCursor",
-                    "value": 11
-                }
-            }
-        },
-        "data": [{
-            "@type": "AnnotationData",
-            "@id": "D1",
-            "set": "testdataset"
-        }]
-    }]
+            ]
+        }
+    ]
 }
