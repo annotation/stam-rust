@@ -247,7 +247,7 @@ impl AnnotationStore {
     }
 }
 
-pub trait AssignToSubStore<T>
+pub trait AssociateSubStore<T>
 where
     T: Storable,
 {
@@ -257,15 +257,15 @@ where
     /// and only if they are stand-off (i.e. they have an associated filename and use the @include
     /// mechanism).
     /// If this is called on exclusive items, they old substore will be unassigned before the new one is assigned.
-    fn assign_substore(
+    fn associate_substore(
         &mut self,
         item: impl Request<T>,
         substore: impl Request<AnnotationSubStore>,
     ) -> Result<(), StamError>;
 }
 
-impl AssignToSubStore<Annotation> for AnnotationStore {
-    fn assign_substore(
+impl AssociateSubStore<Annotation> for AnnotationStore {
+    fn associate_substore(
         &mut self,
         item: impl Request<Annotation>,
         substore: impl Request<AnnotationSubStore>,
@@ -293,8 +293,8 @@ impl AssignToSubStore<Annotation> for AnnotationStore {
     }
 }
 
-impl AssignToSubStore<TextResource> for AnnotationStore {
-    fn assign_substore(
+impl AssociateSubStore<TextResource> for AnnotationStore {
+    fn associate_substore(
         &mut self,
         item: impl Request<TextResource>,
         substore: impl Request<AnnotationSubStore>,
@@ -330,8 +330,8 @@ impl AssignToSubStore<TextResource> for AnnotationStore {
     }
 }
 
-impl AssignToSubStore<AnnotationDataSet> for AnnotationStore {
-    fn assign_substore(
+impl AssociateSubStore<AnnotationDataSet> for AnnotationStore {
+    fn associate_substore(
         &mut self,
         item: impl Request<AnnotationDataSet>,
         substore: impl Request<AnnotationSubStore>,
