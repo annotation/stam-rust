@@ -95,6 +95,18 @@ impl AnnotationSubStore {
     pub fn parent(&self) -> Option<AnnotationSubStoreHandle> {
         self.parent
     }
+
+    /// Sets the parent of this substore
+    fn with_parent(mut self, index: Option<AnnotationSubStoreHandle>) -> Self {
+        self.parent = index;
+        self
+    }
+
+    /// Sets the filename of this substore
+    pub fn with_filename(mut self, filename: &str) -> Self {
+        self.filename = Some(filename.into());
+        self
+    }
 }
 
 #[sealed]
@@ -104,12 +116,7 @@ impl TypeInfo for AnnotationSubStore {
     }
 }
 
-impl AnnotationSubStore {
-    fn with_parent(mut self, index: Option<AnnotationSubStoreHandle>) -> Self {
-        self.parent = index;
-        self
-    }
-}
+impl AnnotationSubStore {}
 
 //these I couldn't solve nicely using generics:
 
@@ -201,6 +208,7 @@ impl AnnotationStore {
     /// If you want to add an already existing AnnotationStore as a substore, use [`add_substore`] instead.
     pub fn add_new_substore(
         &mut self,
+        id: impl Into<String>,
         filename: &str,
     ) -> Result<AnnotationSubStoreHandle, StamError> {
         if !self.substores.is_empty() {
@@ -221,6 +229,8 @@ impl AnnotationStore {
         };
         let handle = self.insert(
             AnnotationSubStore::default()
+                .with_filename(filename)
+                .with_id(id)
                 .with_parent(parent_index.map(|x| AnnotationSubStoreHandle::new(x))),
         )?; //this data will be modified whilst parsing
         Ok(handle)
