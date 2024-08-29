@@ -12,7 +12,7 @@
 //! [`ResultItem<AnnotationSubStore>`].
 
 use crate::api::*;
-use crate::resources::{TextResource, TextResourceHandle};
+use crate::resources::TextResource;
 use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
 
 impl<'store> FullHandle<AnnotationSubStore> for ResultItem<'store, AnnotationSubStore> {

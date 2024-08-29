@@ -20,7 +20,6 @@ use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
 use std::cmp::Ordering;
-use std::collections::btree_map::BTreeMap;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -661,7 +660,7 @@ impl private::StoreCallbacks<AnnotationSubStore> for AnnotationStore {
 
     /// called before the item is removed from the store
     /// updates the relation maps, no need to call manually
-    fn preremove(&mut self, handle: AnnotationSubStoreHandle) -> Result<(), StamError> {
+    fn preremove(&mut self, _handle: AnnotationSubStoreHandle) -> Result<(), StamError> {
         //TODO
         Ok(())
     }

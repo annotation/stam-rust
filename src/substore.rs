@@ -1,7 +1,6 @@
 use datasize::{data_size, DataSize};
 use minicbor::{Decode, Encode};
 use sealed::sealed;
-use serde::de::DeserializeSeed;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::path::PathBuf;
