@@ -91,7 +91,13 @@ pub(crate) fn open_file(filename: &str, config: &Config) -> Result<File, StamErr
 /// Auxiliary function to help open files
 pub(crate) fn create_file(filename: &str, config: &Config) -> Result<File, StamError> {
     let found_filename = get_filepath(filename, config.workdir())?;
-    debug(config, || format!("create_file: {:?}", found_filename));
+    debug(config, || {
+        format!(
+            "create_file: {:?}, workdir: {:?}",
+            found_filename,
+            config.workdir()
+        )
+    });
     File::create(found_filename.as_path()).map_err(|e| {
         StamError::IOError(
             e,

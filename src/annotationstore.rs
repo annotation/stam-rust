@@ -2091,8 +2091,8 @@ impl AssociatedFile for AnnotationStore {
                 debug(self.config(), || {
                     format!("AnnotationStore.set_filename: workdir={:?}", workdir)
                 });
-                let workdir = &workdir;
-                self.update_config(|config| config.workdir = Some(workdir.clone()));
+                self.config.workdir = Some(workdir.clone());
+                //self.update_config(|config| config.workdir = Some(workdir.clone()));
             }
         }
 
