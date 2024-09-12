@@ -21,6 +21,7 @@ use crate::error::*;
 use crate::resources::{PositionMode, TextResource, TextResourceHandle};
 use crate::selector::Offset;
 use crate::store::*;
+use crate::substore::AnnotationSubStore;
 use crate::text::Text;
 use crate::textselection::{ResultTextSelection, TextSelectionOperator, TextSelectionSet};
 use crate::{Filter, FilterMode};
@@ -171,6 +172,22 @@ impl<'store> ResultItem<'store, TextResource> {
             end,
         }
     }
+
+    /// Returns an iterator over all substores ([`AnnotationSubStore`] instances) this resource is a part of.
+    pub fn substores<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, AnnotationSubStore>>> {
+        let handle = self.handle();
+        let store = self.store();
+        ResultIter::new_sorted(
+            store
+                .resource_substore_map
+                .get(handle)
+                .into_iter()
+                .flatten()
+                .map(|substorehandle| store.substore(*substorehandle).expect("handle must exist")),
+        )
+    }
 }
 
 /// Holds a collection of [`TextResource`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
@@ -278,11 +295,7 @@ where
     fn filter_any(self, resources: Resources<'store>) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::Resources(
-                resources,
-                FilterMode::Any,
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::Resources(resources, FilterMode::Any, SelectionQualifier::Normal),
         }
     }
 
@@ -500,11 +513,7 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKey(
-                key.set().handle(),
-                key.handle(),
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -575,12 +584,7 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKeyAndOperator(
-                set,
-                key,
-                value,
-                SelectionQualifier::Metadata,
-            ),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata),
         }
     }
 
@@ -593,12 +597,7 @@ where
     ) -> FilteredResources<'store, Self> {
         FilteredResources {
             inner: self,
-            filter: Filter::DataKeyAndOperator(
-                set,
-                key,
-                value,
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
         }
     }
 
@@ -722,27 +721,20 @@ where
             Filter::BorrowedData(data, mode, SelectionQualifier::Metadata) => {
                 resource.annotations().filter_data_byref(data, *mode).test()
             }
-            Filter::Annotations(annotations, mode, SelectionQualifier::Normal, _) => {
+            Filter::Annotations(annotations, mode, SelectionQualifier::Normal, _) => resource
+                .annotations()
+                .filter_annotations_byref(annotations, *mode)
+                .test(),
+            Filter::Annotations(annotations, mode, SelectionQualifier::Metadata, _) => resource
+                .annotations_as_metadata()
+                .filter_annotations_byref(annotations, *mode)
+                .test(),
+            Filter::BorrowedAnnotations(annotations, mode, SelectionQualifier::Normal, _) => {
                 resource
                     .annotations()
                     .filter_annotations_byref(annotations, *mode)
                     .test()
             }
-            Filter::Annotations(annotations, mode, SelectionQualifier::Metadata, _) => {
-                resource
-                    .annotations_as_metadata()
-                    .filter_annotations_byref(annotations, *mode)
-                    .test()
-            }
-            Filter::BorrowedAnnotations(
-                annotations,
-                mode,
-                SelectionQualifier::Normal,
-                _,
-            ) => resource
-                .annotations()
-                .filter_annotations_byref(annotations, *mode)
-                .test(),
             Filter::Annotation(annotation, SelectionQualifier::Normal, _) => {
                 resource.annotations().filter_handle(*annotation).test()
             }
@@ -760,20 +752,16 @@ where
                 .data()
                 .filter_key_handle(*set, *key)
                 .test(),
-            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal) => {
-                resource
-                    .annotations()
-                    .data()
-                    .filter_key_handle_value(*set, *key, value.clone())
-                    .test()
-            }
-            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata) => {
-                resource
-                    .annotations_as_metadata()
-                    .data()
-                    .filter_key_handle_value(*set, *key, value.clone())
-                    .test()
-            }
+            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal) => resource
+                .annotations()
+                .data()
+                .filter_key_handle_value(*set, *key, value.clone())
+                .test(),
+            Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Metadata) => resource
+                .annotations_as_metadata()
+                .data()
+                .filter_key_handle_value(*set, *key, value.clone())
+                .test(),
             Filter::DataOperator(value, SelectionQualifier::Normal) => resource
                 .annotations()
                 .data()

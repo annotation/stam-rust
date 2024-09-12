@@ -26,6 +26,7 @@ use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{Selector, SelectorKind};
+use crate::substore::AnnotationSubStore;
 use crate::textselection::{
     ResultTextSelection, ResultTextSelectionSet, TextSelectionOperator, TextSelectionSet,
 };
@@ -346,6 +347,19 @@ impl<'store> ResultItem<'store, Annotation> {
         }
         false
     }
+
+    /// Returns the substore this annotation is a part of (if any)
+    pub fn substore(&self) -> Option<ResultItem<'store, AnnotationSubStore>> {
+        let store = self.store();
+        store
+            .annotation_substore_map
+            .get(self.handle())
+            .map(|substore_handle| {
+                store
+                    .substore(substore_handle)
+                    .expect("substore must exist")
+            })
+    }
 }
 
 /// Holds a collection of [`Annotation`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
@@ -598,11 +612,7 @@ where
     fn filter_handle(self, handle: AnnotationHandle) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotation(
-                handle,
-                SelectionQualifier::Normal,
-                AnnotationDepth::Zero,
-            ),
+            filter: Filter::Annotation(handle, SelectionQualifier::Normal, AnnotationDepth::Zero),
         }
     }
 
@@ -675,11 +685,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotation(
-                annotation.handle(),
-                SelectionQualifier::Metadata,
-                depth,
-            ),
+            filter: Filter::Annotation(annotation.handle(), SelectionQualifier::Metadata, depth),
         }
     }
 
@@ -696,12 +702,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::Annotations(
-                annotations,
-                mode,
-                SelectionQualifier::Metadata,
-                depth,
-            ),
+            filter: Filter::Annotations(annotations, mode, SelectionQualifier::Metadata, depth),
         }
     }
 
@@ -824,11 +825,7 @@ where
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataKey(
-                key.set().handle(),
-                key.handle(),
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -858,12 +855,7 @@ where
     ) -> FilteredAnnotations<'store, Self> {
         FilteredAnnotations {
             inner: self,
-            filter: Filter::DataKeyAndOperator(
-                set,
-                key,
-                value,
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
         }
     }
 
@@ -1009,11 +1001,9 @@ where
     #[allow(suspicious_double_ref_op)]
     fn test_filter(&self, annotation: &ResultItem<'store, Annotation>) -> bool {
         match &self.filter {
-            Filter::Annotation(
-                handle,
-                SelectionQualifier::Normal,
-                AnnotationDepth::Zero,
-            ) => annotation.handle() == *handle,
+            Filter::Annotation(handle, SelectionQualifier::Normal, AnnotationDepth::Zero) => {
+                annotation.handle() == *handle
+            }
             Filter::Annotations(
                 handles,
                 FilterMode::Any,
@@ -1026,11 +1016,9 @@ where
                 SelectionQualifier::Normal,
                 AnnotationDepth::Zero,
             ) => handles.contains(&annotation.fullhandle()),
-            Filter::Annotation(
-                handle,
-                SelectionQualifier::Normal,
-                AnnotationDepth::One,
-            ) => annotation.annotations().filter_handle(*handle).test(),
+            Filter::Annotation(handle, SelectionQualifier::Normal, AnnotationDepth::One) => {
+                annotation.annotations().filter_handle(*handle).test()
+            }
             Filter::Annotations(
                 handles,
                 FilterMode::Any,

@@ -17,6 +17,7 @@ use crate::api::*;
 use crate::datakey::DataKey;
 use crate::datavalue::DataOperator;
 use crate::store::*;
+use crate::substore::AnnotationSubStore;
 
 use rayon::iter::IntoParallelIterator;
 
@@ -160,6 +161,22 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     pub fn test(&self, other: impl Request<AnnotationDataSet>) -> bool {
         Some(self.handle()) == other.to_handle(self.store())
     }
+
+    /// Returns an iterator over all substores ([`AnnotationSubStore`] instances) this dataset is a part of.
+    pub fn substores<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, AnnotationSubStore>>> {
+        let handle = self.handle();
+        let store = self.store();
+        ResultIter::new_sorted(
+            store
+                .dataset_substore_map
+                .get(handle)
+                .into_iter()
+                .flatten()
+                .map(|substorehandle| store.substore(*substorehandle).expect("handle must exist")),
+        )
+    }
 }
 
 /// Holds a collection of [`AnnotationDataSet`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
@@ -214,11 +231,7 @@ where
     fn filter_any(self, datasets: AnnotationDataSets<'store>) -> FilteredDataSets<'store, Self> {
         FilteredDataSets {
             inner: self,
-            filter: Filter::DataSets(
-                datasets,
-                FilterMode::Any,
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::DataSets(datasets, FilterMode::Any, SelectionQualifier::Normal),
         }
     }
 
@@ -228,11 +241,7 @@ where
     ) -> FilteredDataSets<'store, Self> {
         FilteredDataSets {
             inner: self,
-            filter: Filter::BorrowedDataSets(
-                datasets,
-                FilterMode::Any,
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::BorrowedDataSets(datasets, FilterMode::Any, SelectionQualifier::Normal),
         }
     }
 

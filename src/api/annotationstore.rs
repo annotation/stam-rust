@@ -130,12 +130,28 @@ impl AnnotationStore {
     /// Returns an iterator over all annotations ([`Annotation`] instances) in the store.
     /// The resulting iterator yields items as a fat pointer [`ResultItem<Annotation>`]),
     /// which exposes the high-level API.
+    /// Note that this will include all annotations from all substores, if you want only
+    /// annnotations pertaining to root store, then use [`annotations_no_substores()`] instead.
     pub fn annotations<'a>(
         &'a self,
     ) -> ResultIter<impl Iterator<Item = ResultItem<'a, Annotation>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|a: &'a Annotation| a.as_resultitem(self, self)),
+        )
+    }
+
+    /// Returns an iterator over all annotations ([`Annotation`] instances) in the root store.
+    /// The resulting iterator yields items as a fat pointer [`ResultItem<Annotation>`]),
+    /// which exposes the high-level API.
+    /// Unlike [`annotations()`], this will not return annotations from substores.
+    pub fn annotations_no_substores<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, Annotation>>> {
+        ResultIter::new_sorted(
+            self.iter()
+                .map(|a: &'a Annotation| a.as_resultitem(self, self))
+                .filter(|a| self.annotation_substore_map.get(a.handle()).is_some()),
         )
     }
 
