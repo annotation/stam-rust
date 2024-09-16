@@ -641,6 +641,23 @@ where
             filter: Filter::AnnotationDataSet(set, SelectionQualifier::Normal),
         }
     }
+
+    fn filter_substore(
+        self,
+        substore: Option<ResultItem<'store, AnnotationSubStore>>,
+    ) -> FilteredResources<'store, Self> {
+        if let Some(substore) = substore {
+            FilteredResources {
+                inner: self,
+                filter: Filter::AnnotationSubStore(Some(substore.handle())),
+            }
+        } else {
+            FilteredResources {
+                inner: self,
+                filter: Filter::AnnotationSubStore(None),
+            }
+        }
+    }
 }
 
 /*
@@ -790,6 +807,13 @@ where
                 .data()
                 .filter_handle(*set, *data)
                 .test(),
+            Filter::AnnotationSubStore(substore) => {
+                if let Some(substore) = substore {
+                    resource.substores().any(|x| x.handle() == *substore)
+                } else {
+                    resource.substores().count() == 0
+                }
+            }
             _ => unreachable!(
                 "Filter {:?} not implemented for FilteredResources",
                 self.filter

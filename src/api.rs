@@ -53,6 +53,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::{TextResource, TextResourceHandle};
+use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
 use crate::textselection::{TextSelection, TextSelectionOperator};
 
 use crate::{store::*, Offset, TextSelectionHandle};
@@ -816,6 +817,7 @@ pub(crate) enum Filter<'store> {
 
     DataOperator(DataOperator<'store>, SelectionQualifier),
     TextSelectionOperator(TextSelectionOperator, SelectionQualifier),
+    AnnotationSubStore(Option<AnnotationSubStoreHandle>),
 
     Annotations(
         Handles<'store, Annotation>,

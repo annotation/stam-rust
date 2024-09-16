@@ -268,6 +268,23 @@ where
             ),
         }
     }
+
+    fn filter_substore(
+        self,
+        substore: Option<ResultItem<'store, AnnotationSubStore>>,
+    ) -> FilteredDataSets<'store, Self> {
+        if let Some(substore) = substore {
+            FilteredDataSets {
+                inner: self,
+                filter: Filter::AnnotationSubStore(Some(substore.handle())),
+            }
+        } else {
+            FilteredDataSets {
+                inner: self,
+                filter: Filter::AnnotationSubStore(None),
+            }
+        }
+    }
 }
 
 impl<'store, I> DataSetIterator<'store> for I
@@ -310,13 +327,20 @@ impl<'store, I> FilteredDataSets<'store, I>
 where
     I: Iterator<Item = ResultItem<'store, AnnotationDataSet>>,
 {
-    fn test_filter(&self, _dataset: &ResultItem<'store, AnnotationDataSet>) -> bool {
+    fn test_filter(&self, dataset: &ResultItem<'store, AnnotationDataSet>) -> bool {
         match &self.filter {
             Filter::DataSets(_, FilterMode::All, _) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
             }
             Filter::BorrowedDataSets(_, FilterMode::All, _) => {
                 unreachable!("not handled by this iterator but by FilterAllIter")
+            }
+            Filter::AnnotationSubStore(substore) => {
+                if let Some(substore) = substore {
+                    dataset.substores().any(|x| x.handle() == *substore)
+                } else {
+                    dataset.substores().count() == 0
+                }
             }
             _ => unreachable!(
                 "Filter {:?} not implemented for FilteredDataSets",

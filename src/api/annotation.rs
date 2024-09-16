@@ -876,6 +876,23 @@ where
         }
     }
 
+    fn filter_substore(
+        self,
+        substore: Option<ResultItem<'store, AnnotationSubStore>>,
+    ) -> FilteredAnnotations<'store, Self> {
+        if let Some(substore) = substore {
+            FilteredAnnotations {
+                inner: self,
+                filter: Filter::AnnotationSubStore(Some(substore.handle())),
+            }
+        } else {
+            FilteredAnnotations {
+                inner: self,
+                filter: Filter::AnnotationSubStore(None),
+            }
+        }
+    }
+
     /// Constrain the iterator to only return annotations that have text matching the specified text
     ///
     /// If you have a borrowed reference, use [`Self::filter_text_byref()`] instead.
@@ -1118,6 +1135,9 @@ where
                     let text = annotation.text_join(delimiter);
                     regex.is_match(text.as_str())
                 }
+            }
+            Filter::AnnotationSubStore(substore) => {
+                annotation.substore().map(|x| x.handle()) == *substore
             }
             Filter::TextSelectionOperator(operator, _) => annotation.related_text(*operator).test(),
             Filter::Annotations(_handles, FilterMode::All, _, AnnotationDepth::Zero) => {

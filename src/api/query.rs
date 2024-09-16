@@ -8,6 +8,7 @@ use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
 use crate::datavalue::DataValue;
 use crate::error::StamError;
+use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
 use crate::textselection::TextSelectionOperator;
 use crate::Offset;
 use crate::{api::*, Configurable};
@@ -283,6 +284,9 @@ pub enum Constraint<'a> {
         qualifier: SelectionQualifier,
     },
 
+    /// Constrain by SubStore (`SUBSTORE` keyword in STAMQL)
+    SubStore(Option<&'a str>),
+
     /// Constrain by a specific DataKey, referenced by variable (`KEY` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     KeyVariable(&'a str, SelectionQualifier),
 
@@ -297,6 +301,9 @@ pub enum Constraint<'a> {
 
     /// Constrain by a specific text selection, referenced by variable (`TEXT` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     TextVariable(&'a str),
+
+    /// Constrain by SubStore (`SUBSTORE` keyword in STAMQL)
+    SubStoreVariable(&'a str),
 
     /// Constrain by a specific text selection and a particular relation textual relation (`RELATION` keyword in STAMQL), the text selection is referenced by variable (`TEXT` keyword in STAMQL), the variable name must *not* carry the `?` prefix here.
     TextRelation {
@@ -361,6 +368,7 @@ impl<'a> Constraint<'a> {
             Self::DataSet { .. } | Self::DataSetVariable { .. } => "DATASET",
             Self::Text { .. } | Self::TextVariable(..) | Self::Regex(..) => "TEXT",
             Self::AnnotationVariable(..) | Self::Annotation(..) => "ANNOTATION",
+            Self::SubStore(..) | Self::SubStoreVariable(..) => "SUBSTORE",
             Self::Union { .. } => "UNION",
             Self::Limit { .. } => "LIMIT",
 
@@ -585,6 +593,18 @@ impl<'a> Constraint<'a> {
                     ));
                 }
             }
+            Some("SUBSTORE") => {
+                querystring = querystring["SUBSTORE".len()..].trim_start();
+                let (arg, remainder, _) = get_arg(querystring)?;
+                querystring = remainder;
+                if arg.starts_with("?") && arg.len() > 1 {
+                    Self::SubStoreVariable(&arg[1..])
+                } else if arg == "NONE" || arg.is_empty() {
+                    Self::SubStore(None)
+                } else {
+                    Self::SubStore(Some(arg))
+                }
+            }
             Some("[") => {
                 let mut subconstraints: Vec<Constraint<'a>> = Vec::new();
                 querystring = querystring[1..].trim_start();
@@ -743,7 +763,10 @@ impl<'a> Constraint<'a> {
                 s.push(';')
             }
             Self::TextVariable(varname) => {
-                s += &format!("TEXT{};", varname);
+                s += &format!("TEXT ?{};", varname);
+            }
+            Self::SubStoreVariable(varname) => {
+                s += &format!("SUBSTORE ?{};", varname);
             }
             Self::Annotation(id, qualifier, depth, offset) => {
                 s += &format!(
@@ -770,6 +793,13 @@ impl<'a> Constraint<'a> {
             }
             Self::DataSet(id, qualifier) => {
                 s += &format!("DATASET{} \"{}\";", qualifier.as_str(), id);
+            }
+            Self::SubStore(substore) => {
+                if let Some(substore) = substore {
+                    s += &format!("SUBSTORE \"{}\";", substore);
+                } else {
+                    s += &format!("SUBSTORE NONE;");
+                }
             }
             Self::Text(text, TextMode::Exact) => {
                 s += &format!("TEXT \"{}\";", text);
@@ -1451,6 +1481,32 @@ impl<'a> Query<'a> {
 
     /// Bind a variable, the name should not include the ? prefix STAMQL uses.
     /// This is a context variable that will be available to the query, but will not be propagated to the results.
+    pub fn with_substorevar(
+        mut self,
+        name: impl Into<String>,
+        substore: &ResultItem<AnnotationSubStore>,
+    ) -> Self {
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::AnnotationSubStore(substore.handle()),
+        );
+        self
+    }
+
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    pub fn bind_substorevar(
+        &mut self,
+        name: impl Into<String>,
+        substore: &ResultItem<AnnotationSubStore>,
+    ) {
+        self.contextvars.insert(
+            name.into(),
+            ContextItem::AnnotationSubStore(substore.handle()),
+        );
+    }
+
+    /// Bind a variable, the name should not include the ? prefix STAMQL uses.
+    /// This is a context variable that will be available to the query, but will not be propagated to the results.
     pub fn with_textvar(
         mut self,
         name: impl Into<String>,
@@ -1550,6 +1606,9 @@ impl<'a> Query<'a> {
             QueryResultItem::DataKey(x) => {
                 self.bind_keyvar(varname, x);
             }
+            QueryResultItem::AnnotationSubStore(x) => {
+                self.bind_substorevar(varname, x);
+            }
         }
     }
 
@@ -1592,6 +1651,10 @@ impl<'a> Query<'a> {
                             resource.textselection(&textselection.into())?
                         })
                     },
+                ),
+                ContextItem::AnnotationSubStore(handle) => contextvars.insert(
+                    name.clone(),
+                    QueryResultItem::AnnotationSubStore(store.substore(*handle).or_fail()?),
                 ),
             };
         }
@@ -1699,6 +1762,9 @@ pub enum QueryResultItem<'store> {
 
     /// Corresponds to result type `DATASET` in STAMQL
     AnnotationDataSet(ResultItem<'store, AnnotationDataSet>),
+
+    /// Corresponds to result type `SUBSTORE` in STAMQL
+    AnnotationSubStore(ResultItem<'store, AnnotationSubStore>),
 }
 
 #[derive(Clone, Debug)]
@@ -1708,6 +1774,7 @@ pub(crate) enum ContextItem {
     DataKey(AnnotationDataSetHandle, DataKeyHandle),
     AnnotationData(AnnotationDataSetHandle, AnnotationDataHandle),
     AnnotationDataSet(AnnotationDataSetHandle),
+    AnnotationSubStore(AnnotationSubStoreHandle),
     TextSelection(TextResourceHandle, TextSelection),
 }
 
@@ -1893,7 +1960,8 @@ impl<'store> AnnotationStore {
                                                 BuildItem::Handle(key.handle()),
                                             ))
                                         }
-                                        QueryResultItem::None => {}
+                                        QueryResultItem::None
+                                        | QueryResultItem::AnnotationSubStore(..) => {}
                                     }
                                 }
                                 Assignment::ComplexTarget(kind) => {
@@ -2431,6 +2499,18 @@ impl<'store> QueryIter<'store> {
                     ));
                 }
             }
+            Some(&Constraint::SubStore(substore)) => {
+                if let Some(substore) = substore {
+                    let substore = store.substore(substore).or_fail()?;
+                    Box::new(substore.annotations())
+                } else {
+                    Box::new(store.annotations_no_substores())
+                }
+            }
+            Some(&Constraint::SubStoreVariable(varname)) => {
+                let substore = self.resolve_substorevar(varname)?;
+                Box::new(substore.annotations())
+            }
             Some(&Constraint::Union(ref subconstraints)) => {
                 let mut handles: Handles<'store, Annotation> = Handles::new_empty(store);
                 for subconstraint in subconstraints {
@@ -2590,6 +2670,24 @@ impl<'store> QueryIter<'store> {
             &Constraint::Annotation(annotation, SelectionQualifier::Metadata, depth, None) => Box::new(
                 iter.filter_annotation_in_targets(&store.annotation(annotation).or_fail()?, depth),
             ),
+            &Constraint::SubStore(substore) => {
+                let substore = if let Some(substore) = substore {
+                    Some(store.substore(substore).or_fail()?)
+                } else {
+                    None
+                };
+                Box::new(iter.filter_substore(substore))
+            }
+            &Constraint::SubStoreVariable(varname) => {
+                if let Ok(substore) = self.resolve_substorevar(varname) { 
+                    Box::new(iter.filter_substore(Some(substore.clone())))
+                } else  {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type SUBSTORE not found", varname),
+                        "",
+                    ));
+                }
+            }
             &Constraint::Union(ref subconstraints) => {
                 let mut handles: Handles<'store, Annotation> = Handles::new_empty(store);
                 for subconstraint in subconstraints {
@@ -2909,6 +3007,18 @@ impl<'store> QueryIter<'store> {
                 Box::new(handles.into_items())
             }
             Some(&Constraint::Limit { begin, end }) => Box::new(store.datasets().limit(begin, end)),
+            Some(&Constraint::SubStore(substore)) => {
+                if let Some(substore) = substore {
+                    let substore = store.substore(substore).or_fail()?;
+                    Box::new(substore.datasets())
+                } else {
+                    Box::new(store.datasets_no_substores())
+                }
+            }
+            Some(&Constraint::SubStoreVariable(varname)) => {
+                let substore = self.resolve_substorevar(varname)?;
+                Box::new(substore.datasets())
+            }
             Some(c) => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -2940,6 +3050,24 @@ impl<'store> QueryIter<'store> {
                 Box::new(iter.filter_any(handles))
             }
             &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
+            &Constraint::SubStore(substore) => {
+                let substore = if let Some(substore) = substore {
+                    Some(store.substore(substore).or_fail()?)
+                } else {
+                    None
+                };
+                Box::new(iter.filter_substore(substore))
+            }
+            &Constraint::SubStoreVariable(varname) => {
+                if let Ok(substore) = self.resolve_substorevar(varname) { 
+                    Box::new(iter.filter_substore(Some(substore.clone())))
+                } else  {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type SUBSTORE not found", varname),
+                        "",
+                    ));
+                }
+            }
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -3294,6 +3422,18 @@ impl<'store> QueryIter<'store> {
                         .resources_as_metadata(),
                 )
             }
+            Some(&Constraint::SubStore(substore)) => {
+                if let Some(substore) = substore {
+                    let substore = store.substore(substore).or_fail()?;
+                    Box::new(substore.resources())
+                } else {
+                    Box::new(store.resources_no_substores())
+                }
+            }
+            Some(&Constraint::SubStoreVariable(varname)) => {
+                let substore = self.resolve_substorevar(varname)?;
+                Box::new(substore.resources())
+            }
             Some(&Constraint::Union(ref subconstraints)) => {
                 let mut handles: Handles<'store, TextResource> = Handles::new_empty(store);
                 for subconstraint in subconstraints {
@@ -3385,6 +3525,24 @@ impl<'store> QueryIter<'store> {
                 Box::new(iter.filter_any(handles))
             }
             &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
+            &Constraint::SubStore(substore) => {
+                let substore = if let Some(substore) = substore {
+                    Some(store.substore(substore).or_fail()?)
+                } else {
+                    None
+                };
+                Box::new(iter.filter_substore(substore))
+            }
+            &Constraint::SubStoreVariable(varname) => {
+                if let Ok(substore) = self.resolve_substorevar(varname) { 
+                    Box::new(iter.filter_substore(Some(substore.clone())))
+                } else  {
+                    return Err(StamError::QuerySyntaxError(
+                        format!("Variable ?{} of type SUBSTORE not found", varname),
+                        "",
+                    ));
+                }
+            }
             c => {
                 return Err(StamError::QuerySyntaxError(
                     format!(
@@ -3613,6 +3771,42 @@ impl<'store> QueryIter<'store> {
         }
         return Err(StamError::QuerySyntaxError(
             format!("Variable ?{} of type RESOURCE not found", name),
+            "",
+        ));
+    }
+
+    fn resolve_substorevar(
+        &self,
+        name: &str,
+    ) -> Result<&ResultItem<'store, AnnotationSubStore>, StamError> {
+        for (i, state) in self.statestack.iter().enumerate() {
+            let query = self
+                .get_query(&self.querypath[..i + 1])
+                .expect("query must exist");
+            if query.name() == Some(name) {
+                if let QueryResultItem::AnnotationSubStore(substore) = &state.result {
+                    return Ok(substore);
+                }
+            }
+        }
+        match self.contextvars.get(name) {
+            Some(QueryResultItem::AnnotationSubStore(substore)) => return Ok(substore),
+            Some(_) => {
+                return Err(StamError::QuerySyntaxError(
+                    format!(
+                    "Variable ?{} was found in context but does not have expected type SUBSTORE",
+                    name
+                ),
+                    "",
+                ))
+            }
+            None => {}
+        }
+        return Err(StamError::QuerySyntaxError(
+            format!(
+                "Variable ?{} of type SUBSTORE not found - QUERY DEBUG: {:#?}",
+                name, self.query
+            ),
             "",
         ));
     }
