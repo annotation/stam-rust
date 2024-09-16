@@ -588,7 +588,7 @@ impl AnnotationDataSet {
                         value,
                         self.id().unwrap_or("(no id)")
                     ),
-                    "Key supplied to AnnotationDataSet.insert_data() (often via with_data()) can not be None",
+                    "Key supplied to AnnotationDataSet.insert_data() (often via with_data()) can not be None. This may also mean that the data ID did not resolve to an existing item!",
                 ));
             }
         }
