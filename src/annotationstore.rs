@@ -2395,6 +2395,9 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                         serde_json::value::Value::String(include) => {
                             vec![include]
                         }
+                        serde_json::value::Value::Array(include) => {
+                            include.into_iter().map(|s| s.to_string()).collect()
+                        }
                         _ => {
                             return Err(<A::Error as serde::de::Error>::custom(format!(
                                 "Expected string or array for @include in AnnotationStore, got something else"
