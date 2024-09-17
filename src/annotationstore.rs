@@ -845,9 +845,8 @@ impl FromJson for AnnotationStore {
 
         if let Some(substore_index) = self.config.current_substore_path.iter().last() {
             //if we are processing substores, associate the filename with the substore
-            let filename_found = get_filepath(filename, self.config.workdir())?;
             if let Ok(substore) = self.get_mut(*substore_index) {
-                substore.filename = Some(filename_found);
+                substore.filename = Some(filename.into());
             }
         }
 

@@ -181,7 +181,7 @@ impl AnnotationStore {
             // in that case we don't need to process it again
             let foundpath = Some(get_filepath(filename, self.config.workdir())?);
             for substore in <Self as StoreFor<AnnotationSubStore>>::iter(self) {
-                if substore.filename == foundpath {
+                if substore.filename == foundpath || substore.filename == Some(filename.into()) {
                     return Ok(substore.handle().expect("substore must have handle"));
                 }
             }
@@ -215,7 +215,7 @@ impl AnnotationStore {
             // in that case we don't need to process it again
             let foundpath = Some(get_filepath(filename, self.config.workdir())?);
             for substore in <Self as StoreFor<AnnotationSubStore>>::iter(self) {
-                if substore.filename == foundpath {
+                if substore.filename == foundpath || substore.filename == Some(filename.into()) {
                     return Ok(substore.handle().expect("substore must have handle"));
                 }
             }
