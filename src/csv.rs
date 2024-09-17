@@ -415,10 +415,10 @@ impl AnnotationStore {
     /// Saves all files as CSV. It is better to use [`AnnotationStore::save()`] instead, setting
     /// [`AnnotationStore::set_dataformat(DataFormat::Csv)`] before invocation.
     pub fn to_csv_files(&self, filename: &str) -> Result<(), StamError> {
-        debug(self.config(), || {
-            format!("{}.to_csv_files: filename={:?}", Self::typeinfo(), filename)
-        });
         let basename = strip_known_extension(filename);
+        debug(self.config(), || {
+            format!("{}.to_csv_files: filename={:?}, basename={:?}", Self::typeinfo(), filename, basename)
+        });
         self.to_csv_file(filename, self.config(), CsvTable::StoreManifest)?;
         self.to_csv_file(
             self.annotations_filename()
@@ -489,6 +489,10 @@ where
         W: std::io::Write,
     {
         let mut writer = csv::Writer::from_writer(writer);
+
+        //create a new config config for derived resources, so filenames are outputted correctly
+        let new_config = self.new_config();
+
         match table {
             CsvTable::StoreManifest => {
                 if self.annotations_filename().is_none() {
@@ -505,7 +509,7 @@ where
                                 .annotations_filename()
                                 .map(|x| Cow::Borrowed(x.to_str().expect("valid utf-8 filename")))
                                 .unwrap(),
-                            self.config(),
+                            &new_config,
                         )),
                     })
                     .map_err(|e| {
@@ -1140,7 +1144,11 @@ impl FromCsv for AnnotationStore {
         });
         let mut reader = csv::Reader::from_reader(reader);
         let mut first = true;
-        let mut store = AnnotationStore::new(config);
+        let mut store = if let Some(filename) = filename {
+            AnnotationStore::new(config).with_filename(filename)
+        } else {
+            AnnotationStore::new(config)
+        };
         for result in reader.deserialize() {
             let record: StoreManifestCsv = result.map_err(|e| {
                 StamError::CsvError(format!("{}", e), "while parsing AnnotationStore manifest")
@@ -1165,7 +1173,7 @@ impl FromCsv for AnnotationStore {
                         });
                         let mut dataset = AnnotationDataSet::from_csv_file(
                             &record.filename,
-                            store.config().clone(),
+                            store.new_config(),
                         )?;
                         if record.id.is_some() {
                             dataset = dataset.with_id(record.id.map(|x| x.to_string()).unwrap());
@@ -1181,7 +1189,7 @@ impl FromCsv for AnnotationStore {
                         });
                         let mut resourcebuilder = TextResourceBuilder::from_txt_file(
                             &record.filename,
-                            store.config.clone(),
+                            store.new_config(),
                         )?;
                         if record.id.is_some() {
                             resourcebuilder =
@@ -1209,7 +1217,7 @@ impl FromCsv for AnnotationStore {
             first = false;
         }
         debug(store.config(), || {
-            format!("AnnotationStore::from_csv_reader: finished processing store manifest")
+            format!("AnnotationStore::from_csv_reader: finished processing store manifest, workdir={:?}", store.config().workdir())
         });
         if store.annotations_filename.is_some() {
             let filename = store.annotations_filename.as_ref().unwrap();
@@ -1220,7 +1228,8 @@ impl FromCsv for AnnotationStore {
                     filename
                 )
             });
-            let reader = open_file_reader(filename, store.config())?;
+            let new_config = store.new_config();
+            let reader = open_file_reader(filename, &new_config)?;
             store.from_csv_annotations_reader(reader)?;
         }
         debug(store.config(), || {
@@ -1244,7 +1253,11 @@ impl FromCsv for AnnotationDataSet {
         config: Config,
     ) -> Result<Self, StamError> {
         let mut reader = csv::Reader::from_reader(reader);
-        let mut dataset = AnnotationDataSet::new(config).with_filename(filename.unwrap_or(""));
+        let mut dataset = if let Some(filename) = filename {
+            AnnotationDataSet::new(config).with_filename(filename)
+        } else {
+            AnnotationDataSet::new(config)
+        };
         for result in reader.deserialize() {
             let record: AnnotationDataCsv = result.map_err(|e| {
                 StamError::CsvError(format!("{}", e), "while parsing AnnotationDataSet")

@@ -83,10 +83,12 @@ pub struct TextResource {
 
     #[data_size(skip)]
     #[n(9)]
-    config: Config,
+    pub(crate) config: Config,
 }
 
 /// This is a helper structure to build [`TextResource`] instances in a builder pattern.
+/// Use [`AnnotationStore::new_config()`] to obtain a configuration to pass
+///
 /// Example:
 ///
 /// ```
@@ -95,7 +97,7 @@ pub struct TextResource {
 /// store.insert(
 ///        TextResourceBuilder::new().with_id("testres").with_text(
 ///        "Hello world!",
-///        ).build().unwrap()
+///        ).with_config(store.new_config()).build().unwrap()
 /// );
 /// ```
 #[derive(Deserialize, Debug, Default)]
@@ -312,8 +314,17 @@ impl Serialize for TextResource {
             state.serialize_field("@include", &filename)?;
             //if there are any changes, we write to the standoff file
             if self.changed() {
+                //get the actual filename on disk given the work directory:
+                let filename = get_filepath(filename, self.config.workdir())
+                    .expect("get_filepath must succeed");
+                debug(self.config(), || {
+                    format!(
+                        "TextResource::serialize(): to stand-off file {:?}",
+                        filename
+                    )
+                });
                 if filename.ends_with(".json") {
-                    let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
+                    let result = self.to_json_file(&filename.to_string_lossy(), self.config()); //this reinvokes this function after setting config.standoff_include
                     result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
                 } else {
                     //plain text
@@ -417,7 +428,11 @@ impl TextResourceBuilder {
     pub fn from_txt_file(filename: &str, config: Config) -> Result<Self, StamError> {
         //plain text
         debug(&config, || {
-            format!("TextResourceBuilder::from_txt_file: filename={}", filename)
+            format!(
+                "TextResourceBuilder::from_txt_file: filename={}, workdir={:?}",
+                filename,
+                config.workdir()
+            )
         });
         let text = Self::text_from_file(filename, &config)?;
         Ok(Self {
@@ -429,7 +444,7 @@ impl TextResourceBuilder {
     }
 
     /// Load a resource from file. The extension determines the type (`json` for STAM JSON or plain text otherwise).
-    /// You also need to pass a configuration, for which you can often just use `Config::default()`.
+    /// You also need to pass a configuration, for which you should normally use [`AnnotationStore::new_config()`].
     pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         if filename.ends_with(".json") {
             Self::from_json_file(filename, config)
@@ -445,6 +460,7 @@ impl TextResourceBuilder {
     }
 
     /// Set a configuration to use for this resource
+    /// You'll most likely want to pass the result of [`AnnotationStore::new_config()`] to this method.
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = config;
         self
@@ -466,7 +482,15 @@ impl TextResourceBuilder {
 
     ///Builds a new [`TextResource`] from [`TextResourceBuilder`], consuming the latter
     pub fn build(self) -> Result<TextResource, StamError> {
-        debug(&self.config, || format!("TextResourceBuilder::build"));
+        debug(&self.config, || {
+            format!(
+                "TextResourceBuilder::build: id={:?}, filename={:?}, workdir={:?}, use_include={}",
+                self.id,
+                self.filename,
+                self.config.workdir(),
+                self.config.use_include()
+            )
+        });
         let mut res: TextResource = self.try_into()?;
         res.textlen = res.text.chars().count();
         if res.config().milestone_interval > 0 {
@@ -478,6 +502,7 @@ impl TextResourceBuilder {
 
 impl TextResource {
     /// Instantiates a new completely empty TextResource
+    /// Use [`AnnotationStore::new_config()`] to obtain a configuration to pass to this method.
     pub fn new(id: impl Into<String>, config: Config) -> Self {
         Self {
             id: id.into(),
@@ -1118,27 +1143,27 @@ impl<'a> DoubleEndedIterator for TextSelectionIter<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct DeserializeTextResource<'a> {
-    config: &'a Config,
+pub(crate) struct DeserializeTextResource {
+    config: Config,
 }
 
-impl<'a> DeserializeTextResource<'a> {
-    pub fn new(config: &'a Config) -> Self {
+impl<'a> DeserializeTextResource {
+    pub fn new(config: Config) -> Self {
         Self { config }
     }
 }
 
-impl<'de> DeserializeSeed<'de> for DeserializeTextResource<'_> {
+impl<'de> DeserializeSeed<'de> for DeserializeTextResource {
     type Value = TextResource;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let mut builder: TextResourceBuilder = Deserialize::deserialize(deserializer)?;
+        let builder: TextResourceBuilder = Deserialize::deserialize(deserializer)?;
         //inject the config
-        builder.config = self.config.clone();
         builder
+            .with_config(self.config)
             .build()
             .map_err(|e| -> D::Error { serde::de::Error::custom(e) })
     }

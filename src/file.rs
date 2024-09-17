@@ -38,6 +38,7 @@ const KNOWN_EXTENSIONS: &[&str; 14] = &[
 ];
 
 /// Get a file for reading or writing, this resolves relative files more intelligently
+/// It does not test whether a file exists or not.
 pub(crate) fn get_filepath(filename: &str, workdir: Option<&Path>) -> Result<PathBuf, StamError> {
     if filename == "-" {
         //designates stdin or stdout
@@ -47,6 +48,7 @@ pub(crate) fn get_filepath(filename: &str, workdir: Option<&Path>) -> Result<Pat
         //TODO: implement downloading of remote URLs and storing them locally
         return Err(StamError::OtherError("Loading URLs is not supported yet"));
     }
+
     let path = if filename.starts_with("file://") {
         //strip the file:// prefix
         PathBuf::from(&filename[7..])
@@ -56,25 +58,25 @@ pub(crate) fn get_filepath(filename: &str, workdir: Option<&Path>) -> Result<Pat
     if path.is_absolute() {
         Ok(path)
     } else {
-        //check whether we can find one in our workdir first
+        //if a workdir is set, always use that:
         if let Some(workdir) = workdir {
             let path = workdir.join(&path);
-            if path.is_file() {
-                //should also work with symlinks
-                return Ok(path);
-            }
+            //Does not check for existence! (needs to work for writing too)
+            Ok(path)
+        } else {
+            //No workdir means just current working directly
+            // we don't test for existence here
+            Ok(path)
         }
-
-        //final fallback is simply relative to the current working directly
-        // we don't test for existance here
-        Ok(path)
     }
 }
 
 /// Auxiliary function to help open files
 pub(crate) fn open_file(filename: &str, config: &Config) -> Result<File, StamError> {
     let found_filename = get_filepath(filename, config.workdir())?;
-    debug(config, || format!("open_file: {:?}", found_filename));
+    debug(config, || {
+        format!("open_file: {:?} at {:?}", filename, found_filename)
+    });
     File::open(found_filename.as_path()).map_err(|e| {
         StamError::IOError(
             e,
@@ -160,12 +162,15 @@ pub(crate) fn sanitize_id_to_filename(id: &str) -> String {
 }
 
 pub(crate) fn filename_without_workdir<'a>(filename: &'a str, config: &Config) -> &'a str {
+    //MAYBE TODO: use proper PathBuf, this probably won't work on Windows
     if let Some(workdir) = config.workdir().map(|x| x.to_str().expect("valid utf-8")) {
-        let filename = &filename[workdir.len()..];
-        if filename.starts_with(&['/', '\\']) {
-            return &filename[1..];
-        } else {
-            return filename;
+        if filename.starts_with(workdir) {
+            let filename = &filename[workdir.len()..];
+            if filename.starts_with(&['/', '\\']) {
+                return &filename[1..];
+            } else {
+                return filename;
+            }
         }
     }
     filename
@@ -186,6 +191,37 @@ pub trait AssociatedFile: Configurable + ChangeMarker {
     {
         self.set_filename(filename);
         self
+    }
+
+    /// Get the directory this file is stored, if any
+    /// This may return a relative or absolute directory. If it returns `None` the current working directory just applies
+    fn dirname(&self) -> Option<PathBuf> {
+        if let Some(mut storedir) = self.filename().map(|s| {
+            let pb: PathBuf = s.into();
+            pb
+        }) {
+            storedir.pop();
+            if let Some(workdir) = self.config().workdir.as_ref() {
+                let mut workdir = workdir.clone();
+                workdir.extend(&storedir);
+                debug(self.config(), || {
+                    format!("dirname(): workdir + storedir = {:?}", workdir)
+                });
+                return Some(workdir);
+            } else {
+                debug(self.config(), || {
+                    format!("dirname(): storedir = {:?}", storedir)
+                });
+                return Some(storedir);
+            }
+        } else if let Some(workdir) = self.config().workdir.as_ref() {
+            debug(self.config(), || {
+                format!("dirname(): workdir = {:?}", workdir)
+            });
+            return Some(workdir.clone());
+        }
+        debug(self.config(), || format!("dirname(): none"));
+        None
     }
 
     /// Returns the filename without (known!) extension. The extension must be a known extension used by STAM for this to work.

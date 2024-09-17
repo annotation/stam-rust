@@ -49,7 +49,12 @@ where
     /// The actual dataformat can be set via `config`, the default is STAM JSON.
     fn to_json_file(&self, filename: &str, config: &Config) -> Result<(), StamError> {
         debug(config, || {
-            format!("{}.to_file: filename={:?}", Self::typeinfo(), filename)
+            format!(
+                "{}.to_json_file: filename={:?} workdir={:?}",
+                Self::typeinfo(),
+                filename,
+                config.workdir()
+            )
         });
         if let Type::TextResource | Type::AnnotationDataSet = Self::typeinfo() {
             //introspection to detect whether type can do @include

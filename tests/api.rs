@@ -863,6 +863,7 @@ fn find_text() -> Result<(), StamError> {
         TextResourceBuilder::new()
             .with_id("testres")
             .with_text("Hello world")
+            .with_config(store.new_config())
             .build()?,
     )?;
     let resource = store.resource("testres").unwrap();
@@ -884,6 +885,7 @@ fn find_text_nocase() -> Result<(), StamError> {
         TextResourceBuilder::new()
             .with_id("testres")
             .with_text("Hello world")
+            .with_config(store.new_config())
             .build()?,
     )?;
     let resource = store.resource("testres").or_fail()?;
@@ -905,6 +907,7 @@ fn find_text_sequence() -> Result<(), StamError> {
         TextResourceBuilder::new()
             .with_id("testres")
             .with_text("Hello world")
+            .with_config(store.new_config())
             .build()?,
     )?;
     let resource = store.resource("testres").or_fail()?;
@@ -928,6 +931,7 @@ fn find_text_sequence2() -> Result<(), StamError> {
         TextResourceBuilder::new()
             .with_id("testres")
             .with_text("Hello, world")
+            .with_config(store.new_config())
             .build()?,
     )?;
     let resource = store.resource("testres").or_fail()?;
@@ -951,6 +955,7 @@ fn find_text_sequence_nocase() -> Result<(), StamError> {
         TextResourceBuilder::new()
             .with_id("testres")
             .with_text("Hello world")
+            .with_config(store.new_config())
             .build()?,
     )?;
     let resource = store.resource("testres").or_fail()?;
@@ -974,6 +979,7 @@ fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
         TextResourceBuilder::new()
             .with_id("testres")
             .with_text("Hello world")
+            .with_config(store.new_config())
             .build()?,
     )?;
     let resource = store.resource("testres").or_fail()?;
@@ -990,6 +996,7 @@ fn test_split_text() -> Result<(), StamError> {
         TextResourceBuilder::new()
             .with_id("testres")
             .with_text("Hello world")
+            .with_config(store.new_config())
             .build()?,
     )?;
     let resource = store.resource("testres").or_fail()?;
@@ -1016,7 +1023,7 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
     store.insert(
         TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).build()?
+        ).with_config(store.new_config()).build()?
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -1037,7 +1044,7 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
     store.insert(
         TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).build()?
+        ).with_config(store.new_config()).build()?
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -1065,7 +1072,7 @@ fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
     store.insert(
         TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).build()?
+        ).with_config(store.new_config()).build()?
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -1100,7 +1107,7 @@ fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
     store.insert(
         TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).build()?
+        ).with_config(store.new_config()).build()?
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -1135,7 +1142,7 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
     store.insert(
         TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).build()?
+        ).with_config(store.new_config()).build()?
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -1160,7 +1167,7 @@ fn test_search_text_regex_double_capture() -> Result<(), StamError> {
     store.insert(
         TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).build()?
+        ).with_config(store.new_config()).build()?
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -1213,8 +1220,16 @@ fn serialize_csv() -> Result<(), StamError> {
         "tests/test.store.stam.json",
         Config::default().with_debug(true),
     )?;
-    store.set_filename("tests/test.store.stam.csv");
+    store.set_filename("/tmp/test.store.stam.csv");
     store.save()?;
+
+    //and parse again:
+    eprintln!("\n\nTesting deserialisation of serialised result:");
+    let store = AnnotationStore::from_file(
+        "/tmp/test.store.stam.csv",
+        Config::default().with_debug(true),
+    )?;
+    test_example_a_sanity(&store)?;
     Ok(())
 }
 
@@ -3194,12 +3209,12 @@ fn textvalidation_texts() -> Result<(), StamError> {
 
 #[cfg(not(target_os = "windows"))]
 #[test]
-fn add_substore() -> Result<(), StamError> {
-    let mut store = AnnotationStore::new(Config::default())
+fn add_substore_absolute() -> Result<(), StamError> {
+    let mut store = AnnotationStore::new(Config::default().with_debug(true))
         .with_id("superstore")
         .with_filename("/tmp/superstore.stam.json");
 
-    //add substore
+    //add substore with an absolute path
     store.add_substore(&format!(
         "{}/tests/test.store.stam.json",
         CARGO_MANIFEST_DIR

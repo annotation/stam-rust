@@ -115,7 +115,7 @@ impl AnnotationStore {
         let mut set_handle = self.dataset(TEXTVALIDATION_SET).map(|set| set.handle());
         if set_handle.is_none() {
             set_handle = self
-                .insert(AnnotationDataSet::new(self.config.clone()).with_id(TEXTVALIDATION_SET))
+                .insert(AnnotationDataSet::new(self.new_config()).with_id(TEXTVALIDATION_SET))
                 .ok();
         }
 

@@ -330,7 +330,9 @@ impl Serialize for AnnotationDataSet {
             //if there are any changes, we write to the standoff file
             if self.changed() {
                 //we trigger the standoff flag, this is the only way we can parametrize the serializer
-                let result = self.to_json_file(&filename, self.config()); //this reinvokes this function after setting config.standoff_include
+                let filename = get_filepath(filename, self.config.workdir())
+                    .expect("get_filepath must succeed");
+                let result = self.to_json_file(&filename.to_string_lossy(), self.config()); //this reinvokes this function after setting config.standoff_include
                 result.map_err(|e| serde::ser::Error::custom(format!("{}", e)))?;
                 self.mark_unchanged();
             }
@@ -460,6 +462,7 @@ impl AnnotationDataSet {
 
     /// Loads an AnnotationDataSet from file (STAM JSON or other supported format).
     /// For STAM JSON, the file must contain a single object which has "@type": "AnnotationDataSet"
+    /// The configuration is typically obtained via [`AnnotationStore::new_config()`]
     pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!(

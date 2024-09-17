@@ -419,13 +419,22 @@ impl<'store> Serialize for ResultItem<'store, AnnotationSubStore> {
 
 impl<'store> ResultItem<'store, AnnotationSubStore> {
     pub fn save(&self) -> Result<(), StamError> {
-        debug(self.store().config(), || format!("AnnotationStore.save"));
+        let new_config = self.store().new_config();
+
+        debug(self.store().config(), || {
+            format!(
+                "AnnotationSubStore.save: filename={:?}, workdir={:?}",
+                self.as_ref().filename(),
+                new_config.workdir()
+            )
+        });
+
         if let Some(filename) = self.as_ref().filename.as_ref() {
             match self.store().config().dataformat {
                 DataFormat::Json { .. } => {
                     self.to_json_file(
                         filename.to_str().expect("filename must be valid UTF-8"),
-                        self.store().config(),
+                        &new_config,
                     ) //may produce 1 or multiple files
                 }
                 _ => Err(StamError::SerializationError(

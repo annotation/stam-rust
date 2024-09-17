@@ -19,6 +19,7 @@ use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -212,7 +213,7 @@ pub struct AnnotationStore {
     #[n(110)]
     pub(crate) dataset_substore_map: RelationMap<AnnotationDataSetHandle, AnnotationSubStoreHandle>,
 
-    /// path associated with this store
+    /// Path associated with this store. This is the filename exactly as it occurs in @include serialisations, it may be relative (to the working directory in the config or else cwd) or absolute
     #[n(200)]
     pub(crate) filename: Option<PathBuf>,
 
@@ -267,7 +268,7 @@ impl private::StoreCallbacks<TextResource> for AnnotationStore {
     /// parameters from parent to the item
     #[allow(unused_variables)]
     fn preinsert(&self, item: &mut TextResource) -> Result<(), StamError> {
-        item.set_config(self.config.clone());
+        item.set_config(self.new_config());
         Ok(())
     }
 
@@ -593,7 +594,7 @@ impl private::StoreCallbacks<AnnotationDataSet> for AnnotationStore {
     /// parameters from parent to the item
     #[allow(unused_variables)]
     fn preinsert(&self, item: &mut AnnotationDataSet) -> Result<(), StamError> {
-        item.set_config(self.config.clone());
+        item.set_config(self.new_config());
         Ok(())
     }
 
@@ -804,7 +805,11 @@ impl FromJson for AnnotationStore {
     /// The file must contain a single object which has "@type": "AnnotationStore"
     fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
-            format!("AnnotationStore::from_json_file: filename={:?}", filename)
+            format!(
+                "AnnotationStore::from_json_file: filename={:?}, workdir={:?}",
+                filename,
+                config.workdir()
+            )
         });
         let reader = open_file_reader(filename, &config)?;
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
@@ -822,7 +827,11 @@ impl FromJson for AnnotationStore {
     /// The string must contain a single object which has "@type": "AnnotationStore"
     fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
-            format!("AnnotationStore::from_json_str: string={:?}", string)
+            format!(
+                "AnnotationStore::from_json_str: string={:?}, workdir={:?}",
+                string,
+                config.workdir()
+            )
         });
         let deserializer = &mut serde_json::Deserializer::from_str(string);
 
@@ -839,9 +848,12 @@ impl FromJson for AnnotationStore {
     /// The file must contain a single object which has "@type": "AnnotationStore"
     fn merge_json_file(&mut self, filename: &str) -> Result<(), StamError> {
         debug(self.config(), || {
-            format!("AnnotationStore::merge_json_file: filename={:?}", filename)
+            format!(
+                "AnnotationStore::merge_json_file: filename={:?}, workdir={:?}",
+                filename,
+                self.config().workdir()
+            )
         });
-        let reader = open_file_reader(filename, self.config())?;
 
         if let Some(substore_index) = self.config.current_substore_path.iter().last() {
             //if we are processing substores, associate the filename with the substore
@@ -850,17 +862,25 @@ impl FromJson for AnnotationStore {
             }
         }
 
+        let new_config = self.new_config();
+        let reader = open_file_reader(filename, &new_config)?;
+
+        let mut includedstorepath: PathBuf =
+            get_filepath(filename, new_config.workdir.as_ref().map(|v| &**v))?;
+        let empty = !includedstorepath.pop();
+
+        //we temporarily pretend we are the included store, so deserialisation of deeper includes may succeed
         let previous_workdir = self.config.workdir.clone();
-        let mut workdir: PathBuf = filename.into();
-        workdir.pop();
-        if !workdir.to_str().expect("path to string").is_empty() {
+        let previous_filename = self.filename.clone();
+        if !empty {
+            self.config.workdir = Some(includedstorepath);
+            self.filename = None;
             debug(&self.config, || {
                 format!(
                     "AnnotationStore::merge_json_file: temporarily setting workdir to {:?}",
-                    workdir
+                    self.config.workdir()
                 )
             });
-            self.config.workdir = Some(workdir);
         }
 
         let deserializer = &mut serde_json::Deserializer::from_reader(reader);
@@ -873,7 +893,16 @@ impl FromJson for AnnotationStore {
         self.set_merge_mode(false);
 
         //reset
+        if previous_workdir != self.config.workdir {
+            debug(&self.config, || {
+                format!(
+                    "AnnotationStore::merge_json_file: resetting workdir to {:?}",
+                    previous_workdir
+                )
+            });
+        }
         self.config.workdir = previous_workdir;
+        self.filename = previous_filename;
 
         Ok(())
     }
@@ -882,8 +911,13 @@ impl FromJson for AnnotationStore {
     /// The string must contain a single object which has "@type": "AnnotationStore"
     fn merge_json_str(&mut self, string: &str) -> Result<(), StamError> {
         debug(self.config(), || {
-            format!("AnnotationStore::merge_json_str: string={:?}", string)
+            format!(
+                "AnnotationStore::merge_json_str: string={:?}, workdir={:?}",
+                string,
+                self.config().workdir()
+            )
         });
+
         let deserializer = &mut serde_json::Deserializer::from_str(string);
 
         self.set_merge_mode(true);
@@ -968,6 +1002,14 @@ impl AnnotationStore {
         }
     }
 
+    /// Returns a [`Config`] instance suitable for instantiation of dependent instances like TextResource,AnnotationDataSet and
+    /// This will have the working directory set to the annotation store's directory
+    pub fn new_config(&self) -> Config {
+        let mut config = self.config().clone();
+        config.workdir = self.dirname();
+        config
+    }
+
     /// Loads an AnnotationStore from a file (STAM JSON or another supported format)
     /// The file must contain a single object which has "@type": "AnnotationStore"
     pub fn from_file(filename: &str, mut config: Config) -> Result<Self, StamError> {
@@ -977,17 +1019,6 @@ impl AnnotationStore {
                 filename, config
             )
         });
-        //extract work directory add add it to the config (if it does not already specify a working directory)
-        if config.workdir().is_none() {
-            let mut workdir: PathBuf = filename.into();
-            workdir.pop();
-            if !workdir.to_str().expect("path to string").is_empty() {
-                debug(&config, || {
-                    format!("AnnotationStore::from_file: set workdir to {:?}", workdir)
-                });
-                config.workdir = Some(workdir);
-            }
-        }
 
         if filename.ends_with("cbor") || config.dataformat == DataFormat::CBOR {
             config.dataformat = DataFormat::CBOR;
@@ -1071,14 +1102,21 @@ impl AnnotationStore {
     /// They will be derived from the existing filenames, if any.
     /// End user should just use [`AnnotationStore.set_filename`] with a recognized extension (json, csv)
     pub(crate) fn set_dataformat(&mut self, dataformat: DataFormat) -> Result<(), StamError> {
+        debug(self.config(), || {
+            format!(
+                "AnnotationStore::set_dataformat: dataformat: {:?}",
+                dataformat
+            )
+        });
+        let do_debug = self.config().debug();
         if dataformat != DataFormat::CBOR {
             //process the children
+            let storedir = self.dirname().clone();
 
             for resource in self.resources.iter_mut() {
                 if let Some(resource) = resource.as_mut() {
                     if resource.config().dataformat != dataformat {
-                        let mut basename = if let Some(basename) =
-                            resource.filename_without_extension()
+                        let basename = if let Some(basename) = resource.filename_without_extension()
                         {
                             basename.to_owned()
                         } else if let Some(id) = resource.id() {
@@ -1090,32 +1128,30 @@ impl AnnotationStore {
                         )));
                         };
 
-                        if basename.find("/").is_none() {
-                            if let Some(workdir) = resource.config().workdir() {
-                                if workdir.ends_with("/") {
-                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                        + &basename;
-                                } else {
-                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                        + "/"
-                                        + &basename;
-                                }
-                            }
-                        }
-
                         //always prefer external plain text for CSV
                         #[cfg(feature = "csv")]
                         if dataformat == DataFormat::Csv {
-                            resource.set_filename(format!("{}.txt", basename).as_str());
+                            let new_filename = format!("{}.txt", basename);
+                            resource.config.workdir = storedir.clone();
+                            if do_debug {
+                                eprintln!(
+                                    "[STAM DEBUG] AnnotationStore::set_dataformat: resource {:?} -> {}, resource workdir={:?}",
+                                    resource.filename(),
+                                    &new_filename,
+                                    resource.config().workdir()
+                                )
+                            }
+                            resource.set_filename(&new_filename);
                             resource.mark_changed()
                         }
                     }
                 }
             }
+
             for annotationset in self.annotationsets.iter_mut() {
                 if let Some(annotationset) = annotationset.as_mut() {
                     if annotationset.config().dataformat != dataformat {
-                        let mut basename = if let Some(basename) =
+                        let basename = if let Some(basename) =
                             annotationset.filename_without_extension()
                         {
                             basename.to_owned()
@@ -1127,19 +1163,6 @@ impl AnnotationStore {
                     )));
                         };
 
-                        if basename.find("/").is_none() {
-                            if let Some(workdir) = annotationset.config().workdir() {
-                                if workdir.ends_with("/") {
-                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                        + &basename;
-                                } else {
-                                    basename = String::from(workdir.to_str().expect("valid utf-8"))
-                                        + "/"
-                                        + &basename;
-                                }
-                            }
-                        }
-
                         if let DataFormat::Json { .. } = dataformat {
                             annotationset.set_filename(
                                 format!("{}.annotationset.stam.json", basename).as_str(),
@@ -1149,9 +1172,17 @@ impl AnnotationStore {
 
                         #[cfg(feature = "csv")]
                         if dataformat == DataFormat::Csv {
-                            annotationset.set_filename(
-                                format!("{}.annotationset.stam.csv", basename).as_str(),
-                            );
+                            let new_filename = format!("{}.annotationset.stam.csv", basename);
+                            annotationset.config.workdir = storedir.clone();
+                            if do_debug {
+                                eprintln!(
+                                    "[STAM DEBUG] AnnotationStore::set_dataformat: dataset {:?} -> {}, dataset workdir={:?}",
+                                    annotationset.filename(),
+                                    &new_filename,
+                                    annotationset.config().workdir()
+                                )
+                            }
+                            annotationset.set_filename(&new_filename);
                             annotationset.mark_changed()
                         }
                     }
@@ -1181,9 +1212,15 @@ impl AnnotationStore {
         if let DataFormat::Csv = dataformat {
             self.filename = Some(format!("{}.store.stam.csv", basename).into());
             self.annotations_filename = Some(format!("{}.annotations.stam.csv", basename).into());
+            debug(self.config(), || {
+                format!(
+                    "AnnotationStore::set_dataformat: CSV filename={:?} annotations_filename={:?}",
+                    self.filename, self.annotations_filename
+                )
+            });
         }
 
-        self.update_config(|config| config.dataformat = dataformat);
+        self.update_config(true, |config| config.dataformat = dataformat);
 
         Ok(())
     }
@@ -1195,7 +1232,14 @@ impl AnnotationStore {
     /// Note: If multiple stores were loaded and merged, this will write all merged results in place of the first loaded store!
     ///       Only if substores are used (via the @include mechanism in STAM JSON), then everything is written to separate substores
     pub fn save(&self) -> Result<(), StamError> {
-        debug(self.config(), || format!("AnnotationStore.save"));
+        debug(self.config(), || {
+            format!(
+                "AnnotationStore.save: filename={:?}, workdir={:?}, dataformat={:?}",
+                self.filename(),
+                self.config().workdir(),
+                self.config().dataformat
+            )
+        });
         if self.filename.is_some() {
             match self.config().dataformat {
                 DataFormat::Json { .. } => {
@@ -1247,6 +1291,9 @@ impl AnnotationStore {
 
     /// Propagate the entire configuration to all children, will overwrite customized configurations
     fn propagate_full_config(&mut self) {
+        debug(self.config(), || {
+            format!("AnnotationStore::propagate_full_config()")
+        });
         if self.resources_len() > 0 || self.datasets_len() > 0 {
             let config = self.config().clone();
             for resource in self.resources.iter_mut() {
@@ -1269,11 +1316,13 @@ impl AnnotationStore {
     }
 
     /// Recursively update the configurate for self and all children, the actual update is in a closure
-    fn update_config<F>(&mut self, f: F)
+    fn update_config<F>(&mut self, update_self: bool, f: F)
     where
         F: Fn(&mut Config),
     {
-        f(self.config_mut());
+        if update_self {
+            f(self.config_mut());
+        }
 
         for resource in self.resources.iter_mut() {
             if let Some(resource) = resource.as_mut() {
@@ -1304,7 +1353,17 @@ impl AnnotationStore {
         &mut self,
         filename: &str,
     ) -> Result<TextResourceHandle, StamError> {
-        let resource = TextResource::from_file(filename, self.config().clone())?;
+        let resource = TextResource::from_file(filename, self.new_config())?;
+        self.insert(resource)
+    }
+
+    /// Shortcut method to load a dataset from file and add it to the store. Returns a handle,
+    /// wrap it in a call to `self.dataset()` to get the resource itself.
+    pub fn add_dataset_from_file(
+        &mut self,
+        filename: &str,
+    ) -> Result<AnnotationDataSetHandle, StamError> {
+        let resource = AnnotationDataSet::from_file(filename, self.new_config())?;
         self.insert(resource)
     }
 
@@ -2068,13 +2127,13 @@ impl AnnotationStore {
 
 #[sealed]
 impl AssociatedFile for AnnotationStore {
-    //Set the associated filename for this annotation store. Also sets the working directory. Builder pattern.
+    //Set the associated filename for this annotation store. Builder pattern.
     fn with_filename(mut self, filename: &str) -> Self {
         self.set_filename(filename);
         self
     }
 
-    //Set the associated filename for this annotation store. Also resets the working directory accordingly if needed.
+    //Set the associated filename for this annotation store.
     fn set_filename(&mut self, filename: &str) -> &mut Self {
         debug(self.config(), || {
             format!(
@@ -2083,17 +2142,12 @@ impl AssociatedFile for AnnotationStore {
                 self.config().dataformat
             )
         });
+
         self.filename = Some(filename.into());
-        if let Some(mut workdir) = self.filename.clone() {
-            workdir.pop();
-            if !workdir.to_str().expect("path to string").is_empty() {
-                debug(self.config(), || {
-                    format!("AnnotationStore.set_filename: workdir={:?}", workdir)
-                });
-                self.config.workdir = Some(workdir.clone());
-                //self.update_config(|config| config.workdir = Some(workdir.clone()));
-            }
-        }
+
+        //setting a filename may change the workdir of existing resources/datasets
+        let workdir = self.dirname();
+        self.update_config(false, |config| config.workdir = workdir.clone());
 
         if self.filename().unwrap().ends_with(".json") {
             if let DataFormat::Json { .. } = self.config.dataformat {
@@ -2574,7 +2628,7 @@ impl<'de> serde::de::Visitor<'de> for ResourcesVisitor<'_> {
     {
         loop {
             if let Some(resource) =
-                seq.next_element_seed(DeserializeTextResource::new(&self.store.config))?
+                seq.next_element_seed(DeserializeTextResource::new(self.store.new_config()))?
             {
                 let handle = self
                     .store
@@ -2638,7 +2692,7 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetsVisitor<'_> {
     {
         loop {
             let mut annotationset: AnnotationDataSet =
-                AnnotationDataSet::new(self.store.config.clone());
+                AnnotationDataSet::new(self.store.new_config());
             if seq
                 .next_element_seed(DeserializeAnnotationDataSet::new(&mut annotationset))?
                 .is_some()

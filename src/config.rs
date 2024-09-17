@@ -294,6 +294,12 @@ impl Config {
         self
     }
 
+    /// Set the work directory, all include paths will be interpreted relative to this
+    pub fn with_workdir(mut self, value: String) -> Self {
+        self.workdir = Some(value.into());
+        self
+    }
+
     /// Return the configured milestone interval
     /// The Milestone placement interval (in unicode codepoints) is used in indexing text resources. A low number above zero increases search performance at the cost of memory and increased initialisation time.
     pub fn milestone_interval(&self) -> usize {
