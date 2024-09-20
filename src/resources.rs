@@ -1147,7 +1147,7 @@ pub(crate) struct DeserializeTextResource {
     config: Config,
 }
 
-impl<'a> DeserializeTextResource {
+impl DeserializeTextResource {
     pub fn new(config: Config) -> Self {
         Self { config }
     }

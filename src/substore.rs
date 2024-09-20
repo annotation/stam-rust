@@ -49,8 +49,10 @@ pub struct AnnotationSubStore {
     pub(crate) filename: Option<PathBuf>,
 
     #[n(3)]
-    /// Refers to an index in substores which is the parent of the curent substore. This allows for deeper nesting, it is set to None if this is a first level substore
-    pub(crate) parent: Option<AnnotationSubStoreHandle>,
+    /// Refers to indices in substores, indicating which are the parents of the curent substore.
+    /// A value of `None` means the root store is the parent.
+    /// This allows for deeper nesting, it is set to None if this is a first level substore
+    pub(crate) parents: Vec<Option<AnnotationSubStoreHandle>>,
 
     #[n(4)]
     pub(crate) annotations: Vec<AnnotationHandle>,
@@ -91,13 +93,26 @@ impl AnnotationSubStore {
         self.annotationsets.len()
     }
 
-    pub fn parent(&self) -> Option<AnnotationSubStoreHandle> {
-        self.parent
+    pub fn parents(&self) -> &Vec<Option<AnnotationSubStoreHandle>> {
+        &self.parents
     }
 
-    /// Sets the parent of this substore
+    /// Sets the parent of this substore, may be called multiple times to add multiple parents!
+    /// The value is wrapped in an option, None means the root store is the parent
     fn with_parent(mut self, index: Option<AnnotationSubStoreHandle>) -> Self {
-        self.parent = index;
+        self.add_parent(index);
+        self
+    }
+
+    /// Sets the parent of this substore, may be called multiple times to add multiple parents!
+    /// The value is wrapped in an option, None means the root store is the parent
+    fn add_parent(&mut self, index: Option<AnnotationSubStoreHandle>) {
+        self.parents.push(index);
+    }
+
+    /// Sets the parents of this substore
+    fn with_parents(mut self, parents: Vec<Option<AnnotationSubStoreHandle>>) -> Self {
+        self.parents = parents;
         self
     }
 
@@ -180,22 +195,29 @@ impl AnnotationStore {
             // check if the substore is already loaded (it may be referenced from multiple places)
             // in that case we don't need to process it again
             let foundpath = Some(get_filepath(filename, self.config.workdir())?);
+            let mut foundsubstore = None;
             for substore in <Self as StoreFor<AnnotationSubStore>>::iter(self) {
                 if substore.filename == foundpath || substore.filename == Some(filename.into()) {
-                    return Ok(substore.handle().expect("substore must have handle"));
+                    foundsubstore = Some(substore.handle().expect("substore must have handle"));
+                    break;
                 }
             }
+            if let Some(foundsubstore) = foundsubstore {
+                let parent_handle = self.config.current_substore_path.last().copied();
+                let substore: &mut AnnotationSubStore = self.get_mut(foundsubstore)?;
+                substore.add_parent(parent_handle);
+                return Ok(foundsubstore);
+            }
         }
-        let new_index = self.substores.len();
-        let parent_index = if new_index == 0 {
-            None
-        } else {
-            Some(new_index - 1)
-        };
-        let handle = self.insert(
-            AnnotationSubStore::default()
-                .with_parent(parent_index.map(|x| AnnotationSubStoreHandle::new(x))),
-        )?; //this data will be modified whilst parsing
+
+        let parent_handle = self.config.current_substore_path.last().copied();
+        let handle = self.insert(AnnotationSubStore::default().with_parent(parent_handle))?; //this data will be modified whilst parsing
+        debug(self.config(), || {
+            format!(
+                "AnnotationStore.add_substore: adding substore filename={:?}, parent={:?}",
+                filename, parent_handle
+            )
+        });
         self.push_current_substore(handle);
         self.merge_json_file(filename)?;
         self.pop_current_substore();
@@ -214,33 +236,45 @@ impl AnnotationStore {
             // check if the substore is already loaded (it may be referenced from multiple places)
             // in that case we don't need to process it again
             let foundpath = Some(get_filepath(filename, self.config.workdir())?);
+            let mut foundsubstore = None;
             for substore in <Self as StoreFor<AnnotationSubStore>>::iter(self) {
                 if substore.filename == foundpath || substore.filename == Some(filename.into()) {
-                    return Ok(substore.handle().expect("substore must have handle"));
+                    foundsubstore = Some(substore.handle().expect("substore must have handle"));
+                    break;
                 }
             }
+            if let Some(foundsubstore) = foundsubstore {
+                let parent_handle = self.config.current_substore_path.last().copied();
+                let substore: &mut AnnotationSubStore = self.get_mut(foundsubstore)?;
+                substore.add_parent(parent_handle);
+                return Ok(foundsubstore);
+            }
         }
-        let new_index = self.substores.len();
-        let parent_index = if new_index == 0 {
-            None
-        } else {
-            Some(new_index - 1)
-        };
+
+        let parent_handle = self.config.current_substore_path.last().copied();
         let handle = self.insert(
             AnnotationSubStore::default()
-                .with_filename(filename)
                 .with_id(id)
-                .with_parent(parent_index.map(|x| AnnotationSubStoreHandle::new(x))),
+                .with_filename(filename)
+                .with_parent(parent_handle),
         )?; //this data will be modified whilst parsing
+        debug(self.config(), || {
+            format!(
+                "AnnotationStore.add_substore: adding substore filename={:?}, parent={:?}",
+                filename, parent_handle
+            )
+        });
         Ok(handle)
     }
 
     /// used to add a substore to the path, indicating which substore is currently being parsed
+    /// influences the behaviour of add_substore()
     fn push_current_substore(&mut self, index: AnnotationSubStoreHandle) {
         self.config.current_substore_path.push(index);
     }
 
     /// used to add a substore to the path, indicating which substore is currently being parsed
+    /// influences the behaviour of add_substore()
     fn pop_current_substore(&mut self) -> bool {
         self.config.current_substore_path.pop().is_some()
     }
@@ -380,12 +414,12 @@ impl<'store> Serialize for ResultItem<'store, AnnotationSubStore> {
             state.serialize_field("@id", id)?;
         }
         let substores: Vec<_> = self.substores().collect();
-        let substore_handle = Some(self.handle());
+        let substore_handle = self.handle();
         if !substores.is_empty() {
             if substores.len() == 1 {
                 if let Some(substore) =
                     <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self.store())
-                        .filter(|substore| substore.parent == substore_handle)
+                        .filter(|substore| substore.parents.contains(&Some(substore_handle)))
                         .next()
                 {
                     state.serialize_field(
@@ -398,20 +432,20 @@ impl<'store> Serialize for ResultItem<'store, AnnotationSubStore> {
             } else {
                 let substores_filenames: Vec<_> =
                     <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self.store())
-                        .filter(|substore| substore.parent == substore_handle)
+                        .filter(|substore| substore.parents.contains(&Some(substore_handle)))
                         .filter_map(|substore| substore.filename())
                         .collect();
                 state.serialize_field("@include", &substores_filenames)?;
             }
         }
         let wrappedstore: WrappedStore<TextResource, AnnotationStore> =
-            self.store().wrap_store(substore_handle);
+            self.store().wrap_store(Some(substore_handle));
         state.serialize_field("resources", &wrappedstore)?;
         let wrappedstore: WrappedStore<AnnotationDataSet, AnnotationStore> =
-            self.store().wrap_store(substore_handle);
+            self.store().wrap_store(Some(substore_handle));
         state.serialize_field("annotationsets", &wrappedstore)?;
         let wrappedstore: WrappedStore<Annotation, AnnotationStore> =
-            self.store().wrap_store(substore_handle);
+            self.store().wrap_store(Some(substore_handle));
         state.serialize_field("annotations", &wrappedstore)?;
         state.end()
     }

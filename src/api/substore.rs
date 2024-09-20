@@ -87,7 +87,7 @@ impl<'store> ResultItem<'store, AnnotationSubStore> {
         let handle = self.handle();
         let store = self.store();
         ResultIter::new_sorted(store.iter().filter_map(move |a: &'a AnnotationSubStore| {
-            if a.parent == Some(handle) {
+            if a.parents.contains(&Some(handle)) {
                 Some(a.as_resultitem(store, store))
             } else {
                 None

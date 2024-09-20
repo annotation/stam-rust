@@ -191,7 +191,7 @@ impl AnnotationStore {
         &'a self,
     ) -> ResultIter<impl Iterator<Item = ResultItem<'a, AnnotationSubStore>>> {
         ResultIter::new_sorted(self.iter().filter_map(|a: &'a AnnotationSubStore| {
-            if a.parent.is_none() {
+            if a.parents.contains(&None) {
                 Some(a.as_resultitem(self, self))
             } else {
                 None

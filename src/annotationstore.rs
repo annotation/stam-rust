@@ -685,7 +685,7 @@ impl Serialize for AnnotationStore {
             if self.substores.len() == 1 {
                 if let Some(substore) =
                     <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self)
-                        .filter(|substore| substore.parent.is_none())
+                        .filter(|substore| substore.parents.contains(&None))
                         .next()
                 {
                     state.serialize_field(
@@ -698,7 +698,7 @@ impl Serialize for AnnotationStore {
             } else {
                 let substores_filenames: Vec<_> =
                     <AnnotationStore as StoreFor<AnnotationSubStore>>::iter(self)
-                        .filter(|substore| substore.parent.is_none())
+                        .filter(|substore| substore.parents.contains(&None))
                         .filter_map(|substore| substore.filename())
                         .collect();
                 state.serialize_field("@include", &substores_filenames)?;
@@ -1005,6 +1005,7 @@ impl AnnotationStore {
     /// Returns a [`Config`] instance suitable for instantiation of dependent instances like TextResource,AnnotationDataSet and
     /// This will have the working directory set to the annotation store's directory
     pub fn new_config(&self) -> Config {
+        debug(&self.config(), || format!("AnnotationStore::new_config"));
         let mut config = self.config().clone();
         config.workdir = self.dirname();
         config
