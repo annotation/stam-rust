@@ -419,7 +419,10 @@ impl AnnotationStore {
     }
 
     /// Builds and adds multiple annotations
-    pub fn with_annotations(mut self, builders: Vec<AnnotationBuilder>) -> Result<Self, StamError> {
+    pub fn with_annotations<'a, I>(mut self, builders: I) -> Result<Self, StamError>
+    where
+        I: IntoIterator<Item = AnnotationBuilder<'a>>,
+    {
         self.annotate_from_iter(builders)?;
         Ok(self)
     }
@@ -469,11 +472,10 @@ impl AnnotationStore {
     /// //instantiate a store
     /// let mut store = AnnotationStore::new(Config::default())
     ///     .with_id("example")
-    ///     .add(
+    ///     .with_resource(
     ///         TextResourceBuilder::new()
     ///             .with_id("myresource")
     ///             .with_text("Hello world")
-    ///             .build()?,
     ///     )?
     ///     .add(
     ///         AnnotationDataSet::new(Config::default())

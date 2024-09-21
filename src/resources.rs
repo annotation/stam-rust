@@ -94,10 +94,10 @@ pub struct TextResource {
 /// ```
 /// use stam::*;
 /// let mut store = AnnotationStore::default();
-/// store.insert(
-///        TextResourceBuilder::new().with_id("testres").with_text(
-///        "Hello world!",
-///        ).with_config(store.new_config()).build().unwrap()
+/// store.add_resource(
+///        TextResourceBuilder::new()
+///           .with_id("testres")
+///           .with_text("Hello world!")
 /// );
 /// ```
 #[derive(Deserialize, Debug, Default)]
@@ -111,75 +111,6 @@ pub struct TextResourceBuilder {
     /// if we have a filename but no text, the include is still to be parsed.
     #[serde(rename = "@include")]
     filename: Option<String>,
-
-    #[serde(skip)]
-    config: Config,
-}
-
-impl TryFrom<TextResourceBuilder> for TextResource {
-    type Error = StamError;
-
-    fn try_from(builder: TextResourceBuilder) -> Result<Self, StamError> {
-        debug(&builder.config, || {
-            format!("TryFrom<TextResourceBuilder for TextResource>: Creation of TextResource from builder (done)")
-        });
-
-        //do we need to resolve an @include?
-        let mut includebuilder: Option<TextResourceBuilder> = None;
-        if builder.text.is_none() {
-            if let Some(filename) = &builder.filename {
-                // we have a filename but no text, that means the include has to be resolved still
-                // we load the resource from the external file into a new builder and
-                // merge it with this one at the end of this function
-                includebuilder = Some(TextResourceBuilder::from_file(
-                    filename.as_str(),
-                    builder.config.clone(),
-                )?);
-            }
-        }
-
-        let textlen = if let Some(text) = &builder.text {
-            text.chars().count()
-        } else if let Some(includebuilder) = includebuilder.as_ref() {
-            includebuilder
-                .text
-                .as_ref()
-                .map(|s| s.chars().count())
-                .unwrap_or(0)
-        } else {
-            0
-        };
-        let changed = builder.text.is_some() && builder.filename.is_some(); //we supplied text but also have a filename, that means the file will be new
-        Ok(Self {
-            intid: None,
-            id: if let Some(id) = builder.id {
-                id
-            } else if includebuilder.is_some() && includebuilder.as_ref().unwrap().id.is_some() {
-                includebuilder.as_ref().unwrap().id.clone().unwrap()
-            } else if let Some(filename) = builder.filename.as_ref() {
-                filename.clone()
-            } else {
-                return Err(StamError::NoIdError("Expected an ID for resource"));
-            },
-            text: if let Some(text) = builder.text {
-                text
-            } else if let Some(includebuilder) = includebuilder {
-                //this consumes the includebuilder
-                includebuilder
-                    .text
-                    .ok_or_else(|| StamError::NoText("Included resource has no text"))?
-            } else {
-                String::new()
-            },
-            textlen,
-            positionindex: PositionIndex::default(),
-            byte2charmap: BTreeMap::default(),
-            textselections: Store::default(),
-            config: builder.config,
-            filename: builder.filename,
-            changed: Arc::new(RwLock::new(changed)),
-        })
-    }
 }
 
 /// [Handle] to an instance of [`TextResource`] in the store ([`AnnotationStore`]).
@@ -371,98 +302,34 @@ impl PartialEq<TextResource> for TextResource {
     }
 }
 
-impl FromJson for TextResourceBuilder {
-    /// Loads a Text Resource from a STAM JSON  or plain text file file.
-    /// If the file is JSON, it file must contain a single object which has "@type": "TextResource"
-    /// If `include` is true, the file will be included via the `@include` mechanism, and is kept external upon serialization
-    fn from_json_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        let reader = open_file_reader(filename, &config)?;
-        let deserializer = &mut serde_json::Deserializer::from_reader(reader);
-        let mut result: Result<TextResourceBuilder, _> =
-            serde_path_to_error::deserialize(deserializer);
-        if result.is_ok() && config.use_include {
-            let result = result.as_mut().unwrap();
-            result.filename = Some(filename.to_string()); //always uses the original filename (not the found one)
-            result.config = config;
-        }
-        result.map_err(|e| {
-            StamError::JsonError(e, filename.to_string(), "Reading text resource from file")
-        })
+impl AnnotationStore {
+    /// Builds and adds resource
+    pub fn with_resource(mut self, builder: TextResourceBuilder) -> Result<Self, StamError> {
+        self.add_resource(builder)?;
+        Ok(self)
     }
 
-    /// Loads a text resource from a STAM JSON string
-    /// The string must contain a single object which has "@type": "TextResource"
-    fn from_json_str(string: &str, config: Config) -> Result<Self, StamError> {
-        let deserializer = &mut serde_json::Deserializer::from_str(string);
-        let mut result: Result<TextResourceBuilder, _> =
-            serde_path_to_error::deserialize(deserializer);
-        if result.is_ok() {
-            let result = result.as_mut().unwrap();
-            result.config = config;
-        }
-        result.map_err(|e| {
-            StamError::JsonError(e, string.to_string(), "Reading text resource from string")
-        })
+    pub fn add_resource(
+        &mut self,
+        builder: TextResourceBuilder,
+    ) -> Result<TextResourceHandle, StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore.add_resource: builder={:?}", builder)
+        });
+        self.insert(builder.build(self.new_config())?)
     }
 }
 
 impl TextResourceBuilder {
+    /// Instantiate a new TextResourceBuilder.
+    /// You likely want to pass the result to [`AnnotationStore::add_resource()`].
     pub fn new() -> Self {
         TextResourceBuilder::default()
-    }
-
-    fn text_from_file(filename: &str, config: &Config) -> Result<String, StamError> {
-        let mut f = open_file(filename, config)?;
-        let mut text: String = String::new();
-        if let Err(err) = f.read_to_string(&mut text) {
-            return Err(StamError::IOError(
-                err,
-                filename.to_owned(),
-                "TextResourceBuilder::from_txt_file",
-            ));
-        }
-        Ok(text)
-    }
-
-    /// Loads a resource from text file
-    pub fn from_txt_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        //plain text
-        debug(&config, || {
-            format!(
-                "TextResourceBuilder::from_txt_file: filename={}, workdir={:?}",
-                filename,
-                config.workdir()
-            )
-        });
-        let text = Self::text_from_file(filename, &config)?;
-        Ok(Self {
-            id: Some(filename.to_string()),
-            text: Some(text),
-            filename: Some(filename.to_string()),
-            config,
-        })
-    }
-
-    /// Load a resource from file. The extension determines the type (`json` for STAM JSON or plain text otherwise).
-    /// You also need to pass a configuration, for which you should normally use [`AnnotationStore::new_config()`].
-    pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
-        if filename.ends_with(".json") {
-            Self::from_json_file(filename, config)
-        } else {
-            Self::from_txt_file(filename, config)
-        }
     }
 
     /// Associate a public identifier with the resource
     pub fn with_id(mut self, id: impl Into<String>) -> Self {
         self.id = Some(id.into());
-        self
-    }
-
-    /// Set a configuration to use for this resource
-    /// You'll most likely want to pass the result of [`AnnotationStore::new_config()`] to this method.
-    pub fn with_config(mut self, config: Config) -> Self {
-        self.config = config;
         self
     }
 
@@ -481,28 +348,102 @@ impl TextResourceBuilder {
     }
 
     ///Builds a new [`TextResource`] from [`TextResourceBuilder`], consuming the latter
-    pub fn build(self) -> Result<TextResource, StamError> {
-        debug(&self.config, || {
+    pub(crate) fn build(self, config: Config) -> Result<TextResource, StamError> {
+        debug(&config, || {
             format!(
                 "TextResourceBuilder::build: id={:?}, filename={:?}, workdir={:?}, use_include={}",
                 self.id,
                 self.filename,
-                self.config.workdir(),
-                self.config.use_include()
+                config.workdir(),
+                config.use_include()
             )
         });
-        let mut res: TextResource = self.try_into()?;
-        res.textlen = res.text.chars().count();
-        if res.config().milestone_interval > 0 {
-            res.create_milestones(res.config().milestone_interval)
+
+        if let Some(text) = self.text {
+            let changed = self.filename.is_some(); //we supplied text but also have a filename, that means the file will be new
+            Ok(TextResource {
+                intid: None,
+                id: if let Some(id) = self.id {
+                    id
+                } else if let Some(filename) = self.filename.as_ref() {
+                    filename.clone()
+                } else {
+                    return Err(StamError::NoIdError("Expected an ID for resource"));
+                },
+                textlen: text.chars().count(),
+                text,
+                filename: self.filename,
+                config,
+                positionindex: PositionIndex::default(),
+                byte2charmap: BTreeMap::default(),
+                textselections: Store::default(),
+                changed: Arc::new(RwLock::new(changed)),
+            })
+        } else if let Some(filename) = self.filename {
+            // we have a filename but no text, that means the include has to be resolved still
+            // we load the resource from the external file
+            if filename.ends_with(".json") {
+                // load STAM JSON file
+                let reader = open_file_reader(filename.as_str(), &config)?;
+                let deserializer = &mut serde_json::Deserializer::from_reader(reader);
+                //this generates a new builder
+                let result: Result<TextResourceBuilder, _> =
+                    serde_path_to_error::deserialize(deserializer);
+                match result {
+                    Ok(mut builder) => {
+                        //recursion step into the new builder:
+                        if self.id.is_some() && builder.id.is_none() {
+                            builder.id = self.id;
+                        }
+                        builder.filename = Some(filename); //always uses the original filename (not the found one)
+                        builder.build(config) //<-- actual recursion step
+                    }
+                    Err(e) => Err(StamError::JsonError(
+                        e,
+                        filename.to_string(),
+                        "Reading text resource from STAM JSON file",
+                    )),
+                }
+            } else {
+                // load plain text file
+                let mut f = open_file(filename.as_str(), &config)?;
+                let mut text: String = String::new();
+                if let Err(err) = f.read_to_string(&mut text) {
+                    return Err(StamError::IOError(
+                        err,
+                        filename,
+                        "TextResourceBuilder::build(): from text file: ",
+                    ));
+                }
+                Ok(TextResource {
+                    intid: None,
+                    id: if let Some(id) = self.id {
+                        id
+                    } else {
+                        filename.clone()
+                    },
+                    textlen: text.chars().count(),
+                    text,
+                    filename: Some(filename),
+                    config,
+                    positionindex: PositionIndex::default(),
+                    byte2charmap: BTreeMap::default(),
+                    textselections: Store::default(),
+                    changed: Arc::new(RwLock::new(false)),
+                })
+            }
+        } else {
+            Err(StamError::OtherError(
+                "TextResourceBuilder No filename or text received",
+            ))
         }
-        Ok(res)
     }
 }
 
 impl TextResource {
     /// Instantiates a new completely empty TextResource
     /// Use [`AnnotationStore::new_config()`] to obtain a configuration to pass to this method.
+    /// This is a low-level method. Use [`AnnotationStore::add_resource()`] with a [`TextResourceBuilder`] instead.
     pub fn new(id: impl Into<String>, config: Config) -> Self {
         Self {
             id: id.into(),
@@ -519,6 +460,7 @@ impl TextResource {
     }
 
     /// Create a new TextResource from file, the text will be loaded into memory entirely
+    /// This is a low-level method. Use [`AnnotationStore::add_resource()`] with a [`TextResourceBuilder`] instead.
     pub fn from_file(filename: &str, config: Config) -> Result<Self, StamError> {
         debug(&config, || {
             format!(
@@ -526,7 +468,9 @@ impl TextResource {
                 filename, config
             )
         });
-        TextResourceBuilder::from_file(filename, config)?.build()
+        TextResourceBuilder::new()
+            .with_filename(filename)
+            .build(config)
     }
 
     /// Sets the text of the TextResource from string, kept in memory entirely
@@ -577,6 +521,7 @@ impl TextResource {
     }
 
     /// Create a new TextResource from string, kept in memory entirely
+    /// This is a low-level method. Use [`AnnotationStore::add_resource()`] with a [`TextResourceBuilder`] instead.
     pub fn from_string(id: impl Into<String>, text: impl Into<String>, config: Config) -> Self {
         let text = text.into();
         let textlen = text.chars().count();
@@ -596,6 +541,15 @@ impl TextResource {
             resource.create_milestones(resource.config.milestone_interval)
         }
         resource
+    }
+
+    /// This function will be called after insertion (and after a configuration is associated with the TextResource)
+    pub(crate) fn initialize(&mut self, store: &AnnotationStore) {
+        self.config.workdir = store.dirname();
+        self.textlen = self.text.chars().count();
+        if self.config().milestone_interval > 0 {
+            self.create_milestones(self.config().milestone_interval)
+        }
     }
 
     /// Creates milestones (reverse index to facilitate character positions to utf8 byte position lookup and vice versa)
@@ -1163,8 +1117,7 @@ impl<'de> DeserializeSeed<'de> for DeserializeTextResource {
         let builder: TextResourceBuilder = Deserialize::deserialize(deserializer)?;
         //inject the config
         builder
-            .with_config(self.config)
-            .build()
+            .build(self.config)
             .map_err(|e| -> D::Error { serde::de::Error::custom(e) })
     }
 }

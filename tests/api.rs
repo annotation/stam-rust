@@ -859,12 +859,10 @@ fn test_write_include_annotationstore() -> Result<(), StamError> {
 #[test]
 fn find_text() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello world")
-            .with_config(store.new_config())
-            .build()?,
+            .with_text("Hello world"),
     )?;
     let resource = store.resource("testres").unwrap();
     let mut count = 0;
@@ -881,12 +879,10 @@ fn find_text() -> Result<(), StamError> {
 #[test]
 fn find_text_nocase() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello world")
-            .with_config(store.new_config())
-            .build()?,
+            .with_text("Hello world"),
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -903,12 +899,10 @@ fn find_text_nocase() -> Result<(), StamError> {
 #[test]
 fn find_text_sequence() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello world")
-            .with_config(store.new_config())
-            .build()?,
+            .with_text("Hello world"),
     )?;
     let resource = store.resource("testres").or_fail()?;
     let results = resource
@@ -927,12 +921,10 @@ fn find_text_sequence() -> Result<(), StamError> {
 #[test]
 fn find_text_sequence2() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello, world")
-            .with_config(store.new_config())
-            .build()?,
+            .with_text("Hello, world"),
     )?;
     let resource = store.resource("testres").or_fail()?;
     let results = resource
@@ -951,12 +943,10 @@ fn find_text_sequence2() -> Result<(), StamError> {
 #[test]
 fn find_text_sequence_nocase() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello world")
-            .with_config(store.new_config())
-            .build()?,
+            .with_text("Hello world"),
     )?;
     let resource = store.resource("testres").or_fail()?;
     let results = resource
@@ -975,12 +965,10 @@ fn find_text_sequence_nocase() -> Result<(), StamError> {
 #[test]
 fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello world")
-            .with_config(store.new_config())
-            .build()?,
+            .with_text("Hello world"),
     )?;
     let resource = store.resource("testres").or_fail()?;
     let results =
@@ -992,12 +980,10 @@ fn test_find_text_sequence_nomatch() -> Result<(), StamError> {
 #[test]
 fn test_split_text() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello world")
-            .with_config(store.new_config())
-            .build()?,
+            .with_text("Hello world"),
     )?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
@@ -1020,11 +1006,9 @@ fn test_split_text() -> Result<(), StamError> {
 #[test]
 fn test_search_text_regex_single() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
-        TextResourceBuilder::new().with_id("testres").with_text(
+    store.add_resource(TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).with_config(store.new_config()).build()?
-    )?;
+    ))?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"eavesdropping").unwrap()], None, true)? {
@@ -1041,11 +1025,9 @@ fn test_search_text_regex_single() -> Result<(), StamError> {
 #[test]
 fn test_search_text_regex_single2() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
-        TextResourceBuilder::new().with_id("testres").with_text(
+    store.add_resource(TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).with_config(store.new_config()).build()?
-    )?;
+    ))?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(&[Regex::new(r"\b\w{13}\b").unwrap()], None, true)? {
@@ -1069,11 +1051,9 @@ fn test_search_text_regex_single2() -> Result<(), StamError> {
 #[test]
 fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
-        TextResourceBuilder::new().with_id("testres").with_text(
+    store.add_resource(TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).with_config(store.new_config()).build()?
-    )?;
+    ))?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(
@@ -1104,11 +1084,9 @@ fn test_search_text_regex_single_multiexpr() -> Result<(), StamError> {
 #[test]
 fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
-        TextResourceBuilder::new().with_id("testres").with_text(
+    store.add_resource(TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).with_config(store.new_config()).build()?
-    )?;
+    ))?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(
@@ -1139,11 +1117,9 @@ fn test_search_text_regex_single_multiexpr2() -> Result<(), StamError> {
 #[test]
 fn test_search_text_regex_single_capture() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
-        TextResourceBuilder::new().with_id("testres").with_text(
+    store.add_resource(TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).with_config(store.new_config()).build()?
-    )?;
+    ));
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(
@@ -1164,11 +1140,9 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
 #[test]
 fn test_search_text_regex_double_capture() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
-        TextResourceBuilder::new().with_id("testres").with_text(
+    store.add_resource(TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-        ).with_config(store.new_config()).build()?
-    )?;
+    ))?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(

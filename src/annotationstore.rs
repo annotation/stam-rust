@@ -38,7 +38,9 @@ use crate::datakey::DataKeyHandle;
 use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
-use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
+use crate::resources::{
+    DeserializeTextResource, TextResource, TextResourceBuilder, TextResourceHandle,
+};
 use crate::selector::{Offset, OffsetMode, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
@@ -59,11 +61,10 @@ use crate::types::*;
 /// # fn main() -> Result<(),StamError> {
 /// let store = AnnotationStore::default()
 ///     .with_id("example")
-///     .add(TextResource::from_string(
-///         "myresource",
-///         "Hello world",
-///         Config::default(),
-///     ))?
+///     .with_resource(TextResourceBuilder::new()
+///       .with_id("myresource")
+///       .with_text("Hello world")
+///     )?
 ///     .add(AnnotationDataSet::new(Config::default()).with_id("mydataset"))?
 ///     .with_annotation(
 ///         AnnotationBuilder::new()
@@ -86,11 +87,10 @@ use crate::types::*;
 /// # fn main() -> Result<(),StamError> {
 /// let store = AnnotationStore::new(Config::default())
 ///     .with_id("example")
-///     .add(
+///     .with_resource(
 ///         TextResourceBuilder::new()
 ///             .with_id("myresource")
 ///             .with_text("Hello world")
-///             .build()?,
 ///     )?
 ///     .add(
 ///         AnnotationDataSet::new(Config::default())
@@ -268,7 +268,7 @@ impl private::StoreCallbacks<TextResource> for AnnotationStore {
     /// parameters from parent to the item
     #[allow(unused_variables)]
     fn preinsert(&self, item: &mut TextResource) -> Result<(), StamError> {
-        item.set_config(self.new_config());
+        item.initialize(self);
         Ok(())
     }
 
@@ -1004,7 +1004,7 @@ impl AnnotationStore {
 
     /// Returns a [`Config`] instance suitable for instantiation of dependent instances like TextResource,AnnotationDataSet and
     /// This will have the working directory set to the annotation store's directory
-    pub fn new_config(&self) -> Config {
+    pub(crate) fn new_config(&self) -> Config {
         debug(&self.config(), || format!("AnnotationStore::new_config"));
         let mut config = self.config().clone();
         config.workdir = self.dirname();
@@ -1348,18 +1348,9 @@ impl AnnotationStore {
         self
     }
 
-    /// Shortcut method to load a resource from file and add it to the store. Returns a handle,
-    /// wrap it in a call to `self.resource()` to get the resource itself.
-    pub fn add_resource_from_file(
-        &mut self,
-        filename: &str,
-    ) -> Result<TextResourceHandle, StamError> {
-        let resource = TextResource::from_file(filename, self.new_config())?;
-        self.insert(resource)
-    }
-
     /// Shortcut method to load a dataset from file and add it to the store. Returns a handle,
     /// wrap it in a call to `self.dataset()` to get the resource itself.
+    //TODO: REMOTE THIS, obsolete once we have add_dataset()
     pub fn add_dataset_from_file(
         &mut self,
         filename: &str,

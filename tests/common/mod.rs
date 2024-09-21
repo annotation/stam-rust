@@ -5,11 +5,10 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
     let store = AnnotationStore::new(Config::default().with_debug(true))
         .with_id("test")
-        .add(
+        .with_resource(
             TextResourceBuilder::new()
                 .with_id("testres")
-                .with_text("Hello world")
-                .build()?,
+                .with_text("Hello world"),
         )?
         .add(
             AnnotationDataSet::new(Config::default())
@@ -33,11 +32,11 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
     let store = AnnotationStore::default()
         .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("testres")
+                .with_text("Hello world"),
+        )?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
@@ -55,10 +54,8 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
     //this example includes a higher-order annotation with relative offset
     let store = AnnotationStore::default()
         .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
+        .with_resource(TextResourceBuilder::new().with_id("testres").with_text(
             "I have no special talent. I am only passionately curious. -- Albert Einstein",
-            Config::default(),
         ))?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
@@ -86,11 +83,11 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
     let store = AnnotationStore::default()
         .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("testres")
+                .with_text("Hello world"),
+        )?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
@@ -115,11 +112,11 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
 pub fn setup_example_multiselector_notranged() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::default()
         .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("testres")
+                .with_text("Hello world"),
+        )?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(AnnotationBuilder::new().with_id("A1").with_target(
             SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
@@ -143,11 +140,11 @@ pub fn setup_example_multiselector_notranged() -> Result<AnnotationStore, StamEr
 pub fn setup_example_multiselector_ranged() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::default()
         .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("testres")
+                .with_text("Hello world"),
+        )?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
@@ -165,11 +162,11 @@ pub fn setup_example_multiselector_ranged() -> Result<AnnotationStore, StamError
 pub fn setup_example_multiselector_2() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::default()
         .with_id("test")
-        .add(TextResource::from_string(
-            "testres",
-            "Hello world",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("testres")
+                .with_text("Hello world"),
+        )?
         .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()

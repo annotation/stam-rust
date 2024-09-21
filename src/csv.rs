@@ -1187,15 +1187,12 @@ impl FromCsv for AnnotationStore {
                                 record.filename
                             )
                         });
-                        let mut resourcebuilder = TextResourceBuilder::from_txt_file(
-                            &record.filename,
-                            store.new_config(),
-                        )?;
+                        let mut resourcebuilder = TextResourceBuilder::new().with_filename(record.filename);
                         if record.id.is_some() {
                             resourcebuilder =
                                 resourcebuilder.with_id(record.id.map(|x| x.to_string()).unwrap());
                         }
-                        store.insert(resourcebuilder.build()?)?;
+                        store.add_resource(resourcebuilder)?;
                     }
                     Type::AnnotationStore => {
                         return Err(StamError::CsvError(

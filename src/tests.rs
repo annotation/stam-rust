@@ -813,11 +813,10 @@ fn utf82unicode() {
 #[test]
 fn find_text_single() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hallå världen")
-            .build()?,
+            .with_text("Hallå världen"),
     )?;
     let resource = store.resource("testres").unwrap();
     let textselection = resource.find_text("världen").next().unwrap();
@@ -829,11 +828,10 @@ fn find_text_single() -> Result<(), StamError> {
 #[test]
 fn find_text_single2() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hallå världen")
-            .build()?,
+            .with_text("Hallå världen"),
     )?;
     let resource = store.resource("testres").unwrap();
     let textselection = resource.find_text("Hallå").next().unwrap();
@@ -845,11 +843,10 @@ fn find_text_single2() -> Result<(), StamError> {
 #[test]
 fn find_text_multi() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("To be or not to be, that's the question")
-            .build()?,
+            .with_text("To be or not to be, that's the question"),
     )?;
     let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.find_text("be").collect();
@@ -864,11 +861,10 @@ fn find_text_multi() -> Result<(), StamError> {
 #[test]
 fn find_text_none() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hallå världen")
-            .build()?,
+            .with_text("Hallå världen"),
     )?;
     let resource = store.resource("testres").unwrap();
     let v: Vec<_> = resource.find_text("blah").collect();
@@ -879,11 +875,10 @@ fn find_text_none() -> Result<(), StamError> {
 #[test]
 fn split_text() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("To be or not to be")
-            .build()?,
+            .with_text("To be or not to be"),
     )?;
     let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.split_text(" ").collect();
@@ -900,11 +895,10 @@ fn split_text() -> Result<(), StamError> {
 fn split_text_whitespace() -> Result<(), StamError> {
     //with leading and trailing 'empty' texts
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("\nTo be or not to be\nthat is the question\n")
-            .build()?,
+            .with_text("\nTo be or not to be\nthat is the question\n"),
     )?;
     let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.split_text("\n").collect();
@@ -917,11 +911,10 @@ fn split_text_whitespace() -> Result<(), StamError> {
 fn split_text_none() -> Result<(), StamError> {
     //with no occurrences at all
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("To be or not to be")
-            .build()?,
+            .with_text("To be or not to be"),
     )?;
     let resource = store.resource("testres").unwrap();
     let textselections: Vec<_> = resource.split_text("?").collect();
@@ -933,11 +926,10 @@ fn split_text_none() -> Result<(), StamError> {
 #[test]
 fn trim_text() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    store.insert(
+    store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("  To be or not to be   ")
-            .build()?,
+            .with_text("  To be or not to be   "),
     )?;
     let resource = store.resource("testres").unwrap();
     let textselection = resource.trim_text(&[' ']).unwrap();
@@ -950,11 +942,10 @@ fn trim_text() -> Result<(), StamError> {
 #[test]
 fn textselection_out_of_bounds() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
-    let handle = store.insert(
+    let handle = store.add_resource(
         TextResourceBuilder::new()
             .with_id("testres")
-            .with_text("Hello world")
-            .build()?,
+            .with_text("Hello world"),
     )?;
     let resource = store.resource(handle).unwrap();
     let result = resource.textselection(&Offset::simple(0, 999));
