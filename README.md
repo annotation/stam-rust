@@ -106,21 +106,25 @@ The wrapping of `TextSelection` is a bit special, instead of
 
 ### Adding items
 
-Add a resource to an existing store:
+Add a resource from an existing plain text file to an existing store:
 
 ```rust
-let resource_handle = store.add( stam::TextResource::from_file("my-text.txt", store.config()) )?;
+let resource_handle = store.add_resource( stam::TextResourceBuilder::new().with_filename("my-text.txt")) )?;
 ```
+
+*Here we see a `Builder` type that uses a builder pattern to construct
+instances of their associated types. The actual instances will be built by the
+underlying store.
 
 A similar pattern works for `AnnotationDataSet`:
 
 ```rust
-let annotationset_handle = store.add( stam::AnnotationDataSet::from_file("myset.json", store.config()) )?;
+let annotationset_handle = store.add_dataset( stam::AnnotationDataSetBuilder::new().with_filename("myset.json") )?;
 ```
 
-The `add` methods adds the items directly, which means they have to have been constructed already. 
-Many STAM data structures, however, have an associated builder type and are not
-instantiated directly. We use `annotate()` rather than `add()` to add annotations to an existing store:
+The `add_*` methods take take associated builder types and return handles. There is also a `with_*` variant which can be used in a chained builder pattern, as they return the modified `AnnotationStore` itself.
+
+We use `annotate()` (or `with_annotation()`) to add annotations to an existing store:
 
 ```rust
 let annotation_handle = store.annotate( stam::AnnotationBuilder::new()
@@ -129,29 +133,15 @@ let annotation_handle = store.annotate( stam::AnnotationBuilder::new()
 )?;
 ```
 
-*Here we see a `Builder` type that uses a builder pattern to construct
-instances of their associated types. The actual instances will be built by the
-underlying store.
-
-Structures like `AnnotationDataSets` and `TextResource` also have builders, you
-can use them with `add()` by invoking the `build()` method on the builder to
-produce the final type:
-
-```rust
-let annotationset_handle = store.add(
-                   stam::AnnotationDataSetBuilder::new().with_id("testdataset"))
-                                                 .with_data_with_id("pos", "noun", "D1").build()?)?;
-```
-
 Let's now create a store and annotations from scratch, with an explicitly filled `AnnotationDataSet`:
 
 ```rust
 let store = stam::AnnotationStore::new(stam::Config::default())
     .with_id("test")
-    .add( stam::TextResource::from_string("testres", "Hello world"))?
-    .add( stam::AnnotationDataSet::new().with_id("testdataset")
-           .add( stam::DataKey::new("pos"))?
-           .with_data_with_id("pos", "noun", "D1")?
+    .with_resource( stam::TextResourceBuilder::new().with_id("testres").with_text("Hello world"))?
+    .with_dataset( stam::AnnotationDataSetBuilder::new().with_id("testdataset")
+           .with_key( "pos")
+           .with_key_value_id("pos", "noun", "D1")
     )?
     .with_annotation( stam::Annotation::builder() 
             .with_id("A1")
@@ -163,8 +153,8 @@ And here is the very same thing but the `AnnotationDataSet` is filled implicitly
 
 ```rust
 let store = stam::AnnotationStore::default().with_id("test")
-    .add( stam::TextResource::from_string("testres".to_string(),"Hello world"))?
-    .add( stam::AnnotationDataSet::new().with_id("testdataset"))?
+    .with_resource( stam::TextResourceBuilder::new().with_id("testres").with_text("Hello world"))?
+    .with_dataset( stam::AnnotationDataSetBuilder::new().with_id("testdataset"))
     .with_annotation( stam::AnnotationBuilder::new()
             .with_id("A1")
             .with_target( stam::SelectorBuilder::textselector("testres", stam::Offset::simple(6,11))) 
@@ -172,10 +162,7 @@ let store = stam::AnnotationStore::default().with_id("test")
     )?;
 ```
 
-
 The implementation will ensure to reuse any already existing `AnnotationData` if possible, as not duplicating data is one of the core characteristics of the STAM model.
-
-There is also an `AnnotationStoreBuilder` you can use with implements the builder pattern for the annotation store as a whole.
 
 ### Serialisation to file
 
