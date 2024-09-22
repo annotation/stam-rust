@@ -333,9 +333,9 @@ impl TextResourceBuilder {
         self
     }
 
-    /// Set the filename associated with the resource. This does **NOT** load
-    /// the resource from file, but merely sets up the association and where to write to.
-    /// Use [`Self::from_file()`] instead if you want to load from file.
+    /// Set the filename associated with the resource.
+    /// If not ID and no text is give, the resource will be loaded from this file.
+    /// It is assumed to be either STAM JSON (`.json` extension) or plain text.
     pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
         self.filename = Some(filename.into());
         self
@@ -351,11 +351,10 @@ impl TextResourceBuilder {
     pub(crate) fn build(self, config: Config) -> Result<TextResource, StamError> {
         debug(&config, || {
             format!(
-                "TextResourceBuilder::build: id={:?}, filename={:?}, workdir={:?}, use_include={}",
+                "TextResourceBuilder::build: id={:?}, filename={:?}, workdir={:?}",
                 self.id,
                 self.filename,
                 config.workdir(),
-                config.use_include()
             )
         });
 

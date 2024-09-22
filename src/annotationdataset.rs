@@ -710,6 +710,114 @@ impl AnnotationDataSet {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct AnnotationDataSetBuilder<'a> {
+    /// Public Id
+    id: Option<String>,
+
+    databuilders: Vec<AnnotationDataBuilder<'a>>,
+
+    /// Is this annotation dataset stored stand-off in an external file via @include? This holds the filename
+    filename: Option<String>,
+}
+
+impl<'a> AnnotationDataSetBuilder<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Associate a public identifier with the resource. Use this to make a new DataSet.
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    /// Set the filename associated with the dataset.
+    /// It will be loaded from file as long as you leave id unset.
+    pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
+        self.filename = Some(filename.into());
+        self
+    }
+
+    pub fn with_key(mut self, key: impl Into<BuildItem<'a, DataKey>>) -> Self {
+        let databuilder = AnnotationDataBuilder::new().with_key(key.into());
+        self.databuilders.push(databuilder);
+        self
+    }
+
+    pub fn with_key_value(
+        mut self,
+        key: impl Into<BuildItem<'a, DataKey>>,
+        value: impl Into<DataValue>,
+    ) -> Self {
+        let databuilder = AnnotationDataBuilder::new()
+            .with_key(key.into())
+            .with_value(value.into());
+        self.databuilders.push(databuilder);
+        self
+    }
+
+    pub fn with_key_value_id(
+        mut self,
+        key: impl Into<BuildItem<'a, DataKey>>,
+        value: impl Into<DataValue>,
+        id: impl Into<BuildItem<'a, AnnotationData>>,
+    ) -> Self {
+        let databuilder = AnnotationDataBuilder::new()
+            .with_key(key.into())
+            .with_value(value.into())
+            .with_id(id.into());
+        self.databuilders.push(databuilder);
+        self
+    }
+
+    pub fn with_data(mut self, databuilder: AnnotationDataBuilder<'a>) -> Self {
+        self.databuilders.push(databuilder);
+        self
+    }
+
+    ///Builds a new [`AnnotationDataSet`] from [`AnnotationDataSetBuilder`], consuming the latter
+    pub(crate) fn build(self, config: Config) -> Result<AnnotationDataSet, StamError> {
+        debug(&config, || {
+            format!(
+                "AnnotationDataSetBuilder::build: id={:?}, filename={:?}, workdir={:?}",
+                self.id,
+                self.filename,
+                config.workdir(),
+            )
+        });
+        let mut dataset = if let Some(id) = self.id {
+            AnnotationDataSet::new(config).with_id(id)
+        } else if let Some(filename) = self.filename {
+            AnnotationDataSet::from_file(filename.as_str(), config)?
+        } else {
+            return Err(StamError::OtherError("AnnotationDataSetBuilder.build(): No filename or ID specified for AnnotationDataSet."));
+        };
+        for databuilder in self.databuilders {
+            dataset.build_insert_data(databuilder, true)?;
+        }
+        Ok(dataset)
+    }
+}
+
+impl AnnotationStore {
+    /// Builds and adds an [`AnnotationDataSet']
+    pub fn with_dataset(mut self, builder: AnnotationDataSetBuilder) -> Result<Self, StamError> {
+        self.add_dataset(builder)?;
+        Ok(self)
+    }
+
+    pub fn add_dataset(
+        &mut self,
+        builder: AnnotationDataSetBuilder,
+    ) -> Result<AnnotationDataSetHandle, StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore.add_dataset: builder={:?}", builder)
+        });
+        self.insert(builder.build(self.new_config())?)
+    }
+}
+
 ////////////////////// Deserialisation
 
 #[derive(Debug)]

@@ -1119,7 +1119,7 @@ fn test_search_text_regex_single_capture() -> Result<(), StamError> {
     let mut store = AnnotationStore::default();
     store.add_resource(TextResourceBuilder::new().with_id("testres").with_text(
         "I categorically deny any eavesdropping on you and hearing about your triskaidekaphobia.",
-    ));
+    ))?;
     let resource = store.resource("testres").or_fail()?;
     let mut count = 0;
     for result in resource.find_text_regex(

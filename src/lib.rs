@@ -115,7 +115,7 @@ pub use crate::csv::{FromCsv, ToCsv};
 
 pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
 pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
-pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
+pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle};
 pub use annotationstore::AnnotationStore;
 pub use api::*;
 pub use config::{Config, Configurable};

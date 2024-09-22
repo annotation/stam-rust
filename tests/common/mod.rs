@@ -10,11 +10,11 @@ pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
                 .with_id("testres")
                 .with_text("Hello world"),
         )?
-        .add(
-            AnnotationDataSet::new(Config::default())
+        .with_dataset(
+            AnnotationDataSetBuilder::new()
                 .with_id("testdataset")
-                .add(DataKey::new("pos"))?
-                .with_data_with_id("pos", "noun", "D1")?,
+                .with_key("pos")
+                .with_key_value_id("pos", "noun", "D1"),
         )?
         .with_annotation(
             AnnotationBuilder::new()
@@ -37,7 +37,7 @@ pub fn setup_example_2() -> Result<AnnotationStore, StamError> {
                 .with_id("testres")
                 .with_text("Hello world"),
         )?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("A1")
@@ -57,7 +57,7 @@ pub fn setup_example_3() -> Result<AnnotationStore, StamError> {
         .with_resource(TextResourceBuilder::new().with_id("testres").with_text(
             "I have no special talent. I am only passionately curious. -- Albert Einstein",
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("sentence2")
@@ -88,7 +88,7 @@ pub fn setup_example_4() -> Result<AnnotationStore, StamError> {
                 .with_id("testres")
                 .with_text("Hello world"),
         )?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("A1")
@@ -117,7 +117,7 @@ pub fn setup_example_multiselector_notranged() -> Result<AnnotationStore, StamEr
                 .with_id("testres")
                 .with_text("Hello world"),
         )?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(AnnotationBuilder::new().with_id("A1").with_target(
             SelectorBuilder::textselector("testres", Offset::simple(6, 11)),
         ))?
@@ -145,7 +145,7 @@ pub fn setup_example_multiselector_ranged() -> Result<AnnotationStore, StamError
                 .with_id("testres")
                 .with_text("Hello world"),
         )?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("WordAnnotation")
@@ -167,7 +167,7 @@ pub fn setup_example_multiselector_2() -> Result<AnnotationStore, StamError> {
                 .with_id("testres")
                 .with_text("Hello world"),
         )?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("A1")
@@ -245,7 +245,7 @@ pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
             "All human beings are born free and equal in dignity and rights.",
             Config::default(),
         ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("Sentence1")
@@ -312,12 +312,12 @@ pub fn setup_example_6b() -> Result<AnnotationStore, StamError> {
 
     let mut store = AnnotationStore::default()
         .with_id("example6")
-        .add(TextResource::from_string(
-            "humanrights",
-            "All human beings are born free and equal in dignity and rights.",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("humanrights")
+                .with_text("All human beings are born free and equal in dignity and rights."),
+        )?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("Sentence1")
@@ -389,12 +389,12 @@ pub fn setup_example_6c() -> Result<AnnotationStore, StamError> {
     //starts the same
     let mut store = AnnotationStore::default()
         .with_id("example6")
-        .add(TextResource::from_string(
-            "humanrights",
-            "All human beings are born free and equal in dignity and rights.",
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?;
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("humanrights")
+                .with_text("All human beings are born free and equal in dignity and rights."),
+        )?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?;
 
     //we first annotate the words before anything else, the handles are returned in a vector:
     let words = annotate_words(&mut store, "humanrights")?;
@@ -497,15 +497,12 @@ pub fn setup_example_7(n: usize) -> Result<AnnotationStore, StamError> {
     for _ in 0..n {
         text.push('X');
     }
-    store = store
-        .add(TextResource::from_string(
-            "testres",
-            text,
-            Config::default(),
-        ))
-        .unwrap()
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
-        .unwrap();
+    store.add_resource(
+        TextResourceBuilder::new()
+            .with_id("testres")
+            .with_text(text),
+    )?;
+    store.add_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?;
 
     for i in 0..n {
         store.annotate(
@@ -566,16 +563,16 @@ pub fn setup_example_8() -> Result<AnnotationStore, StamError> {
     //simple transposition
     let store = AnnotationStore::default()
         .with_id("example8")
-        .add(TextResource::from_string(
-            "humanrights",
-            "all human beings are born free and equal in dignity and rights.",
-            Config::default(),
-        ))?
-        .add(TextResource::from_string(
-            "warhol",
-            "human beings are born solitary, but everywhere they are in chains.",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("humanrights")
+                .with_text("all human beings are born free and equal in dignity and rights."),
+        )?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("warhol")
+                .with_text("human beings are born solitary, but everywhere they are in chains."),
+        )?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("SimpleTransposition1")
@@ -597,16 +594,16 @@ pub fn setup_example_8b() -> Result<AnnotationStore, StamError> {
 
     let store = AnnotationStore::default()
         .with_id("example8")
-        .add(TextResource::from_string(
-            "humanrights",
-            "all human beings are born free and equal in dignity and rights.",
-            Config::default(),
-        ))?
-        .add(TextResource::from_string(
-            "warhol",
-            "human beings are born solitary, but everywhere they are in chains.",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("humanrights")
+                .with_text("all human beings are born free and equal in dignity and rights."),
+        )?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("warhol")
+                .with_text("human beings are born solitary, but everywhere they are in chains."),
+        )?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("A1")
@@ -642,60 +639,59 @@ pub fn setup_example_8b() -> Result<AnnotationStore, StamError> {
 pub fn setup_example_8c() -> Result<AnnotationStore, StamError> {
     //complex transposition (we'll use this to test the word 'human' which is split over two textselections in this transposition)
 
-    let store = AnnotationStore::default()
-        .with_id("example8")
-        .add(TextResource::from_string(
-            "humanrights",
-            "all human beings are born free and equal in dignity and rights.",
-            Config::default(),
-        ))?
-        .add(TextResource::from_string(
-            "warhol",
-            " hu-\nman beings are born solitary, but everywhere they are in chains.",
-            Config::default(),
-        ))?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A1")
-                .with_target(SelectorBuilder::DirectionalSelector(vec![
-                    SelectorBuilder::textselector("humanrights", Offset::simple(4, 6)), //"hu",
-                    SelectorBuilder::textselector("humanrights", Offset::simple(6, 25)), //"man beings are born",
-                ]))
-                .with_data("testdataset", "type", "phrase"),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("A2")
-                .with_target(SelectorBuilder::DirectionalSelector(vec![
-                    SelectorBuilder::textselector("warhol", Offset::simple(1, 3)), //"hu",
-                    SelectorBuilder::textselector("warhol", Offset::simple(5, 24)), //"man beings are born",
-                ]))
-                .with_data("testdataset", "type", "phrase"),
-        )?
-        .with_annotation(
-            AnnotationBuilder::new()
-                .with_id("ComplexTransposition1")
-                .with_target(SelectorBuilder::DirectionalSelector(vec![
-                    SelectorBuilder::annotationselector("A1", None),
-                    SelectorBuilder::annotationselector("A2", None),
-                ]))
-                .with_data(
-                    "https://w3id.org/stam/extensions/stam-transpose/",
-                    "Transposition",
-                    DataValue::Null,
-                ),
-        )?;
+    let store =
+        AnnotationStore::default()
+            .with_id("example8")
+            .with_resource(
+                TextResourceBuilder::new()
+                    .with_id("humanrights")
+                    .with_text("all human beings are born free and equal in dignity and rights."),
+            )?
+            .with_resource(TextResourceBuilder::new().with_id("warhol").with_text(
+                "hu-\nman beings are born solitary, but everywhere they are in chains.",
+            ))?
+            .with_annotation(
+                AnnotationBuilder::new()
+                    .with_id("A1")
+                    .with_target(SelectorBuilder::DirectionalSelector(vec![
+                        SelectorBuilder::textselector("humanrights", Offset::simple(4, 6)), //"hu",
+                        SelectorBuilder::textselector("humanrights", Offset::simple(6, 25)), //"man beings are born",
+                    ]))
+                    .with_data("testdataset", "type", "phrase"),
+            )?
+            .with_annotation(
+                AnnotationBuilder::new()
+                    .with_id("A2")
+                    .with_target(SelectorBuilder::DirectionalSelector(vec![
+                        SelectorBuilder::textselector("warhol", Offset::simple(1, 3)), //"hu",
+                        SelectorBuilder::textselector("warhol", Offset::simple(5, 24)), //"man beings are born",
+                    ]))
+                    .with_data("testdataset", "type", "phrase"),
+            )?
+            .with_annotation(
+                AnnotationBuilder::new()
+                    .with_id("ComplexTransposition1")
+                    .with_target(SelectorBuilder::DirectionalSelector(vec![
+                        SelectorBuilder::annotationselector("A1", None),
+                        SelectorBuilder::annotationselector("A2", None),
+                    ]))
+                    .with_data(
+                        "https://w3id.org/stam/extensions/stam-transpose/",
+                        "Transposition",
+                        DataValue::Null,
+                    ),
+            )?;
     Ok(store)
 }
 
 pub fn setup_example_9() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::default()
         .with_id("example9")
-        .add(TextResource::from_string(
-            "example9",
-            "the big dog licks the tiny cat",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("example9")
+                .with_text("the big dog licks the tiny cat"),
+        )?
         .with_annotation(
             AnnotationBuilder::new()
                 .with_id("np1")
