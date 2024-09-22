@@ -477,9 +477,9 @@ impl AnnotationStore {
     ///             .with_id("myresource")
     ///             .with_text("Hello world")
     ///     )?
-    ///     .add(
-    ///         AnnotationDataSet::new(Config::default())
-    ///             .with_id("mydataset"),
+    ///     .with_dataset(
+    ///         AnnotationDataSetBuilder::new()
+    ///             .with_id("mydataset")
     ///     )?;
     ///
     /// //do some other stuff in the middle (otherwise you could have just as well used with_annotation())

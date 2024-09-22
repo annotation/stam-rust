@@ -269,12 +269,12 @@ impl AnnotationStore {
     /// # fn main() -> Result<(),StamError> {
     /// # let store = AnnotationStore::default()
     /// #   .with_id("example")
-    /// #   .add(TextResource::from_string(
-    /// #       "myresource",
-    /// #       "Hello world",
-    /// #       Config::default(),
-    /// #   ))?
-    /// #   .add(AnnotationDataSet::new(Config::default()).with_id("mydataset"))?
+    /// #   .with_resource(
+    /// #       TextResourceBuilder::new().with_id("myresource").with_text("Hello world")
+    /// #   )?
+    /// #   .with_dataset(
+    /// #        AnnotationDataSetBuilder::new().with_id("mydataset")
+    /// #   )?
     /// #   .with_annotation(
     /// #       AnnotationBuilder::new()
     /// #           .with_id("A1")

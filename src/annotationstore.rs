@@ -65,7 +65,7 @@ use crate::types::*;
 ///       .with_id("myresource")
 ///       .with_text("Hello world")
 ///     )?
-///     .add(AnnotationDataSet::new(Config::default()).with_id("mydataset"))?
+///     .with_dataset(AnnotationDataSetBuilder::new().with_id("mydataset"))?
 ///     .with_annotation(
 ///         AnnotationBuilder::new()
 ///             .with_id("A1")
@@ -92,11 +92,10 @@ use crate::types::*;
 ///             .with_id("myresource")
 ///             .with_text("Hello world")
 ///     )?
-///     .add(
-///         AnnotationDataSet::new(Config::default())
-///             .with_id("mydataset")
-///             .add(DataKey::new("part-of-speech"))?
-///             .with_data_with_id("part-of-speech", "noun", "D1")?,
+///     .with_dataset(AnnotationDataSetBuilder::new()
+///              .with_id("mydataset")
+///              .with_key("part-of-speech")
+///              .with_key_value_id("part-of-speech", "noun", "D1")
 ///     )?
 ///     .with_annotation(
 ///         AnnotationBuilder::new()
