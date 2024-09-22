@@ -19,7 +19,6 @@ use serde::de::DeserializeSeed;
 use serde::ser::{SerializeSeq, SerializeStruct, Serializer};
 use serde::Serialize;
 use smallvec::{smallvec, SmallVec};
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -38,9 +37,7 @@ use crate::datakey::DataKeyHandle;
 use crate::error::*;
 use crate::file::*;
 use crate::json::{FromJson, ToJson};
-use crate::resources::{
-    DeserializeTextResource, TextResource, TextResourceBuilder, TextResourceHandle,
-};
+use crate::resources::{DeserializeTextResource, TextResource, TextResourceHandle};
 use crate::selector::{Offset, OffsetMode, Selector, SelectorBuilder};
 use crate::store::*;
 use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
@@ -2483,7 +2480,7 @@ impl<'de> serde::de::Visitor<'de> for AnnotationStoreVisitor<'_> {
                     eprintln!(
                         "Notice: Ignoring unknown key '{key}' whilst parsing AnnotationStore"
                     );
-                    map.next_value()?; //read and discard the value
+                    let _value: Self::Value = map.next_value()?; //read and discard the value
                 }
             }
         }

@@ -99,19 +99,19 @@ impl AnnotationSubStore {
 
     /// Sets the parent of this substore, may be called multiple times to add multiple parents!
     /// The value is wrapped in an option, None means the root store is the parent
-    fn with_parent(mut self, index: Option<AnnotationSubStoreHandle>) -> Self {
+    pub fn with_parent(mut self, index: Option<AnnotationSubStoreHandle>) -> Self {
         self.add_parent(index);
         self
     }
 
     /// Sets the parent of this substore, may be called multiple times to add multiple parents!
     /// The value is wrapped in an option, None means the root store is the parent
-    fn add_parent(&mut self, index: Option<AnnotationSubStoreHandle>) {
+    pub fn add_parent(&mut self, index: Option<AnnotationSubStoreHandle>) {
         self.parents.push(index);
     }
 
     /// Sets the parents of this substore
-    fn with_parents(mut self, parents: Vec<Option<AnnotationSubStoreHandle>>) -> Self {
+    pub fn with_parents(mut self, parents: Vec<Option<AnnotationSubStoreHandle>>) -> Self {
         self.parents = parents;
         self
     }

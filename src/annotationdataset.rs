@@ -905,7 +905,7 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
                     eprintln!(
                         "Notice: Ignoring unknown key '{key}' whilst parsing AnnotationDataSet"
                     );
-                    map.next_value()?; //read and discard the value
+                    let _value: Self::Value = map.next_value()?; //read and discard the value
                 }
             }
         }

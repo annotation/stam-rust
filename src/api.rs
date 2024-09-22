@@ -53,7 +53,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
 use crate::resources::{TextResource, TextResourceHandle};
-use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
+use crate::substore::AnnotationSubStoreHandle;
 use crate::textselection::{TextSelection, TextSelectionOperator};
 
 use crate::{store::*, Offset, TextSelectionHandle};

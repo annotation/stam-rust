@@ -30,7 +30,7 @@ use crate::annotationstore::AnnotationStore;
 use crate::config::{Config, Configurable, SerializeMode};
 use crate::error::StamError;
 use crate::file::*;
-use crate::json::{FromJson, ToJson};
+use crate::json::ToJson;
 use crate::selector::{Offset, Selector, SelfSelector};
 use crate::store::*;
 use crate::text::*;
