@@ -796,8 +796,8 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
         Ok(handle)
     }
 
-    /// Inserts items into the store using a builder pattern
-    fn add(mut self, item: T) -> Result<Self, StamError>
+    /// Inserts items into the store using a builder pattern.
+    fn with_item(mut self, item: T) -> Result<Self, StamError>
     where
         Self: Sized,
     {

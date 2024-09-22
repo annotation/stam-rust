@@ -228,23 +228,23 @@ No one shall be held in slavery or servitude; slavery and the slave trade shall 
 pub fn setup_example_5() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::default()
         .with_id("example5")
-        .add(TextResource::from_string(
-            "humanrights",
-            EXAMPLE5_TEXT,
-            Config::default(),
-        ))?
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))?;
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("humanrights")
+                .with_text(EXAMPLE5_TEXT),
+        )?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?;
     Ok(store)
 }
 
 pub fn setup_example_6() -> Result<AnnotationStore, StamError> {
     let store = AnnotationStore::default()
         .with_id("example6")
-        .add(TextResource::from_string(
-            "humanrights",
-            "All human beings are born free and equal in dignity and rights.",
-            Config::default(),
-        ))?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("humanrights")
+                .with_text("All human beings are born free and equal in dignity and rights."),
+        )?
         .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
         .with_annotation(
             AnnotationBuilder::new()
