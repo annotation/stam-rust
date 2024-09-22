@@ -718,8 +718,8 @@ pub(crate) struct DeserializeAnnotationDataSet<'a> {
 }
 
 impl<'a> DeserializeAnnotationDataSet<'a> {
-    pub fn new(store: &'a mut AnnotationDataSet) -> Self {
-        Self { dataset: store }
+    pub fn new(dataset: &'a mut AnnotationDataSet) -> Self {
+        Self { dataset }
     }
 }
 
