@@ -714,12 +714,12 @@ impl AnnotationDataSet {
 
 #[derive(Debug)]
 pub(crate) struct DeserializeAnnotationDataSet<'a> {
-    store: &'a mut AnnotationDataSet,
+    dataset: &'a mut AnnotationDataSet,
 }
 
 impl<'a> DeserializeAnnotationDataSet<'a> {
     pub fn new(store: &'a mut AnnotationDataSet) -> Self {
-        Self { store }
+        Self { dataset: store }
     }
 }
 
@@ -733,7 +733,7 @@ impl<'de> DeserializeSeed<'de> for DeserializeAnnotationDataSet<'_> {
         D: serde::Deserializer<'de>,
     {
         let visitor = AnnotationDataSetVisitor {
-            store: &mut self.store,
+            dataset: &mut self.dataset,
         };
         deserializer.deserialize_map(visitor)?;
         Ok(())
@@ -741,7 +741,7 @@ impl<'de> DeserializeSeed<'de> for DeserializeAnnotationDataSet<'_> {
 }
 
 struct AnnotationDataSetVisitor<'a> {
-    store: &'a mut AnnotationDataSet,
+    dataset: &'a mut AnnotationDataSet,
 }
 
 impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
@@ -760,8 +760,8 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
             match key.as_str() {
                 "@id" => {
                     let id: String = map.next_value()?;
-                    if self.store.id.is_none() {
-                        self.store.id = Some(id);
+                    if self.dataset.id.is_none() {
+                        self.dataset.id = Some(id);
                     }
                 }
                 "@type" => {
@@ -774,20 +774,24 @@ impl<'de> serde::de::Visitor<'de> for AnnotationDataSetVisitor<'_> {
                 }
                 "@include" => {
                     let filename: String = map.next_value()?;
-                    self.store
+                    self.dataset
                         .merge_json_file(filename.as_str())
                         .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
-                    if self.store.filename.is_none() {
-                        self.store.filename = Some(filename);
+                    if self.dataset.filename.is_none() {
+                        self.dataset.filename = Some(filename);
                     }
                 }
                 "keys" => {
                     // handle the next value in a streaming manner
-                    map.next_value_seed(DeserializeKeys { store: self.store })?;
+                    map.next_value_seed(DeserializeKeys {
+                        store: self.dataset,
+                    })?;
                 }
                 "data" => {
                     // handle the next value in a streaming manner
-                    map.next_value_seed(DeserializeData { store: self.store })?;
+                    map.next_value_seed(DeserializeData {
+                        dataset: self.dataset,
+                    })?;
                 }
                 _ => {
                     eprintln!(
@@ -849,7 +853,7 @@ impl<'de> serde::de::Visitor<'de> for KeysVisitor<'_> {
 }
 
 struct DeserializeData<'a> {
-    store: &'a mut AnnotationDataSet,
+    dataset: &'a mut AnnotationDataSet,
 }
 
 impl<'de> DeserializeSeed<'de> for DeserializeData<'_> {
@@ -859,14 +863,16 @@ impl<'de> DeserializeSeed<'de> for DeserializeData<'_> {
     where
         D: serde::Deserializer<'de>,
     {
-        let visitor = DataVisitor { store: self.store };
+        let visitor = DataVisitor {
+            dataset: self.dataset,
+        };
         deserializer.deserialize_seq(visitor)?;
         Ok(())
     }
 }
 
 struct DataVisitor<'a> {
-    store: &'a mut AnnotationDataSet,
+    dataset: &'a mut AnnotationDataSet,
 }
 
 impl<'de> serde::de::Visitor<'de> for DataVisitor<'_> {
@@ -880,11 +886,11 @@ impl<'de> serde::de::Visitor<'de> for DataVisitor<'_> {
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let pre_length = self.store.data_len();
+        let pre_length = self.dataset.data_len();
         loop {
             let databuilder: Option<AnnotationDataBuilder> = seq.next_element()?;
             if let Some(mut databuilder) = databuilder {
-                let handle_from_temp_id = if self.store.config().strip_temp_ids() {
+                let handle_from_temp_id = if self.dataset.config().strip_temp_ids() {
                     if let BuildItem::Id(s) = &databuilder.id {
                         resolve_temp_id(s.as_str())
                     } else {
@@ -899,17 +905,17 @@ impl<'de> serde::de::Visitor<'de> for DataVisitor<'_> {
                     // temporary public IDs are deserialized exactly
                     // as they were serialized. So if there were any gaps,
                     // we need to deserialize these too:
-                    if self.store.data_len() > handle + pre_length {
+                    if self.dataset.data_len() > handle + pre_length {
                         return Err(serde::de::Error::custom(
                             "unable to resolve temporary public identifiers for annotation data",
                         ));
-                    } else if handle > self.store.data_len() {
+                    } else if handle > self.dataset.data_len() {
                         // expand the gaps, though this wastes memory if ensures that all references
                         // are valid without explicitly storing public identifiers.
-                        self.store.data.resize_with(handle, Default::default);
+                        self.dataset.data.resize_with(handle, Default::default);
                     }
                 }
-                self.store
+                self.dataset
                     .build_insert_data(databuilder, false) //safety disabled, data duplicates allowed at this stage (=faster)
                     .map_err(|e| -> A::Error { serde::de::Error::custom(e) })?;
             } else {

@@ -87,7 +87,7 @@ pub struct TextResource {
 }
 
 /// This is a helper structure to build [`TextResource`] instances in a builder pattern.
-/// Use [`AnnotationStore::new_config()`] to obtain a configuration to pass
+/// This structure can be passed to [`AnnotationStore::add_resource()`] or [`AnnotationStore::with_resource()`].
 ///
 /// Example:
 ///
