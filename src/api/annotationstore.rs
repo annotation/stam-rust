@@ -125,7 +125,7 @@ impl AnnotationStore {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &TextResource| item.as_resultitem(self, self))
-                .filter(|res| self.resource_substore_map.get(res.handle()).is_some()),
+                .filter(|res| self.resource_substore_map.get(res.handle()).is_none()),
         )
     }
 
@@ -151,7 +151,7 @@ impl AnnotationStore {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &AnnotationDataSet| item.as_resultitem(self, self))
-                .filter(|ds| self.dataset_substore_map.get(ds.handle()).is_some()),
+                .filter(|ds| self.dataset_substore_map.get(ds.handle()).is_none()),
         )
     }
 
@@ -179,7 +179,7 @@ impl AnnotationStore {
         ResultIter::new_sorted(
             self.iter()
                 .map(|a: &'a Annotation| a.as_resultitem(self, self))
-                .filter(|a| self.annotation_substore_map.get(a.handle()).is_some()),
+                .filter(|a| self.annotation_substore_map.get(a.handle()).is_none()),
         )
     }
 
