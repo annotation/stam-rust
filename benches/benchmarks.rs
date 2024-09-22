@@ -85,13 +85,13 @@ pub fn bench_textsearch(c: &mut Criterion) {
 pub fn bench_storefor(c: &mut Criterion) {
     let store = AnnotationStore::new(Config::default())
         .with_id("test")
-        .add(TextResource::from_string(
+        .with_item(TextResource::from_string(
             "testres",
             "Hello world",
             Config::default(),
         ))
         .unwrap()
-        .add(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
+        .with_item(AnnotationDataSet::new(Config::default()).with_id("testdataset"))
         .unwrap()
         .with_annotation(
             AnnotationBuilder::new()
