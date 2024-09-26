@@ -29,6 +29,10 @@ pub enum StamError {
     /// A more generic NotFound error
     NotFoundError(Type, &'static str),
 
+    /// This error is raised when the specified variable (e.g. in a query) does not resolve
+    /// The first parameter is the requested public variable
+    VariableNotFoundError(String, Option<Type>, &'static str),
+
     /// This error is raised when an item has no public ID but one is expected
     NoIdError(&'static str),
 
@@ -239,6 +243,19 @@ impl From<&StamError> for String {
                     "ValueError: Undefined variable in search query: {} - ({})",
                     varname, contextmsg
                 )
+            }
+            StamError::VariableNotFoundError(var, tp, contextmsg) => {
+                if let Some(tp) = tp {
+                    format!(
+                        "VariableNotFoundError: variable ?{} of type {} not found ({})",
+                        var, tp, contextmsg
+                    )
+                } else {
+                    format!(
+                        "VariableNotFoundError: variable ?{} not found ({})",
+                        var, contextmsg
+                    )
+                }
             }
             StamError::OtherError(contextmsg) => {
                 format!("OtherError: {}", contextmsg)

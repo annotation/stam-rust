@@ -2679,14 +2679,8 @@ impl<'store> QueryIter<'store> {
                 Box::new(iter.filter_substore(substore))
             }
             &Constraint::SubStoreVariable(varname) => {
-                if let Ok(substore) = self.resolve_substorevar(varname) { 
-                    Box::new(iter.filter_substore(Some(substore.clone())))
-                } else  {
-                    return Err(StamError::QuerySyntaxError(
-                        format!("Variable ?{} of type SUBSTORE not found", varname),
-                        "",
-                    ));
-                }
+                let substore = self.resolve_substorevar(varname)?;
+                Box::new(iter.filter_substore(Some(substore.clone())))
             }
             &Constraint::Union(ref subconstraints) => {
                 let mut handles: Handles<'store, Annotation> = Handles::new_empty(store);
@@ -3059,14 +3053,8 @@ impl<'store> QueryIter<'store> {
                 Box::new(iter.filter_substore(substore))
             }
             &Constraint::SubStoreVariable(varname) => {
-                if let Ok(substore) = self.resolve_substorevar(varname) { 
-                    Box::new(iter.filter_substore(Some(substore.clone())))
-                } else  {
-                    return Err(StamError::QuerySyntaxError(
-                        format!("Variable ?{} of type SUBSTORE not found", varname),
-                        "",
-                    ));
-                }
+                let substore = self.resolve_substorevar(varname)?;
+                Box::new(iter.filter_substore(Some(substore.clone())))
             }
             c => {
                 return Err(StamError::QuerySyntaxError(
@@ -3534,14 +3522,8 @@ impl<'store> QueryIter<'store> {
                 Box::new(iter.filter_substore(substore))
             }
             &Constraint::SubStoreVariable(varname) => {
-                if let Ok(substore) = self.resolve_substorevar(varname) { 
-                    Box::new(iter.filter_substore(Some(substore.clone())))
-                } else  {
-                    return Err(StamError::QuerySyntaxError(
-                        format!("Variable ?{} of type SUBSTORE not found", varname),
-                        "",
-                    ));
-                }
+                let substore = self.resolve_substorevar(varname)?;
+                Box::new(iter.filter_substore(Some(substore.clone())))
             }
             c => {
                 return Err(StamError::QuerySyntaxError(
@@ -3607,9 +3589,10 @@ impl<'store> QueryIter<'store> {
             }
             None => {}
         }
-        return Err(StamError::QuerySyntaxError(
-            format!("Variable ?{} of type DATA not found", name),
-            "",
+        return Err(StamError::VariableNotFoundError(
+            name.into(),
+            Some(Type::AnnotationData),
+            "resolve_datavar",
         ));
     }
 
@@ -3637,12 +3620,10 @@ impl<'store> QueryIter<'store> {
             }
             None => {}
         }
-        return Err(StamError::QuerySyntaxError(
-            format!(
-                "Variable ?{} of type KEY not found - QUERY DEBUG: {:#?}",
-                name, self.query
-            ),
-            "",
+        return Err(StamError::VariableNotFoundError(
+            name.into(),
+            Some(Type::DataKey),
+            "resolve_keyvar",
         ));
     }
 
@@ -3673,9 +3654,10 @@ impl<'store> QueryIter<'store> {
             }
             None => {}
         }
-        return Err(StamError::QuerySyntaxError(
-            format!("Variable ?{} of type DATASET not found", name),
-            "",
+        return Err(StamError::VariableNotFoundError(
+            name.into(),
+            Some(Type::AnnotationDataSet),
+            "resolve_datasetvar",
         ));
     }
 
@@ -3706,9 +3688,10 @@ impl<'store> QueryIter<'store> {
             }
             None => {}
         }
-        return Err(StamError::QuerySyntaxError(
-            format!("Variable ?{} of type ANNOTATION not found", name),
-            "",
+        return Err(StamError::VariableNotFoundError(
+            name.into(),
+            Some(Type::Annotation),
+            "resolve_annotationvar",
         ));
     }
 
@@ -3736,9 +3719,10 @@ impl<'store> QueryIter<'store> {
             }
             None => {}
         }
-        return Err(StamError::QuerySyntaxError(
-            format!("Variable ?{} of type TEXT not found", name),
-            "",
+        return Err(StamError::VariableNotFoundError(
+            name.into(),
+            Some(Type::TextSelection),
+            "resolve_textvar",
         ));
     }
 
@@ -3769,9 +3753,10 @@ impl<'store> QueryIter<'store> {
             }
             None => {}
         }
-        return Err(StamError::QuerySyntaxError(
-            format!("Variable ?{} of type RESOURCE not found", name),
-            "",
+        return Err(StamError::VariableNotFoundError(
+            name.into(),
+            Some(Type::TextResource),
+            "resolve_resourcevar",
         ));
     }
 
@@ -3802,12 +3787,10 @@ impl<'store> QueryIter<'store> {
             }
             None => {}
         }
-        return Err(StamError::QuerySyntaxError(
-            format!(
-                "Variable ?{} of type SUBSTORE not found - QUERY DEBUG: {:#?}",
-                name, self.query
-            ),
-            "",
+        return Err(StamError::VariableNotFoundError(
+            name.into(),
+            Some(Type::AnnotationSubStore),
+            "Variable of type SUBSTORE not found",
         ));
     }
 
@@ -3959,8 +3942,9 @@ impl<'store> QueryResultItems<'store> {
         if let Some(var) = var {
             self.get_by_name(var)
         } else {
-            self.iter().next().ok_or(StamError::QuerySyntaxError(
-                "Query returned no results".to_string(),
+            self.iter().next().ok_or(StamError::VariableNotFoundError(
+                "FIRST".into(),
+                None,
                 "(get_by_name_or_first)",
             ))
         }
@@ -3975,8 +3959,9 @@ impl<'store> QueryResultItems<'store> {
         if let Some(var) = var {
             self.get_by_name(var)
         } else {
-            self.iter().last().ok_or(StamError::QuerySyntaxError(
-                "Query returned no results".to_string(),
+            self.iter().last().ok_or(StamError::VariableNotFoundError(
+                "LAST".into(),
+                None,
                 "(get_by_name_or_last)",
             ))
         }
@@ -3989,9 +3974,10 @@ impl<'store> QueryResultItems<'store> {
                 return Ok(item);
             }
         }
-        Err(StamError::QuerySyntaxError(
-            format!("Variable ?{} not found in the result set", var),
-            "",
+        Err(StamError::VariableNotFoundError(
+            var.into(),
+            None,
+            "get_by_name",
         ))
     }
 
