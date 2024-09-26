@@ -2514,8 +2514,15 @@ impl<'store> QueryIter<'store> {
             Some(&Constraint::Union(ref subconstraints)) => {
                 let mut handles: Handles<'store, Annotation> = Handles::new_empty(store);
                 for subconstraint in subconstraints {
-                    let mut iter = self.init_state_annotations(Some(subconstraint))?;
-                    handles.union(&iter.to_handles(store));
+                    match self.init_state_annotations(Some(subconstraint)) {
+                        Ok(mut iter) => handles.union(&iter.to_handles(store)),
+                        Err(
+                            StamError::NotFoundError(..) | StamError::VariableNotFoundError(..),
+                        ) => {
+                            //these types of errors can be ignored in a UNION, another subconstraint may succeed
+                        }
+                        Err(e) => return Err(e),
+                    }
                 }
                 Box::new(handles.into_items())
             }
