@@ -3266,6 +3266,10 @@ impl<'store> QueryIter<'store> {
                 let key = self.resolve_keyvar(varname)?;
                 Box::new(iter.filter_key_value(&key, operator.clone()))
             }
+            &Constraint::DataVariable(varname, SelectionQualifier::Normal) => {
+                let data = self.resolve_datavar(varname)?;
+                Box::new(iter.filter_annotationdata(&data))
+            }
             &Constraint::Value(ref operator, _) => Box::new(iter.filter_value(operator.clone())),
             &Constraint::Text(text, TextMode::Exact) => {
                 Box::new(iter.filter_text_byref(text, true))
