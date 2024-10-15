@@ -826,16 +826,112 @@ impl<'a> Constraint<'a> {
             Self::Limit { begin, end } => {
                 s += &format!(" LIMIT {} {};", begin, end);
             }
-            Self::Annotations(..)
-            | Self::Data(..)
-            | Self::TextSelections(..)
-            | Self::Keys(..)
-            | Self::Resources(..) => {
-                return Err(StamError::QuerySyntaxError(
-                    "Query contains internal constraints that can not be serialized to STAMQL"
-                        .into(),
-                    "Constraint::to_string()",
-                ));
+            Self::Annotations(handles, qualifier, depth) => {
+                let store = handles.store();
+                s += "[ ";
+                for (i, handle) in handles.iter().enumerate() {
+                    let annotation = store.annotation(handle).or_fail()?;
+                    let id = annotation
+                        .id()
+                        .map(|s| Cow::Borrowed(s))
+                        .unwrap_or_else(|| {
+                            annotation
+                                .as_ref()
+                                .temp_id()
+                                .map(|s| Cow::Owned(s))
+                                .expect("temp_id must work")
+                        });
+                    s += &format!(
+                        "ANNOTATION{}{} \"{}\"",
+                        qualifier.as_str(),
+                        if depth == &AnnotationDepth::Max {
+                            " RECURSIVE"
+                        } else {
+                            " "
+                        },
+                        id
+                    );
+                    if i < handles.len() - 1 {
+                        s += " OR ";
+                    }
+                }
+                s += " ];";
+            }
+            Self::Data(handles, qualifier) => {
+                let store = handles.store();
+                s += "[ ";
+                for (i, (sethandle, handle)) in handles.iter().enumerate() {
+                    let dataset = store.dataset(sethandle).or_fail()?;
+                    let data = dataset.annotationdata(handle).or_fail()?;
+                    let operator_value: DataOperator = data.value().into();
+                    s += &format!(
+                        "DATA{} \"{}\" \"{}\" {}",
+                        qualifier.as_str(),
+                        dataset.id().expect("set must have id"),
+                        data.key().id().expect("key must have id"),
+                        operator_value.to_string()?,
+                    );
+                    if i < handles.len() - 1 {
+                        s += " OR ";
+                    }
+                }
+                s += " ];";
+            }
+            Self::Keys(handles, qualifier) => {
+                let store = handles.store();
+                s += "[ ";
+                for (i, (sethandle, handle)) in handles.iter().enumerate() {
+                    let dataset = store.dataset(sethandle).or_fail()?;
+                    let key = dataset.key(handle).or_fail()?;
+                    s += &format!(
+                        "DATA{} \"{}\" \"{}\"",
+                        qualifier.as_str(),
+                        dataset.id().expect("set must have id"),
+                        key.id().expect("key must have id")
+                    );
+                    if i < handles.len() - 1 {
+                        s += " OR ";
+                    }
+                }
+                s += " ];";
+            }
+            Self::Resources(handles, qualifier) => {
+                let store = handles.store();
+                s += "[ ";
+                for (i, handle) in handles.iter().enumerate() {
+                    let resource = store.resource(handle).or_fail()?;
+                    let id = resource.id().map(|s| Cow::Borrowed(s)).unwrap_or_else(|| {
+                        resource
+                            .as_ref()
+                            .temp_id()
+                            .map(|s| Cow::Owned(s))
+                            .expect("temp_id must work")
+                    });
+                    s += &format!("RESOURCE{} \"{}\"", qualifier.as_str(), id);
+                    if i < handles.len() - 1 {
+                        s += " OR ";
+                    }
+                }
+                s += " ];";
+            }
+            Self::TextSelections(handles, qualifier) => {
+                let store = handles.store();
+                s += "[ ";
+                for (i, (reshandle, handle)) in handles.iter().enumerate() {
+                    let resource = store.resource(reshandle).or_fail()?;
+                    let textselection = resource.textselection_by_handle(handle)?;
+                    s += &format!(
+                        "RESOURCE{} \"{}\" OFFSET {} {}",
+                        qualifier.as_str(),
+                        resource.id().expect("resource must have id"),
+                        textselection.begin(),
+                        textselection.end(),
+                    );
+                    if i < handles.len() - 1 {
+                        s += " OR ";
+                    }
+                }
+                s += " ];";
             }
         }
         Ok(s)
