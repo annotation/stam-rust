@@ -634,6 +634,7 @@ impl<'a> Constraint<'a> {
                         "Parsing [ ] block failed",
                     ));
                 }
+                //TODO: if the union constraint is homogenous, then we should map it to Self::Annotations(), Resources(), etc... for more efficiency
                 Self::Union(subconstraints)
             }
             Some("LIMIT") => {
