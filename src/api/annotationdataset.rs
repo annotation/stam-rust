@@ -109,7 +109,7 @@ impl<'store> ResultItem<'store, AnnotationDataSet> {
     /// #   )?;
     /// //in this store we have a single annotation, and single annotation data with key 'part-of-speech' and value 'noun':
     /// let dataset = store.dataset("mydataset").or_fail()?;
-    /// for annotationdata in dataset.find_data("part-of-speech", DataOperator::Equals("noun")) {
+    /// for annotationdata in dataset.find_data("part-of-speech", DataOperator::Equals("noun".into())) {
     ///     assert_eq!(annotationdata.id(), Some("D1"));
     ///     assert_eq!(annotationdata.value(), "noun");
     /// }

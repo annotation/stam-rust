@@ -285,7 +285,7 @@ impl AnnotationStore {
     /// #           .with_data_with_id("mydataset", "part-of-speech", "noun", "D1"),
     /// #   )?;
     /// //in this store we have a single annotation, and single annotation data with key 'part-of-speech' and value 'noun':
-    /// for annotationdata in store.find_data("mydataset", "part-of-speech", DataOperator::Equals("noun")) {
+    /// for annotationdata in store.find_data("mydataset", "part-of-speech", DataOperator::Equals("noun".into())) {
     ///     assert_eq!(annotationdata.id(), Some("D1"));
     ///     assert_eq!(annotationdata.value(), "noun");
     /// }

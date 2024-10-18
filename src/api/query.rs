@@ -121,7 +121,7 @@ impl QueryType {
 ///                   .with_constraint(Constraint::KeyValue {
 ///                            set: "myset",
 ///                            key: "fly",
-///                            operator: DataOperator::Equals("noun"),
+///                            operator: DataOperator::Equals("noun".into()),
 ///                            qualifier: SelectionQualifier::Normal
 ///                   });
 /// # Ok(())

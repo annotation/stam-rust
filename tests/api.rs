@@ -637,7 +637,10 @@ fn data_by_value() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let dataset = store.dataset("testdataset").or_fail()?;
     let key = dataset.key("pos").unwrap();
-    let annotationdata = key.data().filter_value(DataOperator::Equals("noun")).next();
+    let annotationdata = key
+        .data()
+        .filter_value(DataOperator::Equals("noun".into()))
+        .next();
     assert!(annotationdata.is_some());
     assert_eq!(annotationdata.unwrap().id(), Some("D1"));
     Ok(())
@@ -648,7 +651,7 @@ fn find_data_exact() -> Result<(), StamError> {
     let store = setup_example_2()?;
     let dataset = store.dataset("testdataset").or_fail()?;
     let mut count = 0;
-    for annotationdata in dataset.find_data("pos", DataOperator::Equals("noun")) {
+    for annotationdata in dataset.find_data("pos", DataOperator::Equals("noun".into())) {
         count += 1;
         assert_eq!(annotationdata.id(), Some("D1"));
     }
@@ -1233,7 +1236,7 @@ fn annotate_regex_single2() -> Result<(), StamError> {
     annotate_regex_for_example_6(&mut store)?;
 
     let data: Vec<_> = store
-        .find_data("myset", "type", DataOperator::Equals("header"))
+        .find_data("myset", "type", DataOperator::Equals("header".into()))
         .annotations()
         .collect();
     assert_eq!(data.len(), 4);
@@ -1528,7 +1531,7 @@ fn related_text_with_data() -> Result<(), StamError> {
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::embeds())
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word".into()))
         .text()
         .collect();
     /*
@@ -1560,7 +1563,7 @@ fn related_text_with_data_2() -> Result<(), StamError> {
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word".into()))
         .text()
         .collect();
     /*
@@ -1593,7 +1596,7 @@ fn related_text_with_data_3() -> Result<(), StamError> {
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word".into()))
         .text()
         .collect();
     assert_eq!(
@@ -1613,7 +1616,7 @@ fn related_text_with_data_4() -> Result<(), StamError> {
     let text: Vec<_> = phrase
         .related_text(TextSelectionOperator::after()) //phrase AFTER result, so result before phrase
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word".into()))
         .text()
         .collect();
     assert_eq!(
@@ -1664,7 +1667,7 @@ fn related_text_with_data_5() -> Result<(), StamError> {
     let words: Vec<_> = sentence
         .related_text(TextSelectionOperator::embeds())
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word".into()))
         .textual_order(); //we could omit this if we were sure word annotations were added in sequence
 
     let secondword = words.iter().nth(1).unwrap();
@@ -1693,7 +1696,7 @@ fn find_data_about() -> Result<(), StamError> {
     let mut count = 0;
     for phrase in secondword
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("phrase"))
+        .filter_key_value(&key_type, DataOperator::Equals("phrase".into()))
     {
         count += 1;
         //we can test in body because we only have one:
@@ -1719,7 +1722,7 @@ fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
     let words: Vec<_> = sentence
         .related_text(TextSelectionOperator::embeds())
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("word"))
+        .filter_key_value(&key_type, DataOperator::Equals("word".into()))
         .textual_order(); //we could omit this if we were sure word annotations were added in sequence
 
     let secondword = words.iter().nth(1).unwrap();
@@ -1731,7 +1734,7 @@ fn annotations_by_related_text_matching_data() -> Result<(), StamError> {
     for phrase in secondword
         .related_text(TextSelectionOperator::embedded())
         .annotations()
-        .filter_key_value(&key_type, DataOperator::Equals("phrase"))
+        .filter_key_value(&key_type, DataOperator::Equals("phrase".into()))
     {
         count += 1;
         //we can test in body because we only have one:
@@ -1935,7 +1938,7 @@ fn query_parse() -> Result<(), StamError> {
         {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
-            assert_eq!(*operator, DataOperator::Equals("value"));
+            assert_eq!(*operator, DataOperator::Equals("value".into()));
         } else {
             assert!(false, "Constraint not as expected");
         }
@@ -1963,7 +1966,7 @@ fn query_parse_quoted() -> Result<(), StamError> {
         {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
-            assert_eq!(*operator, DataOperator::Equals("value"));
+            assert_eq!(*operator, DataOperator::Equals("value".into()));
         } else {
             assert!(false, "Constraint not as expected");
         }
@@ -2047,9 +2050,9 @@ fn query_parse_nonquoted_disjunction() -> Result<(), StamError> {
             assert_eq!(*key, "key");
             if let DataOperator::Or(v) = operator {
                 assert_eq!(v.len(), 3);
-                assert_eq!(v.get(0), Some(&DataOperator::Equals("value")));
-                assert_eq!(v.get(1), Some(&DataOperator::Equals("value2")));
-                assert_eq!(v.get(2), Some(&DataOperator::Equals("value3")));
+                assert_eq!(v.get(0), Some(&DataOperator::Equals("value".into())));
+                assert_eq!(v.get(1), Some(&DataOperator::Equals("value2".into())));
+                assert_eq!(v.get(2), Some(&DataOperator::Equals("value3".into())));
             } else {
                 assert!(false, "Expected OR constraint");
             }
@@ -2117,9 +2120,9 @@ fn query_parse_quoted_disjunction() -> Result<(), StamError> {
             assert_eq!(*key, "key");
             if let DataOperator::Or(v) = operator {
                 assert_eq!(v.len(), 3);
-                assert_eq!(v.get(0), Some(&DataOperator::Equals("value")));
-                assert_eq!(v.get(1), Some(&DataOperator::Equals("value2")));
-                assert_eq!(v.get(2), Some(&DataOperator::Equals("value3")));
+                assert_eq!(v.get(0), Some(&DataOperator::Equals("value".into())));
+                assert_eq!(v.get(1), Some(&DataOperator::Equals("value2".into())));
+                assert_eq!(v.get(2), Some(&DataOperator::Equals("value3".into())));
             } else {
                 assert!(false, "Expected OR constraint");
             }
@@ -2157,7 +2160,7 @@ fn query_parse_attributes() -> Result<(), StamError> {
         {
             assert_eq!(*set, "set");
             assert_eq!(*key, "key");
-            assert_eq!(*operator, DataOperator::Equals("value"));
+            assert_eq!(*operator, DataOperator::Equals("value".into()));
         } else {
             assert!(false, "Constraint not as expected");
         }
@@ -2296,7 +2299,7 @@ fn query_parse_union() -> Result<(), StamError> {
                 {
                     assert_eq!(*set, "set");
                     assert_eq!(*key, "key");
-                    assert_eq!(*operator, DataOperator::Equals("value"));
+                    assert_eq!(*operator, DataOperator::Equals("value".into()));
                 } else {
                     assert!(false, "Subconstraint not as expected");
                 }
@@ -2330,7 +2333,7 @@ fn query_parse_union_unquoted() -> Result<(), StamError> {
                 {
                     assert_eq!(*set, "set");
                     assert_eq!(*key, "key");
-                    assert_eq!(*operator, DataOperator::Equals("value"));
+                    assert_eq!(*operator, DataOperator::Equals("value".into()));
                 } else {
                     assert!(false, "Subconstraint not as expected");
                 }
@@ -2386,7 +2389,7 @@ fn query() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
     let mut count = 0;
     let refdata = store
-        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .find_data("myset", "type", DataOperator::Equals("phrase".into()))
         .next()
         .expect("reference data must exist");
     for results in store.query(query)? {
@@ -2410,7 +2413,7 @@ fn query_by_name() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?a WHERE DATA myset type = phrase;".try_into()?;
     let mut count = 0;
     let refdata = store
-        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .find_data("myset", "type", DataOperator::Equals("phrase".into()))
         .next()
         .expect("reference data must exist");
     let iter = store.query(query)?;
@@ -2498,11 +2501,11 @@ fn query_subquery() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; }".try_into()?;
     let mut count = 0;
     let refdata = store
-        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .find_data("myset", "type", DataOperator::Equals("phrase".into()))
         .next()
         .expect("reference data must exist");
     let refdata2 = store
-        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .find_data("myset", "type", DataOperator::Equals("sentence".into()))
         .next()
         .expect("reference data must exist");
     let queryresults = store.query(query)?;
@@ -2537,15 +2540,15 @@ fn query_multiple_subqueries() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; | SELECT ANNOTATION ?word WHERE RELATION ?sentence EMBEDS; DATA myset type = word;}".try_into()?;
     let mut count = 0;
     let refdata = store
-        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .find_data("myset", "type", DataOperator::Equals("phrase".into()))
         .next()
         .expect("reference data must exist");
     let refdata2 = store
-        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .find_data("myset", "type", DataOperator::Equals("sentence".into()))
         .next()
         .expect("reference data must exist");
     let refdata3 = store
-        .find_data("myset", "type", DataOperator::Equals("word"))
+        .find_data("myset", "type", DataOperator::Equals("word".into()))
         .next()
         .expect("reference data must exist");
     let queryresults = store.query(query)?;
@@ -2582,15 +2585,15 @@ fn query_multiple_optional_subqueries() -> Result<(), StamError> {
     let query: Query = "SELECT ANNOTATION ?sentence WHERE DATA myset type = sentence; { SELECT OPTIONAL ANNOTATION ?phrase WHERE RELATION ?sentence EMBEDS; DATA myset type = phrase; | SELECT OPTIONAL ANNOTATION ?word WHERE RELATION ?sentence EMBEDS; DATA myset type = word; | SELECT OPTIONAL ANNOTATION ?nonexistant WHERE RELATION ?sentence EMBEDS; DATA myset type = nonexistant; }".try_into()?;
     let mut count = 0;
     let refdata = store
-        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .find_data("myset", "type", DataOperator::Equals("phrase".into()))
         .next()
         .expect("reference data must exist");
     let refdata2 = store
-        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .find_data("myset", "type", DataOperator::Equals("sentence".into()))
         .next()
         .expect("reference data must exist");
     let refdata3 = store
-        .find_data("myset", "type", DataOperator::Equals("word"))
+        .find_data("myset", "type", DataOperator::Equals("word".into()))
         .next()
         .expect("reference data must exist");
     let queryresults = store.query(query)?;
@@ -2744,11 +2747,11 @@ fn query_union() -> Result<(), StamError> {
             .try_into()?;
     let mut count = 0;
     let refdata = store
-        .find_data("myset", "type", DataOperator::Equals("phrase"))
+        .find_data("myset", "type", DataOperator::Equals("phrase".into()))
         .next()
         .expect("reference data must exist");
     let refdata2 = store
-        .find_data("myset", "type", DataOperator::Equals("sentence"))
+        .find_data("myset", "type", DataOperator::Equals("sentence".into()))
         .next()
         .expect("reference data must exist");
     let iter = store.query(query)?;
