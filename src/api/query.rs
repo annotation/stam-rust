@@ -4283,7 +4283,7 @@ fn parse_dataoperator<'a>(
     valuetype: ArgType,
 ) -> Result<DataOperator<'a>, StamError> {
     let operator = match (opstr, valuetype) {
-        ("=", ArgType::String) => DataOperator::Equals(value),
+        ("=", ArgType::String) => DataOperator::Equals(Cow::Borrowed(value)),
         ("=", ArgType::Null) => DataOperator::Null,
         ("=", ArgType::Any) => DataOperator::Any,
         ("=", ArgType::Bool) => match value {
@@ -4297,7 +4297,9 @@ fn parse_dataoperator<'a>(
         ("=", ArgType::Float) => {
             DataOperator::EqualsFloat(value.parse().expect("str->float conversion should work"))
         }
-        ("!=", ArgType::String) => DataOperator::Not(Box::new(DataOperator::Equals(value))),
+        ("!=", ArgType::String) => {
+            DataOperator::Not(Box::new(DataOperator::Equals(Cow::Borrowed(value))))
+        }
         ("!=", ArgType::Integer) => DataOperator::Not(Box::new(DataOperator::EqualsInt(
             value.parse().expect("str->int conversion should work"),
         ))),
@@ -4312,7 +4314,10 @@ fn parse_dataoperator<'a>(
             _ => unreachable!("boolean should be true or false"),
         },
         ("!=", ArgType::List) => {
-            let values: Vec<_> = value.split("|").map(|x| DataOperator::Equals(x)).collect();
+            let values: Vec<_> = value
+                .split("|")
+                .map(|x| DataOperator::Equals(Cow::Borrowed(x)))
+                .collect();
             DataOperator::Not(Box::new(DataOperator::Or(values)))
         }
         ("!=", ArgType::UnquotedList) => {
@@ -4324,7 +4329,7 @@ fn parse_dataoperator<'a>(
                     } else if let Ok(x) = x.parse::<f64>() {
                         DataOperator::EqualsFloat(x)
                     } else {
-                        DataOperator::Equals(x)
+                        DataOperator::Equals(Cow::Borrowed(x))
                     }
                 })
                 .collect();
@@ -4355,7 +4360,10 @@ fn parse_dataoperator<'a>(
             value.parse().expect("str->float conversion should work"),
         ),
         ("=", ArgType::List) => {
-            let values: Vec<_> = value.split("|").map(|x| DataOperator::Equals(x)).collect();
+            let values: Vec<_> = value
+                .split("|")
+                .map(|x| DataOperator::Equals(Cow::Borrowed(x)))
+                .collect();
             DataOperator::Or(values)
         }
         ("=", ArgType::UnquotedList) => {
@@ -4367,7 +4375,7 @@ fn parse_dataoperator<'a>(
                     } else if let Ok(x) = x.parse::<f64>() {
                         DataOperator::EqualsFloat(x)
                     } else {
-                        DataOperator::Equals(x)
+                        DataOperator::Equals(Cow::Borrowed(x))
                     }
                 })
                 .collect();

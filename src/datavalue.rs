@@ -16,6 +16,7 @@
 use chrono::{DateTime, FixedOffset};
 use minicbor::{Decode, Encode};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::cbor::{cbor_decode_datetime, cbor_encode_datetime};
@@ -105,7 +106,7 @@ pub enum DataOperator<'a> {
     Null,
     Any,
     /// Tests against a string
-    Equals(&'a str),
+    Equals(Cow<'a, str>),
     /// Tests against a numeric integer
     EqualsInt(isize),
     /// Tests against a numeric floating-point value
@@ -139,7 +140,7 @@ pub enum DataOperator<'a> {
     /// The datavalue must be a datetime and come at or before this reference datetime
     AtOrBeforeDatetime(DateTime<FixedOffset>),
 
-    HasElement(&'a str),
+    HasElement(Cow<'a, str>),
     HasElementInt(isize),
     HasElementFloat(f64),
     /// Logical negation, reverses the operator
@@ -205,7 +206,7 @@ impl<'a> DataValue {
                 }
             }
             (Self::List(v), DataOperator::HasElement(s)) => {
-                v.iter().any(|e| e.test(&DataOperator::Equals(s)))
+                v.iter().any(|e| e.test(&DataOperator::Equals(s.clone())))
             }
             (Self::List(v), DataOperator::HasElementInt(n)) => {
                 v.iter().any(|e| e.test(&DataOperator::EqualsInt(*n)))
@@ -477,7 +478,7 @@ impl<'a> From<&'a DataValue> for DataOperator<'a> {
     fn from(v: &'a DataValue) -> Self {
         match v {
             DataValue::Null => DataOperator::Null,
-            DataValue::String(s) => DataOperator::Equals(s.as_str()),
+            DataValue::String(s) => DataOperator::Equals(s.as_str().into()),
             DataValue::Int(v) => DataOperator::EqualsInt(*v),
             DataValue::Float(v) => DataOperator::EqualsFloat(*v),
             DataValue::Bool(true) => DataOperator::True,
@@ -493,7 +494,7 @@ impl<'a> From<&'a DataValue> for DataOperator<'a> {
 
 impl<'a> From<&'a str> for DataOperator<'a> {
     fn from(s: &'a str) -> Self {
-        DataOperator::Equals(s)
+        DataOperator::Equals(s.into())
     }
 }
 
