@@ -1264,6 +1264,7 @@ where
     /// Returns the contained reference with the original lifetime
     #[inline]
     pub fn as_ref(&self) -> &'store T {
+        //MAYBE TODO: This conflicts with the AsRef trait that has &self -> &T as signature , renamed this method to inner()?
         self.item
     }
 
