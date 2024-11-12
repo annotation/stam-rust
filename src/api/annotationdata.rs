@@ -19,6 +19,7 @@ use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::api::*;
 use crate::datakey::{DataKey, DataKeyHandle};
 use crate::datavalue::{DataOperator, DataValue};
+use crate::error::*;
 use crate::resources::TextResource;
 use crate::store::*;
 use crate::Filter;
@@ -142,6 +143,12 @@ impl<'store> ResultItem<'store, AnnotationData> {
             .collect::<BTreeSet<_>>()
             .into_iter()
     }
+
+    pub fn to_json_string(&self) -> Result<String, StamError> {
+        serde_json::to_string_pretty(&self).map_err(|e| {
+            StamError::SerializationError(format!("Writing annotationdata to string: {}", e))
+        })
+    }
 }
 
 /// Holds a collection of [`AnnotationData`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling
@@ -246,11 +253,7 @@ where
     fn filter_key(self, key: &ResultItem<'store, DataKey>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataKey(
-                key.set().handle(),
-                key.handle(),
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::DataKey(key.set().handle(), key.handle(), SelectionQualifier::Normal),
         }
     }
 
@@ -287,12 +290,7 @@ where
     ) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::DataKeyAndOperator(
-                set,
-                key,
-                value,
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::DataKeyAndOperator(set, key, value, SelectionQualifier::Normal),
         }
     }
 
@@ -313,11 +311,7 @@ where
     fn filter_any_byref(self, data: &'store Data<'store>) -> FilteredData<'store, Self> {
         FilteredData {
             inner: self,
-            filter: Filter::BorrowedData(
-                data,
-                FilterMode::Any,
-                SelectionQualifier::Normal,
-            ),
+            filter: Filter::BorrowedData(data, FilterMode::Any, SelectionQualifier::Normal),
         }
     }
 
@@ -430,21 +424,14 @@ where
                     && data.set().handle() == *set_handle
                     && data.test(false, &operator)
             }
-            Filter::Annotations(
-                annotations,
-                FilterMode::Any,
-                SelectionQualifier::Normal,
-                _,
-            ) => data.annotations().filter_any_byref(annotations).test(),
-            Filter::Annotations(
-                annotations,
-                FilterMode::All,
-                SelectionQualifier::Normal,
-                _,
-            ) => data
-                .annotations()
-                .filter_all(annotations.clone(), data.rootstore())
-                .test(),
+            Filter::Annotations(annotations, FilterMode::Any, SelectionQualifier::Normal, _) => {
+                data.annotations().filter_any_byref(annotations).test()
+            }
+            Filter::Annotations(annotations, FilterMode::All, SelectionQualifier::Normal, _) => {
+                data.annotations()
+                    .filter_all(annotations.clone(), data.rootstore())
+                    .test()
+            }
             Filter::BorrowedAnnotations(
                 annotations,
                 FilterMode::Any,

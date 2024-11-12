@@ -307,6 +307,15 @@ impl private::StoreCallbacks<AnnotationData> for AnnotationDataSet {
     }
 }
 
+impl AnnotationDataSet {
+    /// Writes a Dataset to one big STAM JSON string, with appropriate formatting
+    pub fn to_json_string(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string_pretty(self).map_err(|e| {
+            StamError::SerializationError(format!("Writing annotationdataset to string: {}", e))
+        })
+    }
+}
 impl ToJson for AnnotationDataSet {}
 
 impl WrappableStore<AnnotationData> for AnnotationDataSet {}

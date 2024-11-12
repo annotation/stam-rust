@@ -54,6 +54,15 @@ impl Serialize for DataKey {
     }
 }
 
+impl DataKey {
+    /// Writes a datakey to STAM JSON string, with appropriate formatting
+    pub fn to_json_string(&self) -> Result<String, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        serde_json::to_string_pretty(self)
+            .map_err(|e| StamError::SerializationError(format!("Writing key to string: {}", e)))
+    }
+}
+
 /// [Handle] to an instance of [`DataKey`] in the store ([`AnnotationDataSet`])
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, DataSize, Encode, Decode)]
 #[cbor(transparent)]

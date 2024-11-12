@@ -4,10 +4,12 @@ use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdata::{AnnotationData, AnnotationDataHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
 use crate::annotationstore::AnnotationStore;
+use crate::config::Config;
 use crate::datakey::DataKey;
 use crate::datakey::DataKeyHandle;
 use crate::datavalue::DataValue;
 use crate::error::StamError;
+use crate::json::ToJson;
 use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
 use crate::textselection::TextSelectionOperator;
 use crate::Offset;
@@ -1864,6 +1866,25 @@ pub enum QueryResultItem<'store> {
     AnnotationSubStore(ResultItem<'store, AnnotationSubStore>),
 }
 
+impl QueryResultItem<'_> {
+    pub fn to_json_string(&self) -> Result<String, StamError> {
+        match self {
+            Self::Annotation(annotation) => annotation.as_ref().to_json_string(annotation.store()),
+            Self::DataKey(key) => key.as_ref().to_json_string(),
+            Self::TextResource(resource) => resource.as_ref().to_json_string(),
+            Self::AnnotationData(data) => data.to_json_string(),
+            Self::AnnotationDataSet(dataset) => dataset.as_ref().to_json_string(),
+            Self::TextSelection(textselection) => textselection.to_json_string(),
+            Self::None => Err(StamError::OtherError(
+                "QueryResultItem::None can not be serialised",
+            )),
+            Self::AnnotationSubStore(_) => Err(StamError::OtherError(
+                "Serialisation of substores not yet implemented",
+            )),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum ContextItem {
     Annotation(AnnotationHandle),
@@ -1878,7 +1899,6 @@ pub(crate) enum ContextItem {
 pub(crate) struct QueryState<'store> {
     /// The iterator for the current query
     iterator: QueryResultIter<'store>,
-
     /// This captures the result of the current state, in order to make it available for subsequent deeper iterators
     result: QueryResultItem<'store>,
 
