@@ -11,6 +11,8 @@
 //! This module implements the [`StamError`] type, which encapsulates all different kind of errors this STAM library can produce.
 
 use crate::types::*;
+use serde::ser::SerializeStruct;
+use serde::Serialize;
 use std::fmt;
 
 // ------------------------------ ERROR DEFINITIONS & IMPLEMENTATIONS -------------------------------------------------------------
@@ -120,6 +122,63 @@ pub enum StamError {
 
     /// Category for other errors, try to use this sparingly
     OtherError(&'static str),
+}
+
+impl StamError {
+    pub fn name(&self) -> &'static str {
+        match self {
+            StamError::HandleError(..) => "HandleError",
+            StamError::IdNotFoundError(..) => "IdNotFoundError",
+            StamError::NotFoundError(..) => "NotFoundError",
+            StamError::Unbound(..) => "Unbound",
+            StamError::AlreadyBound(..) => "AlreadyBound",
+            StamError::AlreadyExists(..) => "AlreadyExists",
+            StamError::NoIdError(..) => "NoIdError",
+            StamError::DuplicateIdError(..) => "DuplicateIdError",
+            StamError::IOError(..) => "IoError",
+            StamError::JsonError(..) => "JsonError",
+
+            #[cfg(feature = "csv")]
+            StamError::CsvError(..) => "CsvError",
+
+            StamError::RegexError(..) => "RegexError",
+            StamError::QuerySyntaxError(..) => "QuerySyntaxError",
+            StamError::SerializationError(..) => "SerializationError",
+            StamError::DeserializationError(..) => "DeserializationError",
+            StamError::BuildError(..) => "BuildError",
+            StamError::StoreError(..) => "StoreError",
+            StamError::WrongSelectorType(..) => "WrongSelectorType",
+            StamError::WrongSelectorTarget(..) => "WrongSelectorTarget",
+            StamError::CursorOutOfBounds(..) => "CursorOutOfBounds",
+            StamError::InvalidOffset(..) => "InvalidOffset",
+            StamError::InvalidCursor(..) => "InvalidCursor",
+            StamError::NoTarget(..) => "NoTarget",
+            StamError::NoText(..) => "NoText",
+            StamError::InUse(..) => "InUse",
+            StamError::IncompleteError(..) => "IncompleteError",
+            StamError::ValueError(..) => "ValueError",
+            #[cfg(feature = "transpose")]
+            StamError::TransposeError(..) => "TransposeError",
+            StamError::ValidationError(..) => "ValidationError",
+            StamError::UndefinedVariable(..) => "UndefinedVariable",
+            StamError::VariableNotFoundError(..) => "VariableNotFoundError",
+            StamError::OtherError(..) => "OtherError",
+        }
+    }
+}
+
+impl Serialize for StamError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("StamError", 3)?;
+        let message: String = self.into();
+        state.serialize_field("@type", "StamError")?;
+        state.serialize_field("name", self.name())?;
+        state.serialize_field("message", &message)?;
+        state.end()
+    }
 }
 
 impl From<&StamError> for String {
