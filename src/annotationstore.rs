@@ -998,6 +998,14 @@ impl AnnotationStore {
         }
     }
 
+    pub fn changed(&self) -> bool {
+        if let Ok(changed) = self.changed.read() {
+            *changed
+        } else {
+            false
+        }
+    }
+
     /// Returns a [`Config`] instance suitable for instantiation of dependent instances like TextResource,AnnotationDataSet and
     /// This will have the working directory set to the annotation store's directory
     pub(crate) fn new_config(&self) -> Config {
