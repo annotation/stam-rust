@@ -11,6 +11,7 @@ use crate::datavalue::DataValue;
 use crate::error::StamError;
 use crate::json::ToJson;
 use crate::substore::{AnnotationSubStore, AnnotationSubStoreHandle};
+use crate::text::Text;
 use crate::textselection::TextSelectionOperator;
 use crate::Offset;
 use crate::{api::*, Configurable};
@@ -1866,7 +1867,24 @@ pub enum QueryResultItem<'store> {
     AnnotationSubStore(ResultItem<'store, AnnotationSubStore>),
 }
 
-impl QueryResultItem<'_> {
+impl<'store> QueryResultItem<'store> {
+    pub fn text(&self, delimiter: Option<&str>) -> Result<Cow<'store, str>, StamError> {
+        match self {
+            Self::Annotation(annotation) => {
+                if let Some(text) = annotation.text_simple() {
+                    Ok(Cow::Borrowed(text))
+                } else if let Some(delimiter) = delimiter {
+                    Ok(Cow::Owned(annotation.text_join(delimiter)))
+                } else {
+                    Err(StamError::NoText("No singular text for this annotation"))
+                }
+            }
+            Self::TextResource(resource) => Ok(Cow::Borrowed(resource.text())),
+            Self::TextSelection(textselection) => Ok(Cow::Borrowed(textselection.text())),
+            _ => Err(StamError::NoText("No text for this item")),
+        }
+    }
+
     pub fn to_json_string(&self) -> Result<String, StamError> {
         match self {
             Self::Annotation(annotation) => annotation.as_ref().to_json_string(annotation.store()),
