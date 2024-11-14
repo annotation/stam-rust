@@ -318,6 +318,7 @@ impl<'store> ResultTextSelection<'store> {
     /// Writes a textselection to a STAM JSON string, with appropriate formatting, note that
     /// this is not used in normal serialisation (Text Selections aren't serialised).
     pub fn to_json(&self) -> Result<String, StamError> {
+        //MAYBE TODO: do we need this? isn't  to_json_string better?
         serde_json::to_string_pretty(&self).map_err(|e| {
             StamError::SerializationError(format!("Serializing textselection to string: {}", e))
         })
@@ -356,6 +357,18 @@ impl<'store> ResultTextSelection<'store> {
         };
         serde_json::to_string_pretty(&json).map_err(|e| {
             StamError::SerializationError(format!("Writing textannotation to string: {}", e))
+        })
+    }
+
+    pub fn to_json_value(&self) -> Result<serde_json::Value, StamError> {
+        let json = TextSelectionJson {
+            resource: self.resource().id().expect("resource must have ID"),
+            begin: self.begin(),
+            end: self.end(),
+            text: self.text(),
+        };
+        serde_json::to_value(&json).map_err(|e| {
+            StamError::SerializationError(format!("Writing textannotation to JSON value: {}", e))
         })
     }
 }

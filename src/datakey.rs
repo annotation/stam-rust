@@ -61,6 +61,12 @@ impl DataKey {
         serde_json::to_string_pretty(self)
             .map_err(|e| StamError::SerializationError(format!("Writing key to string: {}", e)))
     }
+
+    /// Writes a datakey to a JSON value
+    pub fn to_json_value(&self) -> Result<serde_json::Value, StamError> {
+        serde_json::to_value(self)
+            .map_err(|e| StamError::SerializationError(format!("Producing Json Value: {}", e)))
+    }
 }
 
 /// [Handle] to an instance of [`DataKey`] in the store ([`AnnotationDataSet`])

@@ -1901,6 +1901,23 @@ impl<'store> QueryResultItem<'store> {
             )),
         }
     }
+
+    pub fn to_json_value(&self) -> Result<serde_json::Value, StamError> {
+        match self {
+            Self::Annotation(annotation) => annotation.as_ref().to_json_value(annotation.store()),
+            Self::DataKey(key) => key.as_ref().to_json_value(),
+            Self::TextResource(resource) => resource.as_ref().to_json_value(),
+            Self::AnnotationData(data) => data.to_json_value(),
+            Self::AnnotationDataSet(dataset) => dataset.as_ref().to_json_value(),
+            Self::TextSelection(textselection) => textselection.to_json_value(),
+            Self::None => Err(StamError::OtherError(
+                "QueryResultItem::None can not be serialised",
+            )),
+            Self::AnnotationSubStore(_) => Err(StamError::OtherError(
+                "Serialisation of substores not yet implemented",
+            )),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

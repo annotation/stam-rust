@@ -213,6 +213,14 @@ impl Annotation {
             StamError::SerializationError(format!("Writing annotation to string: {}", e))
         })
     }
+
+    /// Returns JSON value for the Annotation
+    pub fn to_json_value(&self, store: &AnnotationStore) -> Result<serde_json::Value, StamError> {
+        //note: this function is not invoked during regular serialisation via the store
+        let wrapped: ResultItem<Self> = ResultItem::new_partial(self, store);
+        serde_json::to_value(&wrapped)
+            .map_err(|e| StamError::SerializationError(format!("Producing Json Value: {}", e)))
+    }
 }
 
 impl<'a> AnnotationBuilder<'a> {

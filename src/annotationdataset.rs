@@ -315,6 +315,12 @@ impl AnnotationDataSet {
             StamError::SerializationError(format!("Writing annotationdataset to string: {}", e))
         })
     }
+
+    /// Writes a dataset to a JSON value
+    pub fn to_json_value(&self) -> Result<serde_json::Value, StamError> {
+        serde_json::to_value(self)
+            .map_err(|e| StamError::SerializationError(format!("Producing Json Value: {}", e)))
+    }
 }
 impl ToJson for AnnotationDataSet {}
 

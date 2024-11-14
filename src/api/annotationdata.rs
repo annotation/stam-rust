@@ -149,6 +149,11 @@ impl<'store> ResultItem<'store, AnnotationData> {
             StamError::SerializationError(format!("Writing annotationdata to string: {}", e))
         })
     }
+
+    pub fn to_json_value(&self) -> Result<serde_json::Value, StamError> {
+        serde_json::to_value(self)
+            .map_err(|e| StamError::SerializationError(format!("Producing Json Value: {}", e)))
+    }
 }
 
 /// Holds a collection of [`AnnotationData`] (by reference to an [`AnnotationStore`] and handles). This structure is produced by calling

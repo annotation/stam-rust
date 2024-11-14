@@ -281,6 +281,12 @@ impl TextResource {
             StamError::SerializationError(format!("Writing resource to string: {}", e))
         })
     }
+
+    /// Writes a Resource to a JSON value
+    pub fn to_json_value(&self) -> Result<serde_json::Value, StamError> {
+        serde_json::to_value(self)
+            .map_err(|e| StamError::SerializationError(format!("Producing Json Value: {}", e)))
+    }
 }
 
 impl PartialOrd for TextResource {

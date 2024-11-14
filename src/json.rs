@@ -121,6 +121,18 @@ where
         }
         result
     }
+
+    /// Serializes this structure to a JSON value
+    /// If `config` not not specified, an attempt to fetch the AnnotationStore's initial config is made
+    fn to_json_value(&self) -> Result<serde_json::Value, StamError> {
+        serde_json::to_value(&self).map_err(|e| {
+            StamError::SerializationError(format!(
+                "Writing {} to JSON value: {}",
+                Self::typeinfo(),
+                e
+            ))
+        })
+    }
 }
 
 pub trait FromJson
