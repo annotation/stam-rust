@@ -99,6 +99,7 @@ fn value_to_json(value: &DataValue) -> String {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct WebAnnoConfig {
     /// IRI prefix for Annotation Identifiers. Will be prepended if the annotations public ID is not an IRI yet.
     pub default_annotation_iri: String,
