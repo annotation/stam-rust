@@ -245,7 +245,7 @@ impl<'a> DataValue {
 impl fmt::Display for DataValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Null => write!(f, ""),
+            Self::Null => write!(f, "null"),
             Self::String(v) => write!(f, "{}", v),
             Self::Bool(v) => write!(f, "{}", v),
             Self::Int(v) => write!(f, "{}", v),
