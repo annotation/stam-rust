@@ -124,6 +124,12 @@ pub struct WebAnnoConfig {
 
     /// Automatically generate a JSON-LD context alias for all URIs in keys, maps URI prefixes to namespace prefixes
     pub context_namespaces: Vec<(String, String)>,
+
+    /// Adds an extra target alongside the usual target with TextPositionSelector. This can
+    /// be used for provide a direct URL to fetch the exact textselection (if the backend system supports it).
+    /// In the template, you should use the variables {resource} (which is the resource IRI), {begin}, and {end} , they will be substituted accordingly.
+    /// A common value is {resource}/{begin}/{end} .
+    pub extra_target_template: Option<String>,
 }
 
 impl Default for WebAnnoConfig {
@@ -137,6 +143,7 @@ impl Default for WebAnnoConfig {
             auto_generated: true,
             auto_generator: true,
             context_namespaces: Vec::new(),
+            extra_target_template: None,
         }
     }
 }
@@ -312,10 +319,33 @@ impl<'store> ResultItem<'store, Annotation> {
             ann_out += "},";
         }
 
-        ann_out += &format!(
-            " \"target\": {}",
-            &output_selector(self.as_ref().target(), self.store(), config, false)
+        // a second pass may be needed if we have an extra_target_template AND nested targets
+        let mut need_second_pass = false;
+        let output_selector_out = &output_selector(
+            self.as_ref().target(),
+            self.store(),
+            config,
+            false,
+            &mut need_second_pass,
+            false, //first pass
         );
+        if need_second_pass {
+            let second_pass_out = &output_selector(
+                self.as_ref().target(),
+                self.store(),
+                config,
+                false,
+                &mut need_second_pass,
+                true, //second pass
+            );
+            ann_out += &format!(
+                " \"target\": [ {}, {} ]",
+                output_selector_out, &second_pass_out
+            );
+        } else {
+            //normal situation
+            ann_out += &format!(" \"target\": {}", &output_selector_out);
+        }
 
         ann_out += "}";
         ann_out
@@ -354,6 +384,8 @@ fn output_selector(
     store: &AnnotationStore,
     config: &WebAnnoConfig,
     nested: bool,
+    need_second_pass: &mut bool,
+    second_pass: bool,
 ) -> String {
     let mut ann_out = String::new();
     match selector {
@@ -364,15 +396,44 @@ fn output_selector(
                 .as_ref()
                 .get(*tsel_handle)
                 .expect("text selection must exist");
-            ann_out += &format!(
-                "{{ \"source\": \"{}\", \"selector\": {{ \"type\": \"TextPositionSelector\", \"start\": {}, \"end\": {} }} }}",
-                into_iri(
-                    resource.id().expect("resource must have ID"),
-                    &config.default_resource_iri
-                ),
-                textselection.begin(),
-                textselection.end(),
-            );
+            if !second_pass {
+                if config.extra_target_template.is_some() && !nested {
+                    ann_out += "[";
+                }
+                ann_out += &format!(
+                    "{{ \"source\": \"{}\", \"selector\": {{ \"type\": \"TextPositionSelector\", \"start\": {}, \"end\": {} }} }}",
+                    into_iri(
+                        resource.id().expect("resource must have ID"),
+                        &config.default_resource_iri
+                    ),
+                    textselection.begin(),
+                    textselection.end(),
+                );
+            }
+            if (!nested && !second_pass) || (nested && second_pass) {
+                if let Some(extra_target_template) = config.extra_target_template.as_ref() {
+                    let mut template = extra_target_template.clone();
+                    template = template.replace(
+                        "{resource}",
+                        &into_iri(
+                            resource.id().expect("resource must have ID"),
+                            &config.default_resource_iri,
+                        ),
+                    );
+                    template = template.replace("{begin}", &format!("{}", textselection.begin()));
+                    template = template.replace("{end}", &format!("{}", textselection.end()));
+                    if !ann_out.is_empty() {
+                        ann_out.push(',');
+                    }
+                    ann_out += &format!("\"{}\"", &template);
+                    if !nested && !second_pass {
+                        ann_out += " ]";
+                    }
+                }
+            } else if config.extra_target_template.is_some() && !second_pass {
+                //we need a second pass to serialize the items using extra_target_template
+                *need_second_pass = true;
+            }
         }
         Selector::AnnotationSelector(a_handle, None) => {
             let annotation = store.annotation(*a_handle).expect("annotation must exist");
@@ -406,7 +467,10 @@ fn output_selector(
         Selector::CompositeSelector(selectors) => {
             ann_out += "{ \"type\": \"http://www.w3.org/ns/oa#Composite\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
-                ann_out += &format!("{}", &output_selector(selector, store, config, true));
+                ann_out += &format!(
+                    "{}",
+                    &output_selector(selector, store, config, true, need_second_pass, second_pass)
+                );
                 if i != selectors.len() - 1 {
                     ann_out += ",";
                 }
@@ -416,7 +480,10 @@ fn output_selector(
         Selector::MultiSelector(selectors) => {
             ann_out += "{ \"type\": \"http://www.w3.org/ns/oa#Independents\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
-                ann_out += &format!("{}", &output_selector(selector, store, config, true));
+                ann_out += &format!(
+                    "{}",
+                    &output_selector(selector, store, config, true, need_second_pass, second_pass)
+                );
                 if i != selectors.len() - 1 {
                     ann_out += ",";
                 }
@@ -426,7 +493,10 @@ fn output_selector(
         Selector::DirectionalSelector(selectors) => {
             ann_out += "{ \"type\": \"http://www.w3.org/ns/oa#List\", \"items\": [";
             for (i, selector) in selectors.iter().enumerate() {
-                ann_out += &format!("{}", &output_selector(selector, store, config, true));
+                ann_out += &format!(
+                    "{}",
+                    &output_selector(selector, store, config, true, need_second_pass, second_pass)
+                );
                 if i != selectors.len() - 1 {
                     ann_out += ",";
                 }
@@ -444,7 +514,17 @@ fn output_selector(
             if nested {
                 let subselectors: Vec<_> = selector.iter(store, false).collect();
                 for (i, subselector) in subselectors.iter().enumerate() {
-                    ann_out += &format!("{}", &output_selector(&subselector, store, config, false));
+                    ann_out += &format!(
+                        "{}",
+                        &output_selector(
+                            &subselector,
+                            store,
+                            config,
+                            true,
+                            need_second_pass,
+                            second_pass
+                        )
+                    );
                     if i != subselectors.len() - 1 {
                         ann_out += ",";
                     }
