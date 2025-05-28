@@ -1943,7 +1943,7 @@ pub(crate) enum ContextItem {
 
 pub(crate) struct QueryState<'store> {
     /// The iterator for the current query
-    iterator: QueryResultIter<'store>,
+    iterator: Option<QueryResultIter<'store>>,
     /// This captures the result of the current state, in order to make it available for subsequent deeper iterators
     result: QueryResultItem<'store>,
 
@@ -2368,13 +2368,19 @@ impl<'store> QueryIter<'store> {
         }?;
 
         self.statestack.push(QueryState {
-            iterator: iter,
+            iterator: Some(iter),
             result: QueryResultItem::None,
             done: false,
         });
 
         // Do the first iteration (may remove this and other elements from the stack again if it fails)
         Ok(self.next_state())
+    }
+
+    pub(crate) fn qualifier(&self) -> QueryQualifier {
+        self.get_query(&self.querypath)
+            .expect("query must exist")
+            .qualifier()
     }
 
     /// Advances the query state on the stack.
@@ -2391,60 +2397,61 @@ impl<'store> QueryIter<'store> {
                 //which would get in the way as we also need to inspect prior results from the stack (immutably)
                 //
                 // keep track of the qualifier for the current query (is it Normal vs Optional?)
-                let qualifier = self
-                    .get_query(&self.querypath)
-                    .expect("query must exist")
-                    .qualifier();
+                let qualifier = self.qualifier();
                 // keep track of the current subquery_index (pop it and push it back)
                 let subquery_index = self.querypath.pop();
 
-                let got_result = match &mut state.iterator {
-                    QueryResultIter::TextSelections(iter) => {
-                        if let Some(result) = iter.next() {
-                            state.result = QueryResultItem::TextSelection(result);
-                            true
-                        } else {
-                            false //iterator depleted
+                let got_result = if state.iterator.is_none() {
+                    false
+                } else {
+                    match state.iterator.as_mut().unwrap() {
+                        QueryResultIter::TextSelections(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::TextSelection(result);
+                                true
+                            } else {
+                                false //iterator depleted
+                            }
                         }
-                    }
-                    QueryResultIter::Annotations(iter) => {
-                        if let Some(result) = iter.next() {
-                            state.result = QueryResultItem::Annotation(result);
-                            true
-                        } else {
-                            false //iterator depleted
+                        QueryResultIter::Annotations(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::Annotation(result);
+                                true
+                            } else {
+                                false //iterator depleted
+                            }
                         }
-                    }
-                    QueryResultIter::Data(iter) => {
-                        if let Some(result) = iter.next() {
-                            state.result = QueryResultItem::AnnotationData(result);
-                            true
-                        } else {
-                            false //iterator depleted
+                        QueryResultIter::Data(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::AnnotationData(result);
+                                true
+                            } else {
+                                false //iterator depleted
+                            }
                         }
-                    }
-                    QueryResultIter::Resources(iter) => {
-                        if let Some(result) = iter.next() {
-                            state.result = QueryResultItem::TextResource(result);
-                            true
-                        } else {
-                            false //iterator depleted
+                        QueryResultIter::Resources(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::TextResource(result);
+                                true
+                            } else {
+                                false //iterator depleted
+                            }
                         }
-                    }
-                    QueryResultIter::Keys(iter) => {
-                        if let Some(result) = iter.next() {
-                            state.result = QueryResultItem::DataKey(result);
-                            true
-                        } else {
-                            false //iterator depleted
+                        QueryResultIter::Keys(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::DataKey(result);
+                                true
+                            } else {
+                                false //iterator depleted
+                            }
                         }
-                    }
-                    QueryResultIter::DataSets(iter) => {
-                        if let Some(result) = iter.next() {
-                            state.result = QueryResultItem::AnnotationDataSet(result);
-                            true
-                        } else {
-                            false //iterator depleted
+                        QueryResultIter::DataSets(iter) => {
+                            if let Some(result) = iter.next() {
+                                state.result = QueryResultItem::AnnotationDataSet(result);
+                                true
+                            } else {
+                                false //iterator depleted
+                            }
                         }
                     }
                 };
@@ -4035,9 +4042,25 @@ impl<'store> QueryIter<'store> {
                 self.statestack.len(),
                 min_stacksize,
                 self.querypath,
-            );
-            */
+            );*/
             match self.init_state() {
+                Err(StamError::NotFoundError(t, s))
+                    if self.qualifier() == QueryQualifier::Optional =>
+                {
+                    // we got a not found error in an optional subquery,
+                    // since the query is optional we can ignore this
+                    eprintln!("STAM Query warning: {} not found: {}", t, s);
+
+                    // add a dummy querystate to the stack since init_state() didn't do that
+                    self.statestack.push(QueryState {
+                        iterator: None,
+                        result: QueryResultItem::None,
+                        done: false,
+                    });
+
+                    // Do the first iteration, which will just remove this from the stack again
+                    return self.next_state();
+                }
                 Err(e) => {
                     eprintln!("STAM Query error: {}", e);
                     return StateStackStatus::Invalid;
@@ -4050,9 +4073,9 @@ impl<'store> QueryIter<'store> {
                 Ok(StateStackStatus::Empty) => {
                     unreachable!("Empty can never be returned");
                 }
-                Ok(state) => {
+                Ok(statestatus) => {
                     //AllDone/NoNewState/NoNewStateButIgnore
-                    return state;
+                    return statestatus;
                 }
             }
         }
