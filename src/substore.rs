@@ -321,7 +321,11 @@ impl AssociateSubStore<Annotation> for AnnotationStore {
             self.annotation_substore_map.insert(handle, substore_handle);
             Ok(())
         } else {
-            Err(StamError::NotFoundError(Type::Annotation, "Not found"))
+            Err(StamError::NotFoundError(
+                Type::Annotation,
+                item.requested_id_owned()
+                    .unwrap_or("(ID not known at this point)".into()),
+            ))
         }
     }
 }
@@ -358,7 +362,11 @@ impl AssociateSubStore<TextResource> for AnnotationStore {
             self.resource_substore_map.insert(handle, substore_handle);
             Ok(())
         } else {
-            Err(StamError::NotFoundError(Type::Annotation, "Not found"))
+            Err(StamError::NotFoundError(
+                Type::Annotation,
+                item.requested_id_owned()
+                    .unwrap_or("(ID not known at this point)".into()),
+            ))
         }
     }
 }
@@ -396,7 +404,11 @@ impl AssociateSubStore<AnnotationDataSet> for AnnotationStore {
             self.dataset_substore_map.insert(handle, substore_handle);
             Ok(())
         } else {
-            Err(StamError::NotFoundError(Type::Annotation, "Not found"))
+            Err(StamError::NotFoundError(
+                Type::Annotation,
+                item.requested_id_owned()
+                    .unwrap_or("(ID not known at this point)".into()),
+            ))
         }
     }
 }

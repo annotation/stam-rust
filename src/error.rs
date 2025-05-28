@@ -29,7 +29,7 @@ pub enum StamError {
     IdNotFoundError(String, &'static str),
 
     /// A more generic NotFound error
-    NotFoundError(Type, &'static str),
+    NotFoundError(Type, String),
 
     /// This error is raised when the specified variable (e.g. in a query) does not resolve
     /// The first parameter is the requested public variable
@@ -191,8 +191,8 @@ impl From<&StamError> for String {
             StamError::IdNotFoundError(id, contextmsg) => {
                 format!("IdError: No such ID: {} ({})", id, contextmsg)
             }
-            StamError::NotFoundError(tp, contextmsg) => {
-                format!("NotFoundError: {} not found ({})", tp, contextmsg)
+            StamError::NotFoundError(tp, msg) => {
+                format!("NotFoundError: {} not found: {}", tp, msg)
             }
             StamError::Unbound(contextmsg) => format!(
                 "Unbound: Item is not bound yet, add it to a store first. ({})",

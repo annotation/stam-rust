@@ -834,7 +834,9 @@ impl<'a> Constraint<'a> {
                 let store = handles.store();
                 s += "[ ";
                 for (i, handle) in handles.iter().enumerate() {
-                    let annotation = store.annotation(handle).or_fail()?;
+                    let annotation = store.annotation(handle).or_fail_with(
+                        "one of the annotations in the collection does not exist (anymore)".into(),
+                    )?;
                     let id = annotation
                         .id()
                         .map(|s| Cow::Borrowed(s))
@@ -865,8 +867,10 @@ impl<'a> Constraint<'a> {
                 let store = handles.store();
                 s += "[ ";
                 for (i, (sethandle, handle)) in handles.iter().enumerate() {
-                    let dataset = store.dataset(sethandle).or_fail()?;
-                    let data = dataset.annotationdata(handle).or_fail()?;
+                    let dataset = store.dataset(sethandle).or_fail_with("the dataset for one of the data items in the collection does not exist (anymore)".into())?;
+                    let data = dataset.annotationdata(handle).or_fail_with(
+                        "one of the data items in the collection does not exist (anymore)".into(),
+                    )?;
                     let operator_value: DataOperator = data.value().into();
                     s += &format!(
                         "DATA{} \"{}\" \"{}\" {}",
@@ -885,8 +889,10 @@ impl<'a> Constraint<'a> {
                 let store = handles.store();
                 s += "[ ";
                 for (i, (sethandle, handle)) in handles.iter().enumerate() {
-                    let dataset = store.dataset(sethandle).or_fail()?;
-                    let key = dataset.key(handle).or_fail()?;
+                    let dataset = store.dataset(sethandle).or_fail_with("the dataset for one of the keys in the collection does not exist (anymore)".into())?;
+                    let key = dataset.key(handle).or_fail_with(
+                        "one of the keys in the collection does not exist (anymore)".into(),
+                    )?;
                     s += &format!(
                         "DATA{} \"{}\" \"{}\"",
                         qualifier.as_str(),
@@ -903,7 +909,9 @@ impl<'a> Constraint<'a> {
                 let store = handles.store();
                 s += "[ ";
                 for (i, handle) in handles.iter().enumerate() {
-                    let resource = store.resource(handle).or_fail()?;
+                    let resource = store.resource(handle).or_fail_with(
+                        "one of the resources in the collection does not exist (anymore)".into(),
+                    )?;
                     let id = resource.id().map(|s| Cow::Borrowed(s)).unwrap_or_else(|| {
                         resource
                             .as_ref()
@@ -922,7 +930,9 @@ impl<'a> Constraint<'a> {
                 let store = handles.store();
                 s += "[ ";
                 for (i, (reshandle, handle)) in handles.iter().enumerate() {
-                    let resource = store.resource(reshandle).or_fail()?;
+                    let resource = store.resource(reshandle).or_fail_with(
+                        "one of the resources for a textselection in the collection does not exist (anymore)".into(),
+                    )?;
                     let textselection = resource.textselection_by_handle(handle)?;
                     s += &format!(
                         "RESOURCE{} \"{}\" OFFSET {} {}",
@@ -2505,7 +2515,7 @@ impl<'store> QueryIter<'store> {
         //primary constraints for ANNOTATION
         Ok(match constraint {
             Some(&Constraint::Id(id)) => {
-                Box::new(Some(store.annotation(id).or_fail()?).into_iter())
+                Box::new(Some(store.annotation(id).or_fail_for_id(id)?).into_iter())
             }
             Some(&Constraint::Annotations(
                 ref handles,
@@ -2538,11 +2548,14 @@ impl<'store> QueryIter<'store> {
                 Box::new(annotation.annotations())
             }
             Some(&Constraint::TextResource(res, SelectionQualifier::Normal, None)) => {
-                Box::new(store.resource(res).or_fail()?.annotations())
+                Box::new(store.resource(res).or_fail_for_id(res)?.annotations())
             }
-            Some(&Constraint::TextResource(res, SelectionQualifier::Metadata, None)) => {
-                Box::new(store.resource(res).or_fail()?.annotations_as_metadata())
-            }
+            Some(&Constraint::TextResource(res, SelectionQualifier::Metadata, None)) => Box::new(
+                store
+                    .resource(res)
+                    .or_fail_for_id(res)?
+                    .annotations_as_metadata(),
+            ),
             Some(&Constraint::ResourceVariable(var, SelectionQualifier::Normal, None)) => {
                 let resource = self.resolve_resourcevar(var)?;
                 Box::new(resource.annotations())
@@ -2555,7 +2568,7 @@ impl<'store> QueryIter<'store> {
                 Box::new(
                     store
                         .annotation(annotation)
-                        .or_fail()?
+                        .or_fail_for_id(annotation)?
                         .annotations_in_targets(depth),
                 )
             }
@@ -2564,13 +2577,18 @@ impl<'store> QueryIter<'store> {
                 SelectionQualifier::Metadata,
                 AnnotationDepth::One,
                 None,
-            )) => Box::new(store.annotation(annotation).or_fail()?.annotations()),
+            )) => Box::new(
+                store
+                    .annotation(annotation)
+                    .or_fail_for_id(annotation)?
+                    .annotations(),
+            ),
             Some(&Constraint::DataSet(set, SelectionQualifier::Normal)) => {
-                let dataset = store.dataset(set).or_fail()?;
+                let dataset = store.dataset(set).or_fail_for_id(set)?;
                 Box::new(store.annotations().filter_set(&dataset))
             }
             Some(&Constraint::DataSet(set, SelectionQualifier::Metadata)) => {
-                Box::new(store.dataset(set).or_fail()?.annotations())
+                Box::new(store.dataset(set).or_fail_for_id(set)?.annotations())
             }
             Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
                 let dataset = self.resolve_datasetvar(varname)?;
@@ -2580,7 +2598,7 @@ impl<'store> QueryIter<'store> {
                 set,
                 key,
                 qualifier: SelectionQualifier::Normal,
-            }) => Box::new(store.key(set, key).or_fail()?.annotations()),
+            }) => Box::new(store.key(set, key).or_fail_for_id(key)?.annotations()),
             Some(&Constraint::DataVariable(var, SelectionQualifier::Normal)) => {
                 let data = self.resolve_datavar(var)?;
                 Box::new(data.annotations())
@@ -2653,7 +2671,7 @@ impl<'store> QueryIter<'store> {
             }
             Some(&Constraint::SubStore(substore)) => {
                 if let Some(substore) = substore {
-                    let substore = store.substore(substore).or_fail()?;
+                    let substore = store.substore(substore).or_fail_for_id(substore)?;
                     Box::new(substore.annotations())
                 } else {
                     Box::new(store.annotations_no_substores())
@@ -2704,10 +2722,10 @@ impl<'store> QueryIter<'store> {
         let store = self.store();
         Ok(match constraint {
             &Constraint::TextResource(res, SelectionQualifier::Normal,None) => {
-                Box::new(iter.filter_resource(&store.resource(res).or_fail()?))
+                Box::new(iter.filter_resource(&store.resource(res).or_fail_for_id(res)?))
             }
             &Constraint::TextResource(res, SelectionQualifier::Metadata,None) => {
-                Box::new(iter.filter_resource_as_metadata(&store.resource(res).or_fail()?))
+                Box::new(iter.filter_resource_as_metadata(&store.resource(res).or_fail_for_id(res)?))
             }
             &Constraint::ResourceVariable(varname, SelectionQualifier::Normal,None) => {
                 let resource = self.resolve_resourcevar(varname)?;
@@ -2743,7 +2761,7 @@ impl<'store> QueryIter<'store> {
                 key,
                 qualifier: SelectionQualifier::Normal,
             } => {
-                let key = store.key(set, key).or_fail()?;
+                let key = store.key(set, key).or_fail_for_id(key)?;
                 Box::new(iter.filter_key(&key))
             }
             &Constraint::KeyValue {
@@ -2752,7 +2770,7 @@ impl<'store> QueryIter<'store> {
                 ref operator,
                 qualifier: SelectionQualifier::Normal,
             } => {
-                let key = store.key(set, key).or_fail()?;
+                let key = store.key(set, key).or_fail_for_id(key)?;
                 Box::new(iter.filter_key_value(&key, operator.clone()))
             }
             &Constraint::Value(ref operator, SelectionQualifier::Normal) => {
@@ -2767,7 +2785,7 @@ impl<'store> QueryIter<'store> {
                 Box::new(iter.filter_key_value(&key, operator.clone()))
             }
             &Constraint::DataSet(set, SelectionQualifier::Normal) => {
-                let dataset = store.dataset(set).or_fail()?;
+                let dataset = store.dataset(set).or_fail_for_id(set)?;
                 Box::new(iter.filter_set(&dataset))
             }
             &Constraint::Text(text, TextMode::Exact) => {
@@ -2822,16 +2840,16 @@ impl<'store> QueryIter<'store> {
                 SelectionQualifier::Normal,
                 AnnotationDepth::One,
                 None
-            ) => Box::new(iter.filter_annotation(&store.annotation(annotation).or_fail()?)),
+            ) => Box::new(iter.filter_annotation(&store.annotation(annotation).or_fail_for_id(annotation)?)),
             &Constraint::Annotation(annotation, _, AnnotationDepth::Zero,None) => {
-                Box::new(iter.filter_one(&store.annotation(annotation).or_fail()?))
+                Box::new(iter.filter_one(&store.annotation(annotation).or_fail_for_id(annotation)?))
             }
             &Constraint::Annotation(annotation, SelectionQualifier::Metadata, depth, None) => Box::new(
-                iter.filter_annotation_in_targets(&store.annotation(annotation).or_fail()?, depth),
+                iter.filter_annotation_in_targets(&store.annotation(annotation).or_fail_for_id(annotation)?, depth),
             ),
             &Constraint::SubStore(substore) => {
                 let substore = if let Some(substore) = substore {
-                    Some(store.substore(substore).or_fail()?)
+                    Some(store.substore(substore).or_fail_for_id(substore)?)
                 } else {
                     None
                 };
@@ -2887,10 +2905,10 @@ impl<'store> QueryIter<'store> {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).data_as_metadata())
             }
             Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _, None)) => {
-                Box::new(store.annotation(id).or_fail()?.data())
+                Box::new(store.annotation(id).or_fail_for_id(id)?.data())
             }
             Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _, None)) => {
-                Box::new(store.annotation(id).or_fail()?.data_as_metadata())
+                Box::new(store.annotation(id).or_fail_for_id(id)?.data_as_metadata())
             }
             Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _, None)) => {
                 let annotation = self.resolve_annotationvar(varname)?;
@@ -2939,9 +2957,9 @@ impl<'store> QueryIter<'store> {
                 set,
                 key,
                 qualifier: SelectionQualifier::Normal,
-            }) => Box::new(store.key(set, key).or_fail()?.data()),
+            }) => Box::new(store.key(set, key).or_fail_for_id(key)?.data()),
             Some(&Constraint::DataSet(id, SelectionQualifier::Normal)) => {
-                Box::new(store.dataset(id).or_fail()?.data())
+                Box::new(store.dataset(id).or_fail_for_id(id)?.data())
             }
             Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
                 let dataset = self.resolve_datasetvar(varname)?;
@@ -3046,7 +3064,7 @@ impl<'store> QueryIter<'store> {
                 Box::new(dataset.keys())
             }
             Some(&Constraint::DataSet(id, SelectionQualifier::Normal)) => {
-                Box::new(store.dataset(id).or_fail()?.keys())
+                Box::new(store.dataset(id).or_fail_for_id(id)?.keys())
             }
             Some(&Constraint::Keys(ref handles, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store))
@@ -3058,10 +3076,10 @@ impl<'store> QueryIter<'store> {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).keys_as_metadata())
             }
             Some(&Constraint::Annotation(id, SelectionQualifier::Normal, _, None)) => {
-                Box::new(store.annotation(id).or_fail()?.keys())
+                Box::new(store.annotation(id).or_fail_for_id(id)?.keys())
             }
             Some(&Constraint::Annotation(id, SelectionQualifier::Metadata, _, None)) => {
-                Box::new(store.annotation(id).or_fail()?.keys_as_metadata())
+                Box::new(store.annotation(id).or_fail_for_id(id)?.keys_as_metadata())
             }
             Some(&Constraint::AnnotationVariable(varname, SelectionQualifier::Normal, _, None)) => {
                 let annotation = self.resolve_annotationvar(varname)?;
@@ -3137,7 +3155,7 @@ impl<'store> QueryIter<'store> {
         let store = self.store();
         Ok(match constraint {
             Some(&Constraint::Id(id)) | Some(&Constraint::DataSet(id, _)) => {
-                Box::new(Some(store.dataset(id).or_fail()?).into_iter())
+                Box::new(Some(store.dataset(id).or_fail_for_id(id)?).into_iter())
             }
             Some(&Constraint::DataSetVariable(varname, SelectionQualifier::Normal)) => {
                 let dataset = self.resolve_datasetvar(varname)?;
@@ -3162,7 +3180,7 @@ impl<'store> QueryIter<'store> {
             Some(&Constraint::Limit { begin, end }) => Box::new(store.datasets().limit(begin, end)),
             Some(&Constraint::SubStore(substore)) => {
                 if let Some(substore) = substore {
-                    let substore = store.substore(substore).or_fail()?;
+                    let substore = store.substore(substore).or_fail_for_id(substore)?;
                     Box::new(substore.datasets())
                 } else {
                     Box::new(store.datasets_no_substores())
@@ -3205,7 +3223,7 @@ impl<'store> QueryIter<'store> {
             &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
             &Constraint::SubStore(substore) => {
                 let substore = if let Some(substore) = substore {
-                    Some(store.substore(substore).or_fail()?)
+                    Some(store.substore(substore).or_fail_for_id(substore)?)
                 } else {
                     None
                 };
@@ -3245,10 +3263,14 @@ impl<'store> QueryIter<'store> {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store).textselections())
             }
             Some(&Constraint::TextResource(res, _, None)) => {
-                Box::new(store.resource(res).or_fail()?.textselections())
+                Box::new(store.resource(res).or_fail_for_id(res)?.textselections())
             }
             Some(&Constraint::TextResource(res, _, Some(ref offset))) => {
-                if let Ok(textselection) = store.resource(res).or_fail()?.textselection(&offset) {
+                if let Ok(textselection) = store
+                    .resource(res)
+                    .or_fail_for_id(res)?
+                    .textselection(&offset)
+                {
                     Box::new(Some(textselection.clone()).into_iter())
                 } else {
                     Box::new(None.into_iter())
@@ -3267,10 +3289,14 @@ impl<'store> QueryIter<'store> {
                 }
             }
             Some(&Constraint::Annotation(id, _, _, None)) => {
-                Box::new(store.annotation(id).or_fail()?.textselections())
+                Box::new(store.annotation(id).or_fail_for_id(id)?.textselections())
             }
             Some(&Constraint::Annotation(id, _, _, Some(ref offset))) => {
-                if let Some(textselection) = store.annotation(id).or_fail()?.textselections().next()
+                if let Some(textselection) = store
+                    .annotation(id)
+                    .or_fail_for_id(id)?
+                    .textselections()
+                    .next()
                 {
                     if let Ok(textselection) = textselection.textselection(offset) {
                         Box::new(Some(textselection.clone()).into_iter())
@@ -3387,7 +3413,7 @@ impl<'store> QueryIter<'store> {
         let store = self.store();
         Ok(match constraint {
             &Constraint::TextResource(res, _, None) => {
-                Box::new(iter.filter_resource(&store.resource(res).or_fail()?))
+                Box::new(iter.filter_resource(&store.resource(res).or_fail_for_id(res)?))
             }
             &Constraint::ResourceVariable(varname, _, None) => {
                 let resource = self.resolve_resourcevar(varname)?;
@@ -3398,7 +3424,7 @@ impl<'store> QueryIter<'store> {
                 key,
                 qualifier: _,
             } => {
-                let key = store.key(set, key).or_fail()?;
+                let key = store.key(set, key).or_fail_for_id(key)?;
                 Box::new(iter.filter_key(&key))
             }
             &Constraint::KeyValue {
@@ -3407,7 +3433,7 @@ impl<'store> QueryIter<'store> {
                 ref operator,
                 qualifier: _,
             } => {
-                let key = store.key(set, key).or_fail()?;
+                let key = store.key(set, key).or_fail_for_id(key)?;
                 Box::new(iter.filter_key_value(&key, operator.clone()))
             }
             &Constraint::KeyVariable(varname, SelectionQualifier::Normal) => {
@@ -3478,7 +3504,7 @@ impl<'store> QueryIter<'store> {
         let store = self.store();
         Ok(match constraint {
             Some(&Constraint::Id(id)) | Some(&Constraint::TextResource(id, _, None)) => {
-                Box::new(Some(store.resource(id).or_fail()?).into_iter())
+                Box::new(Some(store.resource(id).or_fail_for_id(id)?).into_iter())
             }
             Some(&Constraint::Resources(ref handles, _)) => {
                 Box::new(FromHandles::new(handles.clone().into_iter(), store))
@@ -3495,7 +3521,13 @@ impl<'store> QueryIter<'store> {
                 set,
                 key,
                 qualifier: SelectionQualifier::Normal,
-            }) => Box::new(store.key(set, key).or_fail()?.annotations().resources()),
+            }) => Box::new(
+                store
+                    .key(set, key)
+                    .or_fail_for_id(key)?
+                    .annotations()
+                    .resources(),
+            ),
             //KEY AS METADATA
             Some(&Constraint::DataKey {
                 set,
@@ -3504,7 +3536,7 @@ impl<'store> QueryIter<'store> {
             }) => Box::new(
                 store
                     .key(set, key)
-                    .or_fail()?
+                    .or_fail_for_id(key)?
                     .annotations()
                     .resources_as_metadata(),
             ),
@@ -3575,7 +3607,7 @@ impl<'store> QueryIter<'store> {
             }
             Some(&Constraint::SubStore(substore)) => {
                 if let Some(substore) = substore {
-                    let substore = store.substore(substore).or_fail()?;
+                    let substore = store.substore(substore).or_fail_for_id(substore)?;
                     Box::new(substore.resources())
                 } else {
                     Box::new(store.resources_no_substores())
@@ -3623,7 +3655,7 @@ impl<'store> QueryIter<'store> {
                 key,
                 qualifier: SelectionQualifier::Metadata,
             } => {
-                let key = store.key(set, key).or_fail()?;
+                let key = store.key(set, key).or_fail_for_id(key)?;
                 Box::new(iter.filter_key_in_metadata(&key))
             }
             &Constraint::DataKey {
@@ -3631,7 +3663,7 @@ impl<'store> QueryIter<'store> {
                 key,
                 qualifier: SelectionQualifier::Normal,
             } => {
-                let key = store.key(set, key).or_fail()?;
+                let key = store.key(set, key).or_fail_for_id(key)?;
                 Box::new(iter.filter_key_on_text(&key))
             }
             &Constraint::KeyVariable(var, SelectionQualifier::Metadata) => {
@@ -3656,7 +3688,7 @@ impl<'store> QueryIter<'store> {
                 ref operator,
                 qualifier: SelectionQualifier::Metadata,
             } => {
-                let key = store.key(set, key).or_fail()?;
+                let key = store.key(set, key).or_fail_for_id(key)?;
                 Box::new(iter.filter_key_value_in_metadata(&key, operator.clone()))
             }
             &Constraint::KeyValueVariable(varname, ref operator, SelectionQualifier::Normal) => {
@@ -3678,7 +3710,7 @@ impl<'store> QueryIter<'store> {
             &Constraint::Limit { begin, end } => Box::new(iter.limit(begin, end)),
             &Constraint::SubStore(substore) => {
                 let substore = if let Some(substore) = substore {
-                    Some(store.substore(substore).or_fail()?)
+                    Some(store.substore(substore).or_fail_for_id(substore)?)
                 } else {
                     None
                 };

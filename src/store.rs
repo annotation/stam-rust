@@ -20,6 +20,7 @@
 
 use sealed::sealed;
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
@@ -1289,6 +1290,8 @@ where
     T: TypeInfo,
 {
     fn or_fail(self) -> Result<T, StamError>;
+    fn or_fail_for_id(self, id: &str) -> Result<T, StamError>;
+    fn or_fail_with<'a>(self, msg: Cow<'a, str>) -> Result<T, StamError>;
 }
 
 impl<'store, T> StamResult<T> for Option<T>
@@ -1298,7 +1301,22 @@ where
     fn or_fail(self) -> Result<T, StamError> {
         match self {
             Some(item) => Ok(item),
-            None => Err(StamError::NotFoundError(T::typeinfo(), "")),
+            None => Err(StamError::NotFoundError(
+                T::typeinfo(),
+                "Expected a result, got nothing".into(),
+            )),
+        }
+    }
+    fn or_fail_for_id(self, id: &str) -> Result<T, StamError> {
+        match self {
+            Some(item) => Ok(item),
+            None => Err(StamError::NotFoundError(T::typeinfo(), id.to_string())),
+        }
+    }
+    fn or_fail_with<'a>(self, msg: Cow<'a, str>) -> Result<T, StamError> {
+        match self {
+            Some(item) => Ok(item),
+            None => Err(StamError::NotFoundError(T::typeinfo(), msg.to_string())),
         }
     }
 }
