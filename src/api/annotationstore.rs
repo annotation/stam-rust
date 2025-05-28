@@ -108,7 +108,9 @@ impl AnnotationStore {
     /// Returns an iterator over all text resources ([`TextResource`] instances) in the store.
     /// Items are returned as a fat pointer [`ResultItem<TextResource>`]),
     /// which exposes the high-level API.
-    pub fn resources<'a>(&'a self) -> ResultIter<impl Iterator<Item = ResultItem<TextResource>>> {
+    pub fn resources<'a>(
+        &'a self,
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, TextResource>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &TextResource| item.as_resultitem(self, self)),
@@ -121,7 +123,7 @@ impl AnnotationStore {
     /// Unlike [`resources()`], this will not return datasets from substores.
     pub fn resources_no_substores<'a>(
         &'a self,
-    ) -> ResultIter<impl Iterator<Item = ResultItem<TextResource>>> {
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, TextResource>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &TextResource| item.as_resultitem(self, self))
@@ -134,7 +136,7 @@ impl AnnotationStore {
     /// which exposes the high-level API.
     pub fn datasets<'a>(
         &'a self,
-    ) -> ResultIter<impl Iterator<Item = ResultItem<AnnotationDataSet>>> {
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, AnnotationDataSet>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &AnnotationDataSet| item.as_resultitem(self, self)),
@@ -147,7 +149,7 @@ impl AnnotationStore {
     /// Unlike [`datasets()`], this will not return datasets from substores.
     pub fn datasets_no_substores<'a>(
         &'a self,
-    ) -> ResultIter<impl Iterator<Item = ResultItem<AnnotationDataSet>>> {
+    ) -> ResultIter<impl Iterator<Item = ResultItem<'a, AnnotationDataSet>>> {
         ResultIter::new_sorted(
             self.iter()
                 .map(|item: &AnnotationDataSet| item.as_resultitem(self, self))
