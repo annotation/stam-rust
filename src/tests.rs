@@ -80,6 +80,47 @@ fn parse_json_offset() -> Result<(), std::io::Error> {
 }
 
 #[test]
+fn offset_from_str() -> Result<(), StamError> {
+    let offset: Offset = "0:5".try_into()?;
+    assert_eq!(offset, Offset::simple(0, 5));
+    Ok(())
+}
+
+#[test]
+fn offset_from_str_2() -> Result<(), StamError> {
+    let offset: Offset = "0:-5".try_into()?;
+    assert_eq!(
+        offset,
+        Offset::new(Cursor::BeginAligned(0), Cursor::EndAligned(-5))
+    );
+    Ok(())
+}
+
+#[test]
+fn offset_from_str_3() -> Result<(), StamError> {
+    let offset: Offset = "-4:-5".try_into()?;
+    assert_eq!(
+        offset,
+        Offset::new(Cursor::EndAligned(-4), Cursor::EndAligned(-5))
+    );
+    Ok(())
+}
+
+#[test]
+fn offset_from_str_4() -> Result<(), StamError> {
+    let offset: Offset = "0:".try_into()?;
+    assert_eq!(offset, Offset::whole());
+    Ok(())
+}
+
+#[test]
+fn offset_from_str_5() -> Result<(), StamError> {
+    let offset: Offset = ":0".try_into()?;
+    assert_eq!(offset, Offset::whole());
+    Ok(())
+}
+
+#[test]
 fn parse_json_textselector() -> Result<(), std::io::Error> {
     let data = r#"{ 
         "@type": "TextSelector",

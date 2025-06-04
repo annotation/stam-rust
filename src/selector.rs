@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::borrow::Cow;
 use datasize::{DataSize,data_size};
 use minicbor::{Encode,Decode};
+use smallvec::SmallVec;
 
 use crate::annotation::{Annotation, AnnotationHandle};
 use crate::annotationdataset::{AnnotationDataSet, AnnotationDataSetHandle};
@@ -188,7 +189,7 @@ impl From<&Offset> for OffsetMode {
 }
 impl From<(isize,isize)> for OffsetMode {
     fn from(value: (isize,isize)) -> Self {
-        if value.0 >= 0 && value.1 >= 0 {
+        if value.0 >= 0 && value.1 > 0 {
             Self::BeginBegin
         }  else if value.0 >= 0 && value.1 <= 0 {
             Self::BeginEnd
@@ -203,15 +204,37 @@ impl From<(isize,isize)> for OffsetMode {
 
 impl From<(isize,isize)> for Offset {
     fn from(value: (isize,isize)) -> Self {
-        if value.0 >= 0 && value.1 >= 0 {
+        if value.0 >= 0 && value.1 > 0 {
             Offset::new(Cursor::BeginAligned(value.0 as usize), Cursor::BeginAligned(value.1 as usize))
         }  else if value.0 >= 0 && value.1 <= 0 {
             Offset::new(Cursor::BeginAligned(value.0 as usize), Cursor::EndAligned(value.1))
         }  else if value.0 < 0 && value.1 <= 0 {
-            Offset::new(Cursor::EndAligned(value.1), Cursor::EndAligned(value.1))
+            Offset::new(Cursor::EndAligned(value.0), Cursor::EndAligned(value.1))
         } else {
-            Offset::new(Cursor::EndAligned(value.1), Cursor::BeginAligned(value.1 as usize))
+            Offset::new(Cursor::EndAligned(value.0), Cursor::BeginAligned(value.1 as usize))
         }
+    }
+}
+
+impl TryFrom<&str> for Offset {
+    type Error = StamError;
+    fn try_from(offset: &str) -> Result<Self, Self::Error> {
+        let fields: SmallVec<[&str; 2]> = offset.split(|c| [':',','].contains(&c)).collect();
+        let begin: isize = if fields.len() >= 1 && fields.get(0) != Some(&"") {
+            fields.get(0).unwrap().parse().map_err(|_| {
+                StamError::ValueError(offset.into(), "offset string must be in 'start:end' or 'start,end' form, with start and end being a (possibly signed) integer")
+            })?
+        } else {
+            0
+        };
+        let end: isize = if fields.len() == 2 && fields.get(1) != Some(&"") {
+            fields.get(1).unwrap().parse().map_err(|_| {
+                StamError::ValueError(offset.into(), "offset string must be in 'start:end' or 'start,end' form, with start and end being a (possibly signed) integer")
+            })?
+        } else {
+            0
+        };
+        Ok((begin,end).into())
     }
 }
 

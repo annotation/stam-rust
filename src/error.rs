@@ -299,7 +299,7 @@ impl From<&StamError> for String {
             }
             StamError::UndefinedVariable(varname, contextmsg) => {
                 format!(
-                    "ValueError: Undefined variable in search query: {} - ({})",
+                    "UndefinedVariable: Undefined variable in search query: {} - ({})",
                     varname, contextmsg
                 )
             }
