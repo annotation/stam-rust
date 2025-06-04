@@ -186,6 +186,34 @@ impl From<&Offset> for OffsetMode {
         }
     }
 }
+impl From<(isize,isize)> for OffsetMode {
+    fn from(value: (isize,isize)) -> Self {
+        if value.0 >= 0 && value.1 >= 0 {
+            Self::BeginBegin
+        }  else if value.0 >= 0 && value.1 <= 0 {
+            Self::BeginEnd
+        }  else if value.0 < 0 && value.1 <= 0 {
+            Self::EndEnd
+        } else {
+            Self::EndBegin
+        }
+    }
+
+}
+
+impl From<(isize,isize)> for Offset {
+    fn from(value: (isize,isize)) -> Self {
+        if value.0 >= 0 && value.1 >= 0 {
+            Offset::new(Cursor::BeginAligned(value.0 as usize), Cursor::BeginAligned(value.1 as usize))
+        }  else if value.0 >= 0 && value.1 <= 0 {
+            Offset::new(Cursor::BeginAligned(value.0 as usize), Cursor::EndAligned(value.1))
+        }  else if value.0 < 0 && value.1 <= 0 {
+            Offset::new(Cursor::EndAligned(value.1), Cursor::EndAligned(value.1))
+        } else {
+            Offset::new(Cursor::EndAligned(value.1), Cursor::BeginAligned(value.1 as usize))
+        }
+    }
+}
 
 /// A `Selector` identifies the target of an annotation and the part of the
 /// target that the annotation applies to. Selectors can be considered the labelled edges of the graph model, tying all nodes together.
