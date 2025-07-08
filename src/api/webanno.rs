@@ -7,7 +7,6 @@ use chrono::Local;
 
 use nanoid::nanoid;
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 
 const CONTEXT_ANNO: &str = "http://www.w3.org/ns/anno.jsonld";
 const NS_ANNO: &str = "http://www.w3.org/ns/anno/";
@@ -123,9 +122,6 @@ pub struct WebAnnoConfig {
     /// Automatically add a 'generator' triple for each annotation, with the software details
     pub auto_generator: bool,
 
-    /// Treat keys with this delimiter as nested (e.g a period in `parent.child`). When creating webannotations, blank nodes/maps will be created in the output.
-    pub nested_keys: Option<char>,
-
     /// Automatically generate a JSON-LD context alias for all URIs in keys, maps URI prefixes to namespace prefixes
     pub context_namespaces: Vec<(String, String)>,
 
@@ -146,7 +142,6 @@ impl Default for WebAnnoConfig {
             extra_context: Vec::new(),
             auto_generated: true,
             auto_generator: true,
-            nested_keys: None,
             context_namespaces: Vec::new(),
             extra_target_template: None,
         }
@@ -242,8 +237,6 @@ impl<'store> ResultItem<'store, Annotation> {
         let mut suppress_auto_generated = false;
         let mut suppress_auto_generator = false;
 
-        let mut nested: BTreeMap<String, String> = BTreeMap::new();
-
         let mut outputted_to_main = false;
         //gather annotation properties (outside of body)
         for data in self.data() {
@@ -281,35 +274,10 @@ impl<'store> ResultItem<'store, Annotation> {
                         } else if key_id == "id" {
                             suppress_body_id = true;
                         }
-                        let mut is_nested = false;
-                        if let Some(nesting_delimiter) = config.nested_keys {
-                            if let Some(pos) = key_id.rfind(nesting_delimiter) {
-                                is_nested = true;
-                                let group = &key_id[..pos];
-                                let key_id = &key_id[pos + 1..]; //new key id without parents
-                                if let Some(entry) = nested.get_mut(group) {
-                                    if !entry.is_empty() {
-                                        entry.push(',');
-                                    }
-                                    entry.push_str(&output_predicate_datavalue(
-                                        key_id,
-                                        data.value(),
-                                        config,
-                                    ));
-                                } else {
-                                    nested.insert(
-                                        group.into(),
-                                        output_predicate_datavalue(key_id, data.value(), config),
-                                    );
-                                }
-                            }
+                        if !body_out.is_empty() {
+                            body_out.push(',');
                         }
-                        if !is_nested {
-                            if !body_out.is_empty() {
-                                body_out.push(',');
-                            }
-                            body_out += &output_predicate_datavalue(key_id, data.value(), config);
-                        }
+                        body_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
                 },
                 Some(_set_id) => {
@@ -323,18 +291,7 @@ impl<'store> ResultItem<'store, Annotation> {
                 None => unreachable!("all sets should have a public identifier"),
             }
         }
-        if let Some(nesting_delimiter) = config.nested_keys {
-            for (parents, nested_out) in nested {
-                if !body_out.is_empty() {
-                    body_out.push(',');
-                }
-                for parent in parents.split(nesting_delimiter) {
-                    body_out += &format!(" \"{}\": {{", config.uri_to_namespace(parent));
-                    body_out += nested_out.as_str();
-                    body_out += " }";
-                }
-            }
-        }
+
         if config.auto_generated && !suppress_auto_generated {
             ann_out += &format!(" \"generated\": \"{}\",", Local::now().to_rfc3339());
         }
