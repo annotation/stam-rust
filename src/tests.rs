@@ -38,6 +38,104 @@ fn parse_json_annotationdatabuilder() -> Result<(), std::io::Error> {
 }
 
 #[test]
+fn parse_json_annotationdatabuilder_int() -> Result<(), std::io::Error> {
+    let json = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "D2",
+        "key": "num",
+        "value": {
+            "@type": "Int",
+            "value": 42
+        }
+    }"#;
+
+    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
+
+    assert_eq!(data.id, BuildItem::from("D2"));
+    assert_eq!(data.id, "D2"); //can also be compared with &str etc
+    assert_eq!(data.key, BuildItem::from("num"));
+    assert_eq!(data.key, "num");
+    assert_eq!(data.value, DataValue::from(42));
+    assert_eq!(data.value, 42); //shorter version
+    Ok(())
+}
+
+#[test]
+fn parse_json_annotationdatabuilder_float() -> Result<(), std::io::Error> {
+    let json = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "D2",
+        "key": "num",
+        "value": {
+            "@type": "Float",
+            "value": 4.2
+        }
+    }"#;
+
+    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
+
+    assert_eq!(data.id, BuildItem::from("D2"));
+    assert_eq!(data.id, "D2"); //can also be compared with &str etc
+    assert_eq!(data.key, BuildItem::from("num"));
+    assert_eq!(data.key, "num");
+    assert_eq!(data.value, DataValue::from(4.2));
+    assert_eq!(data.value, 4.2); //shorter version
+    Ok(())
+}
+
+#[test]
+fn parse_json_annotationdatabuilder_null() -> Result<(), std::io::Error> {
+    let json = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "D2",
+        "key": "foo"
+    }"#;
+
+    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
+
+    assert_eq!(data.id, BuildItem::from("D2"));
+    assert_eq!(data.id, "D2"); //can also be compared with &str etc
+    assert_eq!(data.key, BuildItem::from("foo"));
+    assert_eq!(data.key, "foo");
+    assert_eq!(data.value, DataValue::Null);
+    Ok(())
+}
+
+#[test]
+fn parse_json_annotationdatabuilder_list() -> Result<(), std::io::Error> {
+    let json = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "D2",
+        "key": "list",
+        "value": {
+            "@type": "List",
+            "value": [
+            {
+                "@type": "String",
+                "value": "foo"
+            },
+            {
+                "@type": "String",
+                "value": "bar"
+            }
+            ]
+        }
+    }"#;
+
+    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
+
+    assert_eq!(data.id, BuildItem::from("D2"));
+    assert_eq!(data.id, "D2"); //can also be compared with &str etc
+    assert_eq!(data.key, BuildItem::from("list"));
+    assert_eq!(data.key, "list");
+    assert_eq!(
+        data.value,
+        DataValue::from(vec!(DataValue::from("foo"), DataValue::from("bar")))
+    );
+    Ok(())
+}
+
+#[test]
 fn parse_json_cursor() -> Result<(), std::io::Error> {
     let data = r#"{
         "@type": "BeginAlignedCursor",
