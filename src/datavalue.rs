@@ -17,6 +17,7 @@ use chrono::{DateTime, FixedOffset};
 use minicbor::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::cbor::{cbor_decode_datetime, cbor_encode_datetime};
@@ -75,6 +76,10 @@ pub enum DataValue {
         )]
         DateTime<FixedOffset>,
     ),
+
+    /// The value is a map
+    #[cbor(n(7))]
+    Map(#[n(0)] BTreeMap<String, DataValue>),
 }
 
 impl DataSize for DataValue {
@@ -91,6 +96,7 @@ impl DataSize for DataValue {
             Self::Int(v) => 8 + data_size(v),
             Self::Float(v) => 8 + data_size(v),
             Self::List(v) => 8 + data_size(v),
+            Self::Map(v) => 8 + data_size(v),
             Self::Datetime(_) => 8 + (4 * 4), //4*u32, guessed based on chrono source code, may not be accurate
         }
     }
@@ -143,6 +149,12 @@ pub enum DataOperator<'a> {
     HasElement(Cow<'a, str>),
     HasElementInt(isize),
     HasElementFloat(f64),
+
+    /// Get an item from a List
+    GetIndex(isize, Option<Box<DataOperator<'a>>>),
+    /// Get an item from a map
+    GetKey(Cow<'a, str>, Option<Box<DataOperator<'a>>>),
+
     /// Logical negation, reverses the operator
     Not(Box<DataOperator<'a>>),
     /// Logical AND operator (conjunction) to combine multiple operators into one
@@ -214,6 +226,17 @@ impl<'a> DataValue {
             (Self::List(v), DataOperator::HasElementFloat(f)) => {
                 v.iter().any(|e| e.test(&DataOperator::EqualsFloat(*f)))
             }
+            (Self::Map(v), DataOperator::HasElement(s)) => v.contains_key(s.as_ref()),
+            (Self::Map(v), DataOperator::GetKey(s, Some(op))) => {
+                v.get(s.as_ref()).map(|e| e.test(&op)).unwrap_or(false)
+            }
+            (Self::Map(v), DataOperator::GetKey(s, None)) => v.contains_key(s.as_ref()),
+            (Self::List(v), DataOperator::GetIndex(i, Some(op))) => v
+                .iter()
+                .nth(*i as usize)
+                .map(|e| e.test(&op))
+                .unwrap_or(false),
+            (Self::List(v), DataOperator::GetIndex(i, None)) => v.len() > *i as usize,
             (value, DataOperator::Not(operator)) => !value.test(operator),
             (value, DataOperator::And(operators)) => {
                 operators.iter().all(|operator| value.test(operator))
@@ -257,6 +280,15 @@ impl fmt::Display for DataValue {
                         write!(f, ", ")?;
                     }
                     write!(f, "{}", item)?;
+                }
+                Ok(())
+            }
+            Self::Map(v) => {
+                for (i, (key, item)) in v.iter().enumerate() {
+                    if i < v.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", key, item)?;
                 }
                 Ok(())
             }
@@ -366,6 +398,22 @@ impl From<Vec<DataValue>> for DataValue {
     }
 }
 
+impl From<BTreeMap<String, DataValue>> for DataValue {
+    fn from(item: BTreeMap<String, DataValue>) -> Self {
+        Self::Map(item)
+    }
+}
+
+impl From<Vec<(String, DataValue)>> for DataValue {
+    fn from(item: Vec<(String, DataValue)>) -> Self {
+        let mut map = BTreeMap::new();
+        for (k, v) in item {
+            map.insert(k, v);
+        }
+        Self::Map(map)
+    }
+}
+
 impl From<DateTime<FixedOffset>> for DataValue {
     fn from(item: DateTime<FixedOffset>) -> Self {
         Self::Datetime(item)
@@ -446,6 +494,15 @@ impl PartialEq<DataValue> for isize {
     }
 }
 
+impl PartialEq<DataValue> for BTreeMap<String, DataValue> {
+    fn eq(&self, other: &DataValue) -> bool {
+        match other {
+            DataValue::Map(v) => v == self,
+            _ => false,
+        }
+    }
+}
+
 impl PartialEq<DataValue> for DateTime<FixedOffset> {
     fn eq(&self, other: &DataValue) -> bool {
         match other {
@@ -486,6 +543,10 @@ impl<'a> From<&'a DataValue> for DataOperator<'a> {
             DataValue::Datetime(v) => DataOperator::ExactDatetime(*v),
             DataValue::List(_) => {
                 eprintln!("STAM warning: Automatic conversion from list values to operators is not supported!");
+                DataOperator::Null
+            }
+            DataValue::Map(_) => {
+                eprintln!("STAM warning: Automatic conversion from map values to operators is not supported!");
                 DataOperator::Null
             }
         }
@@ -572,8 +633,15 @@ impl<'a> DataOperator<'a> {
             DataOperator::AtOrAfterDatetime(d) => Ok(format!(">= {}", d.to_rfc3339())),
             DataOperator::BeforeDatetime(d) => Ok(format!("< {}", d.to_rfc3339())),
             DataOperator::AtOrBeforeDatetime(d) => Ok(format!("<= {}", d.to_rfc3339())),
+            DataOperator::HasElement(s) => Ok(format!("HAS {}", s)),
+            DataOperator::HasElementInt(n) => Ok(format!("HAS {}", n)),
+            DataOperator::HasElementFloat(n) => Ok(format!("HAS {}", n)),
+            DataOperator::GetKey(s, None) => Ok(format!(". {}", s)),
+            DataOperator::GetIndex(n, None) => Ok(format!(". {}", n)),
+            DataOperator::GetKey(s, Some(op)) => Ok(format!(". {} {}", s, &op.to_string()?)),
+            DataOperator::GetIndex(n, Some(op)) => Ok(format!(". {} {}", n, &op.to_string()?)),
             _ => {
-                //HasElement, And, Or //TODO: implement
+                //And, Or //TODO: implement
                 Err(StamError::QuerySyntaxError(
                     format!(
                         "There is no query syntax yet for this dataoperator expression: {:?}",

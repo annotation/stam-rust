@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use stam::*;
+use std::collections::BTreeMap;
 
 pub fn setup_example_1() -> Result<AnnotationStore, StamError> {
     //instantiate with builder pattern
@@ -771,6 +772,33 @@ pub fn setup_example_9() -> Result<AnnotationStore, StamError> {
                     SelectorBuilder::textselector("example9", Offset::simple(12, 30)), //"licks the tiny cat",
                 )
                 .with_data("testdataset", "pos", "vp"),
+        )?;
+    Ok(store)
+}
+
+pub fn setup_example_10() -> Result<AnnotationStore, StamError> {
+    //this example includes a map
+    let store = AnnotationStore::default()
+        .with_id("test")
+        .with_resource(TextResourceBuilder::new().with_id("testres").with_text(
+            "I have no special talent. I am only passionately curious. -- Albert Einstein",
+        ))?
+        .with_dataset(AnnotationDataSetBuilder::new().with_id("testdataset"))?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("einstein")
+                .with_target(SelectorBuilder::textselector(
+                    "testres",
+                    Offset::simple(61, 76),
+                ))
+                .with_data(
+                    "testdataset",
+                    "person",
+                    BTreeMap::from([
+                        ("firstname".to_string(), "Albert".into()),
+                        ("lastname".to_string(), "Einstein".into()),
+                    ]),
+                ),
         )?;
     Ok(store)
 }

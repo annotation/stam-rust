@@ -559,8 +559,9 @@ impl<'a> Constraint<'a> {
                     } else {
                         let (opstr, remainder, _) = get_arg(querystring)?;
                         let (value, remainder, valuetype) = get_arg(remainder)?;
+                        let (operator, remainder) =
+                            parse_dataoperator(opstr, value, valuetype, remainder)?;
                         querystring = remainder;
-                        let operator = parse_dataoperator(opstr, value, valuetype)?;
                         Self::KeyValue {
                             set,
                             key,
@@ -575,8 +576,8 @@ impl<'a> Constraint<'a> {
                 let (arg, remainder, _) = get_arg(querystring)?;
                 let (opstr, remainder, qualifier, _) = parse_qualifiers(arg, remainder)?;
                 let (value, remainder, valuetype) = get_arg(remainder)?;
+                let (operator, remainder) = parse_dataoperator(opstr, value, valuetype, remainder)?;
                 querystring = remainder;
-                let operator = parse_dataoperator(opstr, value, valuetype)?;
                 Self::Value(operator, qualifier)
             }
             Some("KEY") => {
@@ -4391,7 +4392,9 @@ fn parse_dataoperator<'a>(
     opstr: &'a str,
     value: &'a str,
     valuetype: ArgType,
-) -> Result<DataOperator<'a>, StamError> {
+    querystring: &'a str,
+) -> Result<(DataOperator<'a>, &'a str), StamError> {
+    let mut remainder = querystring;
     let operator = match (opstr, valuetype) {
         ("=", ArgType::String) => DataOperator::Equals(Cow::Borrowed(value)),
         ("=", ArgType::Null) => DataOperator::Null,
@@ -4506,6 +4509,22 @@ fn parse_dataoperator<'a>(
         ("<=", ArgType::Datetime) => DataOperator::AtOrBeforeDatetime(
             DateTime::parse_from_rfc3339(value).expect("datetime RFC3339 parsing should work"),
         ),
+        ("HAS", ArgType::String) => DataOperator::HasElement(Cow::Borrowed(value)),
+        ("HAS", ArgType::Integer) => {
+            DataOperator::HasElementInt(value.parse().expect("str->int conversion should work"))
+        }
+        (".", ArgType::String) => {
+            let (opstr, r, _) = get_arg(querystring)?;
+            if is_dataoperator(opstr) {
+                //this operator can be chained with others: recursion step
+                let (value2, r, valuetype) = get_arg(r)?;
+                let (operator, r) = parse_dataoperator(opstr, value2, valuetype, r)?;
+                remainder = r;
+                DataOperator::GetKey(Cow::Borrowed(value), Some(operator.into()))
+            } else {
+                DataOperator::GetKey(Cow::Borrowed(value), None)
+            }
+        }
         _ => {
             return Err(StamError::QuerySyntaxError(
                 format!(
@@ -4516,7 +4535,11 @@ fn parse_dataoperator<'a>(
             ))
         }
     };
-    Ok(operator)
+    Ok((operator, remainder))
+}
+
+fn is_dataoperator(s: &str) -> bool {
+    ["=", "!=", ">", ">=", "<", "<=", ".", "HAS"].contains(&s)
 }
 
 #[derive(Debug, Clone)]

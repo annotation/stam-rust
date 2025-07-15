@@ -2804,6 +2804,29 @@ fn query_delete_annotation() -> Result<(), StamError> {
 }
 
 #[test]
+fn query_map() -> Result<(), StamError> {
+    let store = setup_example_10()?;
+    let query: Query =
+        "SELECT ANNOTATION ?a WHERE DATA \"testdataset\" \"person\" . \"lastname\" = \"Einstein\";"
+            .try_into()?;
+    let iter = store.query(query)?;
+    let mut count = 0;
+    for results in iter {
+        if let Ok(result) = results.get_by_name("a") {
+            match result {
+                QueryResultItem::Annotation(annotation) => {
+                    count += 1;
+                    assert_eq!(annotation.id(), Some("einstein"));
+                }
+                _ => assert!(false, "wrong return type"),
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 #[cfg(feature = "transpose")]
 fn transposition_simple() -> Result<(), StamError> {
     let store = setup_example_8()?;
@@ -3211,5 +3234,45 @@ fn add_substore_absolute() -> Result<(), StamError> {
 
     store.save()?;
 
+    Ok(())
+}
+
+#[test]
+fn annotation_map() -> Result<(), StamError> {
+    let store = setup_example_10()?;
+    let annotation = store.annotation("einstein").unwrap();
+    assert_eq!(annotation.text_simple(), Some("Albert Einstein"));
+    for data in annotation.data() {
+        if let DataValue::Map(v) = data.value() {
+            assert_eq!(v.get("firstname").unwrap(), "Albert");
+            assert_eq!(v.get("lastname").unwrap(), "Einstein");
+        }
+        assert_eq!(data.value().to_json_compact().unwrap(), "{\"@type\":\"Map\",\"value\":{\"firstname\":{\"@type\":\"String\",\"value\":\"Albert\"},\"lastname\":{\"@type\":\"String\",\"value\":\"Einstein\"}}}");
+    }
+    let data = annotation
+        .data()
+        .filter_value(DataOperator::GetKey(
+            std::borrow::Cow::Borrowed("firstname"),
+            Some(DataOperator::Equals("Albert".into()).into()),
+        ))
+        .next()
+        .unwrap();
+    if let DataValue::Map(v) = data.value() {
+        assert_eq!(v.get("firstname").unwrap(), "Albert");
+        assert_eq!(v.get("lastname").unwrap(), "Einstein");
+    }
+    //test without value test (just tests subkey presence)
+    let data = annotation
+        .data()
+        .filter_value(DataOperator::GetKey(
+            std::borrow::Cow::Borrowed("firstname"),
+            None,
+        ))
+        .next()
+        .unwrap();
+    if let DataValue::Map(v) = data.value() {
+        assert_eq!(v.get("firstname").unwrap(), "Albert");
+        assert_eq!(v.get("lastname").unwrap(), "Einstein");
+    }
     Ok(())
 }

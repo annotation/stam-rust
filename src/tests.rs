@@ -136,6 +136,43 @@ fn parse_json_annotationdatabuilder_list() -> Result<(), std::io::Error> {
 }
 
 #[test]
+fn parse_json_annotationdatabuilder_map() -> Result<(), std::io::Error> {
+    let json = r#"{ 
+        "@type": "AnnotationData",
+        "@id": "D2",
+        "key": "map",
+        "value": {
+            "@type": "Map",
+            "value": {
+                "a": {
+                    "@type": "String",
+                    "value": "foo"
+                },
+                "b": {
+                    "@type": "String",
+                    "value": "bar"
+                }
+            }
+        }
+    }"#;
+
+    let data: AnnotationDataBuilder = serde_json::from_str(json)?;
+
+    assert_eq!(data.id, BuildItem::from("D2"));
+    assert_eq!(data.id, "D2"); //can also be compared with &str etc
+    assert_eq!(data.key, BuildItem::from("map"));
+    assert_eq!(data.key, "map");
+    assert_eq!(
+        data.value,
+        DataValue::from(vec!(
+            ("a".to_string(), DataValue::from("foo")),
+            ("b".to_string(), DataValue::from("bar"))
+        ))
+    );
+    Ok(())
+}
+
+#[test]
 fn parse_json_cursor() -> Result<(), std::io::Error> {
     let data = r#"{
         "@type": "BeginAlignedCursor",
