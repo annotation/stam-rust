@@ -95,6 +95,28 @@ fn into_iri<'a>(s: &'a str, mut prefix: &str) -> Cow<'a, str> {
 fn value_to_json(value: &DataValue) -> String {
     match value {
         DataValue::String(s) => format!("\"{}\"", s.replace("\n", "\\n").replace("\"", "\\\"")),
+        DataValue::List(l) => {
+            let mut json_out = "[".to_string();
+            for (i, value) in l.iter().enumerate() {
+                if i > 0 {
+                    json_out.push(',');
+                }
+                json_out.push_str(&value_to_json(value));
+            }
+            json_out.push(']');
+            json_out
+        }
+        DataValue::Map(m) => {
+            let mut json_out = "{".to_string();
+            for (i, (key, value)) in m.iter().enumerate() {
+                if i > 0 {
+                    json_out.push(',');
+                }
+                json_out.push_str(&format!("\"{}\": {}", key, value_to_json(value)));
+            }
+            json_out.push('}');
+            json_out
+        }
         x => x.to_string(),
     }
 }
@@ -113,7 +135,9 @@ pub struct WebAnnoConfig {
     /// IRI prefix for Text Resources. Will be prepended if the resource public ID is not an IRI yet.
     pub default_resource_iri: String,
 
-    /// Extra JSON-LD context to export, these must be URLs to JSONLD files.
+    /// Extra JSON-LD context to export, these must be URLs to JSONLD files. Keys in these sets that are not full IRIs will
+    /// then be copied as-is to the output (as alias rather than joined with the set ID to form a
+    /// full IRI ), leaving interpretation it up to the JSON-LD context.
     pub extra_context: Vec<String>,
 
     /// Automatically add a 'generated' triple for each annotation, with the timestamp of serialisation
@@ -163,6 +187,22 @@ impl WebAnnoConfig {
         Cow::Borrowed(s)
     }
 
+    /// Automatically add any datasets with IDs ending in `.jsonld` or `.jsonld` to the extra context list.
+    pub fn auto_extra_context(mut self, store: &AnnotationStore) -> Self {
+        for dataset in store.datasets() {
+            if let Some(dataset_id) = dataset.id() {
+                if (dataset_id.ends_with(".jsonld") || dataset_id.ends_with(".json"))
+                    && is_iri(dataset_id)
+                {
+                    if !self.extra_context.iter().any(|x| x == dataset_id) {
+                        self.extra_context.push(dataset_id.to_string());
+                    }
+                }
+            }
+        }
+        self
+    }
+
     /// Generates a JSON-LD string to use for @context
     pub fn serialize_context(&self) -> String {
         let mut out = String::new();
@@ -208,7 +248,7 @@ impl WebAnnoConfig {
 }
 
 impl<'store> ResultItem<'store, Annotation> {
-    /// Outputs the annotation as a W3C Web Annotation, the JSON output will be on a single line without pretty formatting.
+    /// Outputs the annotation as a W3C Web Annotation, the output will be JSON-LD on a single line without pretty formatting.
     pub fn to_webannotation(&self, config: &WebAnnoConfig) -> String {
         if let Selector::AnnotationDataSelector(..) | Selector::DataKeySelector(..) =
             self.as_ref().target()
@@ -236,6 +276,7 @@ impl<'store> ResultItem<'store, Annotation> {
         let mut suppress_body_id = false;
         let mut suppress_auto_generated = false;
         let mut suppress_auto_generator = false;
+        let mut target_extra_out = String::new();
 
         let mut outputted_to_main = false;
         //gather annotation properties (outside of body)
@@ -267,6 +308,12 @@ impl<'store> ResultItem<'store, Annotation> {
                         outputted_to_main = true;
                         ann_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
+                    "target" => {
+                        if !target_extra_out.is_empty() {
+                            target_extra_out.push(',');
+                        }
+                        target_extra_out += &value_to_json(data.value());
+                    }
                     key_id => {
                         //other predicates -> go into body
                         if key_id == "type" {
@@ -280,9 +327,15 @@ impl<'store> ResultItem<'store, Annotation> {
                         body_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
                 },
-                Some(_set_id) => {
+                Some(set_id) => {
                     //different set, go into body
-                    let predicate = key.iri(&config.default_set_iri).expect("set must have ID");
+                    let predicate = if config.extra_context.iter().any(|s| s == set_id) {
+                        //the set doubles as JSON-LD context: return the key as is (either a full IRI already or an alias)
+                        Cow::Borrowed(key.id().expect("key must have ID"))
+                    } else {
+                        //turn it into an IRI per standard identifier rules
+                        key.iri(&config.default_set_iri).expect("set must have ID")
+                    };
                     if !body_out.is_empty() {
                         body_out.push(',');
                     }
@@ -338,15 +391,29 @@ impl<'store> ResultItem<'store, Annotation> {
                 &mut need_second_pass,
                 true, //second pass
             );
+            if !target_extra_out.is_empty() {
+                //with extra target from second pass and extra target(s) from annotation data
+                ann_out += &format!(
+                    " \"target\": [ {}, {}, {} ]",
+                    output_selector_out, &second_pass_out, &target_extra_out
+                );
+            } else {
+                //with extra target from second pass
+                ann_out += &format!(
+                    " \"target\": [ {}, {} ]",
+                    output_selector_out, &second_pass_out
+                );
+            }
+        } else if !target_extra_out.is_empty() {
+            //with extra target(s) from annotation data
             ann_out += &format!(
                 " \"target\": [ {}, {} ]",
-                output_selector_out, &second_pass_out
+                &output_selector_out, &target_extra_out
             );
         } else {
-            //normal situation
+            //normal situation, no extra targets
             ann_out += &format!(" \"target\": {}", &output_selector_out);
         }
-
         ann_out += "}";
         ann_out
     }
