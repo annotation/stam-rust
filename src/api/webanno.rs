@@ -10,6 +10,7 @@ use std::borrow::Cow;
 
 const CONTEXT_ANNO: &str = "http://www.w3.org/ns/anno.jsonld";
 const NS_ANNO: &str = "http://www.w3.org/ns/anno/";
+const NS_RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 
 pub trait IRI<'store> {
     /// Return the identifier as an IRI, suitable to identify RDF resources
@@ -198,7 +199,7 @@ impl WebAnnoConfig {
                 if (dataset_id.ends_with(".jsonld") || dataset_id.ends_with(".json"))
                     && is_iri(dataset_id)
                 {
-                    if !self.extra_context.iter().any(|x| x == dataset_id) {
+                    if self.extra_context.iter().all(|x| x != dataset_id) {
                         self.extra_context.push(dataset_id.to_string());
                     }
                 }
@@ -210,42 +211,33 @@ impl WebAnnoConfig {
     /// Generates a JSON-LD string to use for @context
     pub fn serialize_context(&self) -> String {
         let mut out = String::new();
-        if !self.extra_context.is_empty() {
-            if !self.context_namespaces.is_empty() {
-                out += &format!(
-                    "[ \"{}\", {}, {{ {} }} ]",
-                    CONTEXT_ANNO,
-                    self.extra_context.join(", "),
-                    self.serialize_context_namespaces(),
-                );
-            } else {
-                out += &format!(
-                    "[ \"{}\", {} ]",
-                    CONTEXT_ANNO,
-                    self.extra_context.join(", ")
-                );
-            }
-        } else if !self.context_namespaces.is_empty() {
-            out += &format!(
-                "[ \"{}\", {{ {} }} ]",
-                CONTEXT_ANNO,
-                self.serialize_context_namespaces()
-            );
+        if !self.extra_context.is_empty() || !self.context_namespaces.is_empty() {
+            out += "[ \"";
         } else {
-            out += &format!("\"{}\"", CONTEXT_ANNO);
+            out += "\"";
         }
-        out
-    }
-
-    fn serialize_context_namespaces(&self) -> String {
-        let mut out = String::new();
-        for (uri, namespace) in self.context_namespaces.iter() {
-            out += &format!(
-                "{}\"{}\": \"{}\"",
-                if out.is_empty() { "" } else { ", " },
-                namespace,
-                uri,
-            );
+        out += CONTEXT_ANNO;
+        out += "\"";
+        for context in self.extra_context.iter() {
+            if context != CONTEXT_ANNO {
+                out += ", \"";
+                out += context;
+                out += "\"";
+            }
+        }
+        if !self.context_namespaces.is_empty() {
+            out += ", {";
+            for (uri, namespace) in self.context_namespaces.iter() {
+                out += "\"";
+                out += namespace;
+                out += "\": \"";
+                out += uri;
+                out += "\"";
+            }
+            out += "}";
+        }
+        if !self.extra_context.is_empty() || !self.context_namespaces.is_empty() {
+            out += " ]";
         }
         out
     }
@@ -324,7 +316,9 @@ impl<'store> ResultItem<'store, Annotation> {
                     }
                     key_id => {
                         //other predicates -> go into body
-                        if key_id == "type" {
+                        if key_id == "type"
+                            || key_id == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+                        {
                             suppress_default_body_type = true; //no need for the default because we provided one explicitly
                         } else if key_id == "id" {
                             suppress_body_id = true;
@@ -335,6 +329,13 @@ impl<'store> ResultItem<'store, Annotation> {
                         body_out += &output_predicate_datavalue(key_id, data.value(), config);
                     }
                 },
+                Some(NS_RDF) if key_id == "type" => {
+                    suppress_default_body_type = true; //no need for the default because we provided one explicitly
+                    if !body_out.is_empty() {
+                        body_out.push(',');
+                    }
+                    body_out += &output_predicate_datavalue(key_id, data.value(), config);
+                }
                 Some(set_id) => {
                     //different set, go into body
                     let predicate = if config.extra_context.iter().any(|s| s == set_id) {
@@ -437,9 +438,9 @@ fn output_predicate_datavalue(
     } else {
         false
     };
-    if value_is_iri {
-        // Any String value that is a valid IRI *SHOULD* be interpreted as such
-        // in conversion from/to RDF.
+    if is_iri(predicate) && value_is_iri {
+        // If the predicate is an IRI and the value *(looks like* an IRI, then the latter will be interpreted as an IRI rather than a string literal
+        // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
         format!(
             "\"{}\": {{ \"id\": \"{}\" }}",
             config.uri_to_namespace(predicate),
