@@ -154,6 +154,9 @@ pub struct WebAnnoConfig {
     /// In the template, you should use the variables {resource} (which is the resource IRI), {begin}, and {end} , they will be substituted accordingly.
     /// A common value is {resource}/{begin}/{end} .
     pub extra_target_template: Option<String>,
+
+    /// Do not output @context (useful if already done at an earlier stage)
+    pub skip_context: bool,
 }
 
 impl Default for WebAnnoConfig {
@@ -166,6 +169,7 @@ impl Default for WebAnnoConfig {
             extra_context: Vec::new(),
             auto_generated: true,
             auto_generator: true,
+            skip_context: false,
             context_namespaces: Vec::new(),
             extra_target_template: None,
         }
@@ -257,17 +261,21 @@ impl<'store> ResultItem<'store, Annotation> {
             return String::new();
         }
         let mut ann_out = String::with_capacity(1024);
-        ann_out += "{ \"@context\": ";
-        ann_out += &config.serialize_context();
-        ann_out += ",";
-        if let Some(iri) = self.iri(&config.default_annotation_iri) {
-            ann_out += &format!("  \"id\": \"{}\",", iri);
-        } else if config.generate_annotation_iri {
-            let id = nanoid!();
-            ann_out += &format!(
-                " \"id\": \"{}\",",
-                into_iri(&id, &config.default_annotation_iri)
-            )
+        if config.skip_context {
+            ann_out += "{ "
+        } else {
+            ann_out += "{ \"@context\": ";
+            ann_out += &config.serialize_context();
+            ann_out += ",";
+            if let Some(iri) = self.iri(&config.default_annotation_iri) {
+                ann_out += &format!("  \"id\": \"{}\",", iri);
+            } else if config.generate_annotation_iri {
+                let id = nanoid!();
+                ann_out += &format!(
+                    " \"id\": \"{}\",",
+                    into_iri(&id, &config.default_annotation_iri)
+                )
+            }
         }
         ann_out += " \"type\": \"Annotation\",";
 
