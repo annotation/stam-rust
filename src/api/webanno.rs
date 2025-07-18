@@ -136,9 +136,10 @@ pub struct WebAnnoConfig {
     /// IRI prefix for Text Resources. Will be prepended if the resource public ID is not an IRI yet.
     pub default_resource_iri: String,
 
-    /// Extra JSON-LD context to export, these must be URLs to JSONLD files. Keys in these sets that are not full IRIs will
-    /// then be copied as-is to the output (as alias rather than joined with the set ID to form a
-    /// full IRI ), leaving interpretation it up to the JSON-LD context.
+    /// Extra JSON-LD context to export, these must be URLs to JSONLD files. The contexts you
+    /// provide also double as possible STAM dataset IDs. Keys in these sets that are not full IRIs
+    /// will then be copied as-is to the output (as alias rather than joined with the set ID to
+    /// form a full IRI ), leaving interpretation it up to the JSON-LD context.
     pub extra_context: Vec<String>,
 
     /// Automatically add a 'generated' triple for each annotation, with the timestamp of serialisation
