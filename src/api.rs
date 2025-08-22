@@ -28,6 +28,9 @@ mod webanno;
 #[cfg(feature = "transpose")]
 mod transpose;
 
+#[cfg(feature = "translate")]
+mod translate;
+
 pub use annotation::*;
 pub use annotationdata::*;
 pub use annotationdataset::*;
@@ -42,6 +45,9 @@ pub use webanno::*;
 
 #[cfg(feature = "transpose")]
 pub use transpose::*;
+
+#[cfg(feature = "translate")]
+pub use translate::*;
 
 #[cfg(feature = "textvalidation")]
 pub use crate::textvalidation::*;

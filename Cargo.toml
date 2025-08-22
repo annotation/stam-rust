@@ -29,10 +29,11 @@ sha1 = "0.10.6"
 base16ct = { version = "0.2.0", features = ["alloc"] }
 
 [features]
-default = ["csv","webanno","transpose","textvalidation"]
+default = ["csv","webanno","transpose", "translate","textvalidation"]
 csv = []
 webanno = []
 transpose = []
+translate = ["transpose"]
 textvalidation = []
 
 [dev-dependencies]

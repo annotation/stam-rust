@@ -15,6 +15,7 @@ pub struct TransposeConfig {
     pub source_side: TranspositionSide,
 
     /// Allow a simple transposition as output, by default this is set to `false` as we usually want to have an transposed annotation
+    /// This also implies `no_segmentation` 
     pub allow_simple: bool,
 
     /// Do not produce a transposition annotation, only output the transposed annotation (allow_simple must be set to false)
@@ -27,11 +28,12 @@ pub struct TransposeConfig {
     /// Identifier to assign to the newly outputted resegmentation (if any is created and this is not set, a random ID will be generated)
     pub resegmentation_id: Option<String>,
 
-    /// Identifier to assign to the source annotation, if this is an existing one set existing_source_side.
+    /// Identifier to assign to the source annotation, if this is an existing one set existing_source_side as well .
     pub source_side_id: Option<String>,
 
     /// Indicates that the source part of the transposition is an existing annotation. This adds some extra
     /// constraints as not all existing annotations may be transposable without a resegmentation!
+    /// This is usually set automatically after setting `source_side_id` to an existing ID.
     pub existing_source_side: bool,
 
     /// Do not produce a resegmentation annotation. If needed for a complex transposition, a resegmented annotation is still created, but

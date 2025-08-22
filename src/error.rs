@@ -115,6 +115,9 @@ pub enum StamError {
     /// Undefined variable in query
     UndefinedVariable(String, &'static str),
 
+    #[cfg(feature = "translate")]
+    TranslateError(String, &'static str),
+
     #[cfg(feature = "transpose")]
     TransposeError(String, &'static str),
 
@@ -159,6 +162,7 @@ impl StamError {
             StamError::ValueError(..) => "ValueError",
             #[cfg(feature = "transpose")]
             StamError::TransposeError(..) => "TransposeError",
+            StamError::TranslateError(..) => "TranslateError",
             StamError::ValidationError(..) => "ValidationError",
             StamError::UndefinedVariable(..) => "UndefinedVariable",
             StamError::VariableNotFoundError(..) => "VariableNotFoundError",
@@ -288,6 +292,13 @@ impl From<&StamError> for String {
             StamError::TransposeError(msg, contextmsg) => {
                 format!(
                     "TransposeError: Unable to transpose: {} - ({})",
+                    msg, contextmsg
+                )
+            }
+            #[cfg(feature = "translate")]
+            StamError::TranslateError(msg, contextmsg) => {
+                format!(
+                    "TranslateError: Unable to translate: {} - ({})",
                     msg, contextmsg
                 )
             }

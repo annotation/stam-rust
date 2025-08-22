@@ -3116,6 +3116,231 @@ fn segmentation() -> Result<(), StamError> {
 }
 
 #[test]
+#[cfg(feature = "translate")]
+fn translation_simple() -> Result<(), StamError> {
+    let store = setup_example_11()?;
+    let annotation = store.annotation("SimpleTranslation1").or_fail()?;
+    assert_eq!(annotation.text().count(), 2);
+    let mut iter = annotation.text();
+    assert_eq!(iter.next(), Some("благодарю"));
+    assert_eq!(iter.next(), Some("blagodaryu"));
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "translate")]
+fn translation_complex() -> Result<(), StamError> {
+    let store = setup_example_11b()?;
+    let phrase1 = store.annotation("A1").or_fail()?;
+    assert_eq!(phrase1.text_join(""), "Я благодарю вас", "phrase 1 text");
+    let phrase2 = store.annotation("A2").or_fail()?;
+    assert_eq!(phrase2.text_join(""), "Ya blagodaryu vas", "phrase 2 text");
+    let annotation = store.annotation("ComplexTranslation1").or_fail()?;
+    assert_eq!(
+        annotation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2
+    );
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "translate")]
+fn translate_over_complex_translation_with_resegmentation() -> Result<(), StamError> {
+    let mut store = setup_example_11b()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("A3")
+            .with_data("mydataset", "selection", "phrase")
+            .with_target(SelectorBuilder::textselector(
+                "source",
+                Offset::simple(2, 15), //благодарю вас
+            )),
+    )?;
+    let translation = store.annotation("ComplexTranslation1").or_fail()?;
+    let source = store.annotation("A3").or_fail()?;
+    assert_eq!(
+        source.text_join(""),
+        "благодарю вас",
+        "sanity check for source annotation"
+    );
+    let config = TranslateConfig {
+        translation_id: Some("NewTranslation".to_string()),
+        target_side_ids: vec!["A3t".to_string()],
+        resegmentation_id: Some("NewResegmentation".to_string()),
+        debug: true,
+        ..Default::default()
+    };
+    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    assert_eq!(targets.len(), 4, "Expecting four annotations");
+    let new_translation = store.annotation("NewTranslation").or_fail()?;
+    assert_eq!(
+        new_translation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2,
+        "new transposition must have two target annotations (source annotation and transposed annotation)"
+    );
+    let translated = store.annotation("A3t").or_fail()?;
+    assert_eq!(
+        translated.text_join(""),
+        "blagodaryu vas",
+        "checking translated text"
+    );
+    assert_eq!(
+        translated.text().count(),
+        3,
+        "number of text selectors for translated text"
+    );
+    let tsel = translated.textselections().next().unwrap();
+    assert_eq!(
+        tsel.resource().id(),
+        Some("translit"),
+        "translated annotation must reference the target resource"
+    );
+    let resegmentation = store.annotation("NewResegmentation").or_fail()?;
+    assert_eq!(
+        resegmentation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2,
+        "resegmentation must have two target annotations (source annotation and resegmented annotation)"
+    );
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "translate")]
+fn translate_over_complex_translation_no_resegmentation() -> Result<(), StamError> {
+    let mut store = setup_example_11b()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("A3")
+            .with_data("mydataset", "selection", "phrase")
+            .with_target(SelectorBuilder::textselector(
+                "source",
+                Offset::simple(2, 15), //благодарю вас
+            )),
+    )?;
+    let translation = store
+        .annotation("ComplexTranslation1")
+        .expect("ComplexTranslation1");
+    let source = store.annotation("A3").expect("A3");
+    assert_eq!(
+        source.text_join(""),
+        "благодарю вас",
+        "sanity check for source annotation"
+    );
+    let config = TranslateConfig {
+        translation_id: Some("NewTranslation".to_string()),
+        target_side_ids: vec!["A3t".to_string()],
+        no_resegmentation: true,
+        debug: true,
+        ..Default::default()
+    };
+    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    assert_eq!(
+        targets.len(),
+        2,
+        "Expecting two annotations (the translation and the target annotation)"
+    );
+    let new_translation = store
+        .annotation("NewTranslation")
+        .expect("NewTranslation Annotation");
+    assert_eq!(
+        new_translation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2,
+        "new transposition must have two target annotations (source annotation and transposed annotation)"
+    );
+    let translated = store.annotation("A3t").expect("Target annotation A3t");
+    assert_eq!(
+        translated.text_join(""),
+        "blagodaryu vas",
+        "checking translated text"
+    );
+    assert_eq!(
+        translated.text().count(),
+        1,
+        "number of text selectors for translated text"
+    );
+    let tsel = translated.textselections().next().unwrap();
+    assert_eq!(
+        tsel.resource().id(),
+        Some("translit"),
+        "translated annotation must reference the target resource"
+    );
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "translate")]
+fn translate_over_complex_translation_with_deletion() -> Result<(), StamError> {
+    let mut store = setup_example_11c()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("A3")
+            .with_data("mydataset", "selection", "phrase")
+            .with_target(SelectorBuilder::textselector(
+                "physical",
+                Offset::simple(7, 18), //inter-rupt
+            )),
+    )?;
+    let translation = store
+        .annotation("ComplexTranslation1")
+        .expect("ComplexTranslation1");
+    let source = store.annotation("A3").expect("A3");
+    assert_eq!(
+        source.text_join(""),
+        "inter-\nrupt",
+        "sanity check for source annotation"
+    );
+    let config = TranslateConfig {
+        translation_id: Some("NewTranslation".to_string()),
+        target_side_ids: vec!["A3t".to_string()],
+        no_resegmentation: true,
+        debug: true,
+        ..Default::default()
+    };
+    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    assert_eq!(
+        targets.len(),
+        2,
+        "Expecting two annotations (the translation and the target annotation)"
+    );
+    let new_translation = store
+        .annotation("NewTranslation")
+        .expect("NewTranslation Annotation");
+    assert_eq!(
+        new_translation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2,
+        "new transposition must have two target annotations (source annotation and transposed annotation)"
+    );
+    let translated = store.annotation("A3t").expect("Target annotation A3t");
+    assert_eq!(
+        translated.text_join(""),
+        "interrupt",
+        "checking translated text"
+    );
+    assert_eq!(
+        translated.text().count(),
+        1,
+        "number of text selectors for translated text"
+    );
+    let tsel = translated.textselections().next().unwrap();
+    assert_eq!(
+        tsel.resource().id(),
+        Some("logical"),
+        "translated annotation must reference the target resource"
+    );
+    Ok(())
+}
+
+#[test]
 fn remove_annotation() -> Result<(), StamError> {
     let mut store = setup_example_1()?;
     store.remove_annotation("A1")?;

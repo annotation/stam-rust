@@ -802,3 +802,140 @@ pub fn setup_example_10() -> Result<AnnotationStore, StamError> {
         )?;
     Ok(store)
 }
+
+pub fn setup_example_11() -> Result<AnnotationStore, StamError> {
+    //simple translation
+    let store = AnnotationStore::default()
+        .with_id("example11")
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("source")
+                .with_text("Я благодарю вас"),
+        )?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("translit")
+                .with_text("Ya blagodaryu vas"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("SimpleTranslation1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("source", Offset::simple(2, 11)), //"благодарю",
+                    SelectorBuilder::textselector("translit", Offset::simple(3, 13)), //"blagodaryu",
+                ]))
+                .with_data(
+                    "https://w3id.org/stam/extensions/stam-translate/",
+                    "Translation",
+                    DataValue::Null,
+                ),
+        )?;
+    Ok(store)
+}
+
+pub fn setup_example_11b() -> Result<AnnotationStore, StamError> {
+    //complex translation
+
+    let store = AnnotationStore::default()
+        .with_config(Config::default().with_debug(true))
+        .with_id("example11b")
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("source")
+                .with_text("Я благодарю вас"),
+        )?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("translit")
+                .with_text("Ya blagodaryu vas"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("source", Offset::simple(0, 1)), //"Я",
+                    SelectorBuilder::textselector("source", Offset::simple(1, 2)), //" ",
+                    SelectorBuilder::textselector("source", Offset::simple(2, 11)), //"благодарю",
+                    SelectorBuilder::textselector("source", Offset::simple(11, 12)), //" ",
+                    SelectorBuilder::textselector("source", Offset::simple(12, 15)), //"вас",
+                ]))
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A2")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("translit", Offset::simple(0, 2)), //"Ya",
+                    SelectorBuilder::textselector("translit", Offset::simple(2, 3)), //" ",
+                    SelectorBuilder::textselector("translit", Offset::simple(3, 13)), //"blagodaryu",
+                    SelectorBuilder::textselector("translit", Offset::simple(13, 14)), //" ",
+                    SelectorBuilder::textselector("translit", Offset::simple(14, 17)), //"vas",
+                ]))
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("ComplexTranslation1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::annotationselector("A1", None),
+                    SelectorBuilder::annotationselector("A2", None),
+                ]))
+                .with_data(
+                    "https://w3id.org/stam/extensions/stam-translate/",
+                    "Translation",
+                    DataValue::Null,
+                ),
+        )?;
+    Ok(store)
+}
+
+pub fn setup_example_11c() -> Result<AnnotationStore, StamError> {
+    //complex translation with deletion
+
+    let store = AnnotationStore::default()
+        .with_id("example11c")
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("physical")
+                .with_text("Do not inter-\nrupt writers!"),
+        )?
+        .with_resource(
+            TextResourceBuilder::new()
+                .with_id("logical")
+                .with_text("Do not interrupt writers!"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("physical", Offset::simple(7, 12)), //"inter",
+                    SelectorBuilder::textselector("physical", Offset::simple(12, 14)), //"-\n",
+                    SelectorBuilder::textselector("physical", Offset::simple(14, 18)), //"rupt",
+                ]))
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("A2")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::textselector("logical", Offset::simple(7, 12)), //"inter",
+                    SelectorBuilder::textselector("logical", Offset::simple(12, 12)), //"",
+                    SelectorBuilder::textselector("logical", Offset::simple(12, 16)), //"rupt",
+                ]))
+                .with_data("testdataset", "type", "phrase"),
+        )?
+        .with_annotation(
+            AnnotationBuilder::new()
+                .with_id("ComplexTranslation1")
+                .with_target(SelectorBuilder::DirectionalSelector(vec![
+                    SelectorBuilder::annotationselector("A1", None),
+                    SelectorBuilder::annotationselector("A2", None),
+                ]))
+                .with_data(
+                    "https://w3id.org/stam/extensions/stam-translate/",
+                    "Translation",
+                    DataValue::Null,
+                ),
+        )?;
+    Ok(store)
+}
