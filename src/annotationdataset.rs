@@ -652,12 +652,12 @@ impl AnnotationDataSet {
     }
 
     ///Returns an iterator over all the data ([`AnnotationData`]) in this set, the iterator returns references to [`AnnotationData`].
-    pub fn data(&self) -> StoreIter<AnnotationData> {
+    pub fn data<'a>(&'a self) -> StoreIter<'a, AnnotationData> {
         <Self as StoreFor<AnnotationData>>::iter(self)
     }
 
     /// Returns an iterator over all the keys ([`DataKey`]) in this set, the iterator in returns references to [`DataKey`]
-    pub fn keys(&self) -> StoreIter<DataKey> {
+    pub fn keys<'a>(&'a self) -> StoreIter<'a, DataKey> {
         <Self as StoreFor<DataKey>>::iter(self)
     }
 

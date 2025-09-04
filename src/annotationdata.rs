@@ -289,7 +289,7 @@ impl<'a> AnnotationDataBuilder<'a> {
         self
     }
 
-    pub fn id(&self) -> &BuildItem<AnnotationData> {
+    pub fn id(&self) -> &BuildItem<'_, AnnotationData> {
         &self.id
     }
 
@@ -298,7 +298,7 @@ impl<'a> AnnotationDataBuilder<'a> {
         self
     }
 
-    pub fn dataset(&self) -> &BuildItem<AnnotationDataSet> {
+    pub fn dataset(&self) -> &BuildItem<'_, AnnotationDataSet> {
         &self.dataset
     }
 
@@ -307,7 +307,7 @@ impl<'a> AnnotationDataBuilder<'a> {
         self
     }
 
-    pub fn key(&self) -> &BuildItem<DataKey> {
+    pub fn key(&self) -> &BuildItem<'_, DataKey> {
         &self.key
     }
 

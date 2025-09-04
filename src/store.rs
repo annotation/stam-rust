@@ -905,7 +905,7 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
     /// Iterate over all items in the store
     /// This is a low-level API method, use dedicated high-level iterators like `annotations()`, `resources()` instead.  
     #[inline]
-    fn iter(&self) -> StoreIter<T>
+    fn iter<'a>(&'a self) -> StoreIter<'a, T>
     where
         T: Storable<StoreType = Self>,
     {
@@ -918,7 +918,7 @@ pub trait StoreFor<T: Storable>: Configurable + private::StoreCallbacks<T> {
 
     /// Iterate over the store, mutably
     /// This is a low-level API method.
-    fn iter_mut(&mut self) -> StoreIterMut<T> {
+    fn iter_mut<'a>(&'a mut self) -> StoreIterMut<'a, T> {
         let len = self.store().len();
         StoreIterMut {
             iter: self.store_mut().iter_mut(),
@@ -981,7 +981,10 @@ pub(crate) mod private {
 pub(crate) trait WrappableStore<T: Storable>: StoreFor<T> {
     /// Wraps the entire store along with a reference to self
     /// Low-level method that you won't need
-    fn wrap_store(&self, substore: Option<AnnotationSubStoreHandle>) -> WrappedStore<T, Self>
+    fn wrap_store<'a>(
+        &'a self,
+        substore: Option<AnnotationSubStoreHandle>,
+    ) -> WrappedStore<'a, T, Self>
     where
         Self: Sized,
     {

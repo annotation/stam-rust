@@ -310,7 +310,7 @@ impl<'store> ResultTextSelection<'store> {
     }
 
     /// Iterator covering the full text of text selection as a sequence of minimum-length non-overlapping TextSelections, in textual order
-    pub fn segmentation(&self) -> SegmentationIter {
+    pub fn segmentation<'a>(&'a self) -> SegmentationIter<'a> {
         self.resource()
             .segmentation_in_range(self.begin(), self.end())
     }

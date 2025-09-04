@@ -1115,12 +1115,12 @@ impl<'a> Query<'a> {
     }
 
     /// Iterates over all constraints in the Query
-    pub fn constraints(&self) -> std::slice::Iter<Constraint<'a>> {
+    pub fn constraints(&'a self) -> std::slice::Iter<'a, Constraint<'a>> {
         self.constraints.iter()
     }
 
     /// Returns all attributes for this query
-    pub fn attributes(&self) -> std::slice::Iter<&'a str> {
+    pub fn attributes(&'a self) -> std::slice::Iter<'a, &'a str> {
         self.attributes.iter()
     }
 
@@ -1135,12 +1135,12 @@ impl<'a> Query<'a> {
 
     /// Iterates over all constraints in the Query
     /// Alias for `constraints()`,
-    pub fn iter(&self) -> std::slice::Iter<Constraint<'a>> {
+    pub fn iter(&'a self) -> std::slice::Iter<'a, Constraint<'a>> {
         self.constraints.iter()
     }
 
     /// Iterates over all assignments in the Query
-    pub fn assignments(&self) -> std::slice::Iter<Assignment<'a>> {
+    pub fn assignments(&'a self) -> std::slice::Iter<'a, Assignment<'a>> {
         self.assignments.iter()
     }
 

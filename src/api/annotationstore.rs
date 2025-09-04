@@ -31,28 +31,28 @@ impl AnnotationStore {
     ///
     /// The item is returned as a fat pointer [`ResultItem<TextResource>`]) in an Option.
     /// Returns `None` if it does not exist.
-    pub fn resource(
-        &self,
+    pub fn resource<'a>(
+        &'a self,
         request: impl Request<TextResource>,
-    ) -> Option<ResultItem<TextResource>> {
+    ) -> Option<ResultItem<'a, TextResource>> {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Requests a specific [`AnnotationDataSet`] from the store to be returned by reference.
     /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, [`String`] or [`AnnotationDataSetHandle`].
-    pub fn dataset(
-        &self,
+    pub fn dataset<'a>(
+        &'a self,
         request: impl Request<AnnotationDataSet>,
-    ) -> Option<ResultItem<AnnotationDataSet>> {
+    ) -> Option<ResultItem<'a, AnnotationDataSet>> {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Requests a specific [`DataKey`] (pertaining to an [`AnnotationDataSet`]) to be returned by reference.
-    pub fn key(
-        &self,
+    pub fn key<'a>(
+        &'a self,
         set: impl Request<AnnotationDataSet>,
         key: impl Request<DataKey>,
-    ) -> Option<ResultItem<DataKey>> {
+    ) -> Option<ResultItem<'a, DataKey>> {
         if let Some(dataset) = self.dataset(set) {
             dataset.key(key)
         } else {
@@ -61,11 +61,11 @@ impl AnnotationStore {
     }
 
     /// Requests a specific [`AnnotationData`] (pertaining to an [`AnnotationDataSet`]) to be returned by reference.
-    pub fn annotationdata(
-        &self,
+    pub fn annotationdata<'a>(
+        &'a self,
         set: impl Request<AnnotationDataSet>,
         data: impl Request<AnnotationData>,
-    ) -> Option<ResultItem<AnnotationData>> {
+    ) -> Option<ResultItem<'a, AnnotationData>> {
         if let Some(dataset) = self.dataset(set) {
             dataset.annotationdata(data)
         } else {
@@ -74,11 +74,11 @@ impl AnnotationStore {
     }
 
     /// Requests a specific [`TextSelection`] by handle (pertaining to an [`AnnotationDataSet`]) to be returned by reference.
-    pub fn textselection(
-        &self,
+    pub fn textselection<'a>(
+        &'a self,
         resource: impl Request<TextResource>,
         handle: TextSelectionHandle,
-    ) -> Option<ResultTextSelection> {
+    ) -> Option<ResultTextSelection<'a>> {
         if let Some(resource) = self.resource(resource) {
             resource.textselection_by_handle(handle).ok()
         } else {
@@ -92,16 +92,19 @@ impl AnnotationStore {
     /// The item is returned as a fat pointer [`ResultItem<Annotation>`]),
     /// which exposes the high-level API, in an Option.
     /// Returns `None` if it does not exist.
-    pub fn annotation(&self, request: impl Request<Annotation>) -> Option<ResultItem<Annotation>> {
+    pub fn annotation<'a>(
+        &'a self,
+        request: impl Request<Annotation>,
+    ) -> Option<ResultItem<'a, Annotation>> {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 
     /// Requests a specific [`AnnotationSubStore`] from the store to be returned by reference.
     /// The `request` parameter encapsulates some kind of identifier, it can be a `&str`, [`String`] or [`AnnotationSubStoreHandle`].
-    pub fn substore(
-        &self,
+    pub fn substore<'a>(
+        &'a self,
         request: impl Request<AnnotationSubStore>,
-    ) -> Option<ResultItem<AnnotationSubStore>> {
+    ) -> Option<ResultItem<'a, AnnotationSubStore>> {
         self.get(request).map(|x| x.as_resultitem(self, self)).ok()
     }
 

@@ -1,8 +1,7 @@
-use std::collections::VecDeque;
 
-use crate::{api::*, Cursor, ResultTextSelection};
+use crate::{api::*, ResultTextSelection};
 use crate::datavalue::DataValue;
-use crate::selector::{Offset, OffsetMode, SelectorBuilder};
+use crate::selector::{Offset, SelectorBuilder};
 use crate::text::Text;
 use crate::textselection::{ResultTextSelectionSet, TestTextSelection};
 use crate::AnnotationBuilder;

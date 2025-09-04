@@ -572,7 +572,7 @@ impl Annotation {
 
     /// Iterate over the annotation data, returns tuples of internal IDs for (annotationset,annotationdata)
     /// For a higher-level method, use [`ResultItem<Annotation>::data()`] instead.
-    pub fn data(&self) -> Iter<(AnnotationDataSetHandle, AnnotationDataHandle)> {
+    pub fn data<'a>(&'a self) -> Iter<'a, (AnnotationDataSetHandle, AnnotationDataHandle)> {
         self.data.iter()
     }
 

@@ -730,7 +730,7 @@ impl TextResource {
     }
 
     /// Returns a low-level iterator over the position index
-    pub fn positionindex_iter(&self) -> btree_map::Iter<usize, PositionIndexItem> {
+    pub fn positionindex_iter<'a>(&'a self) -> btree_map::Iter<'a, usize, PositionIndexItem> {
         self.positionindex.0.iter()
     }
 

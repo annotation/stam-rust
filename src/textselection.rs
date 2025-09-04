@@ -506,10 +506,10 @@ impl Default for PositionIndex {
 
 impl PositionIndex {
     //Returns an iterator over all positions in in index, in sorted order
-    pub fn keys(&self) -> btree_map::Keys<usize, PositionIndexItem> {
+    pub fn keys<'a>(&'a self) -> btree_map::Keys<'a, usize, PositionIndexItem> {
         self.0.keys()
     }
-    pub fn iter(&self) -> btree_map::Iter<usize, PositionIndexItem> {
+    pub fn iter<'a>(&'a self) -> btree_map::Iter<'a, usize, PositionIndexItem> {
         self.0.iter()
     }
 }
@@ -1220,7 +1220,7 @@ impl TextSelectionSet {
         }
     }
 
-    pub fn as_resultset(self, store: &AnnotationStore) -> ResultTextSelectionSet {
+    pub fn as_resultset<'a>(self, store: &'a AnnotationStore) -> ResultTextSelectionSet<'a> {
         ResultTextSelectionSet {
             tset: self,
             rootstore: store,
