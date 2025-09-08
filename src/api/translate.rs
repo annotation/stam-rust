@@ -1,11 +1,10 @@
-
-use crate::{api::*, ResultTextSelection};
 use crate::datavalue::DataValue;
 use crate::selector::{Offset, SelectorBuilder};
 use crate::text::Text;
 use crate::textselection::{ResultTextSelectionSet, TestTextSelection};
 use crate::AnnotationBuilder;
 use crate::StamError;
+use crate::{api::*, ResultTextSelection};
 
 use smallvec::SmallVec;
 
@@ -15,7 +14,6 @@ pub struct TranslateConfig {
 
     /// Allow a simple translation as output, by default this is set to `false` as we usually want to have an transposed annotation
     pub allow_simple: bool,
-
 
     /// Do not produce a translation annotation, only output the translated annotation (allow_simple must be set to false)
     /// This effectively throws away the provenance information.
@@ -33,8 +31,8 @@ pub struct TranslateConfig {
     /// Indicates that the source part of the transposition is an existing annotation. This is usually set automatically after setting `source_side_id` to an existing ID.
     pub existing_source_side: bool,
 
-    /// Do not produce a resegmentation annotation. 
-    /// This maps a translation directly and allows losing segmentation information. 
+    /// Do not produce a resegmentation annotation.
+    /// This maps a translation directly and allows losing segmentation information.
     /// In doing so, it reduces complexity of the output annotations.
     /// If this is set, no resegmentations will be produced, but the resulting translations
     /// may lose some of its fine-grained information, which limits the ability to reuse them as a translation pivot
@@ -131,32 +129,29 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
 
         let mut builders: Vec<AnnotationBuilder<'static>> = Vec::with_capacity(3);
         // Keeps track of which side of the translation the source is found
-        let mut source_side: Option<usize> =
-            if let TranslationSide::ByIndex(i) = config.source_side {
-                Some(i)
-            } else {
-                None
-            };
+        let mut source_side: Option<usize> = if let TranslationSide::ByIndex(i) = config.source_side
+        {
+            Some(i)
+        } else {
+            None
+        };
         let mut refseqnrs: Vec<usize> = Vec::new(); //the the sequence number of the covered text selections (in a particular side)
-        // Found (source) or mapped (target) text selections per side, the first index corresponds to a side
+                                                    // Found (source) or mapped (target) text selections per side, the first index corresponds to a side
         let mut selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]> = SmallVec::new();
 
         let resource = self.resource();
         let mut simple_translation = true; //falsify,  simple translation are not suitable as pivot (no-op)
         let mut resegment = false; //resegmentations are produced when the translated annotation covers multiple source text selections, and when users do not want to lose this segmentation (!no_resegmentation)
 
-
         if config.debug {
             eprintln!("[stam translate] ----------------------------");
         }
-
 
         let mut sourcecoverage = 0;
         // match the current textselectionset against all the sides in a complex translation (or ascertain
         // that we are dealing with a simple translation instead) the source side that matches
         // can never be the same as the target side that is mapped to
         for tsel in self.inner().iter() {
-
             // iterate over all the sides
             for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
             {
@@ -166,39 +161,63 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                 }
 
                 if config.debug {
-                    let tsel = ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,tsel.clone());
-                    eprintln!("[stam translate] Looking for source fragment \"{}\" in side {}", tsel.text().replace("\n","\\n"), side_i);
+                    let tsel = ResultTextSelection::Unbound(
+                        self.rootstore(),
+                        resource.as_ref(),
+                        tsel.clone(),
+                    );
+                    eprintln!(
+                        "[stam translate] Looking for source fragment \"{}\" in side {}",
+                        tsel.text().replace("\n", "\\n"),
+                        side_i
+                    );
                 }
 
                 // We may have multiple text selections (tsel) to translate (all must be found)
                 let mut remainder = Some(tsel.clone());
 
                 for (refseqnr, reftsel) in annotation.textselections().enumerate() {
-                    if reftsel.resource() == resource && (source_side.is_none() || source_side == Some(side_i)) //source side check
+                    if reftsel.resource() == resource
+                        && (source_side.is_none() || source_side == Some(side_i))
+                    //source side check
                     {
                         // get the all reference text selections that are embedded in our text selection (tsel)
                         // we must have full coverage for a translation to be valid
-                        if tsel.test(&TextSelectionOperator::embeds(), reftsel.inner(), resource.as_ref()) {
+                        if tsel.test(
+                            &TextSelectionOperator::embeds(),
+                            reftsel.inner(),
+                            resource.as_ref(),
+                        ) {
                             refseqnrs.push(refseqnr);
                             selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
                                 resource.handle().into(),
-                                reftsel.inner().into()
+                                reftsel.inner().into(),
                             ));
-                            if let Some((_, new_remainder,_)) = remainder.unwrap().intersection(reftsel.inner()) {
+                            if let Some((_, new_remainder, _)) =
+                                remainder.unwrap().intersection(reftsel.inner())
+                            {
                                 remainder = new_remainder;
                                 if config.debug {
-                                    let tmp = ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,tsel.clone());
+                                    let tmp = ResultTextSelection::Unbound(
+                                        self.rootstore(),
+                                        resource.as_ref(),
+                                        tsel.clone(),
+                                    );
                                     if let Some(remainder) = remainder {
-                                        let remainder  = ResultTextSelection::Unbound(self.rootstore(), resource.as_ref() ,remainder.clone());
-                                        eprintln!("[stam translate] Found source fragment: \"{}\" for \"{}\" with remainder \"{}\"", 
+                                        let remainder = ResultTextSelection::Unbound(
+                                            self.rootstore(),
+                                            resource.as_ref(),
+                                            remainder.clone(),
+                                        );
+                                        eprintln!("[stam translate] Found source fragment: \"{}\" for \"{}\" with remainder \"{}\"",
                                             &reftsel.text().replace("\n", "\\n"),
-                                            &tmp.text().replace("\n", "\\n"), 
+                                            &tmp.text().replace("\n", "\\n"),
                                             remainder.text().replace("\n","\\n")
                                         );
                                     } else {
-                                        eprintln!("[stam translate] Found source fragment: \"{}\" for \"{}\"  (no remainder)", 
+                                        eprintln!("[stam translate] Found source fragment: \"{}\" for \"{}\"  (no remainder)",
                                             &reftsel.text().replace("\n", "\\n"),
-                                            &tmp.text().replace("\n", "\\n"), 
+                                            &tmp.text().replace("\n", "\\n"),
                                         );
                                     }
                                 }
@@ -231,15 +250,12 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             }
         }
 
-
         if simple_translation {
             //translating over a simple translation is a no-op, as it can only
             //produce the pivot as output
             // We may have multiple text selections to translate (all must be found)
             return Err(StamError::TranslateError(
-                format!(
-                    "Can not translate over a simple translation, pivot has to be complex"
-                ),
+                format!("Can not translate over a simple translation, pivot has to be complex"),
                 "",
             ));
         } else {
@@ -263,7 +279,10 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                 if source_side != Some(side_i) {
                     for refseqnr in refseqnrs.iter() {
                         //select the text selection we seek
-                        let reftsel = annotation.textselections().nth(*refseqnr).expect("element must exist"); //MAYBE TODO: improve performance
+                        let reftsel = annotation
+                            .textselections()
+                            .nth(*refseqnr)
+                            .expect("element must exist"); //MAYBE TODO: improve performance
                         let mapped_selector: SelectorBuilder<'static> =
                             SelectorBuilder::TextSelector(
                                 reftsel.resource().handle().into(),
@@ -287,12 +306,13 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
 
         if (config.allow_simple || config.no_resegmentation) && resegment {
             //try to simplify the translation by joining adjacent selectors
-            selectors_per_side = merge_selectors(selectors_per_side, source_side.unwrap(), config.debug);
+            selectors_per_side =
+                merge_selectors(selectors_per_side, source_side.unwrap(), config.debug);
             resegment = false;
         }
 
         match selectors_per_side[source_side.expect("source side must exist at this point")].len() {
-            0 => 
+            0 =>
                 Err(StamError::TranslateError(
                     format!(
                         "No source fragments were found in the complex translation {}, source side has 0 fragments, unable to translate",
@@ -499,9 +519,12 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
 
 /// Merges adjacent selectors
 /// Used when doing translations with lose_segmentation
-/// Leads to simpler output (but less powerful) 
-fn merge_selectors(selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]>, source_side: usize, debug: bool)  -> 
-SmallVec<[Vec<SelectorBuilder<'static>>; 2]> {
+/// Leads to simpler output (but less powerful)
+fn merge_selectors(
+    selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]>,
+    source_side: usize,
+    debug: bool,
+) -> SmallVec<[Vec<SelectorBuilder<'static>>; 2]> {
     let mut mergable = Vec::new();
     let mut need_merge = false;
 
@@ -509,15 +532,15 @@ SmallVec<[Vec<SelectorBuilder<'static>>; 2]> {
     let mut cursor: Option<isize> = None;
     // index of the begin selector
     let mut begin_index: usize = 0;
-    if let Some(selectors) = selectors_per_side.get(source_side) { 
+    if let Some(selectors) = selectors_per_side.get(source_side) {
         for (i, selector) in selectors.iter().enumerate() {
             if cursor.is_some() && Some(selector.offset().unwrap().begin.into()) != cursor {
-                mergable.push((begin_index,i));
+                mergable.push((begin_index, i));
                 begin_index = i + 1;
             }
             cursor = Some(selector.offset().unwrap().end.into());
         }
-        mergable.push((begin_index,selectors.len() - 1)); //last one
+        mergable.push((begin_index, selectors.len() - 1)); //last one
         need_merge = selectors.len() > mergable.len()
     }
 
@@ -528,7 +551,10 @@ SmallVec<[Vec<SelectorBuilder<'static>>; 2]> {
         }
         return selectors_per_side;
     } else if debug {
-        eprintln!("[stam translate] merging selectors (indices): {:?}", mergable);
+        eprintln!(
+            "[stam translate] merging selectors (indices): {:?}",
+            mergable
+        );
     }
 
     // merge the selectors
@@ -537,11 +563,24 @@ SmallVec<[Vec<SelectorBuilder<'static>>; 2]> {
         let mut new_selectors: Vec<SelectorBuilder<'static>> = Vec::new();
         let resource = selectors.get(0).unwrap().resource().unwrap();
         for (begin_index, end_index) in mergable.iter() {
-            let begin: isize = selectors.get(*begin_index).unwrap().offset().unwrap().begin.into();
-            let end: isize = selectors.get(*end_index).unwrap().offset().unwrap().end.into();
-            new_selectors.push(SelectorBuilder::textselector(resource.clone(), Offset::simple(
-                begin as usize, end as usize
-            )));
+            let begin: isize = selectors
+                .get(*begin_index)
+                .unwrap()
+                .offset()
+                .unwrap()
+                .begin
+                .into();
+            let end: isize = selectors
+                .get(*end_index)
+                .unwrap()
+                .offset()
+                .unwrap()
+                .end
+                .into();
+            new_selectors.push(SelectorBuilder::textselector(
+                resource.clone(),
+                Offset::simple(begin as usize, end as usize),
+            ));
         }
         merged_selectors.push(new_selectors);
     }
