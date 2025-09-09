@@ -85,12 +85,6 @@ impl<'store> Translatable<'store> for ResultItem<'store, Annotation> {
         mut config: TranslateConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         if let Some(tset) = self.textselectionset() {
-            if tset.inner().is_empty() {
-                return Err(StamError::TranslateError(
-                    "Can not translate an annotation that references no text or text in multiple resources".to_string(),
-                    "(translate annotation)",
-                ));
-            }
             if config.source_side_id.is_none() && self.id().is_some() {
                 config.source_side_id = Some(
                     self.id()
@@ -117,9 +111,8 @@ impl<'store> Translatable<'store> for ResultItem<'store, Annotation> {
                 })
                 .collect())
         } else {
-            Err(StamError::TranslateError(
-                "Can not translate an annotation that references no text or text in multiple resources".to_string(),
-                "(translate annotation)",
+            Err(StamError::NoText(
+                "Can not translate an annotation that references no text or text in multiple resources",
             ))
         }
     }
@@ -133,9 +126,8 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         via.valid_translation()?;
         if self.inner().is_empty() {
-            return Err(StamError::TranslateError(
-                format!("Can not translate empty TextSelectionSet"),
-                "",
+            return Err(StamError::NoText(
+                "Can not translate empty TextSelectionSet",
             ));
         }
 

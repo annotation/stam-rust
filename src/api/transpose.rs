@@ -112,9 +112,8 @@ impl<'store> Transposable<'store> for ResultItem<'store, Annotation> {
                 })
                 .collect())
         } else {
-            Err(StamError::TransposeError(
-                "Can not transpose an annotation that references no text or text in multiple resources".to_string(),
-                "(transpose annotation)",
+            Err(StamError::NoText(
+                "Can not transpose an annotation that references no text or text in multiple resources",
             ))
         }
     }
@@ -128,9 +127,8 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         via.valid_transposition()?;
         if self.inner().is_empty() {
-            return Err(StamError::TranslateError(
-                format!("Can not transpose empty TextSelectionSet"),
-                "",
+            return Err(StamError::NoText(
+                "Can not transpose empty TextSelectionSet",
             ));
         }
 
