@@ -127,6 +127,12 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         config: TransposeConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         via.valid_transposition()?;
+        if self.inner().is_empty() {
+            return Err(StamError::TranslateError(
+                format!("Can not transpose empty TextSelectionSet"),
+                "",
+            ));
+        }
 
         let mut builders: Vec<AnnotationBuilder<'static>> = Vec::with_capacity(3);
         // Keeps track of which side of the transposition the source is found

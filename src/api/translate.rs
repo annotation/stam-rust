@@ -85,6 +85,12 @@ impl<'store> Translatable<'store> for ResultItem<'store, Annotation> {
         mut config: TranslateConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         if let Some(tset) = self.textselectionset() {
+            if tset.inner().is_empty() {
+                return Err(StamError::TranslateError(
+                    "Can not translate an annotation that references no text or text in multiple resources".to_string(),
+                    "(translate annotation)",
+                ));
+            }
             if config.source_side_id.is_none() && self.id().is_some() {
                 config.source_side_id = Some(
                     self.id()
@@ -126,6 +132,12 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         config: TranslateConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         via.valid_translation()?;
+        if self.inner().is_empty() {
+            return Err(StamError::TranslateError(
+                format!("Can not translate empty TextSelectionSet"),
+                "",
+            ));
+        }
 
         let mut builders: Vec<AnnotationBuilder<'static>> = Vec::with_capacity(3);
         // Keeps track of which side of the translation the source is found
@@ -144,7 +156,10 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         let mut resegment = false; //resegmentations are produced when the translated annotation covers multiple source text selections, and when users do not want to lose this segmentation (!no_resegmentation)
 
         if config.debug {
-            eprintln!("[stam translate] ----------------------------");
+            eprintln!(
+                "[stam translate] -------------- Translating via {:?} --------------",
+                via.id()
+            );
         }
 
         let mut sourcecoverage = 0;
@@ -255,7 +270,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             //produce the pivot as output
             // We may have multiple text selections to translate (all must be found)
             return Err(StamError::TranslateError(
-                format!("Can not translate over a simple translation, pivot has to be complex"),
+                format!("Can not translate over a simple translation, pivot has to be complex. Pivot ID={}", via.id().unwrap_or("unknown") ),
                 "",
             ));
         } else {

@@ -1200,7 +1200,7 @@ impl<'store> TryFrom<&ResultItem<'store, Annotation>> for ResultTextSelectionSet
                 }
             })
             .collect();
-        if *invalid {
+        if *invalid || tset.is_empty() {
             Err(StamError::NoText(
                 "conversion Annotation->TextSelectionSet failed: Annotation does not reference any text or text does not pertain to a single resource",
             ))
