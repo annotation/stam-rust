@@ -1856,11 +1856,17 @@ pub fn generate_id(prefix: &str, suffix: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub enum IdStrategy {
+    /// The new ID is formed by adding a static suffix to the old ID
     AddSuffix(String),
+    /// The new ID is formed by adding random suffix (nanoid) to the old ID
     AddRandomSuffix,
+    /// The new ID is formed by adding a static prefix to the old ID
     AddPrefix(String),
+    /// The new ID is formed by adding or incrementing a version suffix (v1,v2,v3) to the old ID
     UpdateVersion,
+    /// The new ID is formed by simply replacing the old ID with a static new one
     Replace(String),
+    /// The new ID is formed by simply replacing the old ID with a prefix, a random component (nanoid), and a suffix
     ReplaceRandom { prefix: String, suffix: String },
 }
 
@@ -1896,6 +1902,48 @@ pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
                 }
             }
             format!("{}/v2", &id)
+        }
+    }
+}
+
+impl TryFrom<String> for IdStrategy {
+    type Error = StamError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if let Some(pos) = value.find("=") {
+            let strategy = &value[0..pos - 1];
+            if pos + 1 >= value.len() {
+                Err(StamError::DeserializationError(format!(
+                    "IdStrategy expects value after = "
+                )))
+            } else {
+                let value = &value[pos + 1..];
+                match strategy {
+                    "suffix" | "addsuffix" => Ok(Self::AddSuffix(value.to_string())),
+                    "prefix" | "addprefix" => Ok(Self::AddPrefix(value.to_string())),
+                    "replace" => Ok(Self::Replace(value.to_string())),
+                    "replacerandom" => {
+                        let (prefix, suffix) = if let Some(pos) = value.find(";") {
+                            (value[0..pos - 1].to_string(), value[pos + 1..].to_string())
+                        } else {
+                            (value.to_string(), String::new())
+                        };
+                        Ok(Self::ReplaceRandom { prefix, suffix })
+                    }
+                    _ => Err(StamError::DeserializationError(format!(
+                        "Invalid IdStrategy: {}",
+                        strategy
+                    ))),
+                }
+            }
+        } else {
+            match value.as_str() {
+                "version" | "updateversion" => Ok(Self::UpdateVersion),
+                "random" | "randomsuffix" => Ok(Self::AddRandomSuffix),
+                _ => Err(StamError::DeserializationError(format!(
+                    "Invalid IdStrategy: {}",
+                    value
+                ))),
+            }
         }
     }
 }
