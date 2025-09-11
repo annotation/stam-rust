@@ -1862,7 +1862,7 @@ pub enum IdStrategy {
     AddRandomSuffix,
     /// The new ID is formed by adding a static prefix to the old ID
     AddPrefix(String),
-    /// The new ID is formed by adding or incrementing a version suffix (v1,v2,v3) to the old ID
+    /// The new ID is formed by adding or incrementing a version suffix (v1,v2,v3,etc) to the old ID
     UpdateVersion,
     /// The new ID is formed by simply replacing the old ID with a static new one
     Replace(String),
@@ -1906,9 +1906,9 @@ pub fn regenerate_id<'a>(id: &'a str, strategy: &'a IdStrategy) -> String {
     }
 }
 
-impl TryFrom<String> for IdStrategy {
+impl TryFrom<&str> for IdStrategy {
     type Error = StamError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some(pos) = value.find("=") {
             let strategy = &value[0..pos - 1];
             if pos + 1 >= value.len() {
@@ -1936,7 +1936,7 @@ impl TryFrom<String> for IdStrategy {
                 }
             }
         } else {
-            match value.as_str() {
+            match value {
                 "version" | "updateversion" => Ok(Self::UpdateVersion),
                 "random" | "randomsuffix" => Ok(Self::AddRandomSuffix),
                 _ => Err(StamError::DeserializationError(format!(
