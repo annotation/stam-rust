@@ -143,6 +143,11 @@ impl<'store> ResultItem<'store, Annotation> {
         ))
     }
 
+    /// Returns the number of textselections under the annotation
+    pub fn textselections_count(&self) -> usize {
+        self.as_ref().target().len()
+    }
+
     /// Iterates over all text slices this annotation refers to
     /// They are returned in textual order, or in case a [`Selector::DirectionalSelector`] is involved, in the exact order as they were selected.
     pub fn text(&self) -> impl Iterator<Item = &'store str> {
