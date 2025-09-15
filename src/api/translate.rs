@@ -6,6 +6,7 @@ use crate::AnnotationBuilder;
 use crate::StamError;
 use crate::{api::*, ResultTextSelection};
 
+use serde::Serialize;
 use smallvec::SmallVec;
 
 #[derive(Clone, Default)]
@@ -124,7 +125,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         via: &ResultItem<'store, Annotation>,
         config: TranslateConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
-        via.valid_translation()?;
+        via.valid_translation()?; //check if the pivot is valid
         if self.inner().is_empty() {
             return Err(StamError::NoText(
                 "Can not translate empty TextSelectionSet",
@@ -154,14 +155,30 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             );
         }
 
+        //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
+        let sides: SmallVec<
+            [(
+                SmallVec<[ResultTextSelection<'store>; 1]>, //textselections
+                ResultItem<'store, Annotation>,             //annotation
+            ); 2],
+        > = via
+            .annotations_in_targets(AnnotationDepth::One)
+            .map(|annotation| (annotation.textselections().collect(), annotation))
+            .collect();
+
         let mut sourcecoverage = 0;
         // match the current textselectionset against all the sides in a complex translation (or ascertain
         // that we are dealing with a simple translation instead) the source side that matches
         // can never be the same as the target side that is mapped to
         for tsel in self.inner().iter() {
+            if tsel.begin() == tsel.end() {
+                return Err(StamError::NoText(
+                    "Can not translate annotations with empty textselections",
+                ));
+            }
+
             // iterate over all the sides
-            for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
-            {
+            for (side_i, (textselections, annotation)) in sides.iter().enumerate() {
                 simple_translation = false;
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
@@ -183,7 +200,10 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                 // We may have multiple text selections (tsel) to translate (all must be found)
                 let mut remainder = Some(tsel.clone());
 
-                for (refseqnr, reftsel) in annotation.textselections().enumerate() {
+                //prevent needless reallocations if we have lots of textselections
+                refseqnrs.reserve(annotation.as_ref().target().len());
+
+                for (refseqnr, reftsel) in textselections.iter().enumerate() {
                     if reftsel.resource() == resource
                         && (source_side.is_none() || source_side == Some(side_i))
                     //source side check
@@ -205,26 +225,15 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                             {
                                 remainder = new_remainder;
                                 if config.debug {
-                                    let tmp = ResultTextSelection::Unbound(
-                                        self.rootstore(),
-                                        resource.as_ref(),
-                                        tsel.clone(),
-                                    );
-                                    if let Some(remainder) = remainder {
-                                        let remainder = ResultTextSelection::Unbound(
-                                            self.rootstore(),
-                                            resource.as_ref(),
-                                            remainder.clone(),
-                                        );
-                                        eprintln!("[stam translate] Found source fragment: \"{}\" for \"{}\" with remainder \"{}\"",
-                                            &reftsel.text().replace("\n", "\\n"),
-                                            &tmp.text().replace("\n", "\\n"),
-                                            remainder.text().replace("\n","\\n")
+                                    if remainder.is_some() {
+                                        eprintln!("[stam translate] Found source fragment #{}: \"{}\" (with remainder)",
+                                            refseqnr,
+                                            &reftsel.text().replace("\n", "\\n")
                                         );
                                     } else {
-                                        eprintln!("[stam translate] Found source fragment: \"{}\" for \"{}\"  (no remainder)",
-                                            &reftsel.text().replace("\n", "\\n"),
-                                            &tmp.text().replace("\n", "\\n"),
+                                        eprintln!("[stam translate] Found source fragment #{}: \"{}\"  (no remainder)",
+                                            refseqnr,
+                                            &reftsel.text().replace("\n", "\\n")
                                         );
                                     }
                                 }
@@ -278,18 +287,14 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             }
 
             // now map the targets (there may be multiple target sides)
-            for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
-            {
+            for (side_i, (textselections, _)) in sides.iter().enumerate() {
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
                 }
                 if source_side != Some(side_i) {
                     for refseqnr in refseqnrs.iter() {
                         //select the text selection we seek
-                        let reftsel = annotation
-                            .textselections()
-                            .nth(*refseqnr)
-                            .expect("element must exist"); //MAYBE TODO: improve performance
+                        let reftsel = textselections.get(*refseqnr).expect("element must exist");
                         let mapped_selector: SelectorBuilder<'static> =
                             SelectorBuilder::TextSelector(
                                 reftsel.resource().handle().into(),

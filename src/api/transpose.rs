@@ -157,6 +157,16 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             eprintln!("[stam transpose] ----------------------------");
         }
 
+        //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
+        let sides: SmallVec<
+            [(
+                SmallVec<[ResultTextSelection<'store>; 1]>, //textselections
+                ResultItem<'store, Annotation>,             //annotation
+            ); 2],
+        > = via
+            .annotations_in_targets(AnnotationDepth::One)
+            .map(|annotation| (annotation.textselections().collect(), annotation))
+            .collect();
 
         // match the current textselectionset against all the sides in a complex transposition (or ascertain
         // that we are dealing with a simple transposition instead) the source side that matches
@@ -164,7 +174,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         while let Some(tsel) = tselbuffer.pop_front() {
 
             // iterate over all the sides
-            for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
+            for (side_i, (textselections, _annotation)) in sides.iter().enumerate()
             {
                 simple_transposition = false;
                 if selectors_per_side.len() <= side_i {
@@ -177,7 +187,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                 }
 
                 // We may have multiple text selections to transpose (all must be found)
-                for (refseqnr, reftsel) in annotation.textselections().enumerate() {
+                for (refseqnr, reftsel) in textselections.iter().enumerate() {
                     if reftsel.resource() == resource && source_side.is_none() || source_side == Some(side_i) //source side check
                     {
                         // get the intersection of our text selection (tsel) and the one from the reference set (reftsel)
@@ -328,7 +338,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             }
 
             // now map the targets (there may be multiple target sides)
-            for (side_i, annotation) in via.annotations_in_targets(AnnotationDepth::One).enumerate()
+            for (side_i, (textselections, _)) in sides.iter().enumerate()
             {
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
@@ -336,7 +346,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                 if source_side != Some(side_i) {
                     for (j, (refseqnr, relative_offset)) in relative_offsets.iter().enumerate() {
                         //select the text selection we seek
-                        let reftsel = annotation.textselections().nth(*refseqnr).expect("element must exist"); //MAYBE TODO: improve performance
+                        let reftsel = textselections.get(*refseqnr).expect("element must exist"); //MAYBE TODO: improve performance
                         //select the proper subselection thereof
                         let mapped_tsel = reftsel.textselection(&relative_offset)?;
                         if config.debug {
