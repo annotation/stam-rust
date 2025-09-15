@@ -1910,7 +1910,7 @@ impl TryFrom<&str> for IdStrategy {
     type Error = StamError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some(pos) = value.find("=") {
-            let strategy = &value[0..pos - 1];
+            let strategy = &value[0..pos];
             if pos + 1 >= value.len() {
                 Err(StamError::DeserializationError(format!(
                     "IdStrategy expects value after = "
@@ -1923,7 +1923,7 @@ impl TryFrom<&str> for IdStrategy {
                     "replace" => Ok(Self::Replace(value.to_string())),
                     "replacerandom" => {
                         let (prefix, suffix) = if let Some(pos) = value.find(";") {
-                            (value[0..pos - 1].to_string(), value[pos + 1..].to_string())
+                            (value[0..pos].to_string(), value[pos + 1..].to_string())
                         } else {
                             (value.to_string(), String::new())
                         };
