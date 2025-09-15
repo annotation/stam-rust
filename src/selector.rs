@@ -405,6 +405,14 @@ impl Selector {
         }
     }   
 
+    /// Returns the number of subselectors under this selector (by definition 0 for simple selectors)
+    pub fn len(&self) -> usize {
+        match self {
+            Selector::MultiSelector(v) | Selector::CompositeSelector(v) | Selector::DirectionalSelector(v) => v.len(),
+            _ => 0,
+        }
+    }
+
     /// Returns the textselection this selector points at, if any
     pub fn textselection<'store>(&self, store: &'store AnnotationStore) -> Option<&'store TextSelection> {
         match self {
