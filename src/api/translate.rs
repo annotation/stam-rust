@@ -6,7 +6,6 @@ use crate::AnnotationBuilder;
 use crate::StamError;
 use crate::{api::*, ResultTextSelection};
 
-use serde::Serialize;
 use smallvec::SmallVec;
 
 #[derive(Clone, Default)]
