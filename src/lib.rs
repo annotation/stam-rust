@@ -113,7 +113,7 @@ mod textvalidation;
 #[cfg(feature = "csv")]
 pub use crate::csv::{FromCsv, ToCsv};
 
-pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle};
+pub use annotation::{Annotation, AnnotationBuilder, AnnotationHandle, ReannotateMode};
 pub use annotationdata::{AnnotationData, AnnotationDataBuilder, AnnotationDataHandle};
 pub use annotationdataset::{AnnotationDataSet, AnnotationDataSetBuilder, AnnotationDataSetHandle};
 pub use annotationstore::AnnotationStore;

@@ -208,6 +208,126 @@ fn store_annotate_add_during_borrowproblem() -> Result<(), StamError> {
 }
 
 #[test]
+fn store_reannotate_add_data() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    let handle = store.annotate(
+        AnnotationBuilder::new()
+            .with_target(SelectorBuilder::textselector(
+                "testres",
+                Offset::simple(0, 5),
+            ))
+            .with_data("tokenset", "word", DataValue::Null),
+    )?;
+    let annotations = store.annotations_len();
+    store.reannotate(
+        AnnotationBuilder::new().with_handle(handle).with_data(
+            "someset",
+            "revision",
+            DataValue::Int(1),
+        ),
+        ReannotateMode::Add,
+    )?;
+    assert_eq!(
+        store.annotations_len(),
+        annotations,
+        "Checking that we did not get extra annotations"
+    );
+    let annotation = store.annotation(handle).or_fail()?;
+    assert_eq!(annotation.text_simple(), Some("Hello"));
+    let mut count = 0;
+    for data in annotation.data() {
+        count += 1;
+        if count == 1 {
+            assert_eq!(data.key().id(), Some("word"));
+            assert_eq!(data.set().id(), Some("tokenset"));
+        } else if count == 2 {
+            assert_eq!(data.key().id(), Some("revision"));
+            assert_eq!(data.set().id(), Some("someset"));
+            assert_eq!(data.value(), &DataValue::Int(1));
+        }
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
+#[test]
+fn store_reannotate_replace_data() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    let handle = store.annotate(
+        AnnotationBuilder::new()
+            .with_target(SelectorBuilder::textselector(
+                "testres",
+                Offset::simple(0, 5),
+            ))
+            .with_data("tokenset", "word", DataValue::Null),
+    )?;
+    let annotations = store.annotations_len();
+    store.reannotate(
+        AnnotationBuilder::new().with_handle(handle).with_data(
+            "someset",
+            "revision",
+            DataValue::Int(1),
+        ),
+        ReannotateMode::Replace,
+    )?;
+    assert_eq!(
+        store.annotations_len(),
+        annotations,
+        "Checking that we did not get extra annotations"
+    );
+    let annotation = store.annotation(handle).or_fail()?;
+    assert_eq!(annotation.text_simple(), Some("Hello"));
+    let mut count = 0;
+    for data in annotation.data() {
+        count += 1;
+        assert_eq!(data.key().id(), Some("revision"));
+        assert_eq!(data.set().id(), Some("someset"));
+        assert_eq!(data.value(), &DataValue::Int(1));
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
+fn store_reannotate_replace_target() -> Result<(), StamError> {
+    let mut store = setup_example_1()?;
+    let handle = store.annotate(
+        AnnotationBuilder::new()
+            .with_target(SelectorBuilder::textselector(
+                "testres",
+                Offset::simple(0, 5),
+            ))
+            .with_data("tokenset", "word", DataValue::Null),
+    )?;
+    let annotations = store.annotations_len();
+    store.reannotate(
+        AnnotationBuilder::new()
+            .with_handle(handle)
+            .with_target(SelectorBuilder::textselector(
+                "testres",
+                Offset::simple(6, 11),
+            )),
+        ReannotateMode::Add, //no data, no effect
+    )?;
+    assert_eq!(
+        store.annotations_len(),
+        annotations,
+        "Checking that we did not get extra annotations"
+    );
+    let annotation = store.annotation(handle).or_fail()?;
+    assert_eq!(annotation.text_simple(), Some("world")); //different target
+    let mut count = 0;
+    //data unchanged
+    for data in annotation.data() {
+        count += 1;
+        assert_eq!(data.key().id(), Some("word"));
+        assert_eq!(data.set().id(), Some("tokenset"));
+    }
+    assert_eq!(count, 1);
+    Ok(())
+}
+
+#[test]
 fn parse_json_annotation() -> Result<(), std::io::Error> {
     let data = r#"{ 
         "@type": "Annotation",

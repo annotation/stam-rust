@@ -35,6 +35,7 @@ use crate::resources::{TextResource, TextResourceHandle};
 use crate::selector::{
     OffsetMode, Selector, SelectorBuilder, SelectorIter, SelfSelector, WrappedSelector,
 };
+use crate::store::private::StoreCallbacks;
 use crate::store::*;
 use crate::types::*;
 
@@ -228,6 +229,21 @@ impl<'a> AnnotationBuilder<'a> {
         Self::default()
     }
 
+    pub fn id(&'a self) -> Option<&'a str> {
+        match &self.id {
+            BuildItem::Id(id) => Some(id.as_str()),
+            BuildItem::IdRef(id) => Some(id),
+            _ => None,
+        }
+    }
+
+    pub fn handle(&self) -> Option<AnnotationHandle> {
+        match self.id {
+            BuildItem::Handle(handle) => Some(handle),
+            _ => None,
+        }
+    }
+
     pub fn data(&self) -> &Vec<AnnotationDataBuilder<'a>> {
         &self.data
     }
@@ -239,6 +255,12 @@ impl<'a> AnnotationBuilder<'a> {
     /// Set an explicit ID. If you want to generate a random one, pass the result of `generate_id()` to the first parameter.
     pub fn with_id(mut self, id: impl Into<String>) -> Self {
         self.id = BuildItem::Id(id.into());
+        self
+    }
+
+    /// Reuse an existing handle, used with reannotate()
+    pub fn with_handle(mut self, handle: AnnotationHandle) -> Self {
+        self.id = BuildItem::Handle(handle);
         self
     }
 
@@ -556,6 +578,86 @@ impl AnnotationStore {
             handles.push(self.annotate(builder)?);
         }
         Ok(handles)
+    }
+
+    /// Replaces an **existing** annotation if the AnnotationBuilder references an existing annotation, adds a new one otherwise
+    /// Modifying existing annotations in is discouraged in most situations, and should only be done
+    /// when the annotations have not been shared/published in any form yet.
+    pub fn reannotate(
+        &mut self,
+        builder: AnnotationBuilder,
+        data_mode: ReannotateMode,
+    ) -> Result<AnnotationHandle, StamError> {
+        debug(self.config(), || {
+            format!("AnnotationStore.reannotate: builder={:?}", builder)
+        });
+
+        let annotation = if let Some(id) = builder.id() {
+            self.annotation(id)
+        } else if let Some(handle) = builder.handle() {
+            self.annotation(handle)
+        } else {
+            None
+        };
+
+        if let Some(annotation) = annotation {
+            let handle = annotation.handle();
+            // Convert AnnotationDataBuilder into AnnotationData that is ready to be stored
+            let mut data = DataVec::with_capacity(builder.data.len());
+            for dataitem in builder.data {
+                let (datasethandle, datahandle) = self.insert_data(dataitem).map_err(|err| {
+                    StamError::BuildError(
+                        Box::new(err),
+                        "Inserting dataitem failed (AnnotationStore.reannotate)",
+                    )
+                })?;
+                data.push((datasethandle, datahandle));
+            }
+
+            let target: Option<Selector> = if builder.target.is_none() {
+                None
+            } else {
+                Some(self.selector(builder.target.unwrap()).map_err(|err| {
+                    StamError::BuildError(
+                        Box::new(err),
+                        "Getting target selector failed (AnnotationStore.reannotate)",
+                    )
+                })?)
+            };
+
+            let annotation = self.get_mut(handle)?;
+            if data_mode == ReannotateMode::Replace {
+                annotation.data = data;
+            } else if data_mode == ReannotateMode::Add {
+                annotation.data.extend(data.into_iter());
+            }
+            if let Some(target) = target {
+                annotation.target = target;
+            }
+
+            //update low-level relation maps (since we bypass insert() here)
+            <AnnotationStore as StoreCallbacks<Annotation>>::inserted(self, handle)?;
+
+            Ok(handle)
+        } else {
+            //annotation does not exist yet, consider it new:
+            self.annotate(builder)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// How to handle data in a reannotation
+pub enum ReannotateMode {
+    /// Replaces all existing data with the new data
+    Replace,
+    /// Adds the new data to the existing data
+    Add,
+}
+
+impl Default for ReannotateMode {
+    fn default() -> Self {
+        Self::Add
     }
 }
 

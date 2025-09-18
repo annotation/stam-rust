@@ -15,6 +15,9 @@ pub struct TranslateConfig {
     /// Allow a simple translation as output, by default this is set to `false` as we usually want to have an transposed annotation
     pub allow_simple: bool,
 
+    /// Modify existing annotations (changes them into simple translations)
+    pub modify_existing: bool,
+
     /// Do not produce a translation annotation, only output the translated annotation (allow_simple must be set to false)
     /// This effectively throws away the provenance information.
     pub no_translation: bool,
@@ -93,12 +96,17 @@ impl<'store> Translatable<'store> for ResultItem<'store, Annotation> {
                 );
                 config.existing_source_side = true;
             }
+            let modify_existing = config.modify_existing;
             Ok(tset
                 .translate(via, config)?
                 .into_iter()
                 .map(|mut builder| {
-                    //target annotations will have empty data, the translation itself already has data (1), resegmentations already have data too (1):
-                    if builder.data().is_empty() {
+                    if modify_existing {
+                        //associate existing handle
+                        builder = builder.with_handle(self.handle());
+                        builder
+                    } else if builder.data().is_empty() {
+                        //target annotations will have empty data, the translation itself already has data (1), resegmentations already have data too (1):
                         //copy the data from the transalted annotation to the empty target annotations
                         for data in self.data() {
                             builder =
@@ -315,7 +323,8 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             ));
         }
 
-        if (config.allow_simple || config.no_resegmentation) && resegment {
+        if (config.allow_simple || config.no_resegmentation || config.modify_existing) && resegment
+        {
             //try to simplify the translation by joining adjacent selectors
             selectors_per_side =
                 merge_selectors(selectors_per_side, source_side.unwrap(), config.debug);
@@ -331,6 +340,30 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                     ),
                     "",
                 )),
+            1 if config.modify_existing => {
+                //turn existing input annotation into a simple translation (the caller will handle this further)
+                if config.debug {
+                    eprintln!("[stam translate] turning existing input annotation into simple translation");
+                }
+                builders.push(
+                    AnnotationBuilder::new()
+                        .with_data(
+                            "https://w3id.org/stam/extensions/stam-translate/",
+                            "Translation",
+                            DataValue::Null,
+                        )
+                        .with_target(SelectorBuilder::DirectionalSelector(
+                            selectors_per_side.into_iter().flatten().collect(),
+                        )),
+                );
+                Ok(builders)
+            }
+            _ if config.modify_existing => {
+                Err(StamError::TranslateError(
+                    "When modify_existing is set, only annotations that reference a single text selection can be translated".into(),
+                    "",
+                ))
+            }
             1 if config.allow_simple && !config.no_translation => {
                 //output is a simple translation
                 let translation_id = config
