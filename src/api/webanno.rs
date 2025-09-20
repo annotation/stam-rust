@@ -151,11 +151,11 @@ pub struct WebAnnoConfig {
     /// Automatically generate a JSON-LD context alias for all URIs in keys, maps URI prefixes to namespace prefixes
     pub context_namespaces: Vec<(String, String)>,
 
-    /// Adds an extra target alongside the usual target with TextPositionSelector. This can
+    /// Adds an extra targets alongside the usual target with TextPositionSelector. This can
     /// be used for provide a direct URL to fetch the exact textselection (if the backend system supports it).
     /// In the template, you should use the variables {resource} (which is the resource IRI), {begin}, and {end} , they will be substituted accordingly.
     /// A common value is {resource}/{begin}/{end} .
-    pub extra_target_template: Option<String>,
+    pub extra_target_templates: Vec<String>,
 
     /// Do not output @context (useful if already done at an earlier stage)
     pub skip_context: bool,
@@ -173,7 +173,7 @@ impl Default for WebAnnoConfig {
             auto_generator: true,
             skip_context: false,
             context_namespaces: Vec::new(),
-            extra_target_template: None,
+            extra_target_templates: Vec::new(),
         }
     }
 }
@@ -474,7 +474,7 @@ fn output_selector(
                 .get(*tsel_handle)
                 .expect("text selection must exist");
             if !second_pass {
-                if config.extra_target_template.is_some() && !nested {
+                if !config.extra_target_templates.is_empty() && !nested {
                     ann_out += "[";
                 }
                 ann_out += &format!(
@@ -488,7 +488,7 @@ fn output_selector(
                 );
             }
             if (!nested && !second_pass) || (nested && second_pass) {
-                if let Some(extra_target_template) = config.extra_target_template.as_ref() {
+                for extra_target_template in config.extra_target_templates.iter() {
                     let mut template = extra_target_template.clone();
                     template = template.replace(
                         "{resource}",
@@ -507,7 +507,7 @@ fn output_selector(
                         ann_out += " ]";
                     }
                 }
-            } else if config.extra_target_template.is_some() && !second_pass {
+            } else if !config.extra_target_templates.is_empty() && !second_pass {
                 //we need a second pass to serialize the items using extra_target_template
                 *need_second_pass = true;
             }
