@@ -503,9 +503,9 @@ fn output_selector(
                         ann_out.push(',');
                     }
                     ann_out += &format!("\"{}\"", &template);
-                    if !nested && !second_pass {
-                        ann_out += " ]";
-                    }
+                }
+                if !nested && !second_pass && !config.extra_target_templates.is_empty() {
+                    ann_out += " ]";
                 }
             } else if !config.extra_target_templates.is_empty() && !second_pass {
                 //we need a second pass to serialize the items using extra_target_template
