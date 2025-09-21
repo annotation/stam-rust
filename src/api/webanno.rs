@@ -4,6 +4,7 @@ use crate::DataValue;
 use crate::Selector;
 use crate::TextResource;
 use chrono::Local;
+use smallvec::{smallvec, SmallVec};
 
 use nanoid::nanoid;
 use std::borrow::Cow;
@@ -184,13 +185,14 @@ impl WebAnnoConfig {
         self
     }
 
-    pub fn uri_to_namespace<'a>(&self, s: &'a str) -> Cow<'a, str> {
+    /// converts a full URI to a compact form with a namespace prefix (if possible)
+    pub fn uri_to_namespace<'a>(&self, s: Cow<'a, str>) -> Cow<'a, str> {
         for (uri_prefix, ns_prefix) in self.context_namespaces.iter() {
             if s.starts_with(uri_prefix) {
                 return Cow::Owned(format!("{}:{}", ns_prefix, &s[uri_prefix.len()..]));
             }
         }
-        Cow::Borrowed(s)
+        s
     }
 
     /// Automatically add any datasets with IDs ending in `.jsonld` or `.jsonld` to the extra context list.
@@ -272,12 +274,13 @@ impl<'store> ResultItem<'store, Annotation> {
         }
         ann_out += " \"type\": \"Annotation\",";
 
-        let mut body_out = String::with_capacity(512);
         let mut suppress_default_body_type = false;
         let mut suppress_body_id = false;
         let mut suppress_auto_generated = false;
         let mut suppress_auto_generator = false;
         let mut target_extra_out = String::new();
+
+        let mut body_out = OutputMap::new();
 
         let mut outputted_to_main = false;
         //gather annotation properties (outside of body)
@@ -324,32 +327,33 @@ impl<'store> ResultItem<'store, Annotation> {
                         } else if key_id == "id" {
                             suppress_body_id = true;
                         }
-                        if !body_out.is_empty() {
-                            body_out.push(',');
-                        }
-                        body_out += &output_predicate_datavalue(key_id, data.value(), config);
+                        body_out.add(
+                            Cow::Borrowed(key_id),
+                            output_datavalue(key_id, data.value()),
+                        );
                     }
                 },
                 Some(NS_RDF) if key_id == "type" => {
                     suppress_default_body_type = true; //no need for the default because we provided one explicitly
-                    if !body_out.is_empty() {
-                        body_out.push(',');
-                    }
-                    body_out += &output_predicate_datavalue(key_id, data.value(), config);
+                    body_out.add(
+                        Cow::Borrowed(key_id),
+                        output_datavalue(key_id, data.value()),
+                    );
                 }
                 Some(set_id) => {
                     //different set, go into body
-                    let predicate = if config.extra_context.iter().any(|s| s == set_id) {
-                        //the set doubles as JSON-LD context: return the key as is (either a full IRI already or an alias)
-                        Cow::Borrowed(key.id().expect("key must have ID"))
-                    } else {
-                        //turn it into an IRI per standard identifier rules
-                        key.iri(&config.default_set_iri).expect("set must have ID")
-                    };
-                    if !body_out.is_empty() {
-                        body_out.push(',');
-                    }
-                    body_out += &output_predicate_datavalue(&predicate, data.value(), config);
+                    body_out.add(
+                        config.uri_to_namespace(
+                            if config.extra_context.iter().any(|s| s == set_id) {
+                                //the set doubles as JSON-LD context: return the key as is (either a full IRI already or an alias)
+                                key.id().expect("key must have ID").into()
+                            } else {
+                                //turn it into an IRI per standard identifier rules
+                                key.iri(&config.default_set_iri).expect("set must have ID")
+                            },
+                        ),
+                        output_datavalue(key_id, data.value()),
+                    );
                 }
                 None => unreachable!("all sets should have a public identifier"),
             }
@@ -378,7 +382,14 @@ impl<'store> ResultItem<'store, Annotation> {
                     )
                 }
             }
-            ann_out += &body_out;
+            let l = body_out.len();
+            for (i, (key, value)) in body_out.iter().enumerate() {
+                //value is already fully JSON encoded and key is already an IRI
+                ann_out += &format!("\"{}\": {}", key, value);
+                if i < l - 1 {
+                    ann_out.push(',');
+                }
+            }
             ann_out += "},";
         }
 
@@ -444,15 +455,30 @@ fn output_predicate_datavalue(
         // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
         format!(
             "\"{}\": {{ \"id\": \"{}\" }}",
-            config.uri_to_namespace(predicate),
+            config.uri_to_namespace(predicate.into()),
             datavalue
         )
     } else {
         format!(
             "\"{}\": {}",
-            config.uri_to_namespace(predicate),
+            config.uri_to_namespace(predicate.into()),
             &value_to_json(datavalue)
         )
+    }
+}
+
+fn output_datavalue(predicate: &str, datavalue: &DataValue) -> String {
+    let value_is_iri = if let DataValue::String(s) = datavalue {
+        is_iri(s)
+    } else {
+        false
+    };
+    if is_iri(predicate) && value_is_iri {
+        // If the predicate is an IRI and the value *(looks like* an IRI, then the latter will be interpreted as an IRI rather than a string literal
+        // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
+        format!("{{ \"id\": \"{}\" }}", datavalue)
+    } else {
+        value_to_json(datavalue)
     }
 }
 
@@ -614,4 +640,49 @@ fn output_selector(
         }
     }
     ann_out
+}
+
+// helper structure to allow singular or multiple values per property
+#[derive(Default)]
+struct OutputMap<'a>(Vec<(Cow<'a, str>, SmallVec<[String; 1]>)>);
+
+impl<'a> OutputMap<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn add(&mut self, key: Cow<'a, str>, value: String) {
+        let mut value = Some(value);
+        for item in self.0.iter_mut() {
+            if item.0 == key {
+                item.1.push(value.take().unwrap());
+                break;
+            }
+        }
+        if let Some(value) = value {
+            self.0.push((key, smallvec!(value)));
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&str, String)> {
+        self.0.iter().map(|(key, value)| {
+            (
+                key.as_ref(),
+                if value.len() == 1 {
+                    let s: String = value.join(", ");
+                    s
+                } else {
+                    format!("[ {} ]", value.join(", ")) //MAYBE TODO: if value is already a list, join lists?
+                },
+            )
+        })
+    }
 }
