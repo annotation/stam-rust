@@ -154,8 +154,8 @@ pub struct WebAnnoConfig {
 
     /// Adds an extra targets alongside the usual target with TextPositionSelector. This can
     /// be used for provide a direct URL to fetch the exact textselection (if the backend system supports it).
-    /// In the template, you should use the variables {resource} (which is the resource IRI), {begin}, and {end} , they will be substituted accordingly.
-    /// A common value is {resource}/{begin}/{end} .
+    /// In the template, you should use the variables {resource_iri} (which is the resource IRI) or {resource} (which is the ID), {begin}, and {end} , they will be substituted accordingly.
+    /// A common value is {resource_iri}/{begin}/{end} or https://example.com/{resource}/{begin}/{end}.
     pub extra_target_templates: Vec<String>,
 
     /// Do not output @context (useful if already done at an earlier stage)
@@ -517,12 +517,14 @@ fn output_selector(
                 for extra_target_template in config.extra_target_templates.iter() {
                     let mut template = extra_target_template.clone();
                     template = template.replace(
-                        "{resource}",
+                        "{resource_iri}",
                         &into_iri(
                             resource.id().expect("resource must have ID"),
                             &config.default_resource_iri,
                         ),
                     );
+                    template = template
+                        .replace("{resource}", resource.id().expect("resource must have ID"));
                     template = template.replace("{begin}", &format!("{}", textselection.begin()));
                     template = template.replace("{end}", &format!("{}", textselection.end()));
                     if !ann_out.is_empty() {
