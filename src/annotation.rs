@@ -685,7 +685,7 @@ impl Annotation {
 
     /// Removes data from the annotation, does not update any reverse indices!
     pub(crate) fn remove_data(&mut self, set: AnnotationDataSetHandle, data: AnnotationDataHandle) {
-        self.data.retain(|(s, d)| (*s != set && *d != data));
+        self.data.retain(|(s, d)| *s != set && *d != data);
     }
 
     /// Low-level method that returns raw data (handles) at specified index
