@@ -230,7 +230,10 @@ impl WebAnnoConfig {
         }
         if !self.context_namespaces.is_empty() {
             out += ", {";
-            for (uri, namespace) in self.context_namespaces.iter() {
+            for (i, (uri, namespace)) in self.context_namespaces.iter().enumerate() {
+                if i > 0 {
+                    out += ", ";
+                }
                 out += "\"";
                 out += namespace;
                 out += "\": \"";
