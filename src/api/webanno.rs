@@ -332,7 +332,7 @@ impl<'store> ResultItem<'store, Annotation> {
                         }
                         body_out.add(
                             Cow::Borrowed(key_id),
-                            output_datavalue(key_id, data.value()),
+                            output_datavalue(key_id, data.value(), config),
                         );
                     }
                 },
@@ -340,7 +340,7 @@ impl<'store> ResultItem<'store, Annotation> {
                     suppress_default_body_type = true; //no need for the default because we provided one explicitly
                     body_out.add(
                         Cow::Borrowed(key_id),
-                        output_datavalue(key_id, data.value()),
+                        output_datavalue(key_id, data.value(), config),
                     );
                 }
                 Some(set_id) => {
@@ -355,7 +355,7 @@ impl<'store> ResultItem<'store, Annotation> {
                                 key.iri(&config.default_set_iri).expect("set must have ID")
                             },
                         ),
-                        output_datavalue(key_id, data.value()),
+                        output_datavalue(key_id, data.value(), config),
                     );
                 }
                 None => unreachable!("all sets should have a public identifier"),
@@ -454,13 +454,18 @@ fn output_predicate_datavalue(
         false
     };
     if is_iri(predicate) && value_is_iri {
-        // If the predicate is an IRI and the value *(looks like* an IRI, then the latter will be interpreted as an IRI rather than a string literal
-        // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
-        format!(
-            "\"{}\": {{ \"id\": \"{}\" }}",
-            config.uri_to_namespace(predicate.into()),
-            datavalue
-        )
+        if let Some(s) = value_to_alias(predicate, datavalue, config) {
+            // if the predicate is an iri and the value looks like an IRI where the base url correspondonds to one of the added contexts, then strip this prefix and reduce the IRI value to an alias
+            s
+        } else {
+            // Else: If the predicate is an IRI and the value *(looks like* an IRI, then the latter will be interpreted as an IRI rather than a string literal
+            // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
+            format!(
+                "\"{}\": {{ \"id\": \"{}\" }}",
+                config.uri_to_namespace(predicate.into()),
+                datavalue
+            )
+        }
     } else {
         format!(
             "\"{}\": {}",
@@ -470,16 +475,47 @@ fn output_predicate_datavalue(
     }
 }
 
-fn output_datavalue(predicate: &str, datavalue: &DataValue) -> String {
+#[inline]
+/// if the predicate is an iri and the value looks like an IRI where the base url correspondonds to one of the added contexts, then strip this prefix and reduce the IRI value to an alias
+/// Returns None if this is not the case
+fn value_to_alias(
+    predicate: &str,
+    datavalue: &DataValue,
+    config: &WebAnnoConfig,
+) -> Option<String> {
+    if !config.extra_context.is_empty() {
+        if let DataValue::String(datavalue) = datavalue {
+            for prefix in config.extra_context.iter() {
+                if datavalue.starts_with(&format!("{}/", prefix.as_str()))
+                    || datavalue.starts_with(&format!("{}#", prefix.as_str()))
+                {
+                    return Some(format!(
+                        "\"{}\": \"{}\"",
+                        config.uri_to_namespace(predicate.into()),
+                        &datavalue[prefix.len() + 1..]
+                    ));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn output_datavalue(predicate: &str, datavalue: &DataValue, config: &WebAnnoConfig) -> String {
     let value_is_iri = if let DataValue::String(s) = datavalue {
         is_iri(s)
     } else {
         false
     };
     if is_iri(predicate) && value_is_iri {
-        // If the predicate is an IRI and the value *(looks like* an IRI, then the latter will be interpreted as an IRI rather than a string literal
-        // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
-        format!("{{ \"id\": \"{}\" }}", datavalue)
+        if let Some(s) = value_to_alias(predicate, datavalue, config) {
+            // if the predicate is an iri and the value looks like an IRI where the base url correspondonds to one of the added contexts, then strip this prefix and reduce the IRI value to an alias
+            s
+        } else {
+            // If the predicate is an IRI and the value *(looks like* an IRI, then the latter will be interpreted as an IRI rather than a string literal
+            // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
+            format!("{{ \"id\": \"{}\" }}", datavalue)
+        }
     } else {
         value_to_json(datavalue)
     }
