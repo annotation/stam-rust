@@ -454,7 +454,7 @@ fn output_predicate_datavalue(
         false
     };
     if is_iri(predicate) && value_is_iri {
-        if let Some(s) = value_to_alias(predicate, datavalue, config) {
+        if let Some(s) = value_to_alias(predicate, true, datavalue, config, false) {
             // if the predicate is an iri and the value looks like an IRI where the base url correspondonds to one of the added contexts, then strip this prefix and reduce the IRI value to an alias
             s
         } else {
@@ -464,6 +464,17 @@ fn output_predicate_datavalue(
                 "\"{}\": {{ \"id\": \"{}\" }}",
                 config.uri_to_namespace(predicate.into()),
                 datavalue
+            )
+        }
+    } else if value_is_iri {
+        if let Some(s) = value_to_alias(predicate, false, datavalue, config, false) {
+            // if the predicate is not an IRI but the value looks like an IRI where the base url correspondonds to one of the added contexts, then strip this prefix and reduce the IRI value to an alias
+            s
+        } else {
+            format!(
+                "\"{}\": {}",
+                config.uri_to_namespace(predicate.into()),
+                &value_to_json(datavalue)
             )
         }
     } else {
@@ -480,8 +491,10 @@ fn output_predicate_datavalue(
 /// Returns None if this is not the case
 fn value_to_alias(
     predicate: &str,
+    predicate_is_iri: bool,
     datavalue: &DataValue,
     config: &WebAnnoConfig,
+    value_only: bool,
 ) -> Option<String> {
     if !config.extra_context.is_empty() {
         if let DataValue::String(datavalue) = datavalue {
@@ -489,11 +502,19 @@ fn value_to_alias(
                 if datavalue.starts_with(&format!("{}/", prefix.as_str()))
                     || datavalue.starts_with(&format!("{}#", prefix.as_str()))
                 {
-                    return Some(format!(
-                        "\"{}\": \"{}\"",
-                        config.uri_to_namespace(predicate.into()),
-                        &datavalue[prefix.len() + 1..]
-                    ));
+                    if value_only {
+                        return Some(format!("\"{}\"", &datavalue[prefix.len() + 1..]));
+                    } else {
+                        return Some(format!(
+                            "\"{}\": \"{}\"",
+                            if predicate_is_iri {
+                                config.uri_to_namespace(predicate.into())
+                            } else {
+                                predicate.into()
+                            },
+                            &datavalue[prefix.len() + 1..]
+                        ));
+                    }
                 }
             }
         }
@@ -508,13 +529,20 @@ fn output_datavalue(predicate: &str, datavalue: &DataValue, config: &WebAnnoConf
         false
     };
     if is_iri(predicate) && value_is_iri {
-        if let Some(s) = value_to_alias(predicate, datavalue, config) {
+        if let Some(s) = value_to_alias(predicate, true, datavalue, config, true) {
             // if the predicate is an iri and the value looks like an IRI where the base url correspondonds to one of the added contexts, then strip this prefix and reduce the IRI value to an alias
             s
         } else {
             // If the predicate is an IRI and the value *(looks like* an IRI, then the latter will be interpreted as an IRI rather than a string literal
             // (This is not formally defined in the spec! the predicate check is needed because we don't want this behaviour if the predicate is an alias defined in the JSON-LD context)
             format!("{{ \"id\": \"{}\" }}", datavalue)
+        }
+    } else if value_is_iri {
+        if let Some(s) = value_to_alias(predicate, false, datavalue, config, true) {
+            // if the predicate is not an iri but the value looks like an IRI where the base url correspondonds to one of the added contexts, then strip this prefix and reduce the IRI value to an alias
+            s
+        } else {
+            value_to_json(datavalue)
         }
     } else {
         value_to_json(datavalue)
