@@ -1,6 +1,6 @@
 [package]
 name = "stam"
-version = "0.18.3"
+version = "0.18.4"
 edition = "2021"
 authors = ["Maarten van Gompel <proycon@anaproy.nl>"]
 description = "STAM is a powerful library for dealing with stand-off annotations on text. This is the Rust library."
@@ -26,7 +26,7 @@ datasize = { version = "0.2.15", features = ["smallvec-types"] }
 minicbor = { version = "2.1.1", features = ["derive","std" ] }
 rayon = "1.11.0"
 sha1 = "0.10.6"
-base16ct = { version = "0.3.0", features = ["alloc"] }
+base16ct = { version = "0.1.1", features = ["alloc"] }
 
 [features]
 default = ["csv","webanno","transpose","translate","textvalidation"]
