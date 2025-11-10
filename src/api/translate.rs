@@ -217,11 +217,13 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                     {
                         // get the all reference text selections that are embedded in our text selection (tsel)
                         // we must have full coverage for a translation to be valid
-                        if tsel.test(
-                            &TextSelectionOperator::embeds(),
-                            reftsel.inner(),
-                            resource.as_ref(),
-                        ) {
+                        while remainder.is_some()
+                            && remainder.unwrap().test(
+                                &TextSelectionOperator::embeds(),
+                                reftsel.inner(),
+                                resource.as_ref(),
+                            )
+                        {
                             refseqnrs.push(refseqnr);
                             selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
                                 resource.handle().into(),
@@ -245,12 +247,12 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                                     }
                                 }
                                 if remainder.is_none() {
-                                    //everything form the source is covered by the references
+                                    //everything from the source is covered by the references
                                     source_side = Some(side_i);
                                     break;
                                 }
                             } else {
-                                unreachable!("[stam translate] Unexpected error: if text selections are embedded, there must be an intersection");
+                                unreachable!("[stam translate] Unexpected error: if text selections are embedded, there must be an intersection: remainder={:?} embedded={:?}", remainder, reftsel.inner());
                             }
                         }
                     }
