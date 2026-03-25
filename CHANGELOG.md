@@ -1,3 +1,7 @@
+# v0.18.7 - 2025-03-25
+
+* translate: allow translation of zero-width elements
+
 # v0.18.6 - 2025-11-10
 
 * translate: fix in finding all embedded reference texts
