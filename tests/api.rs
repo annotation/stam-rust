@@ -3538,6 +3538,83 @@ fn translate_over_complex_translation_zerowidth() -> Result<(), StamError> {
 }
 
 #[test]
+#[cfg(feature = "translate")]
+/// Translating a zero-width annotation oeer a complex annotation, no resegmentation, fixed source-side
+fn translate_over_complex_translation_zerowidth_fixed_sourceside() -> Result<(), StamError> {
+    let mut store = setup_example_11b()?;
+    store.annotate(
+        AnnotationBuilder::new()
+            .with_id("A3")
+            .with_data("mydataset", "selection", "phrase")
+            .with_target(SelectorBuilder::textselector(
+                "source",
+                Offset::simple(11, 11), //zero-width after благодарю
+            )),
+    )?;
+    let translation = store
+        .annotation("ComplexTranslation1")
+        .expect("ComplexTranslation1");
+    let source = store.annotation("A3").expect("A3");
+    assert_eq!(
+        source.text_join(""),
+        "",
+        "sanity check for source annotation (zero-width)"
+    );
+    let config = TranslateConfig {
+        translation_id: Some("NewTranslation".to_string()),
+        target_side_ids: vec!["A3t".to_string()],
+        source_side: TranslationSide::ByIndex(0),
+        no_resegmentation: true,
+        debug: true,
+        ..Default::default()
+    };
+    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    assert_eq!(
+        targets.len(),
+        2,
+        "Expecting two annotations (the translation and the target annotation)"
+    );
+    let new_translation = store
+        .annotation("NewTranslation")
+        .expect("NewTranslation Annotation");
+    assert_eq!(
+        new_translation
+            .annotations_in_targets(AnnotationDepth::One)
+            .count(),
+        2,
+        "new transposition must have two target annotations (source annotation and transposed annotation)"
+    );
+    let translated = store.annotation("A3t").expect("Target annotation A3t");
+    assert_eq!(
+        translated.text_join(""),
+        "",
+        "checking translated text (zero-width so no text)"
+    );
+    assert_eq!(
+        translated.text().count(),
+        1,
+        "number of text selectors for translated annotation"
+    );
+    let tsel = translated.textselections().next().unwrap();
+    assert_eq!(
+        tsel.resource().id(),
+        Some("translit"),
+        "translated annotation must reference the target resource"
+    );
+    assert_eq!(
+        tsel.begin(),
+        13,
+        "translated annotation must have correct begin offset"
+    );
+    assert_eq!(
+        tsel.end(),
+        13,
+        "translated annotation must have correct target offset"
+    );
+    Ok(())
+}
+
+#[test]
 fn remove_annotation() -> Result<(), StamError> {
     let mut store = setup_example_1()?;
     store.remove_annotation("A1")?;
