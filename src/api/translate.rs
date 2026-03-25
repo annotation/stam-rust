@@ -126,6 +126,16 @@ impl<'store> Translatable<'store> for ResultItem<'store, Annotation> {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+enum RefMatchMode {
+    /// Normal full match against reference textsel
+    Normal,
+    /// Zero width item matching at begin of reference textsel
+    Begin,
+    /// Zero width item matching at end of reference textsel
+    End,
+}
+
 impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
     fn translate(
         &self,
@@ -147,8 +157,8 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         } else {
             None
         };
-        let mut refseqnrs: Vec<usize> = Vec::new(); //the sequence number of the covered text selections (in a particular side)
-                                                    // Found (source) or mapped (target) text selections per side, the first index corresponds to a side
+        let mut refseqnrs: Vec<(usize, RefMatchMode)> = Vec::new(); //the sequence number of the covered text selections (in a particular side) and the match mode (full, begin, end)
+                                                                    // Found (source) or mapped (target) text selections per side, the first index corresponds to a side
         let mut selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]> = SmallVec::new();
 
         let resource = self.resource();
@@ -178,12 +188,6 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         // that we are dealing with a simple translation instead) the source side that matches
         // can never be the same as the target side that is mapped to
         for tsel in self.inner().iter() {
-            if tsel.begin() == tsel.end() {
-                return Err(StamError::NoText(
-                    "Can not translate annotations with empty textselections",
-                ));
-            }
-
             // iterate over all the sides of the pivot
             for (side_i, (textselections, annotation)) in sides.iter().enumerate() {
                 simple_translation = false;
@@ -215,6 +219,43 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                         && (source_side.is_none() || source_side == Some(side_i))
                     //source side check
                     {
+                        //first handle the edge-case of zero-width elements
+                        if remainder.is_some()
+                            && remainder.unwrap().begin() == remainder.unwrap().end()
+                        {
+                            //We have a zero-width element to match, we can take some shortcuts now
+                            let mut pos = 0;
+                            let matchmode = if remainder.unwrap().begin() == reftsel.begin() {
+                                pos = reftsel.begin();
+                                Some(RefMatchMode::Begin)
+                            } else if remainder.unwrap().begin() == reftsel.end() {
+                                pos = reftsel.end();
+                                Some(RefMatchMode::End)
+                            } else {
+                                None
+                            };
+                            if let Some(matchmode) = matchmode {
+                                if config.debug {
+                                    eprintln!("[stam translate] Found zero-width source fragment #{} at {} ({:?})",
+                                            refseqnr,
+                                            pos,
+                                            matchmode
+                                    );
+                                }
+                                refseqnrs.push((refseqnr, matchmode));
+                                selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
+                                    resource.handle().into(),
+                                    Offset::simple(reftsel.begin(), reftsel.end()),
+                                ));
+                                source_side = Some(side_i);
+                                remainder = None;
+                                break;
+                            } else {
+                                continue;
+                            }
+                        }
+
+                        // normal behaviour:
                         // get the all reference text selections that are embedded in our text selection (tsel)
                         // we must have full coverage for a translation to be valid
                         while remainder.is_some()
@@ -224,7 +265,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                                 resource.as_ref(),
                             )
                         {
-                            refseqnrs.push(refseqnr);
+                            refseqnrs.push((refseqnr, RefMatchMode::Normal));
                             selectors_per_side[side_i].push(SelectorBuilder::TextSelector(
                                 resource.handle().into(),
                                 reftsel.inner().into(),
@@ -314,14 +355,23 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                     selectors_per_side.push(Vec::new());
                 }
                 if source_side != Some(side_i) {
-                    for refseqnr in refseqnrs.iter() {
+                    for (refseqnr, matchmode) in refseqnrs.iter() {
                         //select the text selection we seek
                         let reftsel = textselections.get(*refseqnr).expect("element must exist");
-                        let mapped_selector: SelectorBuilder<'static> =
-                            SelectorBuilder::TextSelector(
+                        let mapped_selector: SelectorBuilder<'static> = match matchmode {
+                            RefMatchMode::Normal => SelectorBuilder::TextSelector(
                                 reftsel.resource().handle().into(),
                                 reftsel.inner().into(),
-                            );
+                            ),
+                            RefMatchMode::Begin => SelectorBuilder::TextSelector(
+                                reftsel.resource().handle().into(),
+                                Offset::simple(reftsel.begin(), reftsel.begin()),
+                            ),
+                            RefMatchMode::End => SelectorBuilder::TextSelector(
+                                reftsel.resource().handle().into(),
+                                Offset::simple(reftsel.end(), reftsel.end()),
+                            ),
+                        };
                         selectors_per_side[side_i].push(mapped_selector);
                     }
                 }
@@ -331,7 +381,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         if source_side.is_none() {
             return Err(StamError::TranslateError(
                     format!(
-                        "No source fragments were found in the complex translation {}, source side could not be identified, unable to translate",
+                        "No source fragments were found in the complex translation pivot {}, source side could not be identified, unable to translate",
                         via.id().unwrap_or("(no-id)"),
                     ),
                     "",
