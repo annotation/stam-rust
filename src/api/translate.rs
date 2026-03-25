@@ -147,7 +147,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         } else {
             None
         };
-        let mut refseqnrs: Vec<usize> = Vec::new(); //the the sequence number of the covered text selections (in a particular side)
+        let mut refseqnrs: Vec<usize> = Vec::new(); //the sequence number of the covered text selections (in a particular side)
                                                     // Found (source) or mapped (target) text selections per side, the first index corresponds to a side
         let mut selectors_per_side: SmallVec<[Vec<SelectorBuilder<'static>>; 2]> = SmallVec::new();
 
@@ -184,7 +184,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                 ));
             }
 
-            // iterate over all the sides
+            // iterate over all the sides of the pivot
             for (side_i, (textselections, annotation)) in sides.iter().enumerate() {
                 simple_translation = false;
                 if selectors_per_side.len() <= side_i {
@@ -286,13 +286,26 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         } else {
             //complex translation
             if sourcecoverage != self.inner().len() {
-                return Err(StamError::TranslateError(
-                    format!(
-                        "Not all source fragments were found in the complex translation {}, not enough to translate",
-                        via.id().unwrap_or("(no-id)"),
-                    ),
-                    "",
-                ));
+                if sourcecoverage == 0 {
+                    return Err(StamError::TranslateError(
+                        format!(
+                            "Source fragments ({} in total) could not be found in the complex translation pivot {})",
+                            self.inner().len(),
+                            via.id().unwrap_or("(no-id)"),
+                        ),
+                        "",
+                    ));
+                } else {
+                    return Err(StamError::TranslateError(
+                        format!(
+                            "Not all source fragments were found in the complex translation pivot {} (only {} out of {} found)",
+                            via.id().unwrap_or("(no-id)"),
+                            sourcecoverage,
+                            self.inner().len()
+                        ),
+                        "",
+                    ));
+                }
             }
 
             // now map the targets (there may be multiple target sides)
