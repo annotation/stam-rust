@@ -1708,11 +1708,8 @@ impl TestTextSelection for TextSelection {
             TextSelectionOperator::Equals { negate: false, .. }
             | TextSelectionOperator::InSet { negate: false, .. } => self == reftextsel,
             TextSelectionOperator::Overlaps { negate: false, .. } => {
-                //item must be equal overlap with any of the items in the other set
-                (reftextsel.begin >= self.begin && reftextsel.begin < self.end)
-                    || (reftextsel.end > self.begin && reftextsel.end <= self.end)
-                    || (reftextsel.begin <= self.begin && reftextsel.end >= self.end)
-                    || (self.begin <= reftextsel.begin && self.end >= reftextsel.end)
+                //there is a at least part of the annotation that overlaps with the other
+                reftextsel.begin < self.end && reftextsel.end > self.begin
             }
             TextSelectionOperator::Embeds { negate: false, .. } => {
                 // TextSelection embeds reftextsel
