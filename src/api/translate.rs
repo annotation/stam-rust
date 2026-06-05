@@ -76,7 +76,7 @@ pub trait Translatable<'store> {
     /// The result of a translate operation is itself again a translation.
     fn translate(
         &self,
-        via: &ResultItem<'store, Annotation>,
+        via: &TranslationPivot<'store>,
         config: TranslateConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError>;
 }
@@ -84,7 +84,7 @@ pub trait Translatable<'store> {
 impl<'store> Translatable<'store> for ResultItem<'store, Annotation> {
     fn translate(
         &self,
-        via: &ResultItem<'store, Annotation>,
+        via: &TranslationPivot<'store>,
         mut config: TranslateConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         if let Some(tset) = self.textselectionset() {
@@ -136,13 +136,57 @@ enum RefMatchMode {
     End,
 }
 
+/// This encapsulates the translation pivot as passed to the via parameter for translate().
+/// The structure contains some intermediate computation that should be computed only ONCE
+/// per pivot.
+pub struct TranslationPivot<'store> {
+    annotation: ResultItem<'store, Annotation>,
+    sides: SmallVec<
+        [(
+            SmallVec<[ResultTextSelection<'store>; 1]>, //textselections
+            ResultItem<'store, Annotation>,             //annotation
+        ); 2],
+    >,
+}
+
+impl<'store> TranslationPivot<'store> {
+    pub fn annotation(&self) -> &ResultItem<'store, Annotation> {
+        &self.annotation
+    }
+
+    pub fn iter_sides(
+        &self,
+    ) -> impl Iterator<
+        Item = &(
+            SmallVec<[ResultTextSelection<'store>; 1]>,
+            ResultItem<'store, Annotation>,
+        ),
+    > {
+        self.sides.iter()
+    }
+}
+
+impl<'store> TryFrom<&ResultItem<'store, Annotation>> for TranslationPivot<'store> {
+    type Error = StamError;
+    fn try_from(annotation: &ResultItem<'store, Annotation>) -> Result<Self, Self::Error> {
+        annotation.valid_translation()?; //check if the pivot is valid
+        Ok(Self {
+            annotation: annotation.clone(),
+            //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
+            sides: annotation
+                .annotations_in_targets(AnnotationDepth::One)
+                .map(|annotation| (annotation.textselections().collect(), annotation))
+                .collect(),
+        })
+    }
+}
+
 impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
     fn translate(
         &self,
-        via: &ResultItem<'store, Annotation>,
+        via: &TranslationPivot<'store>,
         config: TranslateConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
-        via.valid_translation()?; //check if the pivot is valid
         if self.inner().is_empty() {
             return Err(StamError::NoText(
                 "Can not translate empty TextSelectionSet",
@@ -168,20 +212,9 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         if config.debug {
             eprintln!(
                 "[stam translate] -------------- Translating via {:?} --------------",
-                via.id()
+                via.annotation().id()
             );
         }
-
-        //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
-        let sides: SmallVec<
-            [(
-                SmallVec<[ResultTextSelection<'store>; 1]>, //textselections
-                ResultItem<'store, Annotation>,             //annotation
-            ); 2],
-        > = via
-            .annotations_in_targets(AnnotationDepth::One)
-            .map(|annotation| (annotation.textselections().collect(), annotation))
-            .collect();
 
         let mut sourcecoverage = 0;
         // match the current textselectionset against all the sides in a complex translation (or ascertain
@@ -189,7 +222,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
         // can never be the same as the target side that is mapped to
         for tsel in self.inner().iter() {
             // iterate over all the sides of the pivot
-            for (side_i, (textselections, annotation)) in sides.iter().enumerate() {
+            for (side_i, (textselections, annotation)) in via.iter_sides().enumerate() {
                 simple_translation = false;
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
@@ -276,14 +309,16 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                                 remainder = new_remainder;
                                 if config.debug {
                                     if remainder.is_some() {
-                                        eprintln!("[stam translate] Found source fragment #{}: \"{}\" (with remainder)",
+                                        eprintln!("[stam translate] Found source fragment #{}: \"{}\" (side {}, with remainder)",
                                             refseqnr,
-                                            &reftsel.text().replace("\n", "\\n")
+                                            &reftsel.text().replace("\n", "\\n"),
+                                            side_i
                                         );
                                     } else {
-                                        eprintln!("[stam translate] Found source fragment #{}: \"{}\"  (no remainder)",
+                                        eprintln!("[stam translate] Found source fragment #{}: \"{}\"  (side {}, no remainder)",
                                             refseqnr,
-                                            &reftsel.text().replace("\n", "\\n")
+                                            &reftsel.text().replace("\n", "\\n"),
+                                            side_i
                                         );
                                     }
                                 }
@@ -321,7 +356,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             //produce the pivot as output
             // We may have multiple text selections to translate (all must be found)
             return Err(StamError::TranslateError(
-                format!("Can not translate over a simple translation, pivot has to be complex. Pivot ID={}", via.id().unwrap_or("unknown") ),
+                format!("Can not translate over a simple translation, pivot has to be complex. Pivot ID={}", via.annotation().id().unwrap_or("unknown") ),
                 "",
             ));
         } else {
@@ -332,7 +367,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                         format!(
                             "Source fragments ({} in total) could not be found in the complex translation pivot {})",
                             self.inner().len(),
-                            via.id().unwrap_or("(no-id)"),
+                            via.annotation().id().unwrap_or("(no-id)"),
                         ),
                         "",
                     ));
@@ -340,7 +375,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                     return Err(StamError::TranslateError(
                         format!(
                             "Not all source fragments were found in the complex translation pivot {} (only {} out of {} found)",
-                            via.id().unwrap_or("(no-id)"),
+                            via.annotation().id().unwrap_or("(no-id)"),
                             sourcecoverage,
                             self.inner().len()
                         ),
@@ -350,7 +385,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             }
 
             // now map the targets (there may be multiple target sides)
-            for (side_i, (textselections, _)) in sides.iter().enumerate() {
+            for (side_i, (textselections, _)) in via.iter_sides().enumerate() {
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
                 }
@@ -382,7 +417,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
             return Err(StamError::TranslateError(
                     format!(
                         "No source fragments were found in the complex translation pivot {}, source side could not be identified, unable to translate",
-                        via.id().unwrap_or("(no-id)"),
+                        via.annotation().id().unwrap_or("(no-id)"),
                     ),
                     "",
             ));
@@ -401,7 +436,7 @@ impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
                 Err(StamError::TranslateError(
                     format!(
                         "No source fragments were found in the complex translation {}, source side has 0 fragments, unable to translate",
-                        via.id().unwrap_or("(no-id)"),
+                        via.annotation().id().unwrap_or("(no-id)"),
                     ),
                     "",
                 )),
