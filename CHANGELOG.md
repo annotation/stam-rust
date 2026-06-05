@@ -1,4 +1,11 @@
-# v0.18.7 - 2025-03-25
+# v0.18.8 - 2026-06-05
+
+* translate: compute translation pivot in before the translate() function
+* transpose: compute transposition pivot before the translate() function
+
+These fix a significant performance issue in translations and transpositions
+
+# v0.18.7 - 2026-03-25
 
 * translate: allow translation of zero-width elements
 
