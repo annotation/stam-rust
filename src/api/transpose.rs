@@ -63,6 +63,51 @@ impl Default for TranspositionSide {
     }
 }
 
+/// This encapsulates the translation pivot as passed to the via parameter for translate().
+/// The structure contains some intermediate computation that should be computed only ONCE
+/// per pivot.
+pub struct TranspositionPivot<'store> {
+    annotation: ResultItem<'store, Annotation>,
+    sides: SmallVec<
+        [(
+            SmallVec<[ResultTextSelection<'store>; 1]>, //textselections
+            ResultItem<'store, Annotation>,             //annotation
+        ); 2],
+    >,
+}
+
+impl<'store> TranspositionPivot<'store> {
+    pub fn annotation(&self) -> &ResultItem<'store, Annotation> {
+        &self.annotation
+    }
+
+    pub fn iter_sides(
+        &self,
+    ) -> impl Iterator<
+        Item = &(
+            SmallVec<[ResultTextSelection<'store>; 1]>,
+            ResultItem<'store, Annotation>,
+        ),
+    > {
+        self.sides.iter()
+    }
+}
+
+impl<'store> TryFrom<&ResultItem<'store, Annotation>> for TranspositionPivot<'store> {
+    type Error = StamError;
+    fn try_from(annotation: &ResultItem<'store, Annotation>) -> Result<Self, Self::Error> {
+        annotation.valid_transposition()?; //check if the pivot is valid
+        Ok(Self {
+            annotation: annotation.clone(),
+            //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
+            sides: annotation
+                .annotations_in_targets(AnnotationDepth::One)
+                .map(|annotation| (annotation.textselections().collect(), annotation))
+                .collect(),
+        })
+    }
+}
+
 pub trait Transposable<'store> {
     /// The transpose function maps an annotation, textselection, or textselection set from
     /// one coordinate system to another. These mappings are defined in annotations called
@@ -74,7 +119,7 @@ pub trait Transposable<'store> {
     /// The result of a transpose operation is itself again a transposition.
     fn transpose(
         &self,
-        via: &ResultItem<'store, Annotation>,
+        via: &TranspositionPivot<'store>,
         config: TransposeConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError>;
 }
@@ -82,7 +127,7 @@ pub trait Transposable<'store> {
 impl<'store> Transposable<'store> for ResultItem<'store, Annotation> {
     fn transpose(
         &self,
-        via: &ResultItem<'store, Annotation>,
+        via: &TranspositionPivot<'store>,
         mut config: TransposeConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
         if let Some(tset) = self.textselectionset() {
@@ -122,10 +167,9 @@ impl<'store> Transposable<'store> for ResultItem<'store, Annotation> {
 impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
     fn transpose(
         &self,
-        via: &ResultItem<'store, Annotation>,
+        via: &TranspositionPivot<'store>,
         config: TransposeConfig,
     ) -> Result<Vec<AnnotationBuilder<'static>>, StamError> {
-        via.valid_transposition()?;
         if self.inner().is_empty() {
             return Err(StamError::NoText(
                 "Can not transpose empty TextSelectionSet",
@@ -157,16 +201,6 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             eprintln!("[stam transpose] ----------------------------");
         }
 
-        //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
-        let sides: SmallVec<
-            [(
-                SmallVec<[ResultTextSelection<'store>; 1]>, //textselections
-                ResultItem<'store, Annotation>,             //annotation
-            ); 2],
-        > = via
-            .annotations_in_targets(AnnotationDepth::One)
-            .map(|annotation| (annotation.textselections().collect(), annotation))
-            .collect();
 
         // match the current textselectionset against all the sides in a complex transposition (or ascertain
         // that we are dealing with a simple transposition instead) the source side that matches
@@ -174,7 +208,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
         while let Some(tsel) = tselbuffer.pop_front() {
 
             // iterate over all the sides
-            for (side_i, (textselections, _annotation)) in sides.iter().enumerate()
+            for (side_i, (textselections, _annotation)) in via.iter_sides().enumerate()
             {
                 simple_transposition = false;
                 if selectors_per_side.len() <= side_i {
@@ -263,7 +297,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             // We may have multiple text selections to transpose (all must be found)
             for tsel in self.inner().iter() {
                 // each text selection in a simple transposition corresponds to a side
-                for (side_i, reftsel) in via.textselections().enumerate() {
+                for (side_i, reftsel) in via.annotation().textselections().enumerate() {
                     if selectors_per_side.len() <= side_i {
                         selectors_per_side.push(Vec::new());
                     }
@@ -301,14 +335,14 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                             0
                         },
                         self.inner().len(),
-                        via.id().unwrap_or("(no-id)"),
+                        via.annotation().id().unwrap_or("(no-id)"),
                     ),
                     "",
                 ));
             }
 
             // now map the targets (there may be multiple target sides)
-            for (side_i, reftsel) in via.textselections().enumerate() {
+            for (side_i, reftsel) in via.annotation().textselections().enumerate() {
                 let resource = reftsel.resource().handle();
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
@@ -331,14 +365,14 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                 return Err(StamError::TransposeError(
                     format!(
                         "Not all source fragments were found in the complex transposition {}, not enough to transpose",
-                        via.id().unwrap_or("(no-id)"),
+                        via.annotation().id().unwrap_or("(no-id)"),
                     ),
                     "",
                 ));
             }
 
             // now map the targets (there may be multiple target sides)
-            for (side_i, (textselections, _)) in sides.iter().enumerate()
+            for (side_i, (textselections, _)) in via.iter_sides().enumerate()
             {
                 if selectors_per_side.len() <= side_i {
                     selectors_per_side.push(Vec::new());
@@ -360,7 +394,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                                         mapped_tsel.text().replace("\n","\\n"),
                                         &relative_offset,
                                         reftsel.text().replace("\n","\\n"),
-                                        via.id().unwrap_or("(no-id)"),
+                                        via.annotation().id().unwrap_or("(no-id)"),
                                     ),
                                     "(debug mode verification stage in transpose())",
                                 ));
@@ -381,7 +415,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
             return Err(StamError::TransposeError(
                     format!(
                         "No source fragments were found in the complex transposition {}, source side could not be identified, unable to transpose",
-                        via.id().unwrap_or("(no-id)"),
+                        via.annotation().id().unwrap_or("(no-id)"),
                     ),
                     "",
             ));
@@ -392,7 +426,7 @@ impl<'store> Transposable<'store> for ResultTextSelectionSet<'store> {
                 Err(StamError::TransposeError(
                     format!(
                         "No source fragments were found in the complex transposition {}, source side has 0 fragments, unable to transpose",
-                        via.id().unwrap_or("(no-id)"),
+                        via.annotation().id().unwrap_or("(no-id)"),
                     ),
                     "",
                 )),
