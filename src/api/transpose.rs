@@ -108,6 +108,21 @@ impl<'store> TryFrom<&ResultItem<'store, Annotation>> for TranspositionPivot<'st
     }
 }
 
+impl<'store> TryFrom<ResultItem<'store, Annotation>> for TranspositionPivot<'store> {
+    type Error = StamError;
+    fn try_from(annotation: ResultItem<'store, Annotation>) -> Result<Self, Self::Error> {
+        annotation.valid_transposition()?; //check if the pivot is valid
+        Ok(Self {
+            //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
+            sides: annotation
+                .annotations_in_targets(AnnotationDepth::One)
+                .map(|annotation| (annotation.textselections().collect(), annotation))
+                .collect(),
+            annotation: annotation,
+        })
+    }
+}
+
 pub trait Transposable<'store> {
     /// The transpose function maps an annotation, textselection, or textselection set from
     /// one coordinate system to another. These mappings are defined in annotations called

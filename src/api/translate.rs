@@ -180,6 +180,20 @@ impl<'store> TryFrom<&ResultItem<'store, Annotation>> for TranslationPivot<'stor
         })
     }
 }
+impl<'store> TryFrom<ResultItem<'store, Annotation>> for TranslationPivot<'store> {
+    type Error = StamError;
+    fn try_from(annotation: ResultItem<'store, Annotation>) -> Result<Self, Self::Error> {
+        annotation.valid_translation()?; //check if the pivot is valid
+        Ok(Self {
+            //pre-compute and store the pivot's (=via) annotations and underlying textselections so we don't have to do it multiple times
+            sides: annotation
+                .annotations_in_targets(AnnotationDepth::One)
+                .map(|annotation| (annotation.textselections().collect(), annotation))
+                .collect(),
+            annotation: annotation,
+        })
+    }
+}
 
 impl<'store> Translatable<'store> for ResultTextSelectionSet<'store> {
     fn translate(

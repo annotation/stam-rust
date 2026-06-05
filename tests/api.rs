@@ -3001,8 +3001,8 @@ fn transpose_over_simple_transposition() -> Result<(), StamError> {
         target_side_ids: vec!["A3t".to_string()],
         ..Default::default()
     };
-    let targets =
-        store.annotate_from_iter(source.transpose(&transposition, config)?.into_iter())?;
+    let builders = source.transpose(&transposition.try_into()?, config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(targets.len(), 2);
     let new_transposition = store.annotation("NewTransposition").or_fail()?;
     assert_eq!(
@@ -3055,7 +3055,9 @@ fn transpose_over_simple_transposition_invalid() -> Result<(), StamError> {
         target_side_ids: vec!["A3t".to_string()],
         ..Default::default()
     };
-    assert!(source.transpose(&transposition, config).is_err());
+    assert!(source
+        .transpose(&transposition.try_into()?, config)
+        .is_err());
     Ok(())
 }
 
@@ -3084,8 +3086,8 @@ fn transpose_over_complex_transposition() -> Result<(), StamError> {
         target_side_ids: vec!["A3t".to_string()],
         ..Default::default()
     };
-    let targets =
-        store.annotate_from_iter(source.transpose(&transposition, config)?.into_iter())?;
+    let builders = source.transpose(&transposition.try_into()?, config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(targets.len(), 2);
     let new_transposition = store.annotation("NewTransposition").or_fail()?;
     assert_eq!(
@@ -3139,8 +3141,8 @@ fn transpose_over_complex_transposition_with_resegmentation() -> Result<(), Stam
         target_side_ids: vec!["A3t".to_string()],
         ..Default::default()
     };
-    let targets =
-        store.annotate_from_iter(source.transpose(&transposition, config)?.into_iter())?;
+    let builders = source.transpose(&transposition.try_into().unwrap(), config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(targets.len(), 4, "Test the number of generated annotations");
     let new_transposition = store.annotation("NewTransposition").or_fail()?;
     assert_eq!(
@@ -3211,7 +3213,9 @@ fn transpose_over_complex_transposition_invalid() -> Result<(), StamError> {
         target_side_ids: vec!["A3t".to_string()],
         ..Default::default()
     };
-    assert!(source.transpose(&transposition, config).is_err());
+    assert!(source
+        .transpose(&transposition.try_into()?, config)
+        .is_err());
     Ok(())
 }
 
@@ -3292,7 +3296,8 @@ fn translate_over_complex_translation_with_resegmentation() -> Result<(), StamEr
         debug: true,
         ..Default::default()
     };
-    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    let builders = source.translate(&translation.try_into().unwrap(), config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(targets.len(), 4, "Expecting four annotations");
     let new_translation = store.annotation("NewTranslation").or_fail()?;
     assert_eq!(
@@ -3359,7 +3364,8 @@ fn translate_over_complex_translation_no_resegmentation() -> Result<(), StamErro
         debug: true,
         ..Default::default()
     };
-    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    let builders = source.translate(&translation.try_into()?, config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(
         targets.len(),
         2,
@@ -3424,7 +3430,8 @@ fn translate_over_complex_translation_with_deletion() -> Result<(), StamError> {
         debug: true,
         ..Default::default()
     };
-    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    let builders = source.translate(&translation.try_into()?, config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(
         targets.len(),
         2,
@@ -3491,7 +3498,8 @@ fn translate_over_complex_translation_zerowidth() -> Result<(), StamError> {
         debug: true,
         ..Default::default()
     };
-    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    let builders = source.translate(&translation.try_into().unwrap(), config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(
         targets.len(),
         2,
@@ -3568,7 +3576,8 @@ fn translate_over_complex_translation_zerowidth_fixed_sourceside() -> Result<(),
         debug: true,
         ..Default::default()
     };
-    let targets = store.annotate_from_iter(source.translate(&translation, config)?.into_iter())?;
+    let builders = source.translate(&translation.try_into().unwrap(), config)?;
+    let targets = store.annotate_from_iter(builders.into_iter())?;
     assert_eq!(
         targets.len(),
         2,
