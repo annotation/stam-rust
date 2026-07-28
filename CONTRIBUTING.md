@@ -57,15 +57,18 @@ If you plan a significant or possibly controversial contribution, it may be best
 
 ## AI policy
 
-1. We do **NOT** accept contributions in which a significant part of the contribution is the output of a generative AI (LLM) system, either edited or unedited (e.g. vibe-coding); **all** lines must be checked and taken responsibility for by a human (within the no warranty limits of the license).
-2. We do **NOT** accept any non-human as Co-Author of git commits; authorship is for legal attribution and responsibility, an LLM can not take this role.
+1. We do **NOT** accept contributions in which a significant part of the contribution is the output of a generative AI (LLM) system, either edited or unedited (e.g. vibe-coding);
+ **all** lines **MUST** be checked and taken responsibility for by a human (within the no warranty limits of the license).
+2. We do **NOT** accept any non-human as `Co-Author` of git commits; authorship is for legal attribution and responsibility, an LLM can not take this role.
+  If LLMs are involved *within the limits set forth here*, you **MUST** always disclose this using the `Assisted-by` tag and mention the model name and version.
 3. We do **NOT** accept issues or pull requests written by AI agents, nor comments, code reviews or brainstorming sessions by AI agents.
 
 This is a almost a No-AI policy but it is formulated in a way that still leaves
 *some* room for user discretion to use an LLM for limited code assistance, code
 analysis, to condense documentation for your own education, or for tasks such
 spelling correction or translation assistance. The guideline to keep in mind
-here is; *as soon as LLM usage is noticeable or widespread in your contribution,
+here is; *as soon as LLM usage is noticeable (through other means than the mandatory 
+`Assisted-by` tag) or widespread in your contribution,
 it is too much*. We ask to reconsider if using an LLM is indeed the appropriate
 means to solve a certain task or if simpler solutions suffice.
 
@@ -73,8 +76,8 @@ We ask that proprietary AI services (ChatGPT, Claude, Gemini etc) be
 avoided entirely in the production of code and documentation. The usage of
 these systems conflicts with the values this project and its maintainer(s) stand
 for. We do not want to support their business model in any way in this
-project. If you must resort to an LLM, run an open-weight LLM locally or at
-your institution.
+project so *such contributions will likely be rejected outright*. If you must resort to an LLM,
+run an open-weight LLM locally or at your institution.
 
 For those who feel less confident in English: Issues and pull requests may also
 be opened in other languages than English. Readers who do not speak your
