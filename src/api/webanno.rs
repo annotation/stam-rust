@@ -406,40 +406,64 @@ impl<'store> ResultItem<'store, Annotation> {
             &mut need_second_pass,
             false, //first pass
         );
-        if need_second_pass {
-            let second_pass_out = &output_selector(
+        let second_pass_out = if need_second_pass {
+            Some(output_selector(
                 self.as_ref().target(),
                 self.store(),
                 config,
                 false,
                 &mut need_second_pass,
                 true, //second pass
-            );
-            if !target_extra_out.is_empty() {
-                //with extra target from second pass and extra target(s) from annotation data
-                ann_out += &format!(
-                    " \"target\": [ {}, {}, {} ]",
-                    output_selector_out, &second_pass_out, &target_extra_out
-                );
-            } else {
-                //with extra target from second pass
-                ann_out += &format!(
-                    " \"target\": [ {}, {} ]",
-                    output_selector_out, &second_pass_out
-                );
-            }
-        } else if !target_extra_out.is_empty() {
-            //with extra target(s) from annotation data
-            ann_out += &format!(
-                " \"target\": [ {}, {} ]",
-                &output_selector_out, &target_extra_out
-            );
+            ))
         } else {
-            //normal situation, no extra targets
-            ann_out += &format!(" \"target\": {}", &output_selector_out);
-        }
+            None
+        };
+        ann_out += &output_targets(output_selector_out, second_pass_out, &target_extra_out);
         ann_out += "}";
         ann_out
+    }
+}
+
+/// This function outputs the web annotation targets that have been collected in earlier stages, it assembles from 1 to 3 sources
+fn output_targets(
+    output_selector_out: &str,
+    second_pass_out: Option<String>,
+    target_extra_out: &str,
+) -> String {
+    //MAYBE TODO: can second_pass_out also end up as an array? In that case we have to do more; test to prevent surprises
+    if let Some(second_pass_out) = second_pass_out.as_deref() {
+        if second_pass_out.chars().next() == Some('[')
+            && second_pass_out.chars().last() == Some(']')
+        {
+            unreachable!("output_targets: second_pass_out is an array!");
+        }
+    }
+
+    let second_pass_out = if let Some(second_pass_out) = second_pass_out.as_deref() {
+        format!(", {}", second_pass_out)
+    } else {
+        String::new()
+    };
+    let target_extra_out = if !target_extra_out.is_empty() {
+        format!(", {}", target_extra_out)
+    } else {
+        String::new()
+    };
+    if output_selector_out.chars().next() == Some('[')
+        && output_selector_out.chars().last() == Some(']')
+    {
+        //amend existing targets
+        format!(
+            " \"target\": {}{}{} ]",
+            &output_selector_out[..output_selector_out.len() - 1],
+            second_pass_out,
+            target_extra_out,
+        )
+    } else {
+        format!(
+            " \"target\": [ {}{}{} ]",
+            &output_selector_out, second_pass_out, target_extra_out,
+        )
     }
 }
 
