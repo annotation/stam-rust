@@ -1,3 +1,7 @@
+# v0.18.9 - 2026-09-07
+
+* webanno: fix targets output
+
 # v0.18.8 - 2026-06-05
 
 * translate: compute translation pivot in before the translate() function
