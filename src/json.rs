@@ -5,7 +5,7 @@
 
         Licensed under the GNU General Public License v3
 
-        https://github.com/annotation/stam-rust
+        https://codeberg.org/proycon/stam-rust
 */
 
 //! This module contains the [`ToJson`] and [`FromJson`] trait thare are used

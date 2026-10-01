@@ -1,11 +1,9 @@
 <p align="center">
-    <img src="https://github.com/annotation/stam/raw/master/logo.png" alt="stam logo" width="320" />
+    <img src="logo.png" alt="stam logo" width="320" />
 </p>
 
 [![Crate](https://img.shields.io/crates/v/stam.svg)](https://crates.io/crates/stam)
 [![Docs](https://docs.rs/stam/badge.svg)](https://docs.rs/stam/)
-[![GitHub build](https://github.com/annotation/stam-rust/actions/workflows/stam.yml/badge.svg?branch=master)](https://github.com/annotation/stam-rust/actions/)
-[![GitHub release](https://img.shields.io/github/release/annotation/stam-rust.svg)](https://GitHub.com/annotation/stam-rust/releases/)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 ![Technology Readiness Level 8/9 - Complete - Technology complete and qualified, released for all end-users in scholarly environments.](https://w3id.org/research-technology-readiness-levels/Level8Complete.svg)
 
@@ -14,20 +12,20 @@
 STAM is a standalone data model for stand-off text annotation. This is a
 software library to work with the model from Rust, and is the primary
 library/reference implementation for STAM. It aims to implement the full model
-as per the [STAM specification](https://github.com/annotation/stam) and most of
+as per the [STAM specification](https://proycon.codeberg.page/stam/specs/) and most of
 the extensions.
 
 **What can you do with this library?**
 
 * Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
-* Search in annotations, data and text, either programmatically or via the [STAM Query Language](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+* Search in annotations, data and text, either programmatically or via the [STAM Query Language](https://proycon.codeberg.page/stam/specs/extensions/stam-query/).
     * Search annotations by data, textual content, relations between text fragments (overlap, embedding, adjacency, etc),
     * Search in text (incl. via regular expressions) and find annotations targeting found text selections.
     * Search in data (set,key,value) and find annotations that use the data.
     * Elementary text operations with regard for text offsets (splitting text on a delimiter, stripping text).
     * Convert between different kind of offsets (absolute, relative to other structures, UTF-8 bytes vs unicode codepoints, etc)
 * Read and write resources and annotations from/to STAM JSON, STAM CSV, or an optimised binary (CBOR) representation
-    * The underlying [STAM model](https://github.com/annotation/stam) aims to be clear and simple. It is flexible and 
+    * The underlying [STAM model](https://codeberg.org/proycon/stam) aims to be clear and simple. It is flexible and 
       does not commit to any vocabulary or annotation paradigm other than stand-off annotation.
 
 This STAM library is intended as a foundation upon which further applications
@@ -166,13 +164,13 @@ The implementation will ensure to reuse any already existing `AnnotationData` if
 
 ### Serialisation to file
 
-You can serialize the entire annotation store (including all sets and annotations) to a [STAM JSON](https://github.com/annotation/stam#stam-json) file:
+You can serialize the entire annotation store (including all sets and annotations) to a [STAM JSON](https://proycon.codeberg.page/stam/specs/#stam-json) file:
 
 ```rust
 store.to_file("example.stam.json")?;
 ```
 
-Or to a [STAM CSV](https://github.com/annotation/stam/tree/master/extensions/stam-csv) file (this will actually create separate derived CSV files for sets and and annotations):
+Or to a [STAM CSV](https://proycon.codeberg.page/stam/specs/extensions/stam-csv/) file (this will actually create separate derived CSV files for sets and and annotations):
 
 ```rust
 store.to_file("example.stam.csv")?;
@@ -367,7 +365,7 @@ for word in sentence.related_text(stam::TextSelectionOperator::embeds()).annotat
 
 Rather than searching programmatically, you can also express queries via the
 [STAM Query Language
-(STAMQL)](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+(STAMQL)](https://proycon.codeberg.page/stam/specs/extensions/stam-query/).
 Do note that this incurs a performance penalty due to extra overhead:
 
 ```rust
@@ -394,14 +392,17 @@ examples.
 
 This library implements the following STAM extensions:
 
-* [STAM-CSV](https://github.com/annotation/stam/tree/master/extensions/stam-csv) - Defines an alternative serialisation format using CSV.
-* [STAM-Query](https://github.com/annotation/stam/tree/master/extensions/stam-query) - Defines the STAM Query Language. 
-* [STAM-Transpose](https://github.com/annotation/stam/tree/master/extensions/stam-transpose) -  Defines linking identical textual parts across resources. 
-* [STAM-Textvalidation](https://github.com/annotation/stam/tree/master/extensions/stam-textvalidation) - Defines a mechanism to ensure annotation targets can be checked for changes. 
+* [STAM-CSV](https://proycon.codeberg.page/stam/specs/extensions/stam-csv/) - Defines an alternative serialisation format using CSV.
+* [STAM-Query](https://proycon.codeberg.page/stam/specs/extensions/stam-query/) - Defines the STAM Query Language.
+* [STAM-Transpose](https://proycon.codeberg.page/stam/specs/extensions/stam-transpose/) -  Defines linking identical textual parts across resources.
+* [STAM-Translate](https://proycon.codeberg.page/stam/specs/extensions/stam-translate/) -  Defines linking arbitrary textual parts across resources.
+* [STAM-Textvalidation](https://proycon.codeberg.page/stam/specs/extensions/stam-textvalidation/) - Defines a mechanism to ensure annotation targets can be checked for changes.
 
-## Python binding
+## Additional software
 
-This library comes with a binding for Python, see [here](https://github.com/annotation/stam-python).
+* This library is used in the STAM  binding for Python, see [here](https://codeberg.org/proycon/stam-python).
+* This library is used in a set of command-line tools to work with STAM, see [here](https://codeberg.org/proycon/stam-tools).
+* This library is used in a STAM webservice, see [here](https://codeberg.org/proycon/stamd).
 
 ## Acknowledgements
 

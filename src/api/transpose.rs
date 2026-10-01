@@ -1,3 +1,19 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://codeberg.org/proycon/stam-rust
+*/
+
+//! This module implements linking identical textual parts (including across resources), which we call transposition.
+//! Read the [STAM Transpose Extension Specification](https://proycon.codeberg.page/stam/specs/extensions/stam-transpose/).
+//!
+//! Being a STAM extension, this module is implemented as an extra feature and may be enabled/disabled
+//! at compile time.
+
 use std::collections::VecDeque;
 
 use crate::{api::*, ResultTextSelection};
@@ -126,7 +142,7 @@ impl<'store> TryFrom<ResultItem<'store, Annotation>> for TranspositionPivot<'sto
 pub trait Transposable<'store> {
     /// The transpose function maps an annotation, textselection, or textselection set from
     /// one coordinate system to another. These mappings are defined in annotations called
-    /// **transpositions** and are documented here: https://github.com/annotation/stam/blob/master/extensions/stam-transpose/README.md
+    /// **transpositions** and are documented here: <https://proycon.codeberg.page/stam/specs/extensions/stam-transpose/>
     /// Transpositions link identical textual parts across resources, any annotations within
     /// the bounds of such a mapping can then be *transposed* using this function to the other coordinate system.
     ///

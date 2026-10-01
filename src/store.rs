@@ -5,7 +5,7 @@
 
         Licensed under the GNU General Public License v3
 
-        https://github.com/annotation/stam-rust
+        https://codeberg.org/proycon/stam-rust
 */
 
 //! This module implements the low-level concept of a [`Store`], which is essentially a vector over certain

@@ -5,11 +5,11 @@
 
         Licensed under the GNU General Public License v3
 
-        https://github.com/annotation/stam-rust
+        https://codeberg.org/proycon/stam-rust
 */
 
 //! This module implements serialisation and deserialisation to CSV, as defined in the
-//! [STAM CSV Extension](https://github.com/annotation/stam/tree/master/extensions/stam-csv).
+//! [STAM CSV Extension](https://proycon.codeberg.page/stam/specs/extensions/stam-csv/).
 //!
 //! Being a STAM extension, this module is implemented as an extra feature and may be enabled/disabled
 //! at compile time.

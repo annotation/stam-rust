@@ -1,3 +1,19 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://codeberg.org/proycon/stam-rust
+*/
+
+//! This module implements linking arbitrary textual parts (including across resources), which we call translations.
+//! Read the [STAM Translate Extension Specification](https://proycon.codeberg.page/stam/specs/extensions/stam-translate/).
+//!
+//! Being a STAM extension, this module is implemented as an extra feature and may be enabled/disabled
+//! at compile time.
+
 use crate::datavalue::DataValue;
 use crate::selector::{Offset, SelectorBuilder};
 use crate::text::Text;
@@ -68,7 +84,7 @@ impl Default for TranslationSide {
 pub trait Translatable<'store> {
     /// The translate function maps an annotation, textselection, or textselection set from
     /// one coordinate system to another. These mappings are defined in annotations called
-    /// **translations** and are documented here: https://github.com/annotation/stam/blob/master/extensions/stam-translate/README.md
+    /// **translations** and are documented here: <https://proycon.codeberg.page/stam/specs/extensions/stam-translate/>.
     /// translations link identical textual parts across resources, any annotations within
     /// the bounds of such a mapping can then be *translated* using this function to the other coordinate system.
     ///

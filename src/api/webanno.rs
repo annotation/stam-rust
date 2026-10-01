@@ -1,3 +1,19 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://codeberg.org/proycon/stam-rust
+*/
+
+//! This module implements serialisation to W3C Web Annotations.
+//! Read the [STAM WebAnnotations Specification](https://proycon.codeberg.page/stam/specs/extensions/stam-webannotations/).
+//!
+//! Being a STAM extension, this module is implemented as an extra feature and may be enabled/disabled
+//! at compile time.
+
 use crate::api::*;
 use crate::AnnotationDataSet;
 use crate::DataValue;
@@ -366,7 +382,7 @@ impl<'store> ResultItem<'store, Annotation> {
             ann_out += &format!(" \"generated\": \"{}\",", Local::now().to_rfc3339());
         }
         if config.auto_generator && !suppress_auto_generator {
-            ann_out += "  \"generator\": { \"id\": \"https://github.com/annotation/stam-rust\", \"type\": \"Software\", \"name\": \"STAM Library\"  },";
+            ann_out += "  \"generator\": { \"id\": \"https://codeberg.org/proycon/stam-rust\", \"type\": \"Software\", \"name\": \"STAM Library\"  },";
         }
 
         if !body_out.is_empty() {

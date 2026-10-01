@@ -5,7 +5,7 @@
 
         Licensed under the GNU General Public License v3
 
-        https://github.com/annotation/stam-rust
+        https://codeberg.org/proycon/stam-rust
 */
 
 //! This module contains the low-level API for [`TextSelection`]. It defines and implements the

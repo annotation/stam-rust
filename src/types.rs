@@ -5,7 +5,7 @@
 
         Licensed under the GNU General Public License v3
 
-        https://github.com/annotation/stam-rust
+        https://codeberg.org/proycon/stam-rust
 */
 
 //! This module implements some common types that are found throughout the API, both low and high-level.
@@ -259,7 +259,7 @@ impl std::fmt::Display for Type {
 /// Data formats for serialisation and deserialisation supported by the library.
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Decode, Encode)]
 pub enum DataFormat {
-    /// STAM JSON, see the [specification](https://github.com/annotation/stam/blob/master/README.md#stam-json)
+    /// STAM JSON, see the [specification](https://proycon.codeberg.page/stam/specs/#stam-json)
     /// The canonical extension used by the library is `.stam.json`.
     #[n(0)]
     Json {
@@ -275,7 +275,7 @@ pub enum DataFormat {
     #[n(1)]
     CBOR,
 
-    /// STAM CSV, see the [specification](https://github.com/annotation/stam/tree/master/extensions/stam-csv)
+    /// STAM CSV, see the [specification](https://proycon.codeberg.page/stam/specs/extensions/stam-csv/)
     ///
     /// The canonical extension used by the library is `.stam.csv`.
     #[cfg(feature = "csv")]

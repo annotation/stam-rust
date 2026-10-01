@@ -1,3 +1,19 @@
+/*
+    STAM Library (Stand-off Text Annotation Model)
+        by Maarten van Gompel <proycon@anaproy.nl>
+        Digital Infrastucture, KNAW Humanities Cluster
+
+        Licensed under the GNU General Public License v3
+
+        https://codeberg.org/proycon/stam-rust
+*/
+
+//! This module implements the STAM Query Language (STAMQL).
+//! Read the [STAM Query Language Specificaiton](https://proycon.codeberg.page/stam/specs/extensions/stam-query/).
+//!
+//! Being a STAM extension, this module is implemented as an extra feature and may be enabled/disabled
+//! at compile time.
+
 #![allow(unused_imports)]
 #![allow(dead_code)]
 use crate::annotation::{Annotation, AnnotationHandle};
@@ -63,7 +79,7 @@ impl QueryType {
 #[derive(Debug, Clone)]
 /// This represents a query that can be performed on an [`AnnotationStore`] via
 /// [`AnnotationStore::query()`] to obtain anything in the store. A query can be formulated in
-/// [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query), a dedicated
+/// [STAMQL](https://codeberg.org/proycon/stam/tree/master/extensions/stam-query), a dedicated
 /// query language (via [`Query::parse()`], or it can be instantiated programmatically via
 /// [`Query::new()`].
 ///
@@ -1172,7 +1188,7 @@ impl<'a> Query<'a> {
         }
     }
 
-    /// Parses a query formulated in [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+    /// Parses a query formulated in [STAMQL](https://codeberg.org/proycon/stam/tree/master/extensions/stam-query).
     /// Returns the [`Query`] if successful, it can subsequently by passed to [`AnnotationStore.query()`] or a [`StamError::QuerySyntaxError`]
     /// if the query is not valid. See the documentation on [`Query`] itself for examples.
     pub fn parse(mut querystring: &'a str) -> Result<(Self, &'a str), StamError> {

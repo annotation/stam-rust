@@ -5,27 +5,27 @@
 
         Licensed under the GNU General Public License v3
 
-        https://github.com/annotation/stam-rust
+        https://codeberg.org/proycon/stam-rust
 */
 
 //! ## Introduction
 //!
 //! STAM is a standalone data model for stand-off text annotation. This is a software library to work with the
 //! model from Rust, and is the primary library/reference implementation for STAM. It aims to
-//! implement the full model as per the [STAM specification](https://github.com/annotation/stam) and most of the
+//! implement the full model as per the [STAM specification](https://proycon.codeberg.page/stam/specs/) and most of the
 //! extensions.
 //!
 //! **What can you do with this library?**
 //!
 //! * Keep, build and manipulate an efficient in-memory store of texts and annotations on texts
-//! * Search in annotations, data and text, either programmatically or via the [STAM Query Language](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+//! * Search in annotations, data and text, either programmatically or via the [STAM Query Language](https://proycon.codeberg.page/stam/specs/extensions/stam-query/).
 //!    * Search annotations by data, textual content, relations between text fragments (overlap, embedding, adjacency, etc).
 //!    * Search in text (incl. via regular expressions) and find annotations targeting found text selections.
 //!    * Elementary text operations with regard for text offsets (splitting text on a delimiter, stripping text).
 //!    * Search in data (set,key,value) and find annotations that use the data.
 //!    * Convert between different kind of offsets (absolute, relative to other structures, UTF-8 bytes vs unicode codepoints, etc)
 //! * Read and write resources and annotations from/to STAM JSON, STAM CSV, or an optimised binary (CBOR) representation.
-//!     * The underlying [STAM model](https://github.com/annotation/stam) aims to be clear and simple. It is flexible and
+//!     * The underlying [STAM model](https://codeberg.org/proycon/stam) aims to be clear and simple. It is flexible and
 //!       does not commit to any vocabulary or annotation paradigm other than stand-off annotation.
 //!
 //! This STAM library is intended as a foundation upon which further applications
@@ -67,7 +67,7 @@
 //!     * [`Resources`] ==  [`Handles<TextResource>`] - Arbitrary collection of [`TextResource`] (by reference).
 //!     * [`Keys`] == [`Handles<DataKey>`] - Arbitrary collection of [`DataKey`] (by reference).
 //! * **Querying:**
-//!     * [`Query`] - Holds a query, may be parsed from [STAMQL](https://github.com/annotation/stam/tree/master/extensions/stam-query).
+//!     * [`Query`] - Holds a query, may be parsed from [STAMQL](https://proycon.codeberg.page/stam/specs/extensions/stam-query/).
 //!     * [`QueryResultItems`]
 //!     * [`QueryResultItem`]
 //! * **Referencing Text (both high and low-level API):**
