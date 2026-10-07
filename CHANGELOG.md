@@ -1,3 +1,10 @@
+# v0.19.0 - 2026-10-07
+
+* Project moved from Github to Codeberg: https://codeberg.org/proycon/stam-rust
+  An in-house mirror also lives at https://gitlab.huc.knaw.nl/tt/stam-rust
+  This release updates internal URLs and documentation links
+* No actual functional changes since v0.18.9
+
 # v0.18.9 - 2026-09-07
 
 * webanno: fix targets output
